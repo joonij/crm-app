@@ -10,10 +10,11 @@ type Client = {
   id: number;
   name: string;
   phone: string | null;
-  progress_status: string | null;
-  contract_status: string | null;
+  progress_statuses: string | null;
+  contract_status: string | number | null; // DB에서 숫자(1) 또는 문자열("1")로 올 수 있음을 고려
 };
 
+// 첨부해주신 contract_status 테이블 기준 매핑 (Key: DB ID, Value: 표시 텍스트)
 const contractStatusMap: Record<string, string> = {
   "1": "계약완료",
   "2": "계약진행",
@@ -22,6 +23,7 @@ const contractStatusMap: Record<string, string> = {
   "5": "계약해지",
 };
 
+// 매핑 Key를 기준으로 스타일 지정
 const contractStatusStyleMap: Record<string, string> = {
   "1": "bg-green-50 text-green-700 border-green-200/80 hover:bg-green-100/70",
   "2": "bg-blue-50 text-blue-700 border-blue-200/80 hover:bg-blue-100/70",
@@ -87,23 +89,33 @@ export default function ClientsPage() {
 
   const filteredClients = useMemo(() => {
     if (!clients) return [];
+    
+    const cleanSearchTerm = searchTerm.replace(/[-\s]/g, "").toLowerCase();
+
     return clients.filter((client) => {
-      const matchesSearch = client.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                            (client.phone && client.phone.includes(searchTerm));
-      const matchesStatus = statusFilter === "all" || client.contract_status === statusFilter;
+      const cleanPhone = client.phone ? client.phone.replace(/[-\s]/g, "") : "";
+      const matchesSearch = 
+        client.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        cleanPhone.includes(cleanSearchTerm);
+      
+      // DB에서 가져온 값이 숫자일 경우를 대비해 문자열로 변환 후 비교
+      const clientStatusId = client.contract_status !== null ? String(client.contract_status) : "";
+      const matchesStatus = statusFilter === "all" || clientStatusId === statusFilter;
+      
       return matchesSearch && matchesStatus;
     });
   }, [clients, searchTerm, statusFilter]);
   
-  const handleStatusChange = async (clientId: number, newStatus: string) => {
+  const handleStatusChange = async (clientId: number, newStatusId: string) => {
     setClients((prev) =>
-      prev ? prev.map((c) => (c.id === clientId ? { ...c, contract_status: newStatus } : c)) : null
+      prev ? prev.map((c) => (c.id === clientId ? { ...c, contract_status: newStatusId } : c)) : null
     );
     setEditingClientId(null);
 
     const { error } = await supabase
       .from("clients")
-      .update({ contract_status: newStatus })
+      // DB 스키마에 따라 숫자로 저장해야 한다면 Number(newStatusId)로 변환 필요할 수 있음
+      .update({ contract_status: newStatusId })
       .eq("id", clientId);
 
     if (error) {
@@ -116,7 +128,7 @@ export default function ClientsPage() {
   const handleToggleStep = async (stepId: string) => {
     if (!progressModalClient) return;
 
-    const currentSteps = parseSteps(progressModalClient.progress_status);
+    const currentSteps = parseSteps(progressModalClient.progress_statuses);
     const isCompleted = currentSteps.includes(stepId);
     
     const newSteps = isCompleted
@@ -125,14 +137,14 @@ export default function ClientsPage() {
 
     const newStatusString = JSON.stringify(newSteps);
 
-    setProgressModalClient({ ...progressModalClient, progress_status: newStatusString });
+    setProgressModalClient({ ...progressModalClient, progress_statuses: newStatusString });
     setClients((prev) =>
-      prev ? prev.map((c) => (c.id === progressModalClient.id ? { ...c, progress_status: newStatusString } : c)) : null
+      prev ? prev.map((c) => (c.id === progressModalClient.id ? { ...c, progress_statuses: newStatusString } : c)) : null
     );
 
     const { error } = await supabase
       .from("clients")
-      .update({ progress_status: newStatusString })
+      .update({ progress_statuses: newStatusString })
       .eq("id", progressModalClient.id);
 
     if (error) {
@@ -184,12 +196,18 @@ export default function ClientsPage() {
             />
           </div>
           <div className="flex gap-2 overflow-x-auto pb-1 md:pb-0">
-            <button onClick={() => setStatusFilter("all")} className={`px-4 py-2.5 rounded-xl text-sm font-bold whitespace-nowrap ${statusFilter === "all" ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-600"}`}>전체</button>
-            {Object.entries(contractStatusMap).map(([key, label]) => (
+            <button 
+              onClick={() => setStatusFilter("all")} 
+              className={`px-4 py-2.5 rounded-xl text-sm font-bold whitespace-nowrap ${statusFilter === "all" ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+            >
+              전체
+            </button>
+            {/* Object.entries를 통해 키(ID)와 값(텍스트)을 매핑하여 필터 버튼 생성 */}
+            {Object.entries(contractStatusMap).map(([idKey, label]) => (
               <button 
-                key={key} 
-                onClick={() => setStatusFilter(key)}
-                className={`px-4 py-2.5 rounded-xl text-sm font-bold whitespace-nowrap ${statusFilter === key ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600"}`}
+                key={idKey} 
+                onClick={() => setStatusFilter(idKey)}
+                className={`px-4 py-2.5 rounded-xl text-sm font-bold whitespace-nowrap ${statusFilter === idKey ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
               >
                 {label}
               </button>
@@ -198,10 +216,10 @@ export default function ClientsPage() {
         </div>
       </section>
 
-      {/* 리스트 섹션 (반응형 적용) */}
+      {/* 리스트 섹션 */}
       <section className="w-full rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
         
-        {/* 💻 데스크탑 뷰 (기존 가로 테이블 형식) - md(태블릿) 사이즈 이상에서만 노출 */}
+        {/* 💻 데스크탑 뷰 */}
         <div className="hidden md:block overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50/80">
@@ -214,16 +232,19 @@ export default function ClientsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 bg-white">
-              {clients.length === 0 ? (
+              {filteredClients.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="px-6 py-12 text-center text-sm text-gray-500">
-                    등록된 고객이 없습니다. 새 고객을 등록해주세요.
+                    {clients.length === 0 
+                      ? "등록된 고객이 없습니다. 새 고객을 등록해주세요." 
+                      : "검색 조건에 맞는 고객이 없습니다."}
                   </td>
                 </tr>
               ) : (
-                clients.map((client) => {
-                  const completedSteps = parseSteps(client.progress_status);
+                filteredClients.map((client) => {
+                  const completedSteps = parseSteps(client.progress_statuses);
                   const progressPercent = Math.round((completedSteps.length / SALES_STEPS.length) * 100);
+                  const clientStatusId = client.contract_status !== null ? String(client.contract_status) : "";
 
                   return (
                     <tr key={client.id} className="hover:bg-blue-50/20 transition-colors group">
@@ -250,26 +271,24 @@ export default function ClientsPage() {
                         <div className="flex items-center h-8 w-28">
                           {editingClientId === client.id ? (
                             <select
-                              value={client.contract_status || ""}
+                              value={clientStatusId}
                               onChange={(e) => handleStatusChange(client.id, e.target.value)}
                               onBlur={() => setEditingClientId(null)}
                               className="w-full h-8 rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs font-bold text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                               autoFocus
                             >
                               <option value="">선택 안함</option>
-                              <option value="1">계약완료</option>
-                              <option value="2">계약진행</option>
-                              <option value="3">계약보류</option>
-                              <option value="4">계약거절</option>
-                              <option value="5">계약해지</option>
+                              {Object.entries(contractStatusMap).map(([idKey, label]) => (
+                                <option key={idKey} value={idKey}>{label}</option>
+                              ))}
                             </select>
                           ) : (
                             <span
                               onClick={() => setEditingClientId(client.id)}
-                              className={`w-full h-7 inline-flex items-center justify-center rounded-md border text-xs font-bold cursor-pointer transition-all shadow-sm ${contractStatusStyleMap[client.contract_status || ""] || "bg-gray-50 text-gray-400 border-gray-200 border-dashed hover:bg-gray-100"}`}
+                              className={`w-full h-7 inline-flex items-center justify-center rounded-md border text-xs font-bold cursor-pointer transition-all shadow-sm ${contractStatusStyleMap[clientStatusId] || "bg-gray-50 text-gray-400 border-gray-200 border-dashed hover:bg-gray-100"}`}
                               title="클릭하여 상태 변경"
                             >
-                              {contractStatusMap[client.contract_status || ""] || "미지정"}
+                              {contractStatusMap[clientStatusId] || "미지정"}
                             </span>
                           )}
                         </div>
@@ -285,14 +304,17 @@ export default function ClientsPage() {
           </table>
         </div>
 
-        {/* 📱 모바일 뷰 (세로 카드 형식) - 모바일 화면에서만 노출 */}
+        {/* 📱 모바일 뷰 */}
         <div className="md:hidden flex flex-col divide-y divide-gray-100 bg-gray-50/30">
-          {clients.length === 0 ? (
-            <div className="p-8 text-center text-sm text-gray-500">등록된 고객이 없습니다.</div>
+          {filteredClients.length === 0 ? (
+            <div className="p-8 text-center text-sm text-gray-500">
+              {clients.length === 0 ? "등록된 고객이 없습니다." : "검색 조건에 맞는 고객이 없습니다."}
+            </div>
           ) : (
-            clients.map((client) => {
-              const completedSteps = parseSteps(client.progress_status);
+            filteredClients.map((client) => {
+              const completedSteps = parseSteps(client.progress_statuses);
               const progressPercent = Math.round((completedSteps.length / SALES_STEPS.length) * 100);
+              const clientStatusId = client.contract_status !== null ? String(client.contract_status) : "";
 
               return (
                 <div key={client.id} className="p-4 flex flex-col gap-4 bg-white hover:bg-gray-50 transition-colors">
@@ -303,29 +325,26 @@ export default function ClientsPage() {
                       {client.name}
                     </Link>
                     
-                    {/* 모바일용 계약상태 배지/셀렉트 */}
                     <div className="h-8 w-24">
                       {editingClientId === client.id ? (
                         <select
-                          value={client.contract_status || ""}
+                          value={clientStatusId}
                           onChange={(e) => handleStatusChange(client.id, e.target.value)}
                           onBlur={() => setEditingClientId(null)}
                           className="w-full h-8 rounded-md border border-gray-300 bg-white px-1 py-1 text-[11px] font-bold text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none"
                           autoFocus
                         >
                           <option value="">선택 안함</option>
-                          <option value="1">계약완료</option>
-                          <option value="2">계약진행</option>
-                          <option value="3">계약보류</option>
-                          <option value="4">계약거절</option>
-                          <option value="5">계약해지</option>
+                          {Object.entries(contractStatusMap).map(([idKey, label]) => (
+                            <option key={idKey} value={idKey}>{label}</option>
+                          ))}
                         </select>
                       ) : (
                         <span
                           onClick={() => setEditingClientId(client.id)}
-                          className={`w-full h-7 inline-flex items-center justify-center rounded border text-[11px] font-bold cursor-pointer transition-all shadow-sm ${contractStatusStyleMap[client.contract_status || ""] || "bg-gray-50 text-gray-400 border-gray-200 border-dashed"}`}
+                          className={`w-full h-7 inline-flex items-center justify-center rounded border text-[11px] font-bold cursor-pointer transition-all shadow-sm ${contractStatusStyleMap[clientStatusId] || "bg-gray-50 text-gray-400 border-gray-200 border-dashed"}`}
                         >
-                          {contractStatusMap[client.contract_status || ""] || "미지정"}
+                          {contractStatusMap[clientStatusId] || "미지정"}
                         </span>
                       )}
                     </div>
@@ -368,7 +387,6 @@ export default function ClientsPage() {
           className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/60 md:p-4 transition-opacity animate-in fade-in"
           onClick={() => setProgressModalClient(null)} 
         >
-          {/* 모바일에서는 바닥에 딱 붙게(바텀 시트 룩), PC에서는 중앙 모달로 */}
           <div 
             className="bg-white w-full max-w-lg rounded-t-2xl md:rounded-2xl shadow-2xl flex flex-col max-h-[85vh] animate-in slide-in-from-bottom-4 md:zoom-in-95"
             onClick={(e) => e.stopPropagation()} 
@@ -393,7 +411,7 @@ export default function ClientsPage() {
 
             <div className="px-4 md:px-6 py-4 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 pb-safe">
               {SALES_STEPS.map((step, index) => {
-                const currentSteps = parseSteps(progressModalClient.progress_status);
+                const currentSteps = parseSteps(progressModalClient.progress_statuses);
                 const isChecked = currentSteps.includes(step.id);
                 
                 return (

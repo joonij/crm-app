@@ -1,20 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 import {
   Calendar,
   ChevronLeft,
   ChevronRight,
   LayoutDashboard,
   Users,
+  GraduationCap,
+  Lock,
 } from "lucide-react";
 
+// 메뉴 구성에 requiredRole 추가
 const navItems = [
-  { label: "대시보드", href: "/", icon: LayoutDashboard },
-  { label: "고객 관리", href: "/clients", icon: Users },
-  { label: "상담 일정", href: "/schedules", icon: Calendar },
+  { label: "대시보드", href: "/", icon: LayoutDashboard, requiredRole: "user" },
+  { label: "고객 관리", href: "/clients", icon: Users, requiredRole: "user" },
+  { label: "상담 일정", href: "/schedules", icon: Calendar, requiredRole: "user" },
+  { label: "사내 교육", href: "/training", icon: GraduationCap, requiredRole: "admin" },
 ] as const;
 
 function isActivePath(pathname: string, href: string) {
@@ -25,6 +30,28 @@ function isActivePath(pathname: string, href: string) {
 export default function Sidebar() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(true);
+  const [userRole, setUserRole] = useState<string>("user"); // 기본값 user
+  const [userName, setUserName] = useState<string>("정준희 ASM"); // 기존 하드코딩 유지, 필요시 업데이트
+
+  useEffect(() => {
+    async function fetchUserProfile() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        // profiles 테이블에서 권한과 이름 가져오기
+        const { data } = await supabase
+          .from("profiles")
+          .select("role, name")
+          .eq("id", user.id)
+          .single();
+        
+        if (data) {
+          if (data.role) setUserRole(data.role);
+          if (data.name) setUserName(`${data.name} ASM`);
+        }
+      }
+    }
+    fetchUserProfile();
+  }, []);
 
   return (
     <aside
@@ -63,9 +90,30 @@ export default function Sidebar() {
 
       <nav className="px-2 py-5">
         <ul className="space-y-1">
-          {navItems.map(({ label, href, icon: Icon }) => {
+          {navItems.map(({ label, href, icon: OriginalIcon, requiredRole }) => {
             const active = isActivePath(pathname, href);
+            // 권한 체크: 필요한 권한이 admin인데 현재 유저가 admin이 아니면 잠금 처리
+            const isLocked = requiredRole === "admin" && userRole !== "admin";
+            const Icon = isLocked ? Lock : OriginalIcon;
 
+            // 잠긴 메뉴 렌더링
+            if (isLocked) {
+              return (
+                <li key={href}>
+                  <div
+                    title={isOpen ? undefined : `${label} (접근 불가)`}
+                    className={`flex items-center rounded-lg py-2.5 text-sm font-medium transition-colors cursor-not-allowed opacity-50 ${
+                      isOpen ? "gap-3 px-3" : "justify-center px-2"
+                    } text-gray-500 hover:bg-gray-900`}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" strokeWidth={2} />
+                    {isOpen && <span className="truncate">{label}</span>}
+                  </div>
+                </li>
+              );
+            }
+
+            // 정상 메뉴 렌더링
             return (
               <li key={href}>
                 <Link
@@ -100,15 +148,15 @@ export default function Sidebar() {
       >
         {isOpen ? (
           <>
-            <p className="text-xs text-gray-500">정준희 ASM</p>
+            <p className="text-xs text-gray-500">{userName}</p>
             <p className="mt-0.5 text-sm text-gray-300">한강 6팀</p>
           </>
         ) : (
           <div
             className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-800 text-xs font-semibold text-gray-300"
-            title="정준희 ASM"
+            title={userName}
           >
-            정
+            {userName.substring(0, 1)}
           </div>
         )}
       </div>
