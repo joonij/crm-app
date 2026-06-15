@@ -11,10 +11,9 @@ type Client = {
   name: string;
   phone: string | null;
   progress_statuses: string | null;
-  contract_status: string | number | null; // DB에서 숫자(1) 또는 문자열("1")로 올 수 있음을 고려
+  contract_status: string | number | null;
 };
 
-// 첨부해주신 contract_status 테이블 기준 매핑 (Key: DB ID, Value: 표시 텍스트)
 const contractStatusMap: Record<string, string> = {
   "1": "계약완료",
   "2": "계약진행",
@@ -23,7 +22,6 @@ const contractStatusMap: Record<string, string> = {
   "5": "계약해지",
 };
 
-// 매핑 Key를 기준으로 스타일 지정
 const contractStatusStyleMap: Record<string, string> = {
   "1": "bg-green-50 text-green-700 border-green-200/80 hover:bg-green-100/70",
   "2": "bg-blue-50 text-blue-700 border-blue-200/80 hover:bg-blue-100/70",
@@ -98,7 +96,6 @@ export default function ClientsPage() {
         client.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
         cleanPhone.includes(cleanSearchTerm);
       
-      // DB에서 가져온 값이 숫자일 경우를 대비해 문자열로 변환 후 비교
       const clientStatusId = client.contract_status !== null ? String(client.contract_status) : "";
       const matchesStatus = statusFilter === "all" || clientStatusId === statusFilter;
       
@@ -114,7 +111,6 @@ export default function ClientsPage() {
 
     const { error } = await supabase
       .from("clients")
-      // DB 스키마에 따라 숫자로 저장해야 한다면 Number(newStatusId)로 변환 필요할 수 있음
       .update({ contract_status: newStatusId })
       .eq("id", clientId);
 
@@ -165,49 +161,58 @@ export default function ClientsPage() {
   return (
     <div className="w-full mx-auto max-w-6xl space-y-6 md:space-y-8 p-4 md:p-8 relative pb-20">
       
-      {/* 헤더 섹션 */}
-      <section className="w-full rounded-2xl border border-gray-200 bg-white p-5 md:p-8 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">Client Management</p>
-          <h1 className="mt-2 text-3xl md:text-4xl font-bold tracking-tight text-gray-900 flex items-center gap-2">
-            <Users className="w-7 h-7 md:w-8 md:h-8 text-blue-600" />
-            고객 관리
-          </h1>
-          <p className="mt-3 text-sm md:text-base text-gray-500">등록된 고객 정보를 조회하고 관리합니다.</p>
-        </div>
+      {/* ⭐️ 헤더 섹션 (반응형 2단 분리 레이아웃 적용) */}
+      <section className="w-full rounded-2xl border border-gray-200 bg-white p-5 md:p-7 shadow-sm flex flex-col gap-5 md:gap-6">
         
-        <button
-          type="button"
-          onClick={() => setIsModalOpen(true)}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-5 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-gray-800 shrink-0"
-        >
-          <Plus className="h-5 w-5" strokeWidth={2} />
-          새 고객 등록
-        </button>
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+        {/* 1단: 타이틀 및 액션 버튼 */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">Client Management</p>
+            <h1 className="mt-1 text-2xl md:text-3xl font-bold tracking-tight text-gray-900 flex items-center gap-2">
+              <Users className="w-6 h-6 md:w-8 md:h-8 text-blue-600" />
+              고객 관리
+            </h1>
+            <p className="mt-2 text-sm text-gray-500">등록된 고객 정보를 조회하고 관리합니다.</p>
+          </div>
+          
+          <button
+            type="button"
+            onClick={() => setIsModalOpen(true)}
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-6 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-gray-800 shrink-0 shadow-sm"
+          >
+            <Plus className="h-5 w-5" strokeWidth={2} />
+            새 고객 등록
+          </button>
+        </div>
+
+        {/* 2단: 검색 및 필터 컨트롤 박스 */}
+        <div className="flex flex-col lg:flex-row gap-3 items-start lg:items-center bg-gray-50/70 p-2 md:p-3 rounded-xl border border-gray-100">
+          
+          {/* 검색 인풋 (좌측 고정) */}
+          <div className="relative w-full lg:w-[320px] shrink-0">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
               placeholder="이름이나 전화번호로 검색..."
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500/20 outline-none"
+              className="w-full pl-9 pr-4 py-2.5 rounded-lg border border-gray-200 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-sm transition-all shadow-sm"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <div className="flex gap-2 overflow-x-auto pb-1 md:pb-0">
+
+          {/* 필터 버튼 영역 (모바일 가로 스크롤 + 스크롤바 숨김) */}
+          <div className="flex w-full gap-2 overflow-x-auto pt-1 pb-1 lg:pt-0 lg:pb-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             <button 
               onClick={() => setStatusFilter("all")} 
-              className={`px-4 py-2.5 rounded-xl text-sm font-bold whitespace-nowrap ${statusFilter === "all" ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+              className={`shrink-0 px-4 py-2.5 rounded-lg text-sm font-bold transition-colors ${statusFilter === "all" ? "bg-gray-900 text-white shadow-sm" : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"}`}
             >
               전체
             </button>
-            {/* Object.entries를 통해 키(ID)와 값(텍스트)을 매핑하여 필터 버튼 생성 */}
             {Object.entries(contractStatusMap).map(([idKey, label]) => (
               <button 
                 key={idKey} 
                 onClick={() => setStatusFilter(idKey)}
-                className={`px-4 py-2.5 rounded-xl text-sm font-bold whitespace-nowrap ${statusFilter === idKey ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+                className={`shrink-0 px-4 py-2.5 rounded-lg text-sm font-bold transition-colors ${statusFilter === idKey ? "bg-blue-600 text-white shadow-sm" : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"}`}
               >
                 {label}
               </button>

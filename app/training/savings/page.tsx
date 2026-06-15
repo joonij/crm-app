@@ -6,7 +6,8 @@ import {
   ChevronLeft, ChevronRight, ArrowLeft, 
   Building2, TrendingUp, ShieldCheck, 
   Landmark, Quote, Zap, Snowflake, 
-  Droplet, Coins, Umbrella
+  Droplet, Coins, Umbrella,
+  Timer, TrendingDown, ShieldPlus, LineChart // 새로 추가된 아이콘들
 } from "lucide-react";
 
 export default function SavingsTrainingPage() {
@@ -31,7 +32,7 @@ export default function SavingsTrainingPage() {
             저축성 상품 심화<br />
             <span className="text-blue-600">금융 건강검진과 자산 극대화 전략</span>
           </h1>
-          <p className="text-xl text-gray-500 mt-6">고객의 니즈 파악부터 복리/비과세 클로징까지</p>
+          <p className="text-xl text-gray-500 mt-6 font-medium">고객의 니즈 파악부터 복리/비과세 클로징까지</p>
         </div>
       )
     },
@@ -77,9 +78,9 @@ export default function SavingsTrainingPage() {
         </div>
       )
     },
-    // 챕터 2~3 벤다이어그램 (대칭 비율 및 겹침 완벽 수정)
+    // 챕터 2 벤다이어그램 (대칭 비율 및 겹침 완벽 수정)
     {
-      id: "ch2-3",
+      id: "ch2",
       title: "Chapter 2. 3대 금융기관과 융합 상품",
       content: (
         <div className="h-full flex flex-col items-center justify-center relative">
@@ -134,9 +135,9 @@ export default function SavingsTrainingPage() {
         </div>
       )
     },
-    // 챕터 4-1. 단리와 복리 차이 (단리 선형 증가 구조로 수정)
+    // 챕터 3-1. 단리와 복리 차이 (단리 선형 증가 구조로 수정)
     {
-      id: "ch4-1",
+      id: "ch3-1",
       title: "Chapter 3-1. 이자가 붙는 두 가지 방식: 단리 vs 복리",
       content: (
         <div className="h-full flex flex-col justify-center">
@@ -174,10 +175,196 @@ export default function SavingsTrainingPage() {
         </div>
       )
     },
-    // 챕터 4-2
+    // 챕터 3-2.5 은행 적금 단리의 착시 현상 (1년 적금의 진실)
     {
-      id: "ch4-2",
-      title: "Chapter 3-2. 눈사람 만들기: 복리의 마법",
+      id: "ch3-2",
+      title: "Chapter 3-2. 은행 적금의 배신: 5% 이자의 진실",
+      content: (
+        <div className="h-full flex flex-col justify-center gap-6">
+          
+          <div className="grid grid-cols-2 gap-8 h-[420px]">
+            {/* 왼쪽: 고객의 착각 (X) */}
+            <div className="bg-red-50 border border-red-200 rounded-3xl p-8 flex flex-col relative shadow-sm">
+              <div className="absolute -top-4 -left-4 bg-red-500 text-white w-12 h-12 rounded-full flex items-center justify-center font-black text-2xl shadow-lg border-4 border-white transform -rotate-12">X</div>
+              <h3 className="text-2xl font-black text-red-900 mb-6 text-center">고객의 흔한 착각</h3>
+              
+              <div className="space-y-4 flex-1">
+                <div className="bg-white p-4 rounded-xl shadow-sm border border-red-100 flex justify-between items-center">
+                  <span className="text-gray-600 font-bold">월 적금액</span>
+                  <span className="text-lg font-black text-gray-900">100만 원</span>
+                </div>
+                <div className="bg-white p-4 rounded-xl shadow-sm border border-red-100 flex justify-between items-center">
+                  <span className="text-gray-600 font-bold">총 납입 원금</span>
+                  <span className="text-lg font-black text-gray-900">1,200만 원</span>
+                </div>
+                <div className="bg-white p-4 rounded-xl shadow-sm border border-red-100 flex justify-between items-center">
+                  <span className="text-gray-600 font-bold">표면 금리</span>
+                  <span className="text-lg font-black text-red-600">연 5%</span>
+                </div>
+                <div className="text-center pt-4">
+                  <p className="text-sm text-gray-500 mb-1">고객이 기대한 이자 (1,200만 x 5%)</p>
+                  <p className="text-4xl font-black text-red-600 line-through decoration-red-900 decoration-4">600,000원</p>
+                </div>
+              </div>
+            </div>
+
+            {/* 오른쪽: 은행의 실제 계산 (O) */}
+            <div className="bg-blue-50 border border-blue-200 rounded-3xl p-8 flex flex-col relative shadow-md transform">
+              <div className="absolute -top-4 -right-4 bg-blue-600 text-white w-12 h-12 rounded-full flex items-center justify-center font-black text-2xl shadow-lg border-4 border-white transform rotate-12">O</div>
+              <h3 className="text-2xl font-black text-blue-900 mb-4 text-center">은행의 실제 계산법 (단리)</h3>
+              
+              {/* ⭐️ 변경된 스크롤 영역: 미니 바 차트와 색상 변화 적용 */}
+              <div className="bg-white rounded-xl p-4 shadow-sm border border-blue-100 mb-4 h-[210px] overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-blue-200 [&::-webkit-scrollbar-thumb]:rounded-full relative">
+                
+                <ul className="text-xs text-gray-600 space-y-3 font-mono mt-2">
+                  {Array.from({ length: 12 }).map((_, i) => {
+                    const month = i + 1;
+                    const remain = 13 - month; // 12, 11, 10 ... 1
+                    const pct = Math.round((remain / 12) * 100);
+                    
+                    // 개월 수에 따른 색상 및 텍스트 변화 로직
+                    const isHigh = remain >= 9;
+                    const isMid = remain >= 5 && remain < 9;
+                    const barColor = isHigh ? 'bg-blue-500' : isMid ? 'bg-blue-300' : 'bg-gray-200';
+                    const textColor = isHigh ? 'text-blue-700 font-black' : isMid ? 'text-blue-400 font-bold' : 'text-gray-400 font-medium';
+
+                    return (
+                      <li key={month} className="flex flex-col gap-1.5 border-b border-gray-50 pb-2">
+                        <div className="flex justify-between items-center w-full">
+                          <span className="text-xl font-semibold text-gray-700">{month}개월 차 납입금</span>
+                          <span className="flex items-center gap-1.5 text-sm">
+                            <span className="text-gray-400 text-xl">× 5% ×</span>
+                            <span className={`text-xl bg-gray-50 px-2 py-0.5 rounded-md border border-gray-100 ${textColor}`}>
+                              {remain}/12
+                            </span>
+                          </span>
+                        </div>
+                        {/* 시각화 프로그레스 바 */}
+                        <div className="flex items-center gap-2">
+                          <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden flex-1">
+                            <div className={`h-full ${barColor}`} style={{ width: `${pct}%` }}></div>
+                          </div>
+                          <span className={`text-[10px] w-[110px] text-right truncate ${textColor}`}>
+                            {pct}% 이자율 적용
+                          </span>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+
+              <div className="text-center bg-blue-600 rounded-xl p-4 text-white shadow-inner shrink-0">
+                <p className="text-sm text-blue-200 mb-1">실제 받는 세전 이자 (실효수익률 약 2.7%)</p>
+                <p className="text-4xl font-black">325,000원</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gray-800 text-white p-4 rounded-xl text-center shadow-lg mx-auto w-[90%] mt-2">
+            <span className="font-bold text-yellow-400">링크:</span> <a href="https://zrr.kr/vWejGy" target="_blank">네이버 적금 계산기</a>
+          </div>
+        </div>
+      )
+    },
+    // 챕터 3-3.6 새로운 복리 아이디어: 덧셈 vs 곱셈의 세계 (레이아웃 수정 완료)
+    {
+      id: "ch3-3",
+      title: "Chapter 3-3. 부자들의 자산 증식 비밀: 덧셈(+) vs 곱셈(×)",
+      content: (
+        // ⭐️ gap을 6에서 4로 줄이고, 높이를 엄격하게 통제합니다.
+        <div className="h-full flex flex-col gap-4 py-2 overflow-hidden">
+          <p className="text-gray-500 text-center text-base font-medium shrink-0">
+            "가난한 사람은 돈을 <strong className="text-gray-800">더하고(+)</strong>, 부자는 돈을 <strong className="text-indigo-600">곱합니다(×)</strong>."
+          </p>
+
+          {/* ⭐️ flex-1 min-h-0을 통해 남는 공간에 딱 맞게 카드가 들어가도록 설정 */}
+          <div className="grid grid-cols-2 gap-4 flex-1 min-h-0">
+            {/* 1. 덧셈의 세계 (단리) */}
+            <div className="bg-white border-2 border-gray-200 rounded-2xl p-4 flex flex-col relative shadow-sm h-full overflow-hidden">
+              <div className="absolute top-3 right-3 bg-gray-100 text-gray-500 w-8 h-8 rounded-full flex items-center justify-center font-black text-xl shrink-0">
+                +
+              </div>
+              <h4 className="text-2xl font-black text-gray-800 mb-1 shrink-0">단리: 덧셈의 세계</h4>
+              <p className="text-xl text-gray-500 mb-3 shrink-0">원금만 일하는 1차원적 구조</p>
+              
+              <div className="flex-1 flex flex-col justify-center items-center gap-2 bg-gray-50 rounded-xl p-3 border border-gray-100 min-h-0">
+                <div className="flex items-center text-base md:text-3xl font-black text-gray-400 font-mono tracking-widest text-center flex-wrap justify-center shrink-0">
+                  100 <span className="text-gray-300 mx-1">+</span> 5 <span className="text-gray-300 mx-1">+</span> 5 <span className="text-gray-300 mx-1">+</span> 5
+                </div>
+                <div className="text-xl text-gray-500 font-medium bg-white px-3 py-1.5 rounded-full shadow-sm mt-1 text-center shrink-0">
+                  "매년 똑같은 금액만 쌓입니다"
+                </div>
+              </div>
+            </div>
+
+            {/* 2. 곱셈의 세계 (복리) */}
+            <div className="bg-indigo-50 border-2 border-indigo-300 rounded-2xl p-4 flex flex-col relative shadow-md transform h-full overflow-hidden z-10">
+              <div className="absolute top-3 right-3 bg-indigo-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-black text-xl shadow-lg shrink-0">
+                ×
+              </div>
+              <h4 className="text-2xl font-black text-indigo-900 mb-1 shrink-0">복리: 곱셈의 세계</h4>
+              <p className="text-xl  text-indigo-700 mb-3 shrink-0">이자가 자본이 되는 3차원적 증식 구조</p>
+              
+              <div className="flex-1 flex flex-col justify-center items-center gap-2 bg-white rounded-xl p-3 border border-indigo-100 shadow-sm min-h-0">
+                <div className="flex items-center text-base md:text-3xl font-black text-indigo-600 font-mono tracking-widest text-center flex-wrap justify-center shrink-0">
+                  100 <span className="text-indigo-300 mx-1">×</span> 1.05 <span className="text-indigo-300 mx-1">×</span> 1.05 <span className="text-indigo-300 mx-1">×</span> 1.05
+                </div>
+                <div className="text-xl text-indigo-600 font-bold bg-indigo-100 px-3 py-1.5 rounded-full shadow-inner mt-1 text-center shrink-0 animate-pulse">
+                  "시간이 갈수록 기하급수적으로 폭발"
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 하단: 시간의 마법 타임라인 (결정적 차이) */}
+          {/* ⭐️ shrink-0 속성을 유지하여 절대 위 요소에 눌려 찌그러지지 않게 방어 */}
+          <div className="bg-gray-900 rounded-2xl p-4 shadow-xl shrink-0 mt-1">
+            <h5 className="text-white text-center font-bold text-1xl mb-4">동일한 1,000만 원(연 5%)이 만들어내는 시간의 격차</h5>
+            
+            <div className="flex justify-between items-center relative px-2">
+              {/* 타임라인 연결선 */}
+              <div className="absolute top-1/2 left-6 right-6 h-1 bg-gray-700 -translate-y-1/2 z-0"></div>
+              
+              {/* 10년 후 */}
+              <div className="relative z-10 flex flex-col items-center bg-gray-900 px-2">
+                <span className="text-gray-400 text-1xl font-bold mb-1">10년 후</span>
+                <div className="w-3 h-3 rounded-full bg-gray-600 border border-gray-900 mb-1"></div>
+                <div className="text-center">
+                  <p className="text-gray-400 text-1xl">단리: 1,500만</p>
+                  <p className="text-indigo-400 font-bold text-1xl">복리: 1,628만</p>
+                </div>
+              </div>
+
+              {/* 20년 후 */}
+              <div className="relative z-10 flex flex-col items-center bg-gray-900 px-2">
+                <span className="text-gray-400 text-1xl font-bold mb-1">20년 후</span>
+                <div className="w-4 h-4 rounded-full bg-indigo-400 border border-gray-900 mb-1 shadow-[0_0_8px_rgba(129,140,248,0.5)]"></div>
+                <div className="text-center">
+                  <p className="text-gray-400 text-1xl">단리: 2,000만</p>
+                  <p className="text-indigo-400 font-bold ttext-1xl">복리: 2,653만</p>
+                </div>
+              </div>
+
+              {/* 30년 후 */}
+              <div className="relative z-10 flex flex-col items-center bg-gray-900 px-2">
+                <span className="text-white text-1xl font-black mb-1">30년 후 (은퇴 시점)</span>
+                <div className="w-5 h-5 rounded-full bg-indigo-500 border-2 border-gray-900 mb-1 shadow-[0_0_12px_rgba(99,102,241,0.8)] animate-pulse"></div>
+                <div className="text-center bg-gray-800 px-3 py-1.5 rounded-lg border border-gray-700">
+                  <p className="text-gray-400 text-1xl line-through decoration-red-500 mb-0.5">단리: 2,500만</p>
+                  <p className="text-indigo-400 font-black text-1xl">복리: 4,321만</p>
+                  <p className="text-yellow-400 text-1xl mt-0.5 font-bold">격차: 1,821만 원</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )
+    },
+    // 챕터 3-4
+    {
+      id: "ch3-4",
+      title: "Chapter 3-4. 눈사람 만들기: 복리의 마법",
       content: (
         <div className="h-full flex flex-col justify-center gap-8">
           <div className="flex bg-white p-10 rounded-3xl border border-blue-100 shadow-xl items-center gap-10">
@@ -195,10 +382,11 @@ export default function SavingsTrainingPage() {
         </div>
       )
     },
-    // 챕터 4-3
+    
+    // 챕터 3-5
     {
-      id: "ch4-3",
-      title: "Chapter 3-3. 밑빠진 독: 과세(세금)의 무서움",
+      id: "ch3-5",
+      title: "Chapter 3-5. 이자가 지급하는 두 가지 방식: 과세 vs 비과세",
       content: (
         <div className="h-full flex flex-col justify-center gap-8">
           <div className="flex bg-white p-10 rounded-3xl border border-red-100 shadow-xl items-center gap-10">
@@ -208,18 +396,85 @@ export default function SavingsTrainingPage() {
             <div className="space-y-4">
               <h3 className="text-3xl font-black text-red-900">과세는 <span className="text-red-600">밑빠진 독에 물 붓기</span>입니다.</h3>
               <div className="text-xl text-gray-700 leading-relaxed bg-red-50 p-6 rounded-2xl">
-                아무리 열심히 복리로 눈사람을 굴려도, 나라에서 매년 수익의 <strong>15.4%를 세금으로 떼어간다면(이자소득세)</strong> 어떻게 될까요?<br/><br/>
-                100만 원의 이자가 생기면 15만 4천 원을 뺏깁니다. <strong>물(이자)을 아무리 부어도 독(세금)에 구멍이 뚫려있어</strong>, 복리의 효과가 반감되고 돈이 눈에 띄게 불어나지 않습니다.
+              <br/>아무리 열심히 복리로 눈사람을 굴려도, 나라에서 매년 수익의 <strong>15.4%를 세금으로 떼어간다면(이자소득세)</strong> 어떻게 될까요?<br/><br/>
               </div>
             </div>
           </div>
         </div>
       )
     },
-    // 챕터 4-4
+    // 챕터 3-6.7 비과세의 위력 (과세 vs 비과세)
     {
-      id: "ch4-4",
-      title: "Chapter 3-4. 완벽한 방패: 비과세의 중요성",
+      id: "ch3-6",
+      title: "Chapter 3-6. 복리의 완성: 보이지 않는 도둑과 완벽한 방패",
+      content: (
+        <div className="h-full flex flex-col gap-4 py-2 overflow-hidden">
+          <p className="text-gray-500 text-center text-base font-medium shrink-0 text-xl">
+            "수익률 1% 높은 상품을 찾는 것보다, <strong className="text-gray-800">번 돈을 세금으로 안 뺏기는 것</strong>이 먼저입니다."
+          </p>
+
+          <div className="grid grid-cols-2 gap-4 flex-1 min-h-0">
+            <div className="bg-white border-2 border-red-200 rounded-2xl p-5 flex flex-col relative shadow-sm h-full overflow-hidden">
+              <div className="absolute top-3 right-3 bg-red-100 text-red-500 w-8 h-8 rounded-full flex items-center justify-center font-black text-lg shrink-0">
+                ✂️
+              </div>
+              <h4 className="font-black text-gray-800 mb-1 shrink-0 text-xl">과세: 보이지 않는 도둑</h4>
+              <p className="text-xl text-gray-500 mb-4 shrink-0">수익이 날 때마다 15.4% 강제 징수</p>
+              
+              <div className="flex-1 flex flex-col justify-center items-center gap-3 bg-red-50/50 rounded-xl p-4 border border-red-100 min-h-0">
+                <div className="w-full flex items-center h-8 bg-gray-200 rounded-full overflow-hidden shadow-inner relative">
+                  <div className="h-full bg-blue-400 w-[84.6%] flex items-center pl-3 text-[10px] font-bold text-white">
+                    내 몫 (84.6%)
+                  </div>
+                  <div className="h-full bg-red-500 w-[15.4%] flex items-center justify-center text-[10px] font-bold text-white relative">
+                    <span className="absolute -top-6 text-red-600 text-xs font-black animate-bounce">증발!</span>
+                    15.4%
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 2. 비과세 (완벽한 방패) */}
+            <div className="bg-emerald-50 border-2 border-emerald-300 rounded-2xl p-5 flex flex-col relative shadow-md transform h-full overflow-hidden z-10">
+              <div className="absolute top-3 right-3 bg-emerald-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-black text-lg shadow-lg shrink-0">
+                🛡️
+              </div>
+              <h4 className="text-lg font-black text-emerald-900 mb-1 shrink-0">비과세: 완벽한 방패</h4>
+              <p className="text-xs text-emerald-700 mb-4 shrink-0">10년 유지 시 세금 0원 (합법적 절세)</p>
+              
+              <div className="flex-1 flex flex-col justify-center items-center gap-3 bg-white rounded-xl p-4 border border-emerald-100 shadow-sm min-h-0">
+                <div className="w-full flex items-center h-8 bg-gray-200 rounded-full overflow-hidden shadow-inner relative border-2 border-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.5)]">
+                  <div className="h-full bg-emerald-500 w-full flex items-center justify-center text-[12px] font-black text-white tracking-widest">
+                    내 몫 (100% 전액)
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gray-900 rounded-3xl p-6 shadow-xl shrink-0 mt-2">
+            <h5 className="text-yellow-400 text-center font-black text-lg mb-4">"만약 이자로 딱 1,000만 원을 벌었다면?"</h5>
+            <div className="flex justify-between items-center bg-gray-800 rounded-2xl p-5 border border-gray-700">
+              <div className="flex-1 text-center pr-6">
+                <span className="text-gray-400 text-sm font-bold block mb-2">일반 과세 (15.4%)</span>
+                <p className="text-red-400 font-black text-2xl mb-2">- 154만 원 납부</p>
+                <p className="text-gray-300 text-xs bg-gray-700 inline-block px-3 py-1.5 rounded-lg">✈️ <span className="line-through">동남아 여행값 증발</span></p>
+              </div>
+              <div className="px-6 font-black text-gray-500 italic text-3xl">VS</div>
+              <div className="flex-1 text-center pl-6">
+                <span className="text-emerald-400 text-sm font-bold block mb-2">비과세 혜택 적용</span>
+                <p className="text-emerald-400 font-black text-2xl mb-2">세금 0원 (전액 수령)</p>
+                <p className="text-emerald-100 text-xs bg-emerald-800/50 inline-block px-3 py-1.5 rounded-lg border border-emerald-700/50">✈️ 고생한 나에게 선물로 여행까지 가능</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )
+    },
+    // 챕터 3-7
+    {
+      id: "ch3-7",
+      title: "Chapter 3-7. 완벽한 방패: 비과세의 중요성",
       content: (
         <div className="h-full flex flex-col justify-center gap-8">
           <div className="flex bg-white p-10 rounded-3xl border border-emerald-100 shadow-xl items-center gap-10">
@@ -239,7 +494,7 @@ export default function SavingsTrainingPage() {
     },
     // 챕터 5. 표 연동 벤다이어그램 구조 수정
     {
-      id: "ch5",
+      id: "ch4",
       title: "Chapter 4. 금융 상품별 혜택 총정리",
       content: (
         <div className="h-full flex items-center gap-10">
@@ -296,44 +551,270 @@ export default function SavingsTrainingPage() {
         </div>
       )
     },
-    // 챕터 6
+    
+// 챕터 4-1. 저축보험
     {
-      id: "ch6",
+      id: "ch4-1",
+      title: "Chapter 4-1. 저축보험: 시간이 부족한 마법사",
+      content: (
+        <div className="h-full flex flex-col gap-6 py-2 overflow-hidden">
+          <p className="text-gray-600 text-center text-xl font-bold shrink-0">
+            "복리는 <strong className="text-amber-600">시간이 금</strong>입니다. 하지만 저축보험은 그 시간을 허락하지 않습니다."
+          </p>
+
+          <div className="flex-1 flex gap-6 min-h-0">
+            <div className="flex-1 bg-white border-2 border-amber-200 rounded-3xl p-6 flex flex-col shadow-sm h-full overflow-hidden">
+              <div className="flex items-center gap-4 mb-4 shrink-0">
+                <div className="bg-amber-100 text-amber-600 p-3 rounded-2xl"><Timer className="w-8 h-8" /></div>
+                <h3 className="text-2xl font-black text-amber-900">녹아내리는 눈사람</h3>
+              </div>
+              <div className="space-y-4 flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden min-h-0">
+                <div className="bg-amber-50 p-5 rounded-2xl border border-amber-100">
+                  <p className="font-bold text-amber-800 mb-2 text-lg">❌ 치명적 한계: 짧은 만기</p>
+                  <p className="text-base text-gray-700 leading-relaxed font-medium">
+                    복리 효과는 10년, 20년이 지나야 눈덩이처럼 불어납니다. 하지만 저축보험은 보통 3~5년 만기입니다. <strong>이자가 새끼를 쳐서 폭발하려는 찰나에 강제 종료</strong>됩니다.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex-1 bg-amber-50 border-2 border-amber-200 rounded-3xl p-6 flex flex-col shadow-inner justify-center items-center relative overflow-hidden h-full">
+              <h4 className="font-black text-amber-900 mb-6 text-xl text-center shrink-0">만기의 벽에 부딪힌 복리 곡선</h4>
+              <div className="relative flex-1 w-full min-h-0 flex justify-center items-center px-4">
+                <svg viewBox="0 0 200 100" className="w-full h-full max-h-[220px] overflow-visible">
+                  <path d="M 10 90 Q 150 80 190 10" stroke="#fcd34d" strokeWidth="4" strokeDasharray="5 5" fill="none" />
+                  <path d="M 10 90 Q 70 87 90 80" stroke="#d97706" strokeWidth="6" fill="none" />
+                  <line x1="90" y1="100" x2="90" y2="10" stroke="#ef4444" strokeWidth="3" />
+                  <text x="95" y="45" fontSize="8" fill="#ef4444" fontWeight="black">강제 종료 (만기)</text>
+                  <circle cx="160" cy="35" r="6" fill="#fcd34d" className="opacity-60" />
+                  <text x="160" y="22" fontSize="8" fill="#d97706" textAnchor="middle" fontWeight="black">진짜 복리 폭발 지점</text>
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gray-800 text-white p-5 rounded-2xl text-center shadow-lg shrink-0 text-base">
+            <span className="font-bold text-amber-400">화법 TIP:</span> "고객님, 복리 엔진에 시동이 걸리려면 최소 10년이 필요합니다. 3년짜리 저축보험은 시동만 걸다 차에서 내리는 격입니다."
+          </div>
+        </div>
+      )
+    },
+
+// 챕터 4-2. 연금보험
+    {
+      id: "ch4-2",
+      title: "Chapter 4-2. 연금보험: 계단식으로 떨어지는 엔진",
+      content: (
+        <div className="h-full flex flex-col gap-6 py-2 overflow-hidden">
+          <p className="text-gray-600 text-center text-xl font-bold shrink-0">
+            "최저 보증? 안전해 보이지만, 사실 시간이 지날수록 <strong className="text-gray-900">이율 혜택이 계단식으로 반토막</strong> 납니다."
+          </p>
+
+          <div className="flex-1 flex gap-6 min-h-0">
+            <div className="flex-1 bg-white border-2 border-gray-300 rounded-3xl p-6 flex flex-col shadow-sm h-full overflow-hidden">
+              <div className="flex items-center gap-4 mb-4 shrink-0">
+                <div className="bg-gray-100 text-gray-700 p-3 rounded-2xl"><TrendingDown className="w-8 h-8" /></div>
+                <h3 className="text-2xl font-black text-gray-900">우하향하는 보증 이율</h3>
+              </div>
+              <div className="space-y-4 flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden min-h-0">
+                <div className="bg-gray-50 p-5 rounded-2xl border border-gray-200">
+                  <p className="font-bold text-gray-900 mb-2 text-lg">❌ 치명적 한계: 최저보증의 함정</p>
+                  <p className="text-base text-gray-700 leading-relaxed font-medium">
+                    안전하다며 유혹하지만, <strong>가입 후 5년 차에 한 번, 10년 차에 또 한 번 보증 이율이 낮아집니다.</strong> 가장 돈이 많이 쌓인 10년 뒤에는 가장 낮은 이율이 적용되어 폭발적인 복리 수익을 기대하기 어렵습니다.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex-1 bg-gray-50 border-2 border-gray-200 rounded-3xl p-6 flex flex-col shadow-inner justify-center relative overflow-hidden h-full">
+              <h4 className="font-black text-gray-900 mb-6 text-xl text-center shrink-0">연금보험 보증이율의 진실 (예시)</h4>
+              <div className="relative flex-1 w-full min-h-0 flex items-end gap-2 px-8 pb-4">
+                <div className="flex-1 flex flex-col justify-end h-full">
+                  <div className="bg-gray-400 w-full h-[90%] rounded-t-xl flex items-center justify-center text-white font-black text-2xl shadow-md">1.5%</div>
+                  <p className="text-center text-sm font-bold text-gray-600 mt-3">가입 ~ 5년</p>
+                </div>
+                <div className="flex-1 flex flex-col justify-end h-full">
+                  <div className="bg-gray-300 w-full h-[60%] rounded-t-xl flex items-center justify-center text-gray-800 font-black text-2xl shadow-md border-t-2 border-gray-400">1.0%</div>
+                  <p className="text-center text-sm font-bold text-gray-600 mt-3">5년 ~ 10년</p>
+                </div>
+                <div className="flex-1 flex flex-col justify-end h-full">
+                  <div className="bg-gray-200 w-full h-[30%] rounded-t-xl flex items-center justify-center text-gray-600 font-black text-2xl shadow-md border-t-2 border-gray-300">0.5%</div>
+                  <p className="text-center text-sm font-bold text-gray-600 mt-3">10년 초과~</p>
+                </div>
+                <svg className="absolute top-12 left-16 w-[70%] h-32 overflow-visible" viewBox="0 0 100 50">
+                  <path d="M 10 5 L 45 20 L 80 35" stroke="#ef4444" strokeWidth="4" fill="none" strokeDasharray="5 5"/>
+                  <polygon points="80,35 73,30 83,28" fill="#ef4444" transform="rotate(20 80 35)" />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gray-800 text-white p-5 rounded-2xl text-center shadow-lg shrink-0 text-base">
+            <span className="font-bold text-blue-400">화법 TIP:</span> "고객님, 연금보험은 재테크 상품이 아니라 안전 장치입니다. 자산을 폭발적으로 불리시려면 연금보험 하나로는 절대 부족합니다."
+          </div>
+        </div>
+      )
+    },
+
+// 챕터 4-3. 단기납 종신
+    {
+      id: "ch4-3",
+      title: "Chapter 4-3. 단기납 종신: 10년 확정 비과세의 신흥 강자",
+      content: (
+        <div className="h-full flex flex-col gap-6 py-2 overflow-hidden">
+          <p className="text-gray-600 text-center text-xl font-bold shrink-0">
+            "종신보험은 죽어야 나오는 돈? 아닙니다. <strong className="text-indigo-600">가장 확실한 10년짜리 확정 금리 저축통장</strong>으로 진화했습니다."
+          </p>
+
+          <div className="flex-1 flex gap-6 min-h-0">
+            <div className="flex-1 bg-white border-2 border-indigo-200 rounded-3xl p-6 flex flex-col shadow-sm h-full overflow-hidden">
+              <div className="flex items-center gap-4 mb-4 shrink-0">
+                <div className="bg-indigo-100 text-indigo-700 p-3 rounded-2xl"><ShieldPlus className="w-8 h-8" /></div>
+                <h3 className="text-2xl font-black text-indigo-900">확정 수익과 보장의 하이브리드</h3>
+              </div>
+              <div className="space-y-4 flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden min-h-0">
+                <div className="bg-indigo-50 p-5 rounded-2xl border border-indigo-100">
+                  <p className="font-bold text-indigo-900 mb-2 text-lg">🎯 핵심 경쟁력: 10년 차 환급률</p>
+                  <p className="text-base text-gray-800 leading-relaxed font-medium">
+                    과거처럼 20년씩 길게 내지 않습니다. <strong>5년, 7년 만에 납입을 일찍 끝내고</strong> 가만히 두면, 10년이 되는 시점에 <strong>120% 내외의 높은 확정 환급금</strong>이 발생합니다.
+                  </p>
+                </div>
+                <div className="bg-emerald-50 p-5 rounded-2xl border border-emerald-100">
+                  <p className="font-bold text-emerald-900 mb-2 text-lg">🛡️ 비과세 + 생명 보호 (1석 3조)</p>
+                  <p className="text-base text-emerald-800 leading-relaxed font-medium">
+                    수익에 대해 <strong>세금을 1원도 내지 않으며(비과세)</strong>, 돈을 굴리는 10년 동안 고객의 사망 리스크를 수천만 원으로 완벽히 커버합니다.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex-1 bg-indigo-900 border-2 border-indigo-800 rounded-3xl p-6 flex flex-col shadow-xl justify-center items-center relative overflow-hidden h-full">
+              <h4 className="font-black text-white mb-8 text-xl text-center z-10 shrink-0">7년납 10년 만기 단기납 종신 구조</h4>
+              <div className="w-full flex-1 flex flex-col justify-center items-center gap-8 z-10 min-h-0 px-4">
+                <div className="relative h-14 w-full flex items-center bg-indigo-950 rounded-full border-2 border-indigo-700 px-1.5 shrink-0 shadow-inner">
+                  <div className="h-10 bg-indigo-500 rounded-full w-[70%] flex items-center justify-center text-sm font-bold text-white shadow-inner relative">
+                    열심히 납입하는 시간 (7년)
+                    <span className="absolute -bottom-7 text-xs text-indigo-300 font-medium">원금 도달 전</span>
+                  </div>
+                  <div className="h-10 bg-transparent w-[30%] flex items-center justify-center text-sm font-bold text-indigo-200">
+                    기다림 (3년)
+                  </div>
+                </div>
+                <div className="bg-white rounded-2xl p-5 text-center transform scale-105 shadow-[0_0_25px_rgba(129,140,248,0.6)] border-4 border-indigo-400 animate-pulse shrink-0 w-[80%]">
+                  <p className="text-indigo-900 font-black text-2xl leading-tight mb-2">🎉 10년 차 달성!</p>
+                  <p className="text-gray-700 text-base font-bold mb-3">원금 100% + 확정 이자 20%↑</p>
+                  <div className="bg-indigo-600 text-white inline-block px-4 py-2 rounded-full text-sm font-black shadow-md">
+                    전액 비과세 수령
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gray-800 text-white p-5 rounded-2xl text-center shadow-lg shrink-0 text-base">
+            <span className="font-bold text-indigo-400">화법 TIP:</span> "은행처럼 안전하게 확정된 금액을 주면서, 은행은 절대 안 해주는 '비과세'와 '보장'을 얹어주는 최고의 안전 통장입니다."
+          </div>
+        </div>
+      )
+    },
+
+// 챕터 4-4. 변액보험
+    {
+      id: "ch4-4",
+      title: "Chapter 4-4. 변액보험: 물가를 이기는 가장 안전한 투자",
+      content: (
+        <div className="h-full flex flex-col gap-6 py-2 overflow-hidden">
+          <p className="text-gray-600 text-center text-xl font-bold shrink-0">
+            "투자 상품이라 위험하다고요? <strong className="text-emerald-600">인플레이션으로 내 돈이 휴지조각이 되는 것</strong>이 진짜 위험입니다."
+          </p>
+
+          <div className="flex-1 flex gap-6 min-h-0">
+            <div className="flex-1 bg-white border-2 border-emerald-200 rounded-3xl p-6 flex flex-col shadow-sm h-full overflow-hidden">
+              <div className="flex items-center gap-4 mb-4 shrink-0">
+                <div className="bg-emerald-100 text-emerald-700 p-3 rounded-2xl"><LineChart className="w-8 h-8" /></div>
+                <h3 className="text-2xl font-black text-emerald-900">펀드 수익과 안전망의 결합</h3>
+              </div>
+              <div className="space-y-4 flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden min-h-0">
+                <div className="bg-emerald-50 p-5 rounded-2xl border border-emerald-100">
+                  <p className="font-bold text-emerald-900 mb-2 text-lg">📈 공격수: 주식/채권 투자</p>
+                  <p className="text-base text-gray-800 leading-relaxed font-medium">
+                    물가를 방어하려면 투자는 필수입니다. 10년 이상 꾸준히 적립식으로 납입하면(코스트 에버리지 효과) 단기 하락장을 이겨내고 큰 복리 수익을 냅니다.
+                  </p>
+                </div>
+                <div className="bg-blue-50 p-5 rounded-2xl border border-blue-100">
+                  <p className="font-bold text-blue-900 mb-2 text-lg">🛡️ 수비수: 최저보증 에어백</p>
+                  <p className="text-base text-blue-800 leading-relaxed font-medium">
+                    연금/사망보험금은 <strong>"아무리 주식 시장이 반토막 나도 원금 이상은 무조건 보증"</strong>해 줍니다. 투자 상품 중 이런 안전망을 가진 건 변액보험이 유일합니다.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex-1 bg-gray-900 border-2 border-gray-800 rounded-3xl p-6 flex flex-col shadow-xl justify-center items-center relative overflow-hidden h-full">
+              <h4 className="font-black text-white mb-6 text-xl text-center z-10 shrink-0">변액보험의 '에어백(최저보증)' 원리</h4>
+              <div className="relative flex-1 w-full min-h-0 flex items-center justify-center mt-2 px-4">
+                <svg viewBox="0 0 200 110" className="w-full h-full max-h-[220px] overflow-visible">
+                  <path d="M 10 70 L 30 50 L 50 85 L 80 40 L 110 90 L 140 30 L 170 60 L 190 20" stroke="#34d399" strokeWidth="4" fill="none" />
+                  <line x1="10" y1="70" x2="190" y2="70" stroke="#ef4444" strokeWidth="3" strokeDasharray="5 5" />
+                  <text x="15" y="84" fontSize="8" fill="#fca5a5" fontWeight="black">원금 100% (최저보증선)</text>
+                  <circle cx="50" cy="85" r="5" fill="#ef4444" className="animate-ping" />
+                  <circle cx="110" cy="90" r="5" fill="#ef4444" className="animate-ping" />
+                  <g transform="translate(10, 10)">
+                    <rect width="90" height="18" rx="4" fill="#064e3b" stroke="#10b981" strokeWidth="2" />
+                    <text x="45" y="12" fontSize="7" fill="white" textAnchor="middle" fontWeight="bold">상승장: 수익 전액 고객 몫</text>
+                  </g>
+                  <g transform="translate(100, 95)">
+                    <rect width="90" height="18" rx="4" fill="#7f1d1d" stroke="#ef4444" strokeWidth="2" />
+                    <text x="45" y="12" fontSize="7" fill="white" textAnchor="middle" fontWeight="bold">폭락장: 회사 돈으로 원금 보전</text>
+                  </g>
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gray-800 text-white p-5 rounded-2xl text-center shadow-lg shrink-0 text-base">
+            <span className="font-bold text-emerald-400">화법 TIP:</span> "수익이 나면 비과세로 챙기시고, IMF급 경제 위기로 펀드가 박살 나도 고객님 원금은 보험회사가 물어내서 채워주는 완벽한 시스템입니다."
+          </div>
+        </div>
+      )
+    },
+
+
+    
+    // 챕터 5
+    {
+      id: "ch5",
       title: "Chapter 5. 정답은 없습니다. '목적'이 다를 뿐입니다.",
       content: (
         <div className="flex flex-col h-full justify-center space-y-6">
-          <div className="bg-gray-900 text-white p-4 rounded-xl text-center mb-4 shadow-md">
-            <Quote className="inline-block w-5 h-5 text-gray-400 mb-1 mr-2"/>
+          <div className="bg-gray-900 text-white p-6 rounded-2xl text-center mb-4 shadow-md text-xl font-medium">
+            <Quote className="inline-block w-6 h-6 text-gray-400 mb-1 mr-2"/>
             어떤 상품이 '무조건' 좋다는 편견을 버리세요. 고객의 목표 시기와 투자 성향에 맞는 옷을 입혀야 합니다.
           </div>
 
-          <div className="grid grid-cols-2 gap-6">
-            <div className="border border-gray-200 p-6 rounded-2xl bg-white shadow-sm hover:border-blue-300 transition-colors">
-              <h3 className="text-sm font-bold text-gray-500 mb-1">단/중기 (1~5년) 목적자금</h3>
-              <p className="text-2xl font-black text-gray-900 mb-3">은행 예/적금 & 저축보험</p>
-              <p className="text-gray-600 text-sm">복리나 비과세의 마법이 발휘되기엔 시간이 짧습니다. 원금을 잃지 않고 안전하게 모으는 것이 최우선인 자금에 적합합니다.</p>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="border border-gray-200 p-8 rounded-3xl bg-white shadow-sm hover:border-blue-300 transition-colors">
+              <h3 className="text-base font-bold text-gray-500 mb-2">단/중기 (1~5년) 목적자금</h3>
+              <p className="text-xl font-black text-gray-900 mb-4">은행 예/적금 & 저축보험</p>
+              <p className="text-gray-600 text-1xl leading-relaxed">복리나 비과세의 마법이 발휘되기엔 시간이 짧습니다. 원금을 잃지 않고 안전하게 모으는 것이 최우선인 자금에 적합합니다.</p>
             </div>
 
-            <div className="border border-blue-200 p-6 rounded-2xl bg-blue-50 shadow-sm hover:border-blue-400 transition-colors">
-              <div className="flex justify-between items-start">
-                <div>
-                  <h3 className="text-sm font-bold text-blue-500 mb-1">장기 (10년↑) & 안정성 추구</h3>
-                  <p className="text-2xl font-black text-blue-900 mb-3">연금보험 / 종신보험</p>
-                </div>
-              </div>
-              <p className="text-gray-700 text-sm">확정 금리와 안정적인 10년 차 환급률을 통해, 원금 손실 불안 없이 <strong>비과세 혜택과 복리 효과를 가장 마음 편하게</strong> 누릴 수 있습니다.</p>
+            <div className="border border-blue-200 p-8 rounded-3xl bg-blue-50 shadow-sm hover:border-blue-400 transition-colors">
+              <h3 className="text-base font-bold text-blue-600 mb-2">비과세 & 안정성 추구</h3>
+              <p className="text-xl font-black text-blue-900 mb-4">연금보험 / 종신보험</p>
+              <p className="text-blue-800 text-1xl leading-relaxed">확정 금리와 안정적인 10년 차 환급률을 통해, 원금 손실 불안 없이 <strong>비과세 혜택과 복리 효과를 가장 마음 편하게</strong> 누릴 수 있습니다.</p>
             </div>
 
-            <div className="border border-red-200 p-6 rounded-2xl bg-red-50 shadow-sm hover:border-red-400 transition-colors col-span-2 md:col-span-1">
-              <h3 className="text-sm font-bold text-red-500 mb-1">단/중기 & 공격적 투자</h3>
-              <p className="text-2xl font-black text-red-900 mb-3">증권사 주식 / 펀드</p>
-              <p className="text-gray-700 text-sm">물가 상승을 이기기 위해 적극적으로 투자합니다. 단, 세금(과세)과 원금 손실 리스크를 고객이 명확히 인지해야 합니다.</p>
+            <div className="border border-gray-200 p-8 rounded-3xl bg-white shadow-sm hover:border-blue-300 transition-colors">
+              <h3 className="text-base font-bold text-gray-500 mb-2">단/중기 & 공격적 투자</h3>
+              <p className="text-xl font-black text-gray-900 mb-4">증권사 주식 / 펀드</p>
+              <p className="text-gray-600 text-1xl leading-relaxed">물가 상승을 이기기 위해 적극적으로 투자합니다. 단, 세금(과세)과 원금 손실 리스크를 고객이 명확히 인지해야 합니다.</p>
             </div>
 
-            <div className="border border-emerald-200 p-6 rounded-2xl bg-emerald-50 shadow-sm hover:border-emerald-400 transition-colors col-span-2 md:col-span-1">
-              <h3 className="text-sm font-bold text-emerald-500 mb-1">장기 (10년↑) & 공격적 투자</h3>
-              <p className="text-2xl font-black text-emerald-900 mb-3">변액보험</p>
-              <p className="text-gray-700 text-sm">초반 사업비가 크지만, 주식/펀드 투자 수익률로 이를 상쇄합니다. <strong>공격적인 장기 투자 수익에 비과세 혜택을 얹고 싶을 때</strong> 최고의 무기입니다.</p>
+            <div className="border border-emerald-200 p-8 rounded-3xl bg-emerald-50 shadow-sm hover:border-emerald-400 transition-colors">
+              <h3 className="text-base font-bold text-emerald-600 mb-2">비과세 & 공격적 투자</h3>
+              <p className="text-xl font-black text-emerald-900 mb-4">변액보험</p>
+              <p className="text-emerald-800 text-1xl leading-relaxed">초반 사업비가 크지만, 주식/펀드 투자 수익률로 이를 상쇄합니다. <strong>공격적인 장기 투자 수익에 비과세 혜택을 얹고 싶을 때</strong> 최고의 무기입니다.</p>
             </div>
           </div>
         </div>
@@ -351,11 +832,11 @@ export default function SavingsTrainingPage() {
                 <div className="bg-purple-100 p-2 rounded-lg"><Coins className="w-5 h-5 text-purple-600" /></div>
                 <h3 className="text-2xl font-bold text-gray-900">ISA (개인종합자산관리계좌)</h3>
               </div>
-              <p className="text-gray-600 text-sm mb-4">하나의 계좌로 예적금, 주식 등을 굴리며 비과세(200~400만 원) 및 9.9% 분리과세 혜택.</p>
+              <p className="text-gray-600 text-xl mb-4">하나의 계좌로 예적금, 주식 등을 굴리며 비과세(200~400만 원) 및 9.9% 분리과세 혜택.</p>
             </div>
             <div className="bg-purple-50 p-4 rounded-xl border border-purple-100">
               <p className="text-purple-800 font-bold mb-1">💡 실전 활용 꿀팁</p>
-              <p className="text-sm text-purple-700">"의무 기간 3년마다 만기를 채워 목돈을 만들고, 이를 연금저축 계좌로 이체하세요. 이체 금액의 10%(최대 300만 원)를 추가로 세액공제 받을 수 있습니다."</p>
+              <p className="text-1xl text-purple-700">"의무 기간 3년마다 만기를 채워 목돈을 만들고, 이를 연금저축 계좌로 이체하세요. 이체 금액의 10%(최대 300만 원)를 추가로 세액공제 받을 수 있습니다."</p>
             </div>
           </div>
 
@@ -365,11 +846,11 @@ export default function SavingsTrainingPage() {
                 <div className="bg-orange-100 p-2 rounded-lg"><Building2 className="w-5 h-5 text-orange-600" /></div>
                 <h3 className="text-2xl font-bold text-gray-900">연금저축 (세제적격)</h3>
               </div>
-              <p className="text-gray-600 text-sm mb-4">연말정산 시 매년 납입액(최대 600만 원)에 대해 13.2~16.5% 세액공제를 받아 세금을 환급받는 계좌.</p>
+              <p className="text-gray-600 text-xl mb-4">연말정산 시 매년 납입액(최대 600만 원)에 대해 13.2~16.5% 세액공제를 받아 세금을 환급받는 계좌.</p>
             </div>
             <div className="bg-orange-50 p-4 rounded-xl border border-orange-100">
               <p className="text-orange-800 font-bold mb-1">💡 실전 활용 꿀팁</p>
-              <p className="text-sm text-orange-700">"연말정산 때 뱉어내는 직장인이라면 무조건 한도를 채워야 합니다. 단순히 현금으로 두지 말고 연금저축펀드(증권사)로 개설해 ETF에 장기 투자하면 복리 효과를 함께 누릴 수 있습니다."</p>
+              <p className="text-1xl text-orange-700">"단순히 현금으로 두지 말고 연금저축펀드(증권사)로 개설해 ETF에 장기 투자하면 복리 효과를 함께 누릴 수 있습니다."</p>
             </div>
           </div>
         </div>
