@@ -3,37 +3,24 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, ArrowLeft } from "lucide-react";
-
-// 분리해 둔 슬라이드 컴포넌트들을 모두 불러옵니다.
 import { 
-  SlideIntro, SlideCh1, SlideCh2, 
-  SlideCh3_1, SlideCh3_2, SlideCh3_3, SlideCh3_4, SlideCh3_5, SlideCh3_6, SlideCh3_7,
-  SlideCh4, SlideCh4_1, SlideCh4_2, SlideCh4_3, SlideCh4_4, 
-  SlideCh5, SlideAppendix 
-} from "./components/SavingsSlides";
+  SlideIntro, SlideCh1, SlideCh2, SlideCh3, 
+  SlideCh4, SlideCh5, SlideCh6, SlideCh7 
+} from "./components/SilbiSlides"; // 경로를 폴더 구조에 맞게 수정해주세요
 
-export default function SavingsTrainingPage() {
+export default function SilbiTrainingPage() {
   const [currentSlide, setCurrentSlide] = useState(0);
 
-  // 불러온 컴포넌트들을 순서대로 배열에 매핑합니다.
+  // 컴포넌트로 분리한 슬라이드 배열 매핑
   const slides = [
     { id: "intro", title: "", content: <SlideIntro /> },
-    { id: "ch1", title: "Chapter 1. 금융 건강검진", content: <SlideCh1 /> },
-    { id: "ch2", title: "Chapter 2. 3대 금융기관과 융합 상품", content: <SlideCh2 /> },
-    { id: "ch3-1", title: "Chapter 3-1. 이자가 붙는 두 가지 방식: 단리 vs 복리", content: <SlideCh3_1 /> },
-    { id: "ch3-2", title: "Chapter 3-2. 은행 적금의 배신: 5% 이자의 진실", content: <SlideCh3_2 /> },
-    { id: "ch3-3", title: "Chapter 3-3. 부자들의 자산 증식 비밀: 덧셈(+) vs 곱셈(×)", content: <SlideCh3_3 /> },
-    { id: "ch3-4", title: "Chapter 3-4. 눈사람 만들기: 복리의 마법", content: <SlideCh3_4 /> },
-    { id: "ch3-5", title: "Chapter 3-5. 이자가 지급되는 두 가지 방식: 과세 vs 비과세", content: <SlideCh3_5 /> },
-    { id: "ch3-6", title: "Chapter 3-6. 복리의 완성: 보이지 않는 도둑과 완벽한 방패", content: <SlideCh3_6 /> },
-    { id: "ch3-7", title: "Chapter 3-7. 완벽한 방패: 비과세의 중요성", content: <SlideCh3_7 /> },
-    { id: "ch4", title: "Chapter 4. 금융 상품별 혜택 총정리", content: <SlideCh4 /> },
-    { id: "ch4-1", title: "Chapter 4-1. 저축보험: 시간이 부족한 마법사", content: <SlideCh4_1 /> },
-    { id: "ch4-2", title: "Chapter 4-2. 연금보험: 계단식으로 떨어지는 엔진", content: <SlideCh4_2 /> },
-    { id: "ch4-3", title: "Chapter 4-3. 단기납 종신: 10년 확정 비과세의 신흥 강자", content: <SlideCh4_3 /> },
-    { id: "ch4-4", title: "Chapter 4-4. 변액보험: 물가를 이기는 가장 안전한 투자", content: <SlideCh4_4 /> },
-    { id: "ch5", title: "Chapter 5. 정답은 없습니다. '목적'이 다를 뿐입니다.", content: <SlideCh5 /> },
-    { id: "appendix", title: "부록 1. 만능 계좌 2종 실전 활용법", content: <SlideAppendix /> }
+    { id: "ch1", title: "01. [바인더 마스터] 실손의료보험 세대별 변천사", content: <SlideCh1 /> },
+    { id: "ch2", title: "02. 실비의 딜레마와 시스템의 붕괴", content: <SlideCh2 /> },
+    { id: "ch3", title: "03. 보상의 사각지대와 도수치료의 최후", content: <SlideCh3 /> },
+    { id: "ch4", title: "04. 거대 리스크의 등장과 정액보장의 당위성", content: <SlideCh4 /> },
+    { id: "ch5", title: "05. 실손보장 축소와 정액보장 포트폴리오 리빌딩 전략", content: <SlideCh5 /> },
+    { id: "ch6", title: "06. 글로벌 인사이츠 및 노후·간편 실손 기준점", content: <SlideCh6 /> },
+    { id: "ch7", title: "", content: <SlideCh7 /> }
   ];
 
   const nextSlide = useCallback(() => {
@@ -66,26 +53,21 @@ export default function SavingsTrainingPage() {
       </div>
 
       <div className="relative bg-white rounded-[2rem] border border-gray-200 shadow-2xl h-[780px] flex flex-col overflow-hidden">
-        
-        {/* 상단 진행률 바 */}
         <div 
           className="absolute top-0 left-0 h-2 bg-blue-600 transition-all duration-500 ease-out z-10" 
           style={{ width: `${((currentSlide + 1) / slides.length) * 100}%` }} 
         />
 
-        {/* 슬라이드 제목 */}
         {slides[currentSlide].title && (
           <div className="px-14 pt-12 pb-5 border-b border-gray-100 shrink-0">
             <h2 className="text-4xl font-black text-gray-900">{slides[currentSlide].title}</h2>
           </div>
         )}
 
-        {/* 슬라이드 본문 */}
         <div className="flex-1 px-14 py-8 bg-white overflow-hidden">
           {slides[currentSlide].content}
         </div>
 
-        {/* 하단 네비게이션 */}
         <div className="px-12 py-6 border-t border-gray-100 flex justify-between items-center bg-gray-50/80 backdrop-blur-sm shrink-0">
           <button 
             onClick={prevSlide}

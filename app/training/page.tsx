@@ -5,7 +5,7 @@ const trainingModules = [
   { id: 1, title: "라이프사이클과 보험", desc: "인생주기 및 3대 자산의 이해", icon: Users, isReady: false },
   { id: 2, title: "저축성 상품", desc: "목적자금 및 비과세 전략", icon: BookOpen, isReady: true, href: "/training/savings" },
   { id: 3, title: "보장성 상품", desc: "질병 및 상해 리스크 관리", icon: ShieldCheck, isReady: false },
-  { id: 4, title: "실손의료비 변천사", desc: "1세대부터 4세대까지 비교", icon: Stethoscope, isReady: false },
+  { id: 4, title: "실손의료비 변천사", desc: "1세대부터 4세대까지 비교", icon: Stethoscope, isReady: true, href: "/training/silbi" },
   { id: 5, title: "계약 전 알릴의무", desc: "고지의무 및 분쟁사례 가이드", icon: GraduationCap, isReady: false },
   { id: 6, title: "보험상담 프로세스", desc: "니즈환기 및 클로징 기법", icon: Users, isReady: false },
 ];
