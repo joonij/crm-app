@@ -163,7 +163,7 @@ export function SlideCh3_2() {
         <div className="grid grid-cols-2 gap-8 h-[420px]">
             <div className="bg-red-50 border border-red-200 rounded-3xl p-8 flex flex-col relative shadow-sm">
               <div className="absolute -top-4 -left-4 bg-red-500 text-white w-12 h-12 rounded-full flex items-center justify-center font-black text-2xl shadow-lg border-4 border-white transform -rotate-12">X</div>
-              <h3 className="text-2xl font-black text-red-900 mb-6 text-center">착각을 이르키는 은행사 상술</h3>
+              <h3 className="text-2xl font-black text-red-900 mb-6 text-center">착각을 일으키는 은행사 상술</h3>
               
               <div className="space-y-4 flex-1">
                 <div className="bg-white p-4 rounded-xl shadow-sm border border-red-100 flex justify-between items-center">

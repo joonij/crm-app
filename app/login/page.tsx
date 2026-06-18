@@ -30,7 +30,7 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/");
+    window.location.href = "/";
   };
 
   const handleSignUp = async () => {
@@ -49,7 +49,7 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/");
+    window.location.href = "/";
   };
 
   return (

@@ -2,12 +2,14 @@ import Link from "next/link";
 import { BookOpen, GraduationCap, Lock, ShieldCheck, Stethoscope, Users } from "lucide-react";
 
 const trainingModules = [
-  { id: 1, title: "라이프사이클과 보험", desc: "인생주기 및 3대 자산의 이해", icon: Users, isReady: false },
+  { id: 1, title: "라이프사이클", desc: "라이프사이클 및 3대 자산의 이해", icon: Users, isReady: false },
   { id: 2, title: "저축성 상품", desc: "목적자금 및 비과세 전략", icon: BookOpen, isReady: true, href: "/training/savings" },
-  { id: 3, title: "보장성 상품", desc: "질병 및 상해 리스크 관리", icon: ShieldCheck, isReady: false },
-  { id: 4, title: "실손의료비 변천사", desc: "1세대부터 4세대까지 비교", icon: Stethoscope, isReady: true, href: "/training/silbi" },
-  { id: 5, title: "계약 전 알릴의무", desc: "고지의무 및 분쟁사례 가이드", icon: GraduationCap, isReady: false },
-  { id: 6, title: "보험상담 프로세스", desc: "니즈환기 및 클로징 기법", icon: Users, isReady: false },
+  { id: 3, title: "보장성 상품", desc: "생명보험사와 손해보험사 및 보장성 설계 기초", icon: ShieldCheck, isReady: true, href: "/training/basics" },
+  { id: 4, title: "보장성 상품", desc: "보장 상담 거절처리", icon: ShieldCheck, isReady: false },
+  { id: 5, title: "실손의료비", desc: "실손의료비 변천사 및 세일즈 패러다임", icon: Stethoscope, isReady: true, href: "/training/silbi" },
+  { id: 6, title: "계약 전 알릴의무", desc: "고지의무 및 분쟁사례", icon: GraduationCap, isReady: false },
+  { id: 7, title: "계약 전 알릴의무", desc: "보험심사평가원 분석 가이드", icon: GraduationCap, isReady: false },
+  { id: 8, title: "세일즈 프로세스", desc: "7단계 프로세스", icon: Users, isReady: true, href: "/training/sales-process" },
 ];
 
 export default function TrainingDashboard() {
@@ -17,10 +19,10 @@ export default function TrainingDashboard() {
       <section className="bg-gradient-to-r from-blue-900 to-indigo-800 rounded-2xl p-6 md:p-8 text-white shadow-lg">
         <h1 className="text-2xl md:text-3xl font-bold mb-2 flex items-center gap-3">
           <GraduationCap className="w-8 h-8" />
-          사내 보험 마스터 교육
+          바른금융파트너스 세일즈 마스터 교육
         </h1>
         <p className="text-blue-100 text-sm md:text-base">
-          팀원들의 영업 역량 강화를 위한 단계별 실무 프로세스 자료입니다.
+          [내부자료]외부 유출은 형사처벌에 처합니다
         </p>
       </section>
 
