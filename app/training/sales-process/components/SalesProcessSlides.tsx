@@ -21,16 +21,13 @@ const FlowStep = ({ num, title, desc }: { num: string, title: string, desc: stri
 export function Slide1() {
   return (
     <div className="flex flex-col items-center justify-center h-full text-center space-y-10 relative overflow-hidden">
-      <div className="px-6 py-2 bg-blue-50 text-blue-700 rounded-full font-bold tracking-widest text-sm">
-        CLASS | 바른생명 영업 교육
+      <div className="px-6 py-2 bg-blue-50 text-blue-700 rounded-full font-bold tracking-widest text-xl z-10">
+        사내 마스터 교육 과정 (바른금융파트너스)
       </div>
-      <h1 className="text-6xl font-black text-gray-900 leading-tight tracking-tight">
-        7단계 영업 프로세스 클래스
+      <h1 className="text-7xl font-black text-gray-900 leading-tight tracking-tight">
+        7단계 영업 프로세스
       </h1>
-      <div className="bg-blue-600 text-white px-8 py-3 rounded-full text-xl font-bold shadow-md">
-        영업 실전 루틴
-      </div>
-      <p className="text-2xl text-gray-500 font-bold mt-8">바른1팀 박경렬 SM</p>
+      <p className="text-2xl text-gray-500 font-bold mt-8">영업 실전 루틴</p>
     </div>
   );
 }

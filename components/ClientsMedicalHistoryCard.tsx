@@ -314,7 +314,7 @@ export default function ClientsMedicalHistoryCard({ clientId, initialHistory }: 
         {/* PDF 자동 분석 영역 (고정: shrink-0) */}
         <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 shrink-0">
           <div className="flex justify-between items-center mb-3">
-            <p className="text-xs font-bold text-slate-700">심평원 진료내역 AI 자동 분석</p>
+            <p className="text-xs font-bold text-slate-700">심평원 진료내역 자동 분석</p>
             
             {files.length > 0 && !isAnalyzed && (
               isAnalyzing ? (
