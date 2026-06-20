@@ -1,10 +1,6 @@
 "use client";
 
-import { 
-  AlertCircle, ShieldCheck, TrendingDown, 
-  Home, Building, Filter, CheckCircle2, XCircle, 
-  PiggyBank, ArrowRight, Info
-} from "lucide-react";
+import { TrendingDown, Home, Building, Filter, CheckCircle2, XCircle, PiggyBank, Info } from "lucide-react";
 
 // SLIDE 1: 대문
 export function SlideIntro() {
@@ -34,8 +30,7 @@ export function SlideSection1() {
   return (
     <div className="h-full flex flex-col justify-center gap-8 py-2">
       <div className="text-center">
-        <h3 className="text-4xl font-black text-gray-900 mb-4">적립보험료란?</h3>
-        <p className="text-xl text-gray-500 font-medium">매달 내는 보험료 중 일부는 '보장'이 아니라 '적립'에 들어갑니다.<br/>같은 보장을 받아도 적립보험료가 클수록 내 돈이 더 묶입니다.</p>
+        <p className="text-xl text-gray-500 font-medium">매달 내는 보험료 중 일부는 '보장'이 아니라 '적립'에 들어갑니다.</p>
       </div>
 
       <div className="flex items-center justify-between gap-4">
@@ -81,7 +76,6 @@ export function SlideSection2() {
   return (
     <div className="h-full flex flex-col justify-center gap-6 py-4">
       <div className="text-center">
-        <h3 className="text-4xl font-black text-gray-900 mb-4">같은 보장, 다른 평생 부담</h3>
         <p className="text-xl text-gray-500 font-medium">같은 보장이라도 납입 구조에 따라 평생 부담이 완전히 달라집니다.</p>
       </div>
 

@@ -1,10 +1,6 @@
 "use client";
 
-import { 
-  PlaneTakeoff, HelpCircle, Home, Utensils, TrendingUp, 
-  PieChart, ShieldCheck, Building, Quote, AlertCircle, 
-  CheckCircle2, ArrowRight, HeartPulse, Stethoscope 
-} from "lucide-react";
+import { PlaneTakeoff, HelpCircle, Home, Utensils, TrendingUp, PieChart, ShieldCheck, Building, Quote, HeartPulse, Stethoscope } from "lucide-react";
 
 // SLIDE 1: 대문
 export function Slide1() {

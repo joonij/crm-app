@@ -1,11 +1,6 @@
 "use client";
 
-import { 
-  Building2, ShieldCheck, HeartPulse, 
-  Activity, AlertCircle, FileText, 
-  CheckCircle2, FileCheck, Stethoscope,
-  Car, Flame, Users
-} from "lucide-react";
+import { ShieldCheck, HeartPulse, FileText, CheckCircle2, FileCheck, Car, Flame, Users } from "lucide-react";
 
 // SLIDE 1: 대문
 export function SlideIntro() {
@@ -106,8 +101,8 @@ export function SlideCh3() {
           <thead className="bg-gray-900 text-white">
             <tr>
               <th className="p-6 border-b border-r border-gray-700 w-[20%] text-2xl font-bold">구분</th>
-              <th className="p-6 border-b border-r border-gray-700 w-[40%] text-2xl font-black text-red-400">손해보험 (상해)</th>
-              <th className="p-6 border-b border-gray-700 w-[40%] text-2xl font-black text-blue-400">생명보험 (재해)</th>
+              <th className="p-6 border-b border-r border-gray-700 w-[40%] text-2xl font-black text-red-400">손해보험</th>
+              <th className="p-6 border-b border-gray-700 w-[40%] text-2xl font-black text-blue-400">생명보험</th>
             </tr>
           </thead>
           <tbody className="text-xl text-gray-700 font-medium">

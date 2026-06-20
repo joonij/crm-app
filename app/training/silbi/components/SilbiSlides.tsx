@@ -1,7 +1,4 @@
-import { 
-    ShieldAlert, TrendingDown, FileSearch, 
-    BriefcaseMedical, Home, Globe, MessageSquare 
-  } from "lucide-react";
+import { ShieldAlert, TrendingDown, FileSearch, BriefcaseMedical, Home, Globe, MessageSquare } from "lucide-react";
   
   export function SlideIntro() {
     return (

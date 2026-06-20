@@ -1,10 +1,6 @@
 "use client";
 
-import { 
-  Users, PhoneCall, Presentation, ShieldAlert, PenTool, 
-  RefreshCcw, Target, CheckCircle2, XCircle, ArrowRight,
-  MessageSquare, FileText, HeartPulse, Search, Info, Gift
-} from "lucide-react";
+import { PenTool, CheckCircle2, XCircle, ArrowRight, FileText } from "lucide-react";
 
 // 공통 레이아웃 컴포넌트 (Flow 스텝용)
 const FlowStep = ({ num, title, desc }: { num: string, title: string, desc: string }) => (

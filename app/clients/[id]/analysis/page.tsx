@@ -3,8 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { ArrowLeft, TrendingUp, TrendingDown, ShieldCheck, Printer, AlertCircle, BarChart3, Stethoscope, CheckCircle2, Info, FileText, AlertTriangle, Save, Loader2, Sparkles, HeartHandshake, MessageCircle, UserCheck, ArrowRight } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { ArrowLeft, TrendingUp, TrendingDown, ShieldCheck, Printer, AlertCircle, Stethoscope, CheckCircle2, Info, FileText, AlertTriangle, Save, Loader2, HeartHandshake } from "lucide-react";
 
 // 금액 포맷팅 (숫자 -> 억/만 단위)
 const formatMoney = (amount: number) => {
