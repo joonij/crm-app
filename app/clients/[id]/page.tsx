@@ -17,7 +17,20 @@ type Client = {
   phone: string | null;
   agent_id: number;
   notes: string | null;
+  registration_number: string | null;
+  job: string | null;
+  address: string | null;
+  card_withdrawal_date: string | null;
+  bank_info: string | null;
   medical_history?: any;
+  // 관계형 데이터 (조인된 결과)
+  client_source?: { source: string } | null;
+  contract_status?: { status: string } | null;
+  telecom_carriers?: { telecom: string } | null;
+  driving_statuses?: { status: string } | null;
+  bank_lists?: { bank: string } | null;
+  // ⭐️ 셀프 조인 결과는 타입 충돌 방지를 위해 referrer 라는 별칭(Alias)으로 받습니다.
+  referrer?: { id: number; name: string } | null;
 };
 
 export default function ClientDetailPage() {
