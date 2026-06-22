@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight, ArrowLeft } from "lucide-react";
 import { 
   SlideIntro, SlideCh1, SlideCh2, SlideCh3, 
-  SlideCh4, SlideCh5, SlideCh6, SlideCh7 
+  SlideCh4, SlideCh5, SlideCh6, SlideCh7, SlideClosing 
 } from "./components/SilbiSlides"; // 경로를 폴더 구조에 맞게 수정해주세요
 
 export default function SilbiTrainingPage() {
@@ -14,13 +14,14 @@ export default function SilbiTrainingPage() {
   // 컴포넌트로 분리한 슬라이드 배열 매핑
   const slides = [
     { id: "intro", title: "", content: <SlideIntro /> },
-    { id: "ch1", title: "01. [바인더 마스터] 실손의료보험 세대별 변천사", content: <SlideCh1 /> },
-    { id: "ch2", title: "02. 실비의 딜레마와 시스템의 붕괴", content: <SlideCh2 /> },
-    { id: "ch3", title: "03. 보상의 사각지대와 도수치료의 최후", content: <SlideCh3 /> },
-    { id: "ch4", title: "04. 거대 리스크의 등장과 정액보장의 당위성", content: <SlideCh4 /> },
-    { id: "ch5", title: "05. 실손보장 축소와 정액보장 포트폴리오 리빌딩 전략", content: <SlideCh5 /> },
-    { id: "ch6", title: "06. 글로벌 인사이츠 및 노후·간편 실손 기준점", content: <SlideCh6 /> },
-    { id: "ch7", title: "", content: <SlideCh7 /> }
+    { id: "ch1", title: "Chapter 1. 실손의료보험 탄생 배경과 역사", content: <SlideCh1 /> },
+    { id: "ch2", title: "Chapter 2. 실손의료보험 세대별 변천사", content: <SlideCh2 /> },
+    { id: "ch3", title: "Chapter 3. 실비의 딜레마와 시스템의 붕괴", content: <SlideCh3 /> },
+    { id: "ch4", title: "Chapter 4. 보상의 사각지대와 도수치료의 최후", content: <SlideCh4 /> },
+    { id: "ch5", title: "Chapter 5. 거대 리스크의 등장과 정액보장의 당위성", content: <SlideCh5 /> },
+    { id: "ch6", title: "Chapter 6. 실손보장 축소와 정액보장 포트폴리오 리빌딩 전략", content: <SlideCh6 /> },
+    { id: "ch7", title: "Chapter 7. 해외사례 / 노후·간편 실손 기본", content: <SlideCh7 /> },
+    { id: "ch8", title: "", content: <SlideClosing /> }
   ];
 
   const nextSlide = useCallback(() => {
