@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ChevronLeft, FileText, Stethoscope, Calendar, User } from "lucide-react";
+import { ChevronLeft, FileText, Stethoscope, Calendar, User, Crown } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import ClientDetailModal from "@/components/ClientDetailModal";
 import ClientMemoCard from "@/components/ClientMemoCard";
@@ -24,7 +24,6 @@ type Client = {
   bank_info: string | null;
   medical_history?: any;
   introduce_client: number | null; 
-  // ⭐️ ID 값을 포함하여 조인 데이터를 받습니다.
   client_source?: { id: number; source: string } | null;
   contract_status?: { id: number; status: string } | null;
   telecom_carriers?: { id: number; telecom: string } | null;
@@ -41,14 +40,22 @@ export default function ClientDetailPage() {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+  const [isKeyman, setIsKeyman] = useState(false);
   const [activeTab, setActiveTab] = useState<"memo" | "medical" | "schedule">("memo");
+  
+  const contractStatusStyleMap: Record<string, string> = {
+    "계약완료": "bg-blue-50 text-blue-700 border-blue-200/80",
+    "계약진행": "bg-green-50 text-green-700 border-green-200/80",
+    "계약보류": "bg-amber-50 text-amber-700 border-amber-200/80",
+    "계약거절": "bg-zinc-50 text-zinc-600 border-zinc-200",
+    "계약해지": "bg-red-50 text-red-700 border-red-200/80",
+  };
 
-  // ⭐️ 핵심 수정: fetchClient를 useEffect 밖으로 꺼내서 useCallback으로 감쌌습니다.
   const fetchClient = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     
+    // 1. 현재 고객 정보 불러오기
     const { data, error: supabaseError } = await supabase
       .from("clients")
       .select(`
@@ -71,7 +78,7 @@ export default function ClientDetailPage() {
     
     let clientData = data as Client;
 
-    // 소개인 정보(referrer) 직접 가져오기
+    // 2. 소개인(referrer) 정보 직접 가져오기
     if (clientData.introduce_client) {
       const { data: referrerData } = await supabase
         .from("clients")
@@ -82,6 +89,19 @@ export default function ClientDetailPage() {
       if (referrerData) {
         clientData.referrer = referrerData;
       }
+    }
+
+    // ⭐️ 3. 키맨 확인 로직: 이 고객이 소개한 다른 고객이 몇 명인지 카운트합니다.
+    const { count, error: countError } = await supabase
+      .from("clients")
+      .select("*", { count: "exact", head: true }) // head: true로 설정해 실제 데이터 없이 개수(count)만 빠르게 가져옵니다.
+      .eq("introduce_client", id);
+
+    // 소개한 고객이 3명 이상이면 키맨으로 설정
+    if (!countError && count !== null && count >= 3) {
+      setIsKeyman(true);
+    } else {
+      setIsKeyman(false);
     }
 
     setClient(clientData);
@@ -128,8 +148,17 @@ export default function ClientDetailPage() {
             >
               {client.name}
             </h1>
+            
+            {/* ⭐️ 키맨 뱃지 (조건부 렌더링) */}
+            {isKeyman && (
+              <span className="flex items-center gap-1 px-2.5 py-1 h-7 text-xs font-black rounded-lg border border-gray-200 shadow-sm">
+                <Crown className="w-3.5 h-3.5 text-amber-500" />
+                키맨
+              </span>
+            )}
+
             {client.contract_status?.status && (
-              <span className="px-2.5 py-1 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg border border-blue-100">
+              <span className={`px-2.5 py-1 h-7 inline-flex items-center justify-center rounded-md border text-xs font-bold transition-all shadow-sm ${contractStatusStyleMap[client.contract_status.status] || "bg-gray-50 text-gray-400 border-gray-200 border-dashed"}`}>                              
                 {client.contract_status.status}
               </span>
             )}
@@ -196,8 +225,8 @@ export default function ClientDetailPage() {
             client={client} 
             onClose={() => setIsDetailModalOpen(false)} 
             onRefresh={() => {
-              setIsDetailModalOpen(false); // 모달 닫기
-              void fetchClient(); // 정보 갱신
+              setIsDetailModalOpen(false);
+              void fetchClient(); 
             }}
           />
         </div>

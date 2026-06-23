@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Calendar, Trash2 } from "lucide-react";
+import { Calendar, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 type Schedule = { id: number; agent_id: number; client_id: number; date: string; time: string; content: string; repeat: boolean; };
@@ -10,6 +10,9 @@ export default function ClientScheduleCard({ clientId, agentId }: { clientId: st
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [scheduleForm, setScheduleForm] = useState({ content: "", date: "", time: "", repeat: false });
   const [isSaving, setIsSaving] = useState(false);
+
+  // ⭐️ 펼쳐진(더보기) 일정들의 ID를 저장하는 상태
+  const [expandedIds, setExpandedIds] = useState<number[]>([]);
 
   const fetchSchedules = async () => {
     const { data } = await supabase.from("schedules").select("*").eq("client_id", clientId).order("date", { ascending: false }).order("time", { ascending: false });
@@ -32,6 +35,12 @@ export default function ClientScheduleCard({ clientId, agentId }: { clientId: st
     const { error } = await supabase.from("schedules").delete().eq("id", id);
     if (!error) setSchedules(prev => prev.filter(s => s.id !== id));
   };
+  // ⭐️ 더보기/접기 토글 함수
+  const toggleExpand = (id: number) => {
+    setExpandedIds(prev => 
+      prev.includes(id) ? prev.filter(eId => eId !== id) : [...prev, id]
+    );
+  };
 
   const inputClass = "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20";
 
@@ -47,15 +56,21 @@ export default function ClientScheduleCard({ clientId, agentId }: { clientId: st
       
       {/* ⭐️ 입력 폼 영역은 찌그러지지 않게 shrink-0 부여 */}
       <div className="mb-4 flex flex-col gap-2 shrink-0">
-        <input type="text" placeholder="일정 내용 (예: 2차 미팅)" className={inputClass} value={scheduleForm.content} onChange={(e) => setScheduleForm({ ...scheduleForm, content: e.target.value })} />
         <div className="flex gap-2">
           <input type="date" className={inputClass} value={scheduleForm.date} onChange={(e) => setScheduleForm({ ...scheduleForm, date: e.target.value })} />
           <input type="time" className={inputClass} value={scheduleForm.time} onChange={(e) => setScheduleForm({ ...scheduleForm, time: e.target.value })} />
         </div>
-        <label className="flex items-center gap-2 px-1 text-sm text-gray-700">
+        <textarea 
+          rows={5} 
+          value={scheduleForm.content} 
+          onChange={(e) => setScheduleForm({ ...scheduleForm, content: e.target.value })}
+          placeholder="만남 후기" 
+          className={`${inputClass} resize-none`}
+        />
+        {/* <label className="flex items-center gap-2 px-1 text-sm text-gray-700">
           <input type="checkbox" checked={scheduleForm.repeat} onChange={(e) => setScheduleForm({ ...scheduleForm, repeat: e.target.checked })} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
           반복 여부
-        </label>
+        </label> */}
         <button onClick={handleSaveSchedule} disabled={isSaving} className="mt-2 w-full rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 transition-colors">
           일정 추가
         </button>
@@ -68,18 +83,45 @@ export default function ClientScheduleCard({ clientId, agentId }: { clientId: st
             등록된 일정이 없습니다.
           </div>
         ) : (
-          schedules.map((s) => (
-            <div key={s.id} className="relative group rounded-lg border border-gray-100 bg-gray-50 p-3 text-sm pr-10">
-              <p className="font-semibold text-gray-900 flex items-center gap-2 flex-wrap">
-                <span className="truncate">{s.content}</span>
-                {s.repeat && <span className="shrink-0 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">반복</span>}
-              </p>
-              <p className="mt-2 text-right font-medium text-blue-600 text-xs">{s.date} {s.time}</p>
-              <button onClick={() => handleDeleteSchedule(s.id)} className="absolute top-3 right-3 text-gray-300 hover:text-red-500 p-1 transition-colors" title="삭제">
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </div>
-          ))
+          schedules.map((s) => {
+            const isExpanded = expandedIds.includes(s.id);
+            // ⭐️ 글자 수가 40자가 넘거나, 줄바꿈(Enter)이 2번 이상 들어갔다면 '더보기' 버튼 표시 대상
+            const needsExpandButton = s.content.length > 40 || (s.content.match(/\n/g) || []).length >= 2;
+
+            return (
+              <div key={s.id} className="relative group rounded-lg border border-gray-100 bg-gray-50 p-4 text-sm pr-10 shadow-sm transition-all hover:border-gray-200">
+                <div className="flex flex-col gap-1.5 pr-2">
+                  <p 
+                    className={`font-semibold text-gray-800 leading-relaxed whitespace-pre-wrap ${!isExpanded ? "line-clamp-2" : ""}`}
+                  >
+                    {s.content}
+                  </p>
+                  
+                  {/* ⭐️ 조건에 부합할 때만 더보기/접기 버튼 렌더링 */}
+                  {needsExpandButton && (
+                    <button 
+                      onClick={() => toggleExpand(s.id)}
+                      className="flex items-center gap-1 text-[11px] font-bold text-gray-400 hover:text-gray-600 transition-colors w-fit mt-1"
+                    >
+                      {isExpanded ? (
+                        <>접기 <ChevronUp className="w-3 h-3" /></>
+                      ) : (
+                        <>더보기 <ChevronDown className="w-3 h-3" /></>
+                      )}
+                    </button>
+                  )}
+                </div>
+                
+                <p className="mt-3 text-right font-bold text-blue-600 text-xs bg-white py-1 px-2 rounded-md w-fit ml-auto border border-blue-100 shadow-sm">
+                  {s.date} {s.time}
+                </p>
+                
+                <button onClick={() => handleDeleteSchedule(s.id)} className="absolute top-3 right-3 text-gray-300 hover:text-red-500 p-1.5 rounded-md hover:bg-red-50 transition-colors" title="삭제">
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            );
+          })
         )}
       </div>
 

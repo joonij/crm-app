@@ -2,9 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { X } from "lucide-react";
-// ⭐️ 이전에 생성한 암호화 서버 액션을 불러옵니다. (경로가 다르면 수정해주세요)
-import { encryptRegNumber } from "@/app/actions/crypto"; 
+import { X, CalendarDays, Clock, FileEdit } from "lucide-react";
+import { encryptRegNumber } from "@/app/actions/crypto";
 
 const inputClassName =
   "w-full rounded-xl border border-gray-200 bg-gray-50 md:bg-white px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20";
@@ -26,9 +25,12 @@ type FormState = {
   bank_info: string;
   card_withdrawal_date: string;
   notes: string;
+  // ⭐️ 일정 관련 상태 추가
+  scheduleDate: string;
+  scheduleTime: string;
+  scheduleContent: string;
 };
 
-// ⭐️ 초기값을 모두 비워두어 사용자가 명시적으로 선택하게 만듭니다.
 const initialFormState: FormState = {
   name: "",
   phone: "",
@@ -36,8 +38,8 @@ const initialFormState: FormState = {
   regBack: "",
   job: "",
   address: "",
-  client_source: "", 
-  contract_status: "", 
+  client_source: "",
+  contract_status: "",
   introduce_client: "",
   telecom_carriers: "",
   driving_statuses: "",
@@ -45,6 +47,10 @@ const initialFormState: FormState = {
   bank_info: "",
   card_withdrawal_date: "",
   notes: "",
+  // ⭐️ 초기화
+  scheduleDate: "",
+  scheduleTime: "",
+  scheduleContent: "",
 };
 
 type LookupItem = { id: string | number; name: string };
@@ -71,7 +77,6 @@ export default function ClientModal({ onClose, onSuccess }: ClientModalProps) {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  // ⭐️ 연락처 자동 하이픈 변환 함수
   const formatPhoneNumber = (value: string) => {
     const num = value.replace(/[^0-9]/g, "");
     if (!num) return "";
@@ -132,7 +137,11 @@ export default function ClientModal({ onClose, onSuccess }: ClientModalProps) {
   };
 
   const handleSave = async () => {
-    // ⭐️ 1. 필수값 유효성 검사 (저장 전 확실하게 차단)
+    // ⭐️ 필수값 검사 확장
+    if (!form.scheduleDate || !form.scheduleTime) {
+      alert("첫 상담 일정을 반드시 입력해 주세요.");
+      return;
+    }
     if (!form.name.trim()) {
       alert("고객 이름을 입력해 주세요.");
       return;
@@ -159,41 +168,60 @@ export default function ClientModal({ onClose, onSuccess }: ClientModalProps) {
 
       if (agentError || !agent) throw new Error("담당자 정보를 찾을 수 없습니다.");
 
-      // ⭐️ 2. 주민등록번호 DB 암호화
+      // 1. 주민등록번호 암호화
       let registrationNumber = null;
       if (form.regFront && form.regBack) {
         const rawReg = `${form.regFront}-${form.regBack}`;
-        registrationNumber = await encryptRegNumber(rawReg); 
+        registrationNumber = await encryptRegNumber(rawReg);
       }
 
       const parseId = (val: string) => (val === "" ? null : parseInt(val, 10));
 
-      const { error: insertError } = await supabase.from("clients").insert({
-        agent_id: agent.id,
-        name: form.name.trim(),
-        phone: form.phone.trim() || null,
-        registration_number: registrationNumber,
-        job: form.job.trim() || null,
-        address: form.address.trim() || null,
-        notes: form.notes.trim() || null,
-        bank_info: form.bank_info.trim() || null,
-        card_withdrawal_date: form.card_withdrawal_date || null,
-        client_source: parseInt(form.client_source, 10), // 무조건 값이 있음을 위에서 보장함
-        contract_status: parseInt(form.contract_status, 10), // 무조건 값이 있음을 위에서 보장함
-        introduce_client: parseId(form.introduce_client),
-        telecom_carriers: parseId(form.telecom_carriers),
-        driving_statuses: parseId(form.driving_statuses),
-        bank_lists: parseId(form.bank_lists),
-      });
+      // ⭐️ 2. 고객 정보 먼저 INSERT (방금 생성된 ID를 받아와야 함)
+      const { data: newClient, error: insertError } = await supabase
+        .from("clients")
+        .insert({
+          agent_id: agent.id,
+          name: form.name.trim(),
+          phone: form.phone.trim() || null,
+          registration_number: registrationNumber,
+          job: form.job.trim() || null,
+          address: form.address.trim() || null,
+          notes: form.notes.trim() || null,
+          bank_info: form.bank_info.trim() || null,
+          card_withdrawal_date: form.card_withdrawal_date || null,
+          client_source: parseInt(form.client_source, 10),
+          contract_status: parseInt(form.contract_status, 10),
+          introduce_client: parseId(form.introduce_client),
+          telecom_carriers: parseId(form.telecom_carriers),
+          driving_statuses: parseId(form.driving_statuses),
+          bank_lists: parseId(form.bank_lists),
+        })
+        .select("id") // 중요: 생성된 ID를 반환하도록 요청
+        .single();
 
       if (insertError) throw insertError;
+
+      // ⭐️ 3. 일정 정보 INSERT (newClient.id 사용)
+      const { error: scheduleError } = await supabase
+        .from("schedules")
+        .insert({
+          agent_id: agent.id,
+          client_id: newClient.id,
+          date: form.scheduleDate,
+          time: form.scheduleTime,
+          content: form.scheduleContent.trim() || `${form.name} 고객 신규 등록 상담`,
+          repeat: false
+        });
+
+      if (scheduleError) throw scheduleError;
 
       setForm(initialFormState);
       onSuccess();
       onClose();
     } catch (error: any) {
       console.error(error);
-      alert(`고객 등록 실패: ${error.message}`);
+      alert(`저장 실패: ${error.message}`);
     } finally {
       setIsSaving(false);
     }
@@ -206,14 +234,14 @@ export default function ClientModal({ onClose, onSuccess }: ClientModalProps) {
       <div
         role="dialog"
         aria-modal="true"
-        aria-labelledby="client-modal-title"
-        className="relative z-10 w-full h-full md:h-auto md:max-h-[90vh] md:max-w-2xl flex flex-col bg-white md:rounded-3xl shadow-2xl"
+        className="relative z-10 w-full h-full md:h-auto md:max-h-[92vh] md:max-w-2xl flex flex-col bg-white md:rounded-3xl shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* 헤더 */}
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-5 shrink-0 bg-white md:rounded-t-3xl">
           <div>
-            <h2 id="client-modal-title" className="text-xl font-black text-gray-900">새 고객 상세 등록</h2>
-            <p className="mt-1 text-sm text-gray-500 hidden md:block">고객의 상세 정보를 입력하여 CRM에 추가합니다.</p>
+            <h2 className="text-xl font-black text-gray-900">새 고객 상세 등록</h2>
+            <p className="mt-1 text-sm text-gray-500 hidden md:block">일정 예약과 고객 정보를 한 번에 저장합니다.</p>
           </div>
           <button onClick={handleClose} className="p-2 -mr-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors">
             <X className="w-6 h-6" />
@@ -221,27 +249,56 @@ export default function ClientModal({ onClose, onSuccess }: ClientModalProps) {
         </div>
 
         {isLoadingLookups ? (
-          <div className="flex-1 flex items-center justify-center p-10 text-gray-500 font-medium">
+          <div className="flex-1 flex items-center justify-center p-10 text-gray-500 font-medium text-sm">
             설정 데이터를 불러오는 중입니다...
           </div>
         ) : (
-          <form className="flex-1 overflow-y-auto px-6 py-6" onSubmit={(e) => { e.preventDefault(); void handleSave(); }}>
+          <form className="flex-1 overflow-y-auto px-6 pt-6" onSubmit={(e) => { e.preventDefault(); void handleSave(); }}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-6">
               
-              {/* --- 기본 정보 --- */}
-              <div className="md:col-span-2 pb-2 mb-2 border-b border-gray-100">
-                <h3 className="text-sm font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full inline-block">1. 기본 정보</h3>
+              {/* --- 0. 필수 상담 일정 (최상단) --- */}
+              <div className="md:col-span-2 pb-2 mb-1 border-b border-amber-100">
+                <h3 className="text-sm font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full inline-flex items-center gap-1.5">1. 첫 상담 일정 예약 (필수)</h3>
               </div>
 
               <div>
-                <label htmlFor="client-name" className={labelClassName}>이름 <span className="text-red-500">*</span></label>
-                <input id="client-name" type="text" required value={form.name} onChange={(e) => updateField("name", e.target.value)} placeholder="홍길동" className={inputClassName} />
+                <label className={labelClassName}>상담 날짜 <span className="text-red-500">*</span></label>
+                <input type="date" required value={form.scheduleDate} onChange={(e) => updateField("scheduleDate", e.target.value)} className={inputClassName} />
               </div>
 
               <div>
-                <label htmlFor="client-phone" className={labelClassName}>연락처</label>
-                {/* ⭐️ 하이픈 자동 생성 로직 적용 */}
-                <input id="client-phone" type="tel" maxLength={13} value={form.phone} onChange={(e) => updateField("phone", formatPhoneNumber(e.target.value))} placeholder="010-0000-0000" className={inputClassName} />
+                <label className={labelClassName}>상담 시간 <span className="text-red-500">*</span></label>
+                <input type="time" required value={form.scheduleTime} onChange={(e) => updateField("scheduleTime", e.target.value)} className={inputClassName} />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className={labelClassName}>상담 목적 및 내용<span className="text-red-500">*</span></label>
+                <div className="relative">
+                  <FileEdit className="absolute left-4 top-3.5 w-4 h-4 text-gray-400" />
+                  <textarea 
+                    required
+                    rows={5} 
+                    value={form.scheduleContent} 
+                    onChange={(e) => updateField("scheduleContent", e.target.value)} 
+                    placeholder="첫 만남 후기" 
+                    className={`${inputClassName} pl-11 resize-none py-3.5`}
+                  />
+                </div>
+              </div>
+
+              {/* --- 1. 기본 정보 --- */}
+              <div className="md:col-span-2 pb-2 mb-1 mt-4 border-b border-gray-100">
+                <h3 className="text-sm font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full inline-block">2. 기본 정보</h3>
+              </div>
+
+              <div>
+                <label className={labelClassName}>이름 <span className="text-red-500">*</span></label>
+                <input type="text" required value={form.name} onChange={(e) => updateField("name", e.target.value)} placeholder="홍길동" className={inputClassName} />
+              </div>
+
+              <div>
+                <label className={labelClassName}>연락처</label>
+                <input type="tel" maxLength={13} value={form.phone} onChange={(e) => updateField("phone", formatPhoneNumber(e.target.value))} placeholder="010-0000-0000" className={inputClassName} />
               </div>
 
               <div className="md:col-span-2">
@@ -263,15 +320,14 @@ export default function ClientModal({ onClose, onSuccess }: ClientModalProps) {
                 <input type="text" value={form.address} onChange={(e) => updateField("address", e.target.value)} placeholder="거주지 주소" className={inputClassName} />
               </div>
 
-              {/* --- 관리 정보 --- */}
+              {/* --- 2. 관리 정보 --- */}
               <div className="md:col-span-2 pb-2 mb-2 mt-4 border-b border-gray-100">
-                <h3 className="text-sm font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full inline-block">2. 계약 및 유입 경로</h3>
+                <h3 className="text-sm font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full inline-block">3. 계약 및 유입 경로</h3>
               </div>
 
               <div>
                 <label className={labelClassName}>계약 상태 <span className="text-red-500">*</span></label>
-                {/* ⭐️ 기본 선택 옵션 명시 */}
-                <select value={form.contract_status} onChange={(e) => updateField("contract_status", e.target.value)} className={inputClassName}>
+                <select value={2} onChange={(e) => updateField("contract_status", e.target.value)} className={inputClassName}>
                   <option value="" disabled>-- 필수 선택 --</option>
                   {statuses.map((item) => (<option key={item.id} value={item.id}>{item.name}</option>))}
                 </select>
@@ -279,19 +335,17 @@ export default function ClientModal({ onClose, onSuccess }: ClientModalProps) {
 
               <div>
                 <label className={labelClassName}>가입 경로 <span className="text-red-500">*</span></label>
-                {/* ⭐️ 기본 선택 옵션 명시 */}
                 <select value={form.client_source} onChange={(e) => updateField("client_source", e.target.value)} className={inputClassName}>
                   <option value="" disabled>-- 필수 선택 --</option>
                   {sources.map((item) => (<option key={item.id} value={item.id}>{item.name}</option>))}
                 </select>
               </div>
 
-              {/* DB 상 '소개'의 ID가 3이라고 가정 */}
               {form.client_source === "3" && (
-                <div className="md:col-span-2 bg-blue-50 border border-blue-100 p-5 rounded-2xl">
+                <div className="md:col-span-2 bg-blue-50 border border-blue-100 p-5 rounded-2xl animate-in fade-in zoom-in-95">
                   <label className={labelClassName}>소개해준 고객 (소개 원수)</label>
                   <select value={form.introduce_client} onChange={(e) => updateField("introduce_client", e.target.value)} className={`${inputClassName} bg-white`}>
-                    <option value="">-- 기존 고객 검색/선택 --</option>
+                    <option value="">-- 기존 고객 선택 --</option>
                     {existingClients.map((client) => (
                       <option key={client.id} value={client.id}>
                         {client.name} {client.phone ? `(${client.phone.slice(-4)})` : ''}
@@ -301,9 +355,9 @@ export default function ClientModal({ onClose, onSuccess }: ClientModalProps) {
                 </div>
               )}
 
-              {/* --- 부가 정보 --- */}
+              {/* --- 3. 상세 부가 정보 --- */}
               <div className="md:col-span-2 pb-2 mb-2 mt-4 border-b border-gray-100">
-                <h3 className="text-sm font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full inline-block">3. 상세 부가 정보</h3>
+                <h3 className="text-sm font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full inline-block">4. 상세 부가 정보</h3>
               </div>
 
               <div>
@@ -332,7 +386,7 @@ export default function ClientModal({ onClose, onSuccess }: ClientModalProps) {
 
               <div>
                 <label className={labelClassName}>계좌 번호</label>
-                <input type="tel" value={form.bank_info} onChange={(e) => updateField("bank_info", e.target.value.replace(/[^0-9]/g, ''))} placeholder="- 없이 숫자만 입력" className={inputClassName} />
+                <input type="tel" value={form.bank_info} onChange={(e) => updateField("bank_info", e.target.value.replace(/[^0-9]/g, ''))} placeholder="- 없이 숫자만" className={inputClassName} />
               </div>
 
               <div>
@@ -342,17 +396,17 @@ export default function ClientModal({ onClose, onSuccess }: ClientModalProps) {
 
               <div className="md:col-span-2 mt-2">
                 <label className={labelClassName}>메모 (Notes)</label>
-                <textarea rows={4} value={form.notes} onChange={(e) => updateField("notes", e.target.value)} placeholder="기타 특이사항을 기록하세요." className={`${inputClassName} resize-none`} />
+                <textarea rows={3} value={form.notes} onChange={(e) => updateField("notes", e.target.value)} placeholder="기타 특이사항을 기록하세요." className={`${inputClassName} resize-none`} />
               </div>
             </div>
 
-            {/* 하단 고정 버튼 영역 */}
-            <div className="sticky bottom-0 bg-white border-t border-gray-100 pt-4 pb-safe mt-8 flex flex-col-reverse md:flex-row items-center justify-end gap-3 z-10">
+            {/* 하단 버튼 */}
+            <div className="sticky bottom-0  pb-6 bg-white border-t border-gray-100 pt-4 pb-safe mt-8 flex flex-col-reverse md:flex-row items-center justify-end gap-3 z-10">
               <button type="button" onClick={handleClose} disabled={isSaving} className="w-full md:w-auto rounded-xl px-6 py-3.5 text-sm font-bold text-gray-600 bg-gray-100 transition-colors hover:bg-gray-200 disabled:opacity-50">
                 취소
               </button>
               <button type="submit" disabled={isSaving} className="w-full md:w-auto rounded-xl bg-blue-600 px-6 py-3.5 text-sm font-bold text-white transition-colors hover:bg-blue-700 shadow-md disabled:opacity-50">
-                {isSaving ? "저장 중..." : "고객 정보 저장"}
+                {isSaving ? "저장 중..." : "고객 및 일정 등록"}
               </button>
             </div>
           </form>

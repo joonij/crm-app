@@ -6,8 +6,8 @@ import { decryptRegNumber, encryptRegNumber } from "@/app/actions/crypto";
 import { supabase } from "@/lib/supabase";
 
 const contractStatusStyleMap: Record<string, string> = {
-  "계약완료": "bg-green-50 text-green-700 border-green-200/80",
-  "계약진행": "bg-blue-50 text-blue-700 border-blue-200/80",
+  "계약완료": "bg-blue-50 text-blue-700 border-blue-200/80",
+  "계약진행": "bg-green-50 text-green-700 border-green-200/80",
   "계약보류": "bg-amber-50 text-amber-700 border-amber-200/80",
   "계약거절": "bg-zinc-50 text-zinc-600 border-zinc-200",
   "계약해지": "bg-red-50 text-red-700 border-red-200/80",
@@ -17,18 +17,17 @@ const inputClass = "w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm
 
 type LookupItem = { id: number; name: string };
 
-// ⭐️ 부모 컴포넌트에서 수정 완료 후 리스트를 새로고침할 수 있도록 onRefresh 추가
 export default function ClientDetailModal({ client, onClose, onRefresh }: { client: any, onClose: () => void, onRefresh?: () => void }) {
   const [decryptedReg, setDecryptedReg] = useState<string | null>(null);
   
-  // ⭐️ 수정 모드 상태 관리
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   
-  // ⭐️ 폼 데이터 상태
+  // ⭐️ 1. formData에 registration_number 추가
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
+    registration_number: "", // 추가됨
     job: "",
     address: "",
     bank_info: "",
@@ -41,7 +40,6 @@ export default function ClientDetailModal({ client, onClose, onRefresh }: { clie
     bank_lists: "",
   });
 
-  // ⭐️ Select 태그 옵션용 데이터
   const [lookups, setLookups] = useState({
     sources: [] as LookupItem[],
     statuses: [] as LookupItem[],
@@ -55,12 +53,14 @@ export default function ClientDetailModal({ client, onClose, onRefresh }: { clie
       if (client?.registration_number) {
         const decrypted = await decryptRegNumber(client.registration_number);
         setDecryptedReg(decrypted);
+        // ⭐️ 2. 복호화가 완료되면 수정 폼(formData)에도 값을 넣어줍니다.
+        setFormData(prev => ({ ...prev, registration_number: decrypted }));
       }
     }
     getDecryptedData();
 
-    // 초기 폼 데이터 세팅 (외래키는 id 값으로 세팅해야 함)
-    setFormData({
+    setFormData(prev => ({
+      ...prev,
       name: client?.name || "",
       phone: client?.phone || "",
       job: client?.job || "",
@@ -68,16 +68,14 @@ export default function ClientDetailModal({ client, onClose, onRefresh }: { clie
       bank_info: client?.bank_info || "",
       card_withdrawal_date: client?.card_withdrawal_date || "",
       notes: client?.notes || "",
-      // 부모에서 select(*)로 가져온 원본 ID 추출을 위한 방어적 코드
       client_source: client?.client_source?.id || client?.client_source_id || "",
       contract_status: client?.contract_status?.id || client?.contract_status_id || "",
       telecom_carriers: client?.telecom_carriers?.id || client?.telecom_carriers_id || "",
       driving_statuses: client?.driving_statuses?.id || client?.driving_statuses_id || "",
       bank_lists: client?.bank_lists?.id || client?.bank_lists_id || "",
-    });
+    }));
   }, [client]);
 
-  // 수정 모드 진입 시 드롭다운(Select) 옵션 가져오기
   useEffect(() => {
     if (isEditing && lookups.sources.length === 0) {
       async function fetchLookups() {
@@ -106,7 +104,6 @@ export default function ClientDetailModal({ client, onClose, onRefresh }: { clie
   };
 
   const handleSave = async () => {
-    // ⭐️ 필수값 누락 방어 로직 추가
     if (!formData.name.trim()) {
       alert("고객 이름은 필수입니다.");
       return;
@@ -119,12 +116,25 @@ export default function ClientDetailModal({ client, onClose, onRefresh }: { clie
     setIsSaving(true);
     try {
       const parseId = (val: string) => val ? parseInt(val, 10) : null;
+      
+      // ⭐️ 3. 저장 전 주민등록번호 암호화 로직 처리
+      let finalRegNumber = client.registration_number; // 기본값: 기존의 암호화된 값
+      
+      // 만약 폼의 주민번호가 원래의 복호화된 주민번호와 다르다면 (즉, 사용자가 수정했다면)
+      if (formData.registration_number !== decryptedReg) {
+        if (formData.registration_number.trim() !== "") {
+          finalRegNumber = await encryptRegNumber(formData.registration_number); // 새롭게 암호화
+        } else {
+          finalRegNumber = null; // 완전히 지웠을 경우
+        }
+      }
 
       const { error } = await supabase
         .from("clients")
         .update({
           name: formData.name,
           phone: formData.phone || null,
+          registration_number: finalRegNumber, // ⭐️ 암호화된 값 전송
           job: formData.job || null,
           address: formData.address || null,
           bank_info: formData.bank_info || null,
@@ -141,8 +151,8 @@ export default function ClientDetailModal({ client, onClose, onRefresh }: { clie
       if (error) throw error;
 
       setIsEditing(false);
-      if (onRefresh) onRefresh(); // 저장 성공 시 부모 페이지 새로고침
-      else window.location.reload(); // onRefresh가 없으면 강제 새로고침
+      if (onRefresh) onRefresh(); 
+      else window.location.reload(); 
     } catch (error: any) {
       alert(`저장 실패: ${error.message}`);
     } finally {
@@ -154,8 +164,8 @@ export default function ClientDetailModal({ client, onClose, onRefresh }: { clie
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/60 backdrop-blur-sm p-0 md:p-4 transition-opacity"
-      onClick={!isEditing ? onClose : undefined} // 수정 중일 때는 배경 클릭으로 닫히지 않게 방지
+      className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/10 backdrop-blur-sm p-0 md:p-4 transition-opacity"
+      onClick={!isEditing ? onClose : undefined}
     >
       <div 
         className="bg-white w-full max-w-lg rounded-t-3xl md:rounded-3xl shadow-2xl flex flex-col max-h-[90vh] animate-in slide-in-from-bottom-4 md:zoom-in-95 relative"
@@ -174,7 +184,6 @@ export default function ClientDetailModal({ client, onClose, onRefresh }: { clie
                   수정 모드
                 </span>
               )}
-              <span className="text-xs text-gray-400">ID: {client.id}</span>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -197,7 +206,6 @@ export default function ClientDetailModal({ client, onClose, onRefresh }: { clie
 
         <div className="p-6 overflow-y-auto space-y-8 pb-24">
           
-          {/* 1. 기본 인적사항 */}
           <section>
             <h4 className="flex items-center gap-2 text-sm font-black text-gray-900 mb-4">
               <User className="w-4 h-4 text-blue-600" /> 기본 정보
@@ -214,7 +222,20 @@ export default function ClientDetailModal({ client, onClose, onRefresh }: { clie
               
               <div className="col-span-2 flex flex-col gap-1">
                 <span className="text-[11px] font-bold text-gray-400 uppercase flex items-center gap-1">주민등록번호</span>
-                {decryptedReg ? <input name="decryptedReg" value={decryptedReg} onChange={handleChange} className={inputClass} /> : <span className="text-sm font-black text-gray-900">{decryptedReg || "미등록"}</span>}
+                
+                {isEditing ? (
+                  <input 
+                    name="registration_number" 
+                    value={formData.registration_number || ""} 
+                    onChange={handleChange} 
+                    className={inputClass} 
+                    placeholder="번호 입력 (예: 000000-0000000)" 
+                  />
+                ) : (
+                  <span className="text-sm font-black text-gray-900 tracking-widest bg-white px-3 py-1.5 rounded-md border border-gray-200 inline-block w-fit">
+                    {decryptedReg ? decryptedReg : "미등록"}
+                  </span>
+                )}
               </div>
 
               <div className="flex flex-col gap-1">
@@ -225,7 +246,6 @@ export default function ClientDetailModal({ client, onClose, onRefresh }: { clie
                 </div>
               </div>
 
-              {/* Select Options */}
               <div className="flex flex-col gap-1">
                 <span className="text-[11px] font-bold text-gray-400 uppercase">통신사</span>
                 {isEditing ? (
@@ -276,7 +296,6 @@ export default function ClientDetailModal({ client, onClose, onRefresh }: { clie
             </div>
           </section>
 
-          {/* 2. 금융 정보 */}
           <section>
             <h4 className="flex items-center gap-2 text-sm font-black text-gray-900 mb-4">
               <CreditCard className="w-4 h-4 text-blue-600" /> 금융 및 결제 정보
@@ -285,7 +304,7 @@ export default function ClientDetailModal({ client, onClose, onRefresh }: { clie
               <div className="flex flex-col gap-1">
                 <span className="text-[11px] font-bold text-slate-400 uppercase">주거래 은행</span>
                 {isEditing ? (
-                  <select name="bank_lists" value={formData.bank_lists} onChange={handleChange} className={`${inputClass} bg-slate-800 text-white border-slate-700`}>
+                  <select name="bank_lists" value={formData.bank_lists} onChange={handleChange} className={`${inputClass} bg-slate-800 border-slate-700`}>
                     <option value="">선택 안함</option>
                     {lookups.banks.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                   </select>
@@ -293,18 +312,17 @@ export default function ClientDetailModal({ client, onClose, onRefresh }: { clie
               </div>
               <div className="flex flex-col gap-1">
                 <span className="text-[11px] font-bold text-slate-400 uppercase">결제일</span>
-                {isEditing ? <input type="date" name="card_withdrawal_date" value={formData.card_withdrawal_date} onChange={handleChange} className={`${inputClass} bg-slate-800 text-white border-slate-700 [color-scheme:dark]`} /> : <span className="text-sm font-black text-white">{client.card_withdrawal_date || "-"}</span>}
+                {isEditing ? <input type="date" name="card_withdrawal_date" value={formData.card_withdrawal_date} onChange={handleChange} className={`${inputClass} bg-slate-800 border-slate-700 [color-scheme:dark]`} /> : <span className="text-sm font-black text-white">{client.card_withdrawal_date || "-"}</span>}
               </div>
               <div className="col-span-2 flex flex-col gap-1">
                 <span className="text-[11px] font-bold text-slate-400 uppercase">계좌번호</span>
-                {isEditing ? <input name="bank_info" value={formData.bank_info} onChange={handleChange} className={`${inputClass} bg-slate-800 text-white border-slate-700`} placeholder="- 없이 숫자만" /> : <span className="text-sm font-black text-white tracking-widest">{client.bank_info || "-"}</span>}
+                {isEditing ? <input name="bank_info" value={formData.bank_info} onChange={handleChange} className={`${inputClass} bg-slate-800 border-slate-700`} placeholder="- 없이 숫자만" /> : <span className="text-sm font-black text-white tracking-widest">{client.bank_info || "-"}</span>}
               </div>
             </div>
           </section>
 
         </div>
 
-        {/* ⭐️ 수정 모드일 때만 하단에 저장 플로팅 버튼 표시 */}
         {isEditing && (
           <div className="absolute bottom-0 left-0 w-full p-4 bg-white border-t border-gray-100 rounded-b-3xl">
             <button 
