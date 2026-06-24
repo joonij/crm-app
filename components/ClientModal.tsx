@@ -327,7 +327,7 @@ export default function ClientModal({ onClose, onSuccess }: ClientModalProps) {
 
               <div>
                 <label className={labelClassName}>계약 상태 <span className="text-red-500">*</span></label>
-                <select value={2} onChange={(e) => updateField("contract_status", e.target.value)} className={inputClassName}>
+                <select value={form.contract_status} onChange={(e) => updateField("contract_status", e.target.value)} className={inputClassName}>
                   <option value="" disabled>-- 필수 선택 --</option>
                   {statuses.map((item) => (<option key={item.id} value={item.id}>{item.name}</option>))}
                 </select>
