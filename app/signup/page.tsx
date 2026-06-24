@@ -33,7 +33,7 @@ export default function SignUpPage() {
       <div className="w-full max-w-2xl rounded-3xl border border-gray-200 bg-white p-6 md:p-10 shadow-xl">
         
         <div className="text-center mb-8">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-purple-600 text-white shadow-md shadow-purple-500/20">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-950 text-white shadow-md shadow-purple-500/20">
             <UserPlus className="h-6 w-6" />
           </div>
           <h1 className="mt-4 text-2xl font-black text-gray-900 tracking-tight">CRM 매니저 회원가입</h1>
@@ -49,7 +49,7 @@ export default function SignUpPage() {
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* 1. 소속 및 직급 정보 */}
           <div className="space-y-4">
-            <h3 className="text-sm font-black text-purple-600 bg-purple-50 px-3 py-1 rounded-full inline-block">1. 소속 정보</h3>
+            <h3 className="text-sm font-black text-gray-950 bg-purple-50 px-3 py-1 rounded-full inline-block">1. 소속 정보</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className={labelClass}>이름 (실명) <span className="text-red-500">*</span></label>
@@ -95,7 +95,7 @@ export default function SignUpPage() {
 
           {/* 2. 연락 및 주소 */}
           <div className="space-y-4 pt-2">
-            <h3 className="text-sm font-black text-purple-600 bg-purple-50 px-3 py-1 rounded-full inline-block">2. 연락 및 주소</h3>
+            <h3 className="text-sm font-black text-gray-950 bg-purple-50 px-3 py-1 rounded-full inline-block">2. 연락 및 주소</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className={labelClass}>연락처</label>
@@ -125,7 +125,7 @@ export default function SignUpPage() {
 
           {/* 3. 계정 정보 */}
           <div className="space-y-4 pt-2">
-            <h3 className="text-sm font-black text-purple-600 bg-purple-50 px-3 py-1 rounded-full inline-block">3. 계정 정보</h3>
+            <h3 className="text-sm font-black text-gray-950 bg-purple-50 px-3 py-1 rounded-full inline-block">3. 계정 정보</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className={labelClass}>이메일 주소 <span className="text-red-500">*</span></label>
@@ -148,7 +148,7 @@ export default function SignUpPage() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full mt-4 rounded-xl bg-purple-600 py-4 text-sm font-bold text-white transition-colors hover:bg-purple-700 shadow-lg shadow-purple-500/30 disabled:opacity-50"
+            className="w-full mt-4 rounded-xl bg-gray-950 py-4 text-sm font-bold text-white transition-colors hover:bg-purple-700 shadow-lg shadow-purple-500/30 disabled:opacity-50"
           >
             {isLoading ? "담당자 계정 생성 중..." : "회원가입 완료하기"}
           </button>
@@ -156,7 +156,7 @@ export default function SignUpPage() {
 
         <div className="mt-8 text-center text-sm text-gray-500 font-medium">
           이미 계정이 있으신가요?{" "}
-          <Link href="/login" className="font-bold text-purple-600 hover:underline">
+          <Link href="/login" className="font-bold text-gray-950 hover:underline">
             로그인하기
           </Link>
         </div>

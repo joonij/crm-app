@@ -31,7 +31,7 @@ export default function LoginPage() {
         
         {/* 로고 및 타이틀 */}
         <div className="text-center mb-8">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-md shadow-blue-500/20">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-950 text-white shadow-md shadow-blue-500/20">
             <Users className="h-6 w-6" />
           </div>
           <h1 className="mt-4 text-2xl font-black text-gray-900 tracking-tight">CRM 서비스 로그인</h1>
