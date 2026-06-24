@@ -208,7 +208,7 @@ export default function ClientDetailPage() {
             <div className="h-full *:h-full">
               {activeTab === "memo" && <ClientMemoCard clientId={id} initialNote={client.notes} />}
               {activeTab === "medical" && <ClientsMedicalHistoryCard clientId={id} initialHistory={client.medical_history} />}
-              {activeTab === "schedule" && <ClientScheduleCard clientId={id} agentId={String(client.agent_id)} />}
+              {activeTab === "schedule" && <ClientScheduleCard clientId={Number(id)} agentId={Number(client.agent_id)} />}
             </div>
           </div>
         </div>
