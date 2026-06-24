@@ -1,142 +1,97 @@
+// app/login/page.tsx
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
-
-const inputClassName =
-  "w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2.5 text-sm text-gray-100 placeholder:text-gray-500 transition-colors focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30";
+import Link from "next/link";
+import { signInAction } from "@/app/actions/auth";
+import { Users, Lock, Mail } from "lucide-react";
 
 export default function LoginPage() {
-  const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = async () => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
     setError(null);
     setIsLoading(true);
 
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const formData = new FormData(e.currentTarget);
+    const result = await signInAction(formData);
 
-    setIsLoading(false);
-
-    if (signInError) {
-      setError(signInError.message);
-      return;
+    // redirect가 발생하지 않고 에러 객체가 반환된 경우
+    if (result?.error) {
+      setError(result.error);
+      setIsLoading(false);
     }
-
-    window.location.href = "/";
-  };
-
-  const handleSignUp = async () => {
-    setError(null);
-    setIsLoading(true);
-
-    const { error: signUpError } = await supabase.auth.signUp({
-      email,
-      password,
-    });
-
-    setIsLoading(false);
-
-    if (signUpError) {
-      setError(signUpError.message);
-      return;
-    }
-
-    window.location.href = "/";
   };
 
   return (
-    <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center">
-      <div className="w-full max-w-md rounded-2xl border border-gray-800 bg-gray-950 p-8 shadow-xl">
-        <div className="mb-8 text-center">
-          <p className="text-xs font-medium uppercase tracking-widest text-gray-500">
-            CRM Pro
-          </p>
-          <h1 className="mt-2 text-2xl font-bold text-white">로그인</h1>
-          <p className="mt-2 text-sm text-gray-400">
-            이메일과 비밀번호로 계정에 접속하세요.
-          </p>
+    <div className="flex min-h-screen items-center justify-center bg-gray-50/50 p-4">
+      <div className="w-full max-w-md rounded-3xl border border-gray-200 bg-white p-6 md:p-8 shadow-xl">
+        
+        {/* 로고 및 타이틀 */}
+        <div className="text-center mb-8">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-md shadow-blue-500/20">
+            <Users className="h-6 w-6" />
+          </div>
+          <h1 className="mt-4 text-2xl font-black text-gray-900 tracking-tight">CRM 서비스 로그인</h1>
+          <p className="mt-1.5 text-sm text-gray-500">등록된 계정으로 로그인해 주세요.</p>
         </div>
 
+        {/* 에러 메시지 알림 박스 */}
         {error && (
-          <div
-            role="alert"
-            className="mb-6 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300"
-          >
+          <div className="mb-5 rounded-xl border border-red-100 bg-red-50 p-4 text-sm font-bold text-red-600 animate-in fade-in zoom-in-95">
             {error}
           </div>
         )}
 
-        <form
-          className="space-y-5"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void handleLogin();
-          }}
-        >
+        {/* 로그인 폼 */}
+        <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label
-              htmlFor="email"
-              className="mb-1.5 block text-sm font-medium text-gray-300"
-            >
-              이메일
-            </label>
-            <input
-              id="email"
-              type="email"
-              required
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              className={inputClassName}
-            />
+            <label className="mb-1.5 block text-sm font-bold text-gray-700">이메일 주소</label>
+            <div className="relative">
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <input
+                name="email"
+                type="email"
+                required
+                placeholder="example@company.com"
+                className="w-full rounded-xl border border-gray-200 bg-gray-50 pl-11 pr-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+            </div>
           </div>
 
           <div>
-            <label
-              htmlFor="password"
-              className="mb-1.5 block text-sm font-medium text-gray-300"
-            >
-              비밀번호
-            </label>
-            <input
-              id="password"
-              type="password"
-              required
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="비밀번호를 입력하세요"
-              className={inputClassName}
-            />
+            <label className="mb-1.5 block text-sm font-bold text-gray-700">비밀번호</label>
+            <div className="relative">
+              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <input
+                name="password"
+                type="password"
+                required
+                placeholder="••••••••"
+                className="w-full rounded-xl border border-gray-200 bg-gray-50 pl-11 pr-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+            </div>
           </div>
 
-          <div className="flex flex-col gap-3 pt-2">
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
-            >
-              {isLoading ? "처리 중..." : "로그인"}
-            </button>
-            <button
-              type="button"
-              disabled={isLoading}
-              onClick={() => void handleSignUp()}
-              className="w-full rounded-lg border border-gray-700 bg-gray-900 py-2.5 text-sm font-medium text-gray-200 transition-colors hover:bg-gray-800 disabled:opacity-50"
-            >
-              회원가입
-            </button>
-          </div>
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="w-full rounded-xl bg-gray-900 py-3.5 text-sm font-bold text-white transition-colors hover:bg-gray-800 shadow-md disabled:opacity-50"
+          >
+            {isLoading ? "로그인 중..." : "로그인하기"}
+          </button>
         </form>
+
+        {/* 회원가입 유도 */}
+        <div className="mt-6 text-center text-sm text-gray-500">
+          계정이 없으신가요?{" "}
+          <Link href="/signup" className="font-bold text-blue-600 hover:underline">
+            회원가입하기
+          </Link>
+        </div>
+
       </div>
     </div>
   );

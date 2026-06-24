@@ -95,9 +95,33 @@ export default function ClientsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
 
   const fetchClients = useCallback(async () => {
+    // 1. 현재 로그인한 유저의 Auth 정보 가져오기
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    
+    if (userError || !user) {
+      console.error("로그인 정보가 없습니다.");
+      setClients([]);
+      return;
+    }
+
+    // 2. agents 테이블에서 로그인한 유저(auth_id)의 고유 내부 ID(id) 조회
+    const { data: agent, error: agentError } = await supabase
+      .from("agents")
+      .select("id")
+      .eq("auth_id", user.id)
+      .single();
+
+    if (agentError || !agent) {
+      console.error("담당자 정보를 찾을 수 없습니다:", agentError?.message);
+      setClients([]);
+      return;
+    }
+
+    // 3. 조회된 agent.id와 일치하는 본인의 고객 정보만 필터링하여 가져오기
     const { data, error } = await supabase
       .from("clients")
       .select("*")
+      .eq("agent_id", agent.id) // ⭐️ 로그인한 유저의 고객만 필터링하는 조건 추가
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -108,6 +132,7 @@ export default function ClientsPage() {
 
     const fetchedData = data || [];
 
+    // 4. 키맨 일괄 계산 로직 (기존 로직 유지)
     const introCounts = fetchedData.reduce((acc, curr) => {
       if (curr.introduce_client) {
         acc[curr.introduce_client] = (acc[curr.introduce_client] || 0) + 1;
