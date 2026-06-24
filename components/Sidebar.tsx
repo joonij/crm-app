@@ -114,7 +114,7 @@ export default function Sidebar() {
         <ul className="space-y-1">
           {navItems.map(({ label, href, icon: OriginalIcon, requiredRole }) => {
             const active = isActivePath(pathname, href);
-            const isLocked = requiredRole === "admin" && userRole !== "admin";
+            const isLocked = String(requiredRole) === "admin" && userRole !== "admin";
             const Icon = isLocked ? Lock : OriginalIcon;
 
             if (isLocked) {
