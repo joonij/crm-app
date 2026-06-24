@@ -53,8 +53,7 @@ export default function ClientDetailModal({ client, onClose, onRefresh }: { clie
       if (client?.registration_number) {
         const decrypted = await decryptRegNumber(client.registration_number);
         setDecryptedReg(decrypted);
-        // ⭐️ 2. 복호화가 완료되면 수정 폼(formData)에도 값을 넣어줍니다.
-        setFormData(prev => ({ ...prev, registration_number: decrypted }));
+        setFormData(prev => ({ ...prev, registration_number: decrypted || "" }));
       }
     }
     getDecryptedData();
