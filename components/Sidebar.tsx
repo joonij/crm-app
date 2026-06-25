@@ -89,10 +89,10 @@ export default function Sidebar() {
         {isOpen && (
           <div className="min-w-0 overflow-hidden">
             <p className="truncate text-xs font-medium uppercase tracking-widest text-gray-500">
-              CRM Pro
+              Insurance
             </p>
-            <h1 className="truncate text-lg font-semibold text-white">
-              관리 콘솔
+            <h1 className="truncate text-xl font-black text-white tracking-tight flex items-center gap-1">
+              Care<span className="text-blue-500">Link</span>
             </h1>
           </div>
         )}

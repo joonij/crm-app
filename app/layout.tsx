@@ -7,8 +7,8 @@ import MobileSidebar from "@/components/MobileSidebar";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "영업 관리 CRM",
-  description: "Supabase 기반 맞춤형 CRM 시스템",
+  title: "CareLink",
+  description: "고객 맞춤 케어 플랫폼",
 };
 
 export default function RootLayout({
