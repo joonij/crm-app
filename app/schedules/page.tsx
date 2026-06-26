@@ -121,11 +121,14 @@ export default function SchedulePage() {
           .eq("auth_id", user.id)
           .single();
 
-        if (!info || !info.agencies) return;
+          if (!info || !info.agencies) return;
         
-        const myCorp = info.agencies.corporation_name || "회사";
-        const myBranch = info.agencies.branch_name || "지점";
-        const myTeam = info.agencies.team_number?.toString() || "";
+          // ⭐️ TS 에러 방지: agencies가 배열로 들어올 경우 첫 번째 요소([0])를 선택하도록 안전하게 처리
+          const agencyData = Array.isArray(info.agencies) ? info.agencies[0] : info.agencies;
+          
+          const myCorp = agencyData?.corporation_name || "회사";
+          const myBranch = agencyData?.branch_name || "지점";
+          const myTeam = agencyData?.team_number?.toString() || "";
 
         setMyInfo({ 
           id: info.id, 
