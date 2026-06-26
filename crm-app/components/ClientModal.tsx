@@ -25,6 +25,7 @@ type FormState = {
   bank_info: string;
   card_withdrawal_date: string;
   notes: string;
+  // ⭐️ 일정 관련 상태 추가
   scheduleDate: string;
   scheduleTime: string;
   scheduleContent: string;
@@ -46,6 +47,7 @@ const initialFormState: FormState = {
   bank_info: "",
   card_withdrawal_date: "",
   notes: "",
+  // ⭐️ 초기화
   scheduleDate: "",
   scheduleTime: "",
   scheduleContent: "",
@@ -135,6 +137,7 @@ export default function ClientModal({ onClose, onSuccess }: ClientModalProps) {
   };
 
   const handleSave = async () => {
+    // ⭐️ 필수값 검사 확장
     if (!form.scheduleDate || !form.scheduleTime) {
       alert("첫 상담 일정을 반드시 입력해 주세요.");
       return;
@@ -157,16 +160,15 @@ export default function ClientModal({ onClose, onSuccess }: ClientModalProps) {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) throw new Error("로그인이 필요합니다.");
 
-      // ⭐️ 1. 담당자 정보 조회 시 agency_id 도 함께 가져옵니다.
       const { data: agent, error: agentError } = await supabase
         .from("agents")
-        .select("id, agency_id")
+        .select("id")
         .eq("auth_id", user.id)
         .single();
 
       if (agentError || !agent) throw new Error("담당자 정보를 찾을 수 없습니다.");
 
-      // 주민등록번호 암호화
+      // 1. 주민등록번호 암호화
       let registrationNumber = null;
       if (form.regFront && form.regBack) {
         const rawReg = `${form.regFront}-${form.regBack}`;
@@ -175,12 +177,11 @@ export default function ClientModal({ onClose, onSuccess }: ClientModalProps) {
 
       const parseId = (val: string) => (val === "" ? null : parseInt(val, 10));
 
-      // ⭐️ 2. 고객 정보 INSERT 시 agency_id 포함
+      // ⭐️ 2. 고객 정보 먼저 INSERT (방금 생성된 ID를 받아와야 함)
       const { data: newClient, error: insertError } = await supabase
         .from("clients")
         .insert({
           agent_id: agent.id,
-          agency_id: agent.agency_id, // 추가된 부분
           name: form.name.trim(),
           phone: form.phone.trim() || null,
           registration_number: registrationNumber,
@@ -196,22 +197,20 @@ export default function ClientModal({ onClose, onSuccess }: ClientModalProps) {
           driving_statuses: parseId(form.driving_statuses),
           bank_lists: parseId(form.bank_lists),
         })
-        .select("id")
+        .select("id") // 중요: 생성된 ID를 반환하도록 요청
         .single();
 
       if (insertError) throw insertError;
 
-      // ⭐️ 3. 일정 정보 INSERT 시 스케줄 테이블 변경점에 맞춰 agency_id와 schedule_type 포함
+      // ⭐️ 3. 일정 정보 INSERT (newClient.id 사용)
       const { error: scheduleError } = await supabase
         .from("schedules")
         .insert({
           agent_id: agent.id,
-          agency_id: agent.agency_id, // 스케줄 테이블을 위해 추가
           client_id: newClient.id,
           date: form.scheduleDate,
           time: form.scheduleTime,
           content: form.scheduleContent.trim() || `${form.name} 고객 신규 등록 상담`,
-          schedule_type: 'personal', // 스케줄 테이블 필수값 추가
           repeat: false
         });
 

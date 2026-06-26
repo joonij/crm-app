@@ -1,3 +1,4 @@
+// app/signup/page.tsx
 "use client";
 
 import { useState } from "react";
@@ -8,40 +9,6 @@ import { UserPlus, Lock, Mail, User, Building2, BadgeCheck, Phone, MapPin, Hash,
 export default function SignUpPage() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  
-  const [phone, setPhone] = useState("");
-  const [fax, setFax] = useState("");
-
-  // 일반 연락처 포맷터 (휴대폰 및 일반 전화용)
-  const formatPhoneNumber = (value: string) => {
-    const num = value.replace(/[^0-9]/g, "");
-    if (num.length === 0) return "";
-    if (num.startsWith("02")) {
-      if (num.length <= 2) return num;
-      if (num.length <= 5) return num.replace(/(\d{2})(\d{1,3})/, "$1-$2");
-      if (num.length <= 9) return num.replace(/(\d{2})(\d{3})(\d{1,4})/, "$1-$2-$3");
-      return num.replace(/(\d{2})(\d{4})(\d{1,4})/, "$1-$2-$3");
-    }
-    if (num.length <= 3) return num;
-    if (num.length <= 6) return num.replace(/(\d{3})(\d{1,3})/, "$1-$2");
-    if (num.length <= 10) return num.replace(/(\d{3})(\d{3})(\d{1,4})/, "$1-$2-$3");
-    return num.replace(/(\d{3})(\d{4})(\d{1,4})/, "$1-$2-$3");
-  };
-
-  // ⭐️ 팩스번호 전용 포맷터 (10자: 00-0000-0000 / 11자: 0000-000-0000)
-  const formatFaxNumber = (value: string) => {
-    const num = value.replace(/[^0-9]/g, "");
-    
-    if (num.length <= 10) {
-      // 10자 이하일 때는 2-4-4 구조로 빌드업
-      if (num.length <= 2) return num;
-      if (num.length <= 6) return num.replace(/(\d{2})(\d{1,4})/, "$1-$2");
-      return num.replace(/(\d{2})(\d{4})(\d{1,4})/, "$1-$2-$3");
-    } else {
-      // 11자 이상일 때는 4-3-4 구조로 강제 전환
-      return num.replace(/(\d{4})(\d{3})(\d{1,4})/, "$1-$2-$3");
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -69,7 +36,7 @@ export default function SignUpPage() {
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-950 text-white shadow-md shadow-purple-500/20">
             <UserPlus className="h-6 w-6" />
           </div>
-          <h1 className="mt-4 text-2xl font-black text-gray-900 tracking-tight">CareLink 회원가입</h1>
+          <h1 className="mt-4 text-2xl font-black text-gray-900 tracking-tight">CRM 매니저 회원가입</h1>
           <p className="mt-1.5 text-sm text-gray-500">소속 정보와 계정을 생성하여 서비스를 시작하세요.</p>
         </div>
 
@@ -96,15 +63,15 @@ export default function SignUpPage() {
                 <label className={labelClass}>사번 (Agent Code) <span className="text-red-500">*</span></label>
                 <div className="relative">
                   <Hash className={iconClass} />
-                  <input name="agent_code" type="text" required placeholder="고유 사번 입력" className={inputClass} />
+                  <input name="agent_code" type="number" required placeholder="고유 사번 입력" className={inputClass} />
                 </div>
               </div>
 
               <div>
-                <label className={labelClass}>소속 팀 ID <span className="text-red-500">*</span></label>
+                <label className={labelClass}>소속 지점 ID <span className="text-red-500">*</span></label>
                 <div className="relative">
                   <Building2 className={iconClass} />
-                  <input name="agency_id" type="number" required placeholder="팀 ID (예: 1)" className={inputClass} />
+                  <input name="agency_id" type="number" required placeholder="지점 ID (예: 1)" className={inputClass} />
                 </div>
               </div>
 
@@ -112,12 +79,7 @@ export default function SignUpPage() {
                 <label className={labelClass}>직급</label>
                 <div className="relative">
                   <BadgeCheck className={iconClass} />
-                  <select name="rank" className={`${inputClass} cursor-pointer appearance-none`}>
-                    <option value="FC">FC (Financial Consultant)</option>
-                    <option value="SM">SM (Sales Manager)</option>
-                    <option value="BM">BM (Branch Manager)</option>
-                    <option value="RM">RM (Regional Manager)</option>
-                  </select>
+                  <input name="rank" type="text" placeholder="예: ASM, SM 등" className={inputClass} />
                 </div>
               </div>
 
@@ -125,7 +87,7 @@ export default function SignUpPage() {
                 <label className={labelClass}>상급자 코드 (Manager Code)</label>
                 <div className="relative">
                   <UserCog className={iconClass} />
-                  <input name="manager_code" type="text" placeholder="관리자/상급자의 ID (선택)" className={inputClass} />
+                  <input name="manager_code" type="number" placeholder="관리자/상급자의 ID (선택)" className={inputClass} />
                 </div>
               </div>
             </div>
@@ -139,15 +101,7 @@ export default function SignUpPage() {
                 <label className={labelClass}>연락처</label>
                 <div className="relative">
                   <Phone className={iconClass} />
-                  <input 
-                    name="phone" 
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(formatPhoneNumber(e.target.value))}
-                    maxLength={13}
-                    placeholder="010-0000-0000" 
-                    className={inputClass} 
-                  />
+                  <input name="phone" type="tel" placeholder="010-0000-0000" className={inputClass} />
                 </div>
               </div>
 
@@ -155,16 +109,7 @@ export default function SignUpPage() {
                 <label className={labelClass}>팩스 번호 (Fax)</label>
                 <div className="relative">
                   <Printer className={iconClass} />
-                  {/* ⭐️ 새로 정의한 팩스 포맷터 연동 */}
-                  <input 
-                    name="fax" 
-                    type="tel"
-                    value={fax}
-                    onChange={(e) => setFax(formatFaxNumber(e.target.value))}
-                    maxLength={13}
-                    placeholder="팩스 번호 입력" 
-                    className={inputClass} 
-                  />
+                  <input name="fax" type="tel" placeholder="02-000-0000" className={inputClass} />
                 </div>
               </div>
 
@@ -172,7 +117,7 @@ export default function SignUpPage() {
                 <label className={labelClass}>사무실 주소</label>
                 <div className="relative">
                   <MapPin className={iconClass} />
-                  <input name="office_address" type="text" placeholder="근무하시는 사무실의 주소를 입력해주세요" className={inputClass} />
+                  <input name="office_address" type="text" placeholder="근무하시는 지점의 주소를 입력해주세요" className={inputClass} />
                 </div>
               </div>
             </div>

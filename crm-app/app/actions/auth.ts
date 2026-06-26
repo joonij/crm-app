@@ -11,8 +11,7 @@ export async function signUpAction(formData: FormData) {
   const name = formData.get("name") as string;
   const agency_id = formData.get("agency_id") as string;
   const agent_code = formData.get("agent_code") as string;
-  const rawManagerCode = formData.get("manager_code") as string;
-  const manager_code = rawManagerCode.trim() === "" ? null : rawManagerCode;
+  const manager_code = formData.get("manager_code") as string;
   const rank = formData.get("rank") as string;
   const phone = formData.get("phone") as string;
   const fax = formData.get("fax") as string;
@@ -30,7 +29,7 @@ export async function signUpAction(formData: FormData) {
     options: {
       data: { 
         name, 
-        agency_id: parseInt(agency_id, 10),  
+        agency_id, 
         agent_code, 
         manager_code: manager_code || null, // 빈 값은 확실하게 null 처리
         rank, 

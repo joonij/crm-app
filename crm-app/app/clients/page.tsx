@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, useMemo, useRef } from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import { Plus, Users, X, CheckSquare, Square, BarChart3, Phone, Search, Crown, UserPlus } from "lucide-react";
 import ClientModal from "@/components/ClientModal";
 import { supabase } from "@/lib/supabase";
@@ -91,15 +91,11 @@ export default function ClientsPage() {
   const [recruitingModalClient, setRecruitingModalClient] = useState<Client | null>(null);
   
   const [searchTerm, setSearchTerm] = useState("");
+  // ⭐️ "all", "keyman", 혹은 계약상태 ID ("1", "2" 등)를 담는 상태
   const [statusFilter, setStatusFilter] = useState("all");
 
-  const [page, setPage] = useState(1);
-  const ITEMS_PER_PAGE = 20;
-
-  // ⭐️ 무한 스크롤을 위한 Observer Ref 추가
-  const loadMoreRef = useRef<HTMLDivElement>(null);
-
   const fetchClients = useCallback(async () => {
+    // 1. 현재 로그인한 유저의 Auth 정보 가져오기
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     
     if (userError || !user) {
@@ -108,6 +104,7 @@ export default function ClientsPage() {
       return;
     }
 
+    // 2. agents 테이블에서 로그인한 유저(auth_id)의 고유 내부 ID(id) 조회
     const { data: agent, error: agentError } = await supabase
       .from("agents")
       .select("id")
@@ -120,10 +117,12 @@ export default function ClientsPage() {
       return;
     }
 
+    // 3. 조회된 agent.id와 일치하는 본인의 고객 정보만 필터링하여 가져오기
     const { data, error } = await supabase
       .from("clients")
       .select("*")
-      .eq("agent_id", agent.id);
+      .eq("agent_id", agent.id) // ⭐️ 로그인한 유저의 고객만 필터링하는 조건 추가
+      .order("created_at", { ascending: false });
 
     if (error) {
       console.error("데이터 불러오기 에러:", error.message);
@@ -133,6 +132,7 @@ export default function ClientsPage() {
 
     const fetchedData = data || [];
 
+    // 4. 키맨 일괄 계산 로직 (기존 로직 유지)
     const introCounts = fetchedData.reduce((acc, curr) => {
       if (curr.introduce_client) {
         acc[curr.introduce_client] = (acc[curr.introduce_client] || 0) + 1;
@@ -145,8 +145,6 @@ export default function ClientsPage() {
       isKeyman: (introCounts[client.id] || 0) >= 3
     }));
 
-    clientsWithKeyman.sort((a, b) => a.name.localeCompare(b.name, 'ko-KR'));
-
     setClients(clientsWithKeyman);
   }, []);
 
@@ -154,11 +152,6 @@ export default function ClientsPage() {
     void fetchClients();
   }, [fetchClients]);
 
-  useEffect(() => {
-    setPage(1);
-  }, [searchTerm, statusFilter]);
-
-  // 전체 필터링된 결과물 계산
   const filteredClients = useMemo(() => {
     if (!clients) return [];
     
@@ -170,11 +163,12 @@ export default function ClientsPage() {
         client.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
         cleanPhone.includes(cleanSearchTerm);
       
+      // ⭐️ 필터 분기 로직 강화
       let matchesStatus = false;
       if (statusFilter === "all") {
         matchesStatus = true;
       } else if (statusFilter === "keyman") {
-        matchesStatus = !!client.isKeyman; 
+        matchesStatus = !!client.isKeyman; // 키맨인 경우만 통과
       } else {
         const clientStatusId = client.contract_status !== null ? String(client.contract_status) : "";
         matchesStatus = clientStatusId === statusFilter;
@@ -183,30 +177,6 @@ export default function ClientsPage() {
       return matchesSearch && matchesStatus;
     });
   }, [clients, searchTerm, statusFilter]);
-
-  // ⭐️ 100% 확실한 Intersection Observer 방식 무한 스크롤 적용
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        // 박스가 화면에 보이면 페이지 1 증가
-        if (entries[0].isIntersecting) {
-          setPage((prev) => prev + 1);
-        }
-      },
-      { threshold: 0.1 } // 박스가 10%라도 보이면 트리거
-    );
-
-    const currentTarget = loadMoreRef.current;
-    if (currentTarget) {
-      observer.observe(currentTarget);
-    }
-
-    return () => {
-      if (currentTarget) observer.unobserve(currentTarget);
-    };
-  }, [filteredClients.length, page]); // 렌더링 상황이 바뀔 때마다 옵저버 갱신
-
-  const displayedClients = filteredClients.slice(0, page * ITEMS_PER_PAGE);
   
   const handleStatusChange = async (clientId: number, newStatusId: string) => {
     setClients((prev) =>
@@ -338,6 +308,7 @@ export default function ClientsPage() {
               전체
             </button>
             
+            {/* ⭐️ 키맨 전용 필터 버튼 추가 */}
             <button 
               onClick={() => setStatusFilter("keyman")} 
               className={`shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-bold transition-colors ${
@@ -378,7 +349,7 @@ export default function ClientsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 bg-white">
-              {displayedClients.length === 0 ? (
+              {filteredClients.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center text-sm text-gray-500">
                     {clients.length === 0 
@@ -387,7 +358,7 @@ export default function ClientsPage() {
                   </td>
                 </tr>
               ) : (
-                displayedClients.map((client) => {
+                filteredClients.map((client) => {
                   const completedSteps = parseSteps(client.progress_status);
                   const progressPercent = Math.round((completedSteps.length / SALES_STEPS.length) * 100);
                   
@@ -486,12 +457,12 @@ export default function ClientsPage() {
 
         {/* 📱 모바일 뷰 */}
         <div className="md:hidden flex flex-col divide-y divide-gray-100 bg-gray-50/30">
-          {displayedClients.length === 0 ? (
+          {filteredClients.length === 0 ? (
             <div className="p-8 text-center text-sm text-gray-500">
               {clients.length === 0 ? "등록된 고객이 없습니다." : "검색 조건에 맞는 고객이 없습니다."}
             </div>
           ) : (
-            displayedClients.map((client) => {
+            filteredClients.map((client) => {
               const completedSteps = parseSteps(client.progress_status);
               const progressPercent = Math.round((completedSteps.length / SALES_STEPS.length) * 100);
               
@@ -577,12 +548,6 @@ export default function ClientsPage() {
             })
           )}
         </div>
-
-        {/* ⭐️ 무한 스크롤 트리거 역할을 하는 투명 박스 (더 불러올 데이터가 있을 때만 렌더링) */}
-        {displayedClients.length < filteredClients.length && (
-          <div ref={loadMoreRef} className="h-10 w-full" />
-        )}
-
       </section>
 
       {isModalOpen && (
