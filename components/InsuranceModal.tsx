@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { Shield, X, Plus } from "lucide-react";
 
@@ -13,9 +13,21 @@ type CoverageDetail = {
   amount: string;
 };
 
-// ⭐️ 기본 담보 세팅 (대표님이 작성하신 내역 그대로 반영)
+// ⭐️ DB에서 불러올 보험사 타입 정의
+type InsuranceCompany = {
+  company_type: string;
+  company_name: string;
+};
+
 const defaultDetails: CoverageDetail[] = [
+  { name: "실손의료비 상해입원", amount: "" },
+  { name: "실손의료비 질병입원", amount: "" },
+  { name: "실손의료비 상해통원", amount: "" },
+  { name: "실손의료비 질병통원", amount: "" },
+  { name: "실손의료비 상해약제", amount: "" },
+  { name: "실손의료비 질병약제", amount: "" },
   { name: "일반암 진단금", amount: "" },
+  { name: "고액암 진단금", amount: "" },
   { name: "유사암 진단금", amount: "" },
   { name: "항암방사선치료비", amount: "" },
   { name: "항암약물물치료비", amount: "" },
@@ -47,37 +59,55 @@ export default function InsuranceModal({
   onClose: () => void;
   onSuccess: () => void;
 }) {
-  // ⭐️ policy_status 컬럼 추가 반영
   const [covForm, setCovForm] = useState({
     policy_status: "maintain", // 기본값: 유지
     company: "",
     product: "",
     premium: "",
     indemnityGen: "",
+    subscriptionDate: "", // ⭐️ 가입일자 상태 추가
+    maturityDate: "",     // ⭐️ 만기일자 상태 추가
   });
 
   const [covDetails, setCovDetails] = useState<CoverageDetail[]>(defaultDetails);
   const [isSaving, setIsSaving] = useState(false);
+  
+  // 보험사 목록 상태
+  const [companies, setCompanies] = useState<InsuranceCompany[]>([]);
 
-  // 세부 항목 업데이트
+  // 컴포넌트 마운트 시 DB에서 보험사 목록 불러오기
+  useEffect(() => {
+    const fetchCompanies = async () => {
+      const { data, error } = await supabase
+        .from("insurance_companies")
+        .select("company_type, company_name")
+        .order("company_type", { ascending: true }) 
+        .order("company_name", { ascending: true });
+
+      if (data) {
+        setCompanies(data);
+      } else if (error) {
+        console.error("보험사 목록 불러오기 실패:", error.message);
+      }
+    };
+    fetchCompanies();
+  }, []);
+
   const updateCovDetail = (index: number, field: keyof CoverageDetail, value: string) => {
     const newDetails = [...covDetails];
     newDetails[index][field] = value;
     setCovDetails(newDetails);
   };
 
-  // 세부 항목 추가
   const addCovDetail = () => {
     setCovDetails([...covDetails, { name: "", amount: "" }]);
   };
 
-  // 세부 항목 삭제
   const removeCovDetail = (index: number) => {
     const newDetails = covDetails.filter((_, i) => i !== index);
     setCovDetails(newDetails);
   };
 
-  // 저장 로직
   const handleSaveCoverage = async () => {
     if (!covForm.company.trim() || !covForm.product.trim() || !covForm.premium) {
       alert("보험사, 상품명, 월 보험료를 모두 입력해주세요.");
@@ -85,12 +115,12 @@ export default function InsuranceModal({
     }
     setIsSaving(true);
 
-    // ⭐️ 수정된 부분: 이름과 금액이 '모두' 있는 항목만 걸러냅니다 (|| -> && 로 변경)
     const validDetails = covDetails.filter(
       (d) => d.name.trim() !== "" && d.amount.trim() !== ""
     );
 
     try {
+      // ⭐️ Insert 시 새로 추가된 날짜 컬럼 매핑
       const { error } = await supabase.from("subscription_insurance").insert([
         {
           client_id: parseInt(clientId, 10),
@@ -99,7 +129,9 @@ export default function InsuranceModal({
           product_name: covForm.product.trim(),
           monthly_premium: parseInt(covForm.premium, 10),
           indemnity_generation: covForm.indemnityGen || null,
-          details: validDetails.length > 0 ? validDetails : null, // 빈 배열이면 null로 저장
+          subscription_date: covForm.subscriptionDate || null, // 가입일
+          maturity_date: covForm.maturityDate || null,         // 만기일
+          details: validDetails.length > 0 ? validDetails : null,
         },
       ]);
 
@@ -114,14 +146,18 @@ export default function InsuranceModal({
     }
   };
 
+  // 생명보험 / 손해보험 분리
+  const lifeInsurances = companies.filter((c) => c.company_type === "생명보험");
+  const nonLifeInsurances = companies.filter((c) => c.company_type === "손해보험");
+
   return (
     <div 
       className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/60 md:p-4 transition-opacity"
-      onClick={onClose} // 바깥 영역 클릭 시 닫기
+      onClick={onClose}
     >
       <div 
         className="bg-white w-full max-w-4xl flex flex-col max-h-[90vh] md:max-h-[85vh] rounded-t-2xl md:rounded-xl shadow-2xl animate-in slide-in-from-bottom-4 md:slide-in-from-bottom-0 md:zoom-in-95"
-        onClick={(e) => e.stopPropagation()} // 내부 클릭은 전파 방지
+        onClick={(e) => e.stopPropagation()}
       >
         <div className="p-4 md:p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-2xl md:rounded-t-xl shrink-0">
           <h3 className="font-bold text-base md:text-lg text-gray-900 flex items-center gap-2">
@@ -137,7 +173,6 @@ export default function InsuranceModal({
 
         <div className="p-4 md:p-6 overflow-y-auto space-y-6">
           
-          {/* ⭐️ 1. 보험 상태 선택 (유지/해지/신규) */}
           <div className="space-y-3">
             <p className="text-sm font-semibold text-gray-700">리모델링 상태 분류</p>
             <div className="flex gap-2">
@@ -161,30 +196,42 @@ export default function InsuranceModal({
             </div>
           </div>
 
-          {/* 2. 기본 정보 */}
           <div className="space-y-3 pt-4 border-t border-gray-100">
             <p className="text-sm font-semibold text-gray-700">기본 정보</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <input
-                type="text"
-                placeholder="보험사 (예: 삼성화재)"
-                className={inputClassName}
+              
+              <select
+                className={`${inputClassName} cursor-pointer`}
                 value={covForm.company}
                 onChange={(e) => setCovForm({ ...covForm, company: e.target.value })}
-              />
+              >
+                <option value="">-- 보험사 선택 --</option>
+                {lifeInsurances.length > 0 && (
+                  <optgroup label="[ 생명보험 ]">
+                    {lifeInsurances.map((c) => (
+                      <option key={c.company_name} value={c.company_name}>
+                        {c.company_name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {nonLifeInsurances.length > 0 && (
+                  <optgroup label="[ 손해보험 ]">
+                    {nonLifeInsurances.map((c) => (
+                      <option key={c.company_name} value={c.company_name}>
+                        {c.company_name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
+
               <input
                 type="text"
                 placeholder="상품명"
                 className={inputClassName}
                 value={covForm.product}
                 onChange={(e) => setCovForm({ ...covForm, product: e.target.value })}
-              />
-              <input
-                type="number"
-                placeholder="월 보험료 (원)"
-                className={inputClassName}
-                value={covForm.premium}
-                onChange={(e) => setCovForm({ ...covForm, premium: e.target.value })}
               />
 
               <select
@@ -199,10 +246,37 @@ export default function InsuranceModal({
                 <option value="4세대 실손">4세대 실손 (2021년 7월 이후)</option>
                 <option value="5세대 실손">5세대 실손 (2026년 5월 이후)</option>
               </select>
+              <input
+                type="number"
+                placeholder="월 보험료 (원)"
+                className={inputClassName}
+                value={covForm.premium}
+                onChange={(e) => setCovForm({ ...covForm, premium: e.target.value })}
+              />
+              
+              {/* ⭐️ 가입일자 / 만기일자 입력 UI 추가 */}
+              <div className="flex flex-col">
+                <label className="text-xs text-gray-500 mb-1 ml-1 font-semibold">보험 가입 일자</label>
+                <input
+                  type="date"
+                  className={inputClassName}
+                  value={covForm.subscriptionDate}
+                  onChange={(e) => setCovForm({ ...covForm, subscriptionDate: e.target.value })}
+                />
+              </div>
+              <div className="flex flex-col">
+                <label className="text-xs text-gray-500 mb-1 ml-1 font-semibold">보험 만기 일자</label>
+                <input
+                  type="date"
+                  className={inputClassName}
+                  value={covForm.maturityDate}
+                  onChange={(e) => setCovForm({ ...covForm, maturityDate: e.target.value })}
+                />
+              </div>
+
             </div>
           </div>
 
-          {/* 3. 세부 보장 항목 */}
           <div className="space-y-3 pt-4 border-t border-gray-100">
             <p className="text-sm font-semibold text-gray-700">세부 보장 항목 (선택)</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">

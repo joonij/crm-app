@@ -307,7 +307,7 @@ export default function ClientModal({ onClose, onSuccess }: ClientModalProps) {
                 <div className="flex items-center gap-2 w-full md:w-1/2">
                   <input type="tel" maxLength={6} placeholder="YYMMDD" value={form.regFront} onChange={(e) => updateField("regFront", e.target.value.replace(/[^0-9]/g, ''))} className={inputClassName} />
                   <span className="text-gray-400 font-bold">-</span>
-                  <input type="password" maxLength={7} placeholder="*******" value={form.regBack} onChange={(e) => updateField("regBack", e.target.value.replace(/[^0-9]/g, ''))} className={inputClassName} />
+                  <input type="text" maxLength={7} placeholder="*******" value={form.regBack} onChange={(e) => updateField("regBack", e.target.value.replace(/[^0-9]/g, ''))} className={inputClassName} />
                 </div>
               </div>
 

@@ -5,11 +5,11 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ChevronLeft, FileText, Stethoscope, Calendar, User, Crown } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import ClientDetailModal from "@/components/ClientDetailModal";
-import ClientMemoCard from "@/components/ClientMemoCard";
-import ClientCoverageCard from "@/components/ClientCoverageCard";
-import ClientsMedicalHistoryCard from "@/components/ClientsMedicalHistoryCard";
-import ClientScheduleCard from "@/components/ClientScheduleCard";
+import ClientDetailModal from "./components/ClientDetailModal";
+import ClientMemoCard from "./components/ClientMemoCard";
+import ClientCoverageCard from "./components/ClientCoverageCard";
+import ClientsMedicalHistoryCard from "./components/ClientsMedicalHistoryCard";
+import ClientScheduleCard from "./components/ClientScheduleCard";
 
 type Client = {
   id: number;

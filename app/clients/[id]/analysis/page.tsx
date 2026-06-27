@@ -303,81 +303,9 @@ export default function AnalysisPage() {
                 </div>
               </div>
             </div>
-          {/* </section> */}
-
-          {/* 1. 알릴의무 분석 리포트 */}
-          {/* <section className="bg-white rounded-2xl p-6 md:p-8 border border-slate-400 shadow-sm print:border-slate-300 print:break-inside-avoid print:shadow-none relative overflow-hidden"> */}
-            <div className="mt-12 flex items-center justify-between border-b border-slate-200 pb-4 mb-6 print:border-slate-300">
-              <h2 className="text-lg font-black text-slate-800 flex items-center gap-2 uppercase tracking-widest">
-                <Stethoscope className="w-6 h-6 text-blue-600" />
-                고객 건강 및 알릴의무 분석
-              </h2>
-              <span className="text-xs font-bold bg-slate-100 text-slate-500 px-3 py-1 rounded-full print:border print:border-slate-300">
-                심평원 데이터 기반
-              </span>
-            </div>
-
-            {Object.values(medicalHistory.checklist || {}).some(val => val === true) ? (
-              <div className="bg-red-50 border border-red-200 p-4 rounded-xl mb-6 flex items-center gap-3 print:bg-red-50/50">
-                <AlertTriangle className="w-6 h-6 text-red-600 shrink-0" />
-                <div>
-                  <p className="text-sm font-black text-red-800">알릴 의무 해당 항목이 발견되었습니다. (상세 심사 필요)</p>
-                  <p className="text-xs font-semibold text-red-600/80 mt-0.5">아래 붉은색으로 표기된 항목에 대해 보험사 고지가 필요합니다.</p>
-                </div>
-              </div>
-            ) : (
-              <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl mb-6 flex items-center gap-3 print:bg-emerald-50/50">
-                <ShieldCheck className="w-6 h-6 text-emerald-600 shrink-0" />
-                <div>
-                  <p className="text-sm font-black text-emerald-800">특이 고지사항 없음 (건강체/우량체 가입 유리)</p>
-                  <p className="text-xs font-semibold text-emerald-600/80 mt-0.5">고지 대상에 해당되는 이력이 발견되지 않았습니다.</p>
-                </div>
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-8">
-              {[
-                { id: "q3Month_hospital", label: "3개월 내 병원 이력" },
-                { id: "q1Year_same_disease", label: "1년 내 추가검사/재검사" },
-                { id: "q5Year_surgery_suspect", label: "5년 내 수술 및 처치" },
-                { id: "q5Year_hospitalization", label: "5년 내 입원 이력" },
-                { id: "q5Year_7days_visit", label: "5년 내 7일 이상 통원" },
-                { id: "q5Year_30days_medication", label: "5년 내 30일 이상 투약" },
-              ].map((item) => {
-                const isWarning = medicalHistory.checklist?.[item.id];
-                return (
-                  <div key={item.id} className={`flex items-center gap-2.5 p-3 rounded-xl border ${isWarning ? 'bg-red-50/50 border-red-200 print:bg-red-50' : 'bg-slate-50/50 border-slate-100 print:bg-white'} transition-colors`}>
-                    {isWarning ? (
-                      <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
-                    ) : (
-                      <CheckCircle2 className="w-4 h-4 text-slate-300 shrink-0" />
-                    )}
-                    <span className={`text-xs font-bold ${isWarning ? 'text-red-700' : 'text-slate-400 line-through decoration-slate-300'}`}>
-                      {item.label}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="bg-blue-50/30 border border-blue-100 rounded-xl p-5 print:bg-blue-50/50">
-              <p className="text-[11px] font-bold text-blue-500 uppercase tracking-widest mb-3 flex items-center gap-1.5">
-                <FileText className="w-3.5 h-3.5" /> 상세 병력 및 분석 코멘트
-              </p>
-              <textarea
-                value={medicalHistory.memo || ""}
-                onChange={(e) => setMedicalHistory({ ...medicalHistory, memo: e.target.value })}
-                className="w-full bg-transparent text-sm font-semibold text-slate-700 outline-none resize-none leading-relaxed min-h-[300px] focus:border-b focus:border-blue-300 transition-colors print:border-none "
-                rows={medicalHistory.memo ? medicalHistory.memo.split('\n').length + 1 : 4}
-                placeholder="상세 병력 내용이 없습니다."
-              />
-            </div>
-
-            <p className="text-[10px] font-semibold text-slate-400 mt-5 flex items-center gap-1.5">
-              <Info className="w-3.5 h-3.5 shrink-0" /> 
-              본 리포트는 국민건강보험공단(심평원) 진료 데이터를 기반으로 작성된 참고용 자료입니다
-            </p>
           </section>
+
+          
 
           {/* 3. 월 보험료 변화 */}
           {/* 3 & 4. VIP 맞춤형 재무 & 보장 최적화 리포트 (그래프 제거 & 대시보드화) */}
@@ -673,6 +601,80 @@ export default function AnalysisPage() {
             </div>
           </div>
         </section>
+
+        {/* 1. 알릴의무 분석 리포트 */}
+        <section className="bg-white rounded-2xl p-6 md:p-8 border border-slate-400 shadow-sm print:border-slate-300 print:break-inside-avoid print:shadow-none relative overflow-hidden">
+            <div className="mt-12 flex items-center justify-between border-b border-slate-200 pb-4 mb-6 print:border-slate-300">
+              <h2 className="text-lg font-black text-slate-800 flex items-center gap-2 uppercase tracking-widest">
+                <Stethoscope className="w-6 h-6 text-blue-600" />
+                고객 건강 및 알릴의무 분석
+              </h2>
+              <span className="text-xs font-bold bg-slate-100 text-slate-500 px-3 py-1 rounded-full print:border print:border-slate-300">
+                심평원 데이터 기반
+              </span>
+            </div>
+
+            {Object.values(medicalHistory.checklist || {}).some(val => val === true) ? (
+              <div className="bg-red-50 border border-red-200 p-4 rounded-xl mb-6 flex items-center gap-3 print:bg-red-50/50">
+                <AlertTriangle className="w-6 h-6 text-red-600 shrink-0" />
+                <div>
+                  <p className="text-sm font-black text-red-800">알릴 의무 해당 항목이 발견되었습니다. (상세 심사 필요)</p>
+                  <p className="text-xs font-semibold text-red-600/80 mt-0.5">아래 붉은색으로 표기된 항목에 대해 보험사 고지가 필요합니다.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl mb-6 flex items-center gap-3 print:bg-emerald-50/50">
+                <ShieldCheck className="w-6 h-6 text-emerald-600 shrink-0" />
+                <div>
+                  <p className="text-sm font-black text-emerald-800">특이 고지사항 없음 (건강체/우량체 가입 유리)</p>
+                  <p className="text-xs font-semibold text-emerald-600/80 mt-0.5">고지 대상에 해당되는 이력이 발견되지 않았습니다.</p>
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-8">
+              {[
+                { id: "q3Month_hospital", label: "3개월 내 병원 이력" },
+                { id: "q1Year_same_disease", label: "1년 내 추가검사/재검사" },
+                { id: "q5Year_surgery_suspect", label: "5년 내 수술 및 처치" },
+                { id: "q5Year_hospitalization", label: "5년 내 입원 이력" },
+                { id: "q5Year_7days_visit", label: "5년 내 7일 이상 통원" },
+                { id: "q5Year_30days_medication", label: "5년 내 30일 이상 투약" },
+              ].map((item) => {
+                const isWarning = medicalHistory.checklist?.[item.id];
+                return (
+                  <div key={item.id} className={`flex items-center gap-2.5 p-3 rounded-xl border ${isWarning ? 'bg-red-50/50 border-red-200 print:bg-red-50' : 'bg-slate-50/50 border-slate-100 print:bg-white'} transition-colors`}>
+                    {isWarning ? (
+                      <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
+                    ) : (
+                      <CheckCircle2 className="w-4 h-4 text-slate-300 shrink-0" />
+                    )}
+                    <span className={`text-xs font-bold ${isWarning ? 'text-red-700' : 'text-slate-400 line-through decoration-slate-300'}`}>
+                      {item.label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="bg-blue-50/30 border border-blue-100 rounded-xl p-5 print:bg-blue-50/50">
+              <p className="text-[11px] font-bold text-blue-500 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                <FileText className="w-3.5 h-3.5" /> 상세 병력 및 분석 코멘트
+              </p>
+              <textarea
+                value={medicalHistory.memo || ""}
+                onChange={(e) => setMedicalHistory({ ...medicalHistory, memo: e.target.value })}
+                className="w-full bg-transparent text-sm font-semibold text-slate-700 outline-none resize-none leading-relaxed min-h-[300px] focus:border-b focus:border-blue-300 transition-colors print:border-none "
+                rows={medicalHistory.memo ? medicalHistory.memo.split('\n').length + 1 : 4}
+                placeholder="상세 병력 내용이 없습니다."
+              />
+            </div>
+
+            <p className="text-[10px] font-semibold text-slate-400 mt-5 flex items-center gap-1.5">
+              <Info className="w-3.5 h-3.5 shrink-0" /> 
+              본 리포트는 국민건강보험공단(심평원) 진료 데이터를 기반으로 작성된 참고용 자료입니다
+            </p>
+          </section>
 
       </div>
     </>

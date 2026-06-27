@@ -374,7 +374,7 @@ export default function ClientsMedicalHistoryCard({ clientId, initialHistory }: 
         </div>
 
         <div className="space-y-2 shrink-0">
-          <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest ml-1">상세 고지 의무 (3·1·5)</p>
+          <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest ml-1">상세 고지 의무</p>
           {[
             { id: "q3Month_hospital", label: "3개월 내 다녀온 병원 및 약국 이력" },
             { id: "q1Year_same_disease", label: "1년 내 같은 질병(코드) 병원 이력" },
