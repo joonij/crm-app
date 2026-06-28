@@ -151,6 +151,33 @@ export default function AnalysisPage() {
     }
   };
 
+  const handlePrint = () => {
+    // 1. 날짜 포맷 (YYMMDD 형식)
+    const now = new Date();
+    const yy = String(now.getFullYear()).slice(-2);
+    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    const dd = String(now.getDate()).padStart(2, "0");
+    const dateStr = `${yy}${mm}${dd}`;
+
+    // 2. 고객 이름 추출
+    const clientName = client?.name || "고객";
+
+    // 3. 파일명(타이틀) 조합
+    const printTitle = `${dateStr}_${clientName}_보장분석 및 리모델링 제안서`;
+
+    // 4. 기존 타이틀 백업 후 변경
+    const originalTitle = document.title;
+    document.title = printTitle;
+
+    // 5. 인쇄 (PDF 저장) 실행
+    window.print();
+
+    // 6. 브라우저가 타이틀을 읽어간 후 원래 타이틀로 복구
+    setTimeout(() => {
+      document.title = originalTitle;
+    }, 500);
+  };
+
   if (isLoading || !client) {
     return <div className="flex h-[50vh] items-center justify-center text-gray-500">분석 데이터를 계산 중입니다...</div>;
   }
@@ -221,7 +248,7 @@ export default function AnalysisPage() {
               {isSavingConsulting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : saveSuccess ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Save className="w-3.5 h-3.5" />}
               {isSavingConsulting ? "저장 중..." : saveSuccess ? "저장 완료" : "내용 저장"}
             </button>
-            <button onClick={() => window.print()} className="flex items-center gap-2 bg-gray-900 text-white px-5 py-2.5 rounded-lg text-sm font-bold hover:bg-gray-800 transition shadow-md">
+            <button onClick={handlePrint} className="flex items-center gap-2 bg-gray-900 text-white px-5 py-2.5 rounded-lg text-sm font-bold hover:bg-gray-800 transition shadow-md">
               <Printer className="w-4 h-4" /> 제안서 출력 (PDF)
             </button>
           </div>
@@ -266,7 +293,7 @@ export default function AnalysisPage() {
 
           
           {/* 2. 전문가 브리핑 및 컨설팅 포인트 */}
-          <section className="bg-white rounded-2xl p-6 md:p-8 border border-slate-400 print:border-slate-300 print:break-inside-avoid">
+          {/* <section className="bg-white rounded-2xl p-6 md:p-8 border border-slate-400 print:border-slate-300 print:break-inside-avoid">
           <div className="flex justify-between items-center mb-2 border-b border-slate-200 pb-2 print:border-slate-300">
               <h2 className="text-lg font-black text-slate-800 flex items-center gap-2 uppercase tracking-widest">
                 <HeartHandshake className="w-6 h-6 text-blue-600" />
@@ -280,10 +307,10 @@ export default function AnalysisPage() {
                   <p className="w-full mt-1 bg-white rounded p-0 transition-colors print:bg-transparent">
                     현재 위험 대비 수준을 점검하고 불필요한 지출을 줄여 가장 효율적이고 안정적인 맞춤형 포트폴리오를 제안합니다
                   </p>
-                </div>
+                </div> */}
                 
                 {/* ⭐️ 인쇄 시에도 1줄에 3칸 유지되도록 print:grid-cols-3 적용 */}
-                <div className="mt-4 grid grid-cols-1 md:grid-cols-3 print:grid-cols-3 gap-3">
+                {/* <div className="mt-4 grid grid-cols-1 md:grid-cols-3 print:grid-cols-3 gap-3">
                   {points.map((point, index) => (
                     <div key={index} className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm print:border-slate-300 print:break-inside-avoid">
                       <p className="text-[11px] font-bold text-blue-600 mb-1">Point {index + 1}.</p>
@@ -303,7 +330,7 @@ export default function AnalysisPage() {
                 </div>
               </div>
             </div>
-          </section>
+          </section> */}
 
           
 

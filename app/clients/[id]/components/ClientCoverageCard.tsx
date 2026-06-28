@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Shield, Trash2, ChevronDown, ChevronUp, Plus, BarChart3, Edit2, RotateCcw } from "lucide-react";
+import { Shield, Trash2, ChevronDown, ChevronUp, Plus, BarChart3, Edit2, RotateCcw, MinusCircle } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import InsuranceModal from "@/components/InsuranceModal";
 
@@ -13,7 +13,7 @@ type CoverageDetail = {
   is_deleted?: boolean; 
 };
 
-// ⭐️ 가입일, 만기일 타입 추가
+// 가입일, 만기일 타입 추가
 type Coverage = { 
   id: number; 
   insurance_company: string; 
@@ -37,7 +37,7 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
   const [expandedCovId, setExpandedCovId] = useState<number | null>(null);
   const [isCovModalOpen, setIsCovModalOpen] = useState(false);
   
-  // ⭐️ 특약명(tempName)도 수정할 수 있도록 상태 확장
+  // 특약명(tempName)도 수정할 수 있도록 상태 확장
   const [editingDetail, setEditingDetail] = useState<{ covId: number, idx: number, tempName: string, tempAmount: string } | null>(null);
 
   const fetchCoverages = async () => {
@@ -49,6 +49,7 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
 
   const toggleCoverage = (id: number) => setExpandedCovId(prev => (prev === id ? null : id));
 
+  // 보험 자체를 삭제
   const handleDeleteCoverage = async (covId: number) => {
     if (!window.confirm("이 보장 내역을 완전히 삭제하시겠습니까?")) return;
     const { error } = await supabase.from("subscription_insurance").delete().eq("id", covId);
@@ -67,6 +68,7 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     if (error) { alert("업데이트 실패"); fetchCoverages(); }
   };
 
+  // ⭐️ [기존 기능] 부분해지 (취소선만 표시하는 Soft Delete)
   const handleToggleDetailDelete = async (covId: number, idx: number) => {
     const cov = coverages.find(c => c.id === covId);
     if (!cov || !cov.details) return;
@@ -75,7 +77,20 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     await updateCoverageDetailsInDB(covId, newDetails);
   };
 
-  // ⭐️ 수정 내역 저장 (이름, 금액 모두 저장)
+  // ⭐️ [신규 기능] 특약 완전 삭제 (데이터베이스에서 영구 삭제)
+  const handlePermanentlyDeleteDetail = async (covId: number, idx: number) => {
+    if (!window.confirm("이 특약을 목록에서 완전히 삭제하시겠습니까?")) return;
+    const cov = coverages.find(c => c.id === covId);
+    if (!cov || !cov.details) return;
+    
+    // 선택한 인덱스를 제외한 새로운 배열 생성
+    const newDetails = cov.details.filter((_, i) => i !== idx);
+    
+    // 만약 특약을 모두 지워서 빈 배열이 되었다면 null로 처리
+    await updateCoverageDetailsInDB(covId, newDetails.length > 0 ? newDetails : []);
+  };
+
+  // 수정 내역 저장 (이름, 금액 모두 저장)
   const handleSaveDetail = async (covId: number, idx: number) => {
     if (!editingDetail) return;
     if (!editingDetail.tempName.trim()) return alert("특약명을 입력해주세요.");
@@ -96,7 +111,7 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     setEditingDetail(null);
   };
 
-  // ⭐️ 특약 추가 기능
+  // 특약 추가 기능
   const handleAddNewDetail = async (covId: number) => {
     const cov = coverages.find(c => c.id === covId);
     if (!cov) return;
@@ -110,7 +125,7 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     setEditingDetail({ covId, idx: newIdx, tempName: "", tempAmount: "" });
   };
 
-  // ⭐️ 입력 취소 (새로 추가하려다 취소한 빈 특약은 깔끔하게 삭제)
+  // 입력 취소 (새로 추가하려다 취소한 빈 특약은 깔끔하게 삭제)
   const handleCancelEdit = async (covId: number, idx: number) => {
     const cov = coverages.find(c => c.id === covId);
     if (cov && cov.details) {
@@ -135,7 +150,7 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
             </div>
             <div>
               <h2 className="text-lg font-semibold text-gray-900">보장 분석 내역</h2>
-              <p className="text-xs text-gray-500 mt-0.5">특약을 삭제, 감액, 혹은 추가하여 비교하세요.</p>
+              <p className="text-xs text-gray-500 mt-0.5">특약을 부분해지, 감액, 삭제하여 비교하세요.</p>
             </div>
           </div>
           
@@ -184,7 +199,7 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                               <p className="text-gray-600 text-xs truncate flex-1 min-w-0">{cov.product_name}</p>
                               {cov.indemnity_generation && <span className="inline-flex shrink-0 items-center rounded bg-white px-1.5 py-0.5 text-[10px] font-semibold text-gray-500 border border-gray-200">{cov.indemnity_generation}</span>}
                             </div>
-                            {/* ⭐️ 가입일 / 만기일 렌더링 영역 */}
+                            {/* 가입일 / 만기일 렌더링 영역 */}
                             {(cov.subscription_date || cov.maturity_date) && (
                               <p className="text-[11px] font-medium text-gray-400 mt-0.5 flex gap-1.5">
                                 {cov.subscription_date && <span>가입 {cov.subscription_date}</span>}
@@ -200,7 +215,7 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                         </div>
                       </div>
                     </div>
-                    <button onClick={(e) => { e.stopPropagation(); handleDeleteCoverage(cov.id); }} className="absolute top-3 right-2 text-gray-300 hover:text-red-500 z-10 p-1" title="완전 삭제">
+                    <button onClick={(e) => { e.stopPropagation(); handleDeleteCoverage(cov.id); }} className="absolute top-3 right-2 text-gray-300 hover:text-red-500 z-10 p-1" title="보장 내역 자체를 완전 삭제">
                       <Trash2 className="h-4 w-4" />
                     </button>
 
@@ -214,7 +229,7 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                             <div key={idx} className={`flex flex-col text-xs border-b border-gray-200/50 pb-2 last:border-0 last:pb-0 ${isDeleted ? 'opacity-60 grayscale' : ''}`}>
                               <div className="flex justify-between items-center gap-2">
                                 
-                                {/* ⭐️ 수정 모드일 때 (특약명, 금액 모두 수정 가능) */}
+                                {/* 수정 모드일 때 (특약명, 금액 모두 수정 가능) */}
                                 {isEditing ? (
                                   <div className="flex items-center gap-1.5 w-full flex-wrap sm:flex-nowrap">
                                     <input type="text" placeholder="특약명" value={editingDetail.tempName} onChange={(e) => setEditingDetail({ ...editingDetail, tempName: e.target.value })} className="border border-blue-300 rounded px-2 py-1.5 flex-1 min-w-[100px] text-xs outline-none" autoFocus />
@@ -235,15 +250,19 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                                 )}
                               </div>
 
-                              {/* 일반 뷰일 때 (수정/삭제 버튼) */}
+                              {/* ⭐️ 일반 뷰일 때 (부분해지 / 삭제 버튼 렌더링) */}
                               {!isEditing && (
                                 <div className="flex justify-end gap-2 mt-1.5">
                                   {isDeleted ? (
-                                    <button onClick={() => handleToggleDetailDelete(cov.id, idx)} className="flex items-center gap-1 text-[10px] text-blue-600 font-semibold bg-blue-50 px-2 py-0.5 rounded"><RotateCcw className="w-3 h-3" /> 복구</button>
+                                    <>
+                                      <button onClick={() => handleToggleDetailDelete(cov.id, idx)} className="flex items-center gap-1 text-[10px] text-blue-600 font-semibold bg-blue-50 px-2 py-0.5 rounded"><RotateCcw className="w-3 h-3" /> 복구</button>
+                                      <button onClick={() => handlePermanentlyDeleteDetail(cov.id, idx)} className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-red-500 px-1"><Trash2 className="w-3 h-3" /> 삭제</button>
+                                    </>
                                   ) : (
                                     <>
                                       <button onClick={() => setEditingDetail({ covId: cov.id, idx, tempName: detail.name, tempAmount: detail.amount })} className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-blue-600 px-1"><Edit2 className="w-3 h-3" /> 수정(감액)</button>
-                                      <button onClick={() => handleToggleDetailDelete(cov.id, idx)} className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-red-500 px-1"><Trash2 className="w-3 h-3" /> 삭제(제외)</button>
+                                      <button onClick={() => handleToggleDetailDelete(cov.id, idx)} className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-orange-500 px-1"><MinusCircle className="w-3 h-3" /> 부분해지</button>
+                                      <button onClick={() => handlePermanentlyDeleteDetail(cov.id, idx)} className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-red-500 px-1"><Trash2 className="w-3 h-3" /> 삭제</button>
                                     </>
                                   )}
                                 </div>
@@ -252,7 +271,7 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                           );
                         })}
                         
-                        {/* ⭐️ 특약 추가 버튼 */}
+                        {/* 특약 추가 버튼 */}
                         <button 
                           onClick={() => handleAddNewDetail(cov.id)} 
                           className="w-full mt-2 py-2 flex justify-center items-center gap-1 text-xs font-semibold text-blue-600 bg-blue-50/50 hover:bg-blue-100 border border-dashed border-blue-200 rounded-lg transition-colors"
