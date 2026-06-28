@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { ArrowLeft, TrendingUp, TrendingDown, ShieldCheck, Printer, AlertCircle, Stethoscope, CheckCircle2, Info, FileText, AlertTriangle, Save, Loader2, HeartHandshake } from "lucide-react";
+import { ArrowLeft, Umbrella, TrendingDown, ShieldCheck, Printer, AlertCircle, Stethoscope, CheckCircle2, Info, FileText, AlertTriangle, Save, Loader2 } from "lucide-react";
 
 // 금액 포맷팅 (숫자 -> 억/만 단위)
 const formatMoney = (amount: number) => {
@@ -11,7 +11,7 @@ const formatMoney = (amount: number) => {
   if (amount >= 10000) {
     const eok = Math.floor(amount / 10000);
     const man = amount % 10000;
-    return `${eok.toLocaleString()}억 ${man > 0 ? man.toLocaleString() + "만 " : ""}원`;
+    return `${eok.toLocaleString()}만 ${man > 0 ? man.toLocaleString() + "만 " : ""}원`;
   }
   return `${amount.toLocaleString()}만 원`;
 };
@@ -360,14 +360,18 @@ export default function AnalysisPage() {
                        <p className="text-xs font-bold text-slate-400 mb-1">월 납입 보험료</p>
                        <p className="text-2xl font-black text-slate-700">{formatPremium(analysisData.premium.before)}</p>
                      </div>
+                     
+                    {premiumDiff < 0 && (
                      <div className="border-t border-slate-200 pt-4 print:border-slate-300">
                        <p className="text-xs font-bold text-slate-400 mb-1">20년 누적 총 납입 원금</p>
                        <p className="text-xl font-black text-slate-500 line-through decoration-slate-400">
                          {formatMoney(analysisData.premium.before * 12 * 20)}
                        </p>
                      </div>
+                    )}
                    </div>
                 </div>
+                
 
                 {/* 최적화 제안 (TO-BE) */}
                 <div className="flex-1 bg-blue-50/50 border border-blue-200 p-6 rounded-2xl print:bg-blue-50 print:border-blue-300 flex flex-col justify-between  print:flex-1 print:justify-between">
@@ -379,44 +383,108 @@ export default function AnalysisPage() {
                        <p className="text-xs font-bold text-blue-400 mb-1">월 납입 보험료</p>
                        <p className="text-2xl font-black text-gray-900">{formatPremium(analysisData.premium.after)}</p>
                      </div>
+                     
+                    {premiumDiff < 0 && (
                      <div className="border-t border-blue-100 pt-4 print:border-blue-200">
                        <p className="text-xs font-bold text-blue-400 mb-1">20년 누적 총 납입 원금</p>
                        <p className="text-xl font-black text-gray-900">
                          {formatMoney(analysisData.premium.after * 12 * 20)}
                        </p>
                      </div>
+                    )}
                    </div>
                 </div>
               </div>
-
-              {/* --- 2번째 줄: 최종 결과 와이드 배너 --- */}
-              <div className={`w-full p-5 md:p-6 rounded-2xl text-white shadow-md flex flex-col md:flex-row justify-between items-center gap-5 print:border print:shadow-none ${premiumDiff <= 0 ? 'bg-gradient-to-r from-blue-700 to-blue-600 print:bg-blue-700 print:border-blue-800' : 'bg-gradient-to-r from-red-700 to-red-600 print:bg-red-700 print:border-red-800'}`}>
-                
-                {/* 좌측: 타이틀 및 월 차액 */}
-                <div className="flex items-center gap-4 w-full md:w-auto">
-                  <div className="bg-white/10 p-3 rounded-full shrink-0 print:border print:border-white/20">
-                    {premiumDiff <= 0 ? <TrendingDown className="w-8 h-8 text-yellow-300"/> : <TrendingUp className="w-8 h-8 text-yellow-300"/>}
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-white/80 tracking-wide mb-1">
-                      {premiumDiff <= 0 ? '💡 평생 고정 지출 절감' : '🛡️ 필수 핵심 보장 보완'}
-                    </p>
-                    <p className="text-3xl font-black flex items-center gap-1.5">
-                      {formatPremium(Math.abs(premiumDiff))} {premiumDiff <= 0 ? '절감' : '추가'}
-                      <span className="text-xs font-medium text-white/60 ml-1">/ 월</span>
-                    </p>
-                  </div>
+            {/* --- 2번째 줄: 최종 결과 와이드 배너 (보험료 인상/인하에 따른 맞춤형 팩트 세일즈) --- */}
+            <div className={`w-full p-5 md:p-6 rounded-2xl text-white shadow-md flex flex-col md:flex-row justify-between items-center gap-5 border print:shadow-none ${
+              premiumDiff <= 0 
+                ? 'bg-gradient-to-r from-blue-700 to-blue-600 border-blue-800' 
+                : 'bg-gradient-to-r from-slate-900 to-indigo-950 border-slate-800' // ⭐️ 보험료 인상 시: 프리미엄 다크 인디고 테마로 변경하여 가치 강조
+            }`}>
+              
+              {/* 좌측: 타이틀 및 핵심 가치 제안 */}
+              <div className="flex items-center gap-4 w-full md:w-auto">
+                <div className={`p-3 rounded-full shrink-0 border ${
+                  premiumDiff <= 0 ? 'bg-white/10 border-white/20' : 'bg-indigo-500/20 border-indigo-500/30'
+                }`}>
+                  {premiumDiff <= 0 ? (
+                    <TrendingDown className="w-8 h-8 text-yellow-300"/>
+                  ) : (
+                    <ShieldCheck className="w-8 h-8 text-emerald-400 animate-pulse"/> // ⭐️ 인상 시 '방어막 강화' 시각화
+                  )}
                 </div>
-
-                {/* 우측: 20년 기준 최종 자산 박스 */}
-                <div className="bg-white/10 rounded-xl p-4 border border-white/20 print:border-white/40 w-full md:w-auto text-left md:text-right shadow-inner">
-                  <p className="text-[11px] font-medium text-white/80 mb-1">20년 기준 최종 세이브/투자 자산</p>
-                  <p className="text-2xl font-black text-yellow-300">
-                    {formatMoney(Math.abs(premiumDiff * 12 * 20))}
+                <div>
+                  <p className={`text-sm font-bold tracking-wide mb-1 ${
+                    premiumDiff <= 0 ? 'text-white/80' : 'text-indigo-300'
+                  }`}>
+                    {premiumDiff <= 0 ? '💡 평생 고정 지출 절감 완료' : '🛡️ 가성비 중심 핵심 보장 자산 극대화'}
+                  </p>
+                  <p className="text-3xl font-black flex items-center gap-1.5 text-white">
+                    {premiumDiff <= 0 ? (
+                      <>
+                        {formatPremium(Math.abs(premiumDiff))} 절감
+                        <span className="text-xs font-medium text-white/60 ml-1">/ 월</span>
+                      </>
+                    ) : (
+                      <>
+                        핵심 보장 자산 대폭 강화
+                        <span className="text-xs font-bold bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-md ml-2 text-sm">
+                          인수 심사 유리
+                        </span>
+                      </>
+                    )}
                   </p>
                 </div>
-
               </div>
+
+              {/* 우측: 경제적 가치 환산 스코어 보드 */}
+              <div className="bg-white/5 rounded-xl p-4 border border-white/10 w-full md:w-auto text-left md:text-right shadow-inner backdrop-blur-sm">
+                {premiumDiff <= 0 ? (
+                  <>
+                    <p className="text-[11px] font-medium mb-1 text-white/70">20년 기준 최종 세이브 자산</p>
+                    <p className="text-2xl font-black text-yellow-300">
+                      {formatMoney(Math.abs(premiumDiff * 12 * 20))}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    {/* ⭐️ 보험료가 올랐을 때만 노출되는 '미래 위험 방어 비용' 환산 수치 */}
+                    <p className="text-[11px] font-medium mb-1 text-indigo-300">3대 질환 진단 시 최대 방어 비용 (치료비+생활비)</p>
+                    <p className="text-2xl font-black text-emerald-400">
+                      + {formatMoney(
+                        (analysisData.coverages.find(c => c.name.includes("암"))?.after || 0) +
+                        (analysisData.coverages.find(c => c.name.includes("뇌"))?.after || 0) +
+                        (analysisData.coverages.find(c => c.name.includes("심"))?.after || 0)
+                      )} 확보
+                    </p>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* ⭐️ 보험료가 인상되었을 때 고객을 완벽히 납득시키는 [컨설팅 가치 서브 배너] */}
+            {premiumDiff > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2 print:grid-cols-2">
+                <div className="bg-emerald-50/60 border border-emerald-200 rounded-xl p-4 flex items-start gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <h5 className="text-xs font-black text-emerald-900 mb-0.5">"가짜 보장"에서 "진짜 보장"으로의 전환</h5>
+                    <p className="text-[11px] text-emerald-700 font-medium leading-relaxed">
+                    그동안 보험료는 계속 내셨지만, '뇌경색', '급성심근경색' 등 막상 큰병에 걸리면 받는 확률 10%짜리 가짜 방어막이었습니다.
+                    </p>
+                  </div>
+                </div>
+                <div className="bg-blue-50/60 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
+                  <Umbrella className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+                  <div>
+                    <h5 className="text-xs font-black text-blue-900 mb-0.5">소액암·유사암 및 수술비 공백 완전 메움</h5>
+                    <p className="text-[11px] text-blue-700 font-medium leading-relaxed">
+                      기존 포트폴리오에서 구멍 나 있던 공백을 메웠습니다. 이제 리스크가 발생해도 가계 자산이 무너지지 않는 100% 철벽 방어막이 완성되었습니다.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             </div>
 
