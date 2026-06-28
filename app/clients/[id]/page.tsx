@@ -7,7 +7,7 @@ import { ChevronLeft, FileText, Stethoscope, Calendar, User, Crown } from "lucid
 import { supabase } from "@/lib/supabase";
 import ClientDetailModal from "./components/ClientDetailModal";
 import ClientMemoCard from "./components/ClientMemoCard";
-
+import ClientCoverageCard from "./components/ClientCoverageCard";
 import ClientsMedicalHistoryCard from "./components/ClientsMedicalHistoryCard";
 import ClientScheduleCard from "./components/ClientScheduleCard";
 
@@ -214,7 +214,7 @@ export default function ClientDetailPage() {
         </div>
 
         <div className="w-full lg:w-[65%] xl:w-[68%] lg:h-full min-h-0">
-          {/* <ClientCoverageCard clientId={id} /> */}
+          <ClientCoverageCard clientId={id} />
         </div>
 
       </section>

@@ -7,7 +7,7 @@ import { ChevronLeft, FileText, Stethoscope, Calendar, User, Crown } from "lucid
 import { supabase } from "@/lib/supabase";
 import ClientDetailModal from "@/app/clients/[id]/components/ClientDetailModal";
 import ClientMemoCard from "@/app/clients/[id]/components/ClientMemoCard";
-import ClientCoverageCard from "@/components/ClientCoverageCard";
+import ClientCoverageCard from "@/app/clients/[id]/components/ClientCoverageCard";
 import ClientsMedicalHistoryCard from "@/app/clients/[id]/components/ClientsMedicalHistoryCard";
 import ClientScheduleCard from "@/app/clients/[id]/components/ClientScheduleCard";
 
