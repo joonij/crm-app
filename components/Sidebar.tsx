@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation"; // ⭐️ useRouter 추가
 import { supabase } from "@/lib/supabase";
 import {
   Calendar,
@@ -12,10 +12,9 @@ import {
   Users,
   GraduationCap,
   Lock,
-  Bell, // ⭐️ Bell 아이콘 추가
+  Bell,
 } from "lucide-react";
 
-// ⭐️ 알림 센터 메뉴 추가
 const navItems = [
   { label: "대시보드", href: "/", icon: LayoutDashboard, requiredRole: "admin" },
   { label: "고객 관리", href: "/clients", icon: Users, requiredRole: "user" },
@@ -31,110 +30,137 @@ function isActivePath(pathname: string, href: string) {
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter(); // ⭐️ 라우터 선언
   const [isOpen, setIsOpen] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // 유저 정보 상태
+  const [agentId, setAgentId] = useState<number | null>(null);
   const [userRole, setUserRole] = useState<string>("user");
-  const [userName, setUserName] = useState<string>("로딩중..."); 
+  const [userName, setUserName] = useState<string>(""); 
   const [userRank, setUserRank] = useState<string>(""); 
-  const [id, setId] = useState<string>("");
+  const [agencyId, setAgencyId] = useState<string>("");
   const [companyName, setCompanyName] = useState<string>("");
   const [branchName, setBranchName] = useState<string>("");
   const [teamNumber, setTeamNumber] = useState<string>("");
   const [agentCode, setAgentCode] = useState<string>("");
   
-  // ⭐️ 읽지 않은 알림 개수 상태
+  // 알림 상태
   const [unreadCount, setUnreadCount] = useState(0);
 
-  // 1. 유저 프로필 가져오기
+  // ---------------------------------------------------------
+  // 1. 유저 정보 조회 및 인증 상태 감지
+  // ---------------------------------------------------------
   useEffect(() => {
-    async function fetchUserProfile() {
-      const { data: { user } } = await supabase.auth.getUser();
+    const fetchUserProfile = async (userId: string) => {
+      setIsLoading(true);
+      const { data: agentData, error } = await supabase
+        .from("agents")
+        .select(`
+          id,
+          name, 
+          rank, 
+          agent_code,
+          agencies (id, corporation_name, branch_name, team_number)
+        `)
+        .eq("auth_id", userId)
+        .maybeSingle();
       
-      if (user) {
-        const { data } = await supabase
-          .from("agents")
-          .select(`
-            name, 
-            rank, 
-            agent_code,
-            agencies (id, corporation_name, branch_name, team_number)
-          `)
-          .eq("auth_id", user.id)
-          .single();
+      if (agentData) {
+        setAgentId(agentData.id);
+        setUserName(agentData.name || "담당자");
+        setUserRank(agentData.rank || "");
+        setAgentCode(agentData.agent_code ? String(agentData.agent_code) : "");
         
-        if (data) {
-          setUserName(data.name || "담당자");
-          setUserRank(data.rank || "");
-          setAgentCode(data.agent_code ? String(data.agent_code) : "");
-          
-          const agency = Array.isArray(data.agencies) ? data.agencies[0] : data.agencies;
-          if (agency) {
-            setId(agency.id || "");
-            setCompanyName(agency.corporation_name || "");
-            setBranchName(agency.branch_name || "");
-            setTeamNumber(agency.team_number || ""); 
-          }
+        const agency = Array.isArray(agentData.agencies) ? agentData.agencies[0] : agentData.agencies;
+        if (agency) {
+          setAgencyId(agency.id || "");
+          setCompanyName(agency.corporation_name || "");
+          setBranchName(agency.branch_name || "");
+          setTeamNumber(agency.team_number || ""); 
         }
+      } else if (error) {
+        console.error("유저 정보 로드 실패:", error.message);
       }
-    }
-    fetchUserProfile();
-  }, []);
-
-  // 2. ⭐️ 알림 개수 실시간 연동 로직
-  // 2. ⭐️ 알림 개수 실시간 연동 로직 (에러 방탄 처리 완료)
-  useEffect(() => {
-    let channel: any; // 클린업을 위해 밖으로 빼둡니다.
-
-    const initNotifications = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      // 카운트 함수
-      const fetchCount = async () => {
-        const { data, error } = await supabase
-          .from('notifications')
-          .select('id, agents!inner(auth_user_id)')
-          .eq('agents.auth_user_id', user.id)
-          .eq('is_read', false);
-        
-        if (!error && data) {
-          setUnreadCount(data.length);
-        }
-      };
-
-      await fetchCount(); // 최초 1회 실행
-
-      // ⭐️ 핵심: 채널 이름을 매번 다르게 생성하여 기존 캐시와 절대 충돌하지 않게 만듭니다.
-      const uniqueChannelName = `sidebar-count-${user.id}-${Date.now()}`;
-
-      channel = supabase
-        .channel(uniqueChannelName)
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'notifications' },
-          () => {
-            fetchCount(); // DB 변경 감지 시 숫자 다시 세기
-          }
-        )
-        .subscribe();
+      setIsLoading(false);
     };
 
-    initNotifications();
+    // 초기 데이터 로드
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user?.id) fetchUserProfile(user.id);
+      else setIsLoading(false);
+    });
 
-    // 화면이 꺼지거나 재렌더링 될 때 기존 채널을 완벽하게 삭제 (메모리 누수 방지)
+    // 세션 변경 감지
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session?.user?.id) {
+        fetchUserProfile(session.user.id);
+        // ⭐️ 로그인 이벤트 발생 시 Next.js 레이아웃 강제 리로딩
+        if (event === 'SIGNED_IN') {
+          router.refresh();
+        }
+      } else {
+        setAgentId(null);
+        setUserName("");
+        setUnreadCount(0);
+        setIsLoading(false);
+        // ⭐️ 로그아웃 시 강제 리로딩
+        if (event === 'SIGNED_OUT') {
+          router.refresh();
+        }
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [router]); // router 의존성 추가
+
+  // ---------------------------------------------------------
+  // 2. 알림 개수 조회 및 실시간 연동
+  // ---------------------------------------------------------
+  useEffect(() => {
+    if (!agentId) return;
+
+    let channel: any;
+
+    const fetchUnreadCount = async () => {
+      const { count, error } = await supabase
+        .from('notifications')
+        .select('id', { count: 'exact', head: true }) 
+        .eq('agent_id', agentId)
+        .eq('is_read', false);
+      
+      if (!error && count !== null) {
+        setUnreadCount(count);
+      }
+    };
+
+    fetchUnreadCount();
+
+    const channelName = `sidebar-noti-${agentId}-${Date.now()}`;
+    channel = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'notifications', filter: `agent_id=eq.${agentId}` },
+        () => fetchUnreadCount()
+      )
+      .subscribe();
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        fetchUnreadCount();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     return () => {
-      if (channel) {
-        supabase.removeChannel(channel);
-      }
+      if (channel) supabase.removeChannel(channel);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, []);
+  }, [agentId]);
 
-  // 3. ⭐️ 브라우저 탭(Title) 숫자 연동 (사용자 경험 극대화)
   useEffect(() => {
-    if (unreadCount > 0) {
-      document.title = `(${unreadCount}) CareLink`;
-    } else {
-      document.title = "CareLink";
-    }
+    document.title = unreadCount > 0 ? `(${unreadCount}) CareLink` : "CareLink";
   }, [unreadCount]);
 
   return (
@@ -161,14 +187,9 @@ export default function Sidebar() {
         <button
           type="button"
           onClick={() => setIsOpen((prev) => !prev)}
-          aria-label={isOpen ? "사이드바 접기" : "사이드바 펼치기"}
           className="hidden md:flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-800 hover:text-gray-100"
         >
-          {isOpen ? (
-            <ChevronLeft className="h-4 w-4" strokeWidth={2} />
-          ) : (
-            <ChevronRight className="h-4 w-4" strokeWidth={2} />
-          )}
+          {isOpen ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
         </button>
       </div>
 
@@ -178,20 +199,14 @@ export default function Sidebar() {
             const active = isActivePath(pathname, href);
             const isLocked = String(requiredRole) === "admin" && userRole !== "admin";
             const Icon = isLocked ? Lock : OriginalIcon;
-            
-            // ⭐️ 알림 메뉴 여부 확인
             const isNotificationMenu = label === "알림 센터";
+            const hasUnread = isNotificationMenu && unreadCount > 0;
 
             if (isLocked) {
               return (
                 <li key={href} className="relative">
-                  <div
-                    title={isOpen ? undefined : `${label} (접근 불가)`}
-                    className={`flex items-center rounded-lg py-2.5 text-sm font-medium transition-colors cursor-not-allowed opacity-50 ${
-                      isOpen ? "gap-3 px-3" : "justify-center px-2"
-                    } text-gray-500 hover:bg-gray-900`}
-                  >
-                    <Icon className="h-4 w-4 shrink-0" strokeWidth={2} />
+                  <div className={`flex items-center rounded-lg py-2.5 text-sm font-medium transition-colors cursor-not-allowed opacity-50 ${isOpen ? "gap-3 px-3" : "justify-center px-2"} text-gray-500 hover:bg-gray-900`}>
+                    <Icon className="h-4 w-4 shrink-0" />
                     {isOpen && <span className="truncate">{label}</span>}
                   </div>
                 </li>
@@ -202,38 +217,23 @@ export default function Sidebar() {
               <li key={href} className="relative">
                 <Link
                   href={href}
-                  title={isOpen ? undefined : label}
-                  className={`flex items-center rounded-lg py-2.5 text-sm font-medium transition-colors relative ${
-                    isOpen ? "gap-3 px-3" : "justify-center px-2"
-                  } ${
-                    active
-                      ? "bg-gray-800 text-white"
-                      : "text-gray-400 hover:bg-gray-900 hover:text-gray-100"
-                  }`}
+                  className={`flex items-center rounded-lg py-2.5 text-sm font-medium transition-colors relative ${isOpen ? "gap-3 px-3" : "justify-center px-2"} ${active ? "bg-gray-800 text-white" : "text-gray-400 hover:bg-gray-900 hover:text-gray-100"}`}
                 >
-                  <Icon
-                    className={`h-4 w-4 shrink-0 ${
-                      active ? "text-blue-400" : "text-gray-500"
-                    }`}
-                    strokeWidth={2}
-                  />
+                  <Icon className={`h-4 w-4 shrink-0 ${active ? "text-blue-400" : "text-gray-500"} ${hasUnread ? "animate-bounce" : ""}`} />
+                  
                   {isOpen && <span className="truncate">{label}</span>}
 
-                  {/* ⭐️ 알림 뱃지 표시 로직 */}
-                  {isNotificationMenu && unreadCount > 0 && (
+                  {hasUnread && (
                     isOpen ? (
-                      // 사이드바가 열려있을 때: 숫자 표시 뱃지
-                      <div className="relative flex items-center justify-center ml-auto">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-70"></span>
-                        <span className="relative inline-flex rounded-full bg-red-500 text-white px-2 py-0.5 text-[10px] font-black shadow-sm">
+                      <div className="ml-auto flex items-center justify-center">
+                        <span className="inline-flex items-center justify-center rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm ring-2 ring-gray-950">
                           {unreadCount > 99 ? '99+' : unreadCount}
                         </span>
                       </div>
                     ) : (
-                      // 사이드바가 닫혀있을 때: 아이콘 우측 상단에 작은 빨간 점 표시
                       <div className="absolute top-2 right-2 flex h-2 w-2 items-center justify-center">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-70"></span>
-                        <span className="relative inline-flex rounded-full bg-red-500 h-1.5 w-1.5"></span>
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"></span>
+                        <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500 ring-2 ring-gray-950"></span>
                       </div>
                     )
                   )}
@@ -245,15 +245,22 @@ export default function Sidebar() {
       </nav>
 
       {/* 하단 유저 프로필 영역 */}
-      <div
-        className={`mt-auto shrink-0 border-t border-gray-800 ${
-          isOpen ? "p-4" : "flex justify-center p-3"
-        }`}
-      >
-        {isOpen ? (
+      <div className={`mt-auto shrink-0 border-t border-gray-800 ${isOpen ? "p-4" : "flex justify-center p-3"}`}>
+        {isLoading ? (
+          <div className="animate-pulse flex flex-col gap-3 w-full">
+            <div className="flex items-center gap-2 px-1">
+              <div className="h-4 bg-gray-800 rounded w-16"></div>
+              <div className="h-4 bg-gray-800 rounded w-10"></div>
+            </div>
+            <div className="rounded-xl bg-gray-900/50 p-3 h-20 border border-gray-800/80 flex flex-col gap-2 justify-center">
+              <div className="h-3 bg-gray-800 rounded w-full"></div>
+              <div className="h-3 bg-gray-800 rounded w-3/4"></div>
+            </div>
+          </div>
+        ) : isOpen ? (
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2 px-1">
-              <span className="text-sm font-bold text-white tracking-tight">{userName}</span>
+              <span className="text-sm font-bold text-white tracking-tight">{userName || "로그인 필요"}</span>
               {userRank && (
                 <span className="text-[10px] bg-blue-600/20 text-blue-400 px-1.5 py-0.5 rounded font-black uppercase">
                   {userRank}
@@ -261,33 +268,35 @@ export default function Sidebar() {
               )}
             </div>
             
-            <div className="flex flex-col gap-1.5 rounded-xl bg-gray-900/50 p-3 border border-gray-800/80">
-              <div className="flex justify-between items-center text-[11px]">
-                <span className="text-gray-500 font-medium">소속회사</span>
-                <span className="text-gray-300 font-bold truncate max-w-[100px] text-right" title={companyName}>
-                  {companyName || "-"}
-                </span>
+            {agentId && (
+              <div className="flex flex-col gap-1.5 rounded-xl bg-gray-900/50 p-3 border border-gray-800/80">
+                <div className="flex justify-between items-center text-[11px]">
+                  <span className="text-gray-500 font-medium">소속회사</span>
+                  <span className="text-gray-300 font-bold truncate max-w-[100px] text-right" title={companyName}>
+                    {companyName || "-"}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-[11px]">
+                  <span className="text-gray-500 font-medium">소속팀</span>
+                  <span className="text-gray-300 font-bold truncate max-w-[100px] text-right" title={branchName}>
+                    {branchName || "-"} {teamNumber || "-"} 팀
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-[11px] mt-0.5 pt-1.5 border-t border-gray-800">
+                  <span className="text-gray-500 font-medium">사번 (ID)</span>
+                  <span className="text-blue-400 font-black tracking-wide">
+                    {agentCode || "-"}
+                  </span>
+                </div>
               </div>
-              <div className="flex justify-between items-center text-[11px]">
-                <span className="text-gray-500 font-medium">소속팀 ({id || "-"})</span>
-                <span className="text-gray-300 font-bold truncate max-w-[100px] text-right" title={branchName}>
-                  {branchName || "-"} {teamNumber || "-"} 팀
-                </span>
-              </div>
-              <div className="flex justify-between items-center text-[11px] mt-0.5 pt-1.5 border-t border-gray-800">
-                <span className="text-gray-500 font-medium">사번 (ID)</span>
-                <span className="text-blue-400 font-black tracking-wide">
-                  {agentCode || "-"}
-                </span>
-              </div>
-            </div>
+            )}
           </div>
         ) : (
           <div
-            className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600/20 text-sm font-bold text-blue-400 border border-blue-500/20"
+            className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600/20 text-sm font-bold text-blue-400 border border-blue-500/20 shadow-inner cursor-default"
             title={`${userName} ${userRank}\n${companyName} / ${branchName}`}
           >
-            {userName.substring(0, 1)}
+            {userName ? userName.substring(0, 1) : "?"}
           </div>
         )}
       </div>

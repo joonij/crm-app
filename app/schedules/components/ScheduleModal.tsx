@@ -183,6 +183,7 @@ export default function ScheduleModal({ isOpen, onClose, onSuccess, myInfo, edit
                 <label className="block text-xs font-bold text-slate-600 mb-1.5">{dateMode === 'single' ? '날짜' : '시작일'}</label>
                 <input 
                   type="date" 
+                  max="9999-12-31" 
                   value={form.date}
                   onChange={e => setForm({...form, date: e.target.value})}
                   className="w-full text-sm p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
@@ -193,6 +194,7 @@ export default function ScheduleModal({ isOpen, onClose, onSuccess, myInfo, edit
                   <label className="block text-xs font-bold text-slate-600 mb-1.5">종료일</label>
                   <input 
                     type="date" 
+                    max="9999-12-31" 
                     value={form.endDate}
                     min={form.date} // 시작일 이전 선택 방지
                     onChange={e => setForm({...form, endDate: e.target.value})}

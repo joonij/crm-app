@@ -31,20 +31,18 @@ export default function NotificationsPage() {
   const [agentId, setAgentId] = useState<number | null>(null);
 
   useEffect(() => {
-    const initializeNotifications = async () => {
+    let channel: any;
+
+    const initialize = async () => {
       setIsLoading(true);
       
-      // 1. Supabase Auth에서 현재 로그인한 유저 객체 획득
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       
       if (authError || !user) {
-        console.error("🔴 인증 세션을 확인할 수 없습니다:", authError);
         setIsLoading(false);
         return;
       }
 
-      // 2. 로그인한 유저의 이메일을 기반으로 agents 테이블에서 내부 고유 ID(숫자) 조회
-      // (만약 테이블 구조가 이메일 매핑이 아닌 auth_user_id 컬럼에 user.id를 저장하는 방식이라면 조건절을 .eq('auth_user_id', user.id)로 수정하십시오)
       const { data: agentData, error: agentError } = await supabase
         .from('agents')
         .select('id')
@@ -52,7 +50,6 @@ export default function NotificationsPage() {
         .single();
 
       if (agentError || !agentData) {
-        console.error("🔴 담당자(Agent) 매핑 실패:", agentError);
         setIsLoading(false);
         return;
       }
@@ -60,20 +57,48 @@ export default function NotificationsPage() {
       const currentAgentId = agentData.id;
       setAgentId(currentAgentId);
 
-      // 3. 획득한 고유 ID에 해당하는 알림 레코드만 조건 조회
-      const { data, error } = await supabase
-        .from('notifications')
-        .select('*')
-        .eq('agent_id', currentAgentId)
-        .order('created_at', { ascending: false });
+      // 데이터 불러오기 함수
+      const fetchNotifications = async () => {
+        const { data, error } = await supabase
+          .from('notifications')
+          .select('*')
+          .eq('agent_id', currentAgentId)
+          .order('created_at', { ascending: false });
 
-      if (!error && data) {
-        setNotifications(data);
-      }
+        if (!error && data) {
+          setNotifications(data);
+        }
+      };
+
+      await fetchNotifications();
       setIsLoading(false);
+
+      // ⭐️ 핵심 해결법: 채널 이름 끝에 Date.now()를 붙여 기존 채널과 절대 겹치지 않게 만듭니다.
+      const uniqueChannelName = `notifications-page-${currentAgentId}-${Date.now()}`;
+
+      channel = supabase
+        .channel(uniqueChannelName)
+        .on(
+          'postgres_changes',
+          { 
+            event: '*', 
+            schema: 'public', 
+            table: 'notifications',
+            filter: `agent_id=eq.${currentAgentId}`
+          },
+          () => {
+            fetchNotifications();
+          }
+        )
+        .subscribe();
     };
 
-    initializeNotifications();
+    initialize();
+
+    // 컴포넌트 언마운트 시 채널 연결 해제 (메모리 누수 방지)
+    return () => {
+      if (channel) supabase.removeChannel(channel);
+    };
   }, []);
 
   const handleNotificationClick = async (noti: Notification) => {

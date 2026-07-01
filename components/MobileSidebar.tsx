@@ -1,3 +1,4 @@
+// components/MobileSidebar.tsx
 "use client";
 
 import { useState } from "react";
@@ -10,8 +11,8 @@ export default function MobileSidebar() {
   return (
     <>
       {/* 1. 모바일 화면 상단 헤더 (PC에서는 숨김) */}
-      <div className="md:hidden flex items-center justify-between bg-white border-b px-5 py-4 shrink-0 shadow-sm z-30 print:hidden">
-        <span className="font-bold text-gray-900 text-lg">CRM PRO</span>
+      <div className="md:hidden flex items-center justify-between bg-white border-b px-5 py-1 shrink-0 shadow-sm z-30 print:hidden">
+        <span className="font-bold text-gray-500 text-lg">Insu<span className="text-gray-950">Care</span><span className="text-blue-500">Link</span></span>
         <button onClick={() => setIsOpen(true)} className="p-1 text-gray-600 hover:text-blue-600 transition-colors">
           <Menu className="w-6 h-6" />
         </button>

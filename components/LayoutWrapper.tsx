@@ -4,14 +4,17 @@
 import { usePathname } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import MobileSidebar from "@/components/MobileSidebar";
-import RealtimeNotification from "@/components/RealtimeNotification"; // ⭐️ 새로 추가한 컴포넌트
+import RealtimeNotification from "@/components/RealtimeNotification";
 
 export default function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   
+  // 1. 사이드바를 숨길 예외 페이지 조건 정의
   const isReportPage = pathname?.startsWith("/report");
+  const isAuthPage = pathname === "/login" || pathname === "/signup"; // ⭐️ 로그인 및 회원가입 페이지 조건 추가
 
-  if (isReportPage) {
+  // 2. 예외 페이지일 경우 사이드바와 알림을 완전히 제외한 단독 레이아웃 반환
+  if (isReportPage || isAuthPage) {
     return (
       <div className="flex-1 w-full h-screen overflow-y-auto bg-slate-100">
         {children}
@@ -19,9 +22,9 @@ export default function LayoutWrapper({ children }: { children: React.ReactNode 
     );
   }
 
+  // 3. 일반 CRM 화면일 때만 사이드바 포함 레이아웃 렌더링
   return (
     <div className="flex h-screen w-full overflow-hidden bg-gray-50">
-      {/* ⭐️ CRM 화면일 때만 실시간 알림 컴포넌트 렌더링 */}
       <RealtimeNotification />
       
       <div className="hidden md:flex h-full shrink-0 z-40 bg-slate-900 print:hidden">

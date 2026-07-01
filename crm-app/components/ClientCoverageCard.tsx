@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Shield, Trash2, ChevronDown, ChevronUp, Plus, BarChart3, Edit2, RotateCcw } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import InsuranceModal from "@/components/InsuranceModal";
+import InsuranceModal from "@/app/clients/[id]/components/InsuranceModal";
 
 type CoverageDetail = { name: string; amount: string; original_amount?: string; is_deleted?: boolean; };
 type Coverage = { id: number; insurance_company: string; product_name: string; monthly_premium: number; details: CoverageDetail[] | null; indemnity_generation: string | null; policy_status?: string | null; };

@@ -277,19 +277,19 @@ export default function ClientReportPage() {
     {
       condition: scores.cancer.after < 5000,
       title: "암 보장 공백 발견",
-      desc: `현재 암 보장금액이 ${formatMoney(scores.cancer.after)}으로, 안정권 기준인 5,000만 원보다 부족한 상태입니다.`,
+      desc: `현재 암 보장금액이 ${formatMoney(scores.cancer.after)}으로, 안정권 기준인 보다 부족한 상태입니다.`,
       action: "일반암/유사암 진단비 증액 권장"
     },
     {
       condition: scores.brain.after < 2000,
       title: "뇌혈관 보장 공백 발견",
-      desc: `현재 뇌혈관 보장금액이 ${formatMoney(scores.brain.after)}으로, 권장 기준인 2,000만 원보다 부족한 상태입니다.`,
+      desc: `현재 뇌혈관 보장금액이 ${formatMoney(scores.brain.after)}으로, 권장 기준인 보다 부족한 상태입니다.`,
       action: "뇌혈관질환 진단비/수술비 보완 요망"
     },
     {
       condition: scores.heart.after < 2000,
       title: "심장 보장 공백 발견",
-      desc: `현재 허혈성/심장 보장금액이 ${formatMoney(scores.heart.after)}으로, 권장 기준인 2,000만 원보다 부족합니다.`,
+      desc: `현재 허혈성/심장 보장금액이 ${formatMoney(scores.heart.after)}으로, 권장 기준인 보다 부족합니다.`,
       action: "허혈성심장/심혈관 특정진단비 보완 권장"
     },
     {
@@ -300,7 +300,7 @@ export default function ClientReportPage() {
     },
     {
       condition: scores.homeCare.after === 0,
-      title: "치매 및 재가급여 리스크 노출",
+      title: "치매 리스크 노출",
       desc: "장기요양등급 판정 시 매월 생활비를 받는 재가급여 및 치매 보장 자산이 비어있습니다.",
       action: "LTC 장기요양 재가급여 특약 추가 권장"
     },
