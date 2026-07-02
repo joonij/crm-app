@@ -18,11 +18,23 @@ type InsuranceCompany = {
   company_name: string;
 };
 
+// ⭐️ 실시간 금액 콤마(,) 포맷팅 함수
+const formatAmountWithComma = (value: string) => {
+  // 숫자가 아닌 문자는 모두 제거
+  const numericValue = value.replace(/[^0-9]/g, "");
+  // 빈 문자열이면 빈 문자열 반환
+  if (!numericValue) return "";
+  // 숫자로 변환 후 로케일 스트링(3자리 콤마) 적용
+  return Number(numericValue).toLocaleString("ko-KR");
+};
+
 const COVERAGE_OPTIONS = [
   "실손의료비 상해입원", "실손의료비 질병입원", "실손의료비 상해통원", "실손의료비 질병통원",
-  "실손의료비 상해약제", "실손의료비 질병약제", "일반암 진단금", "고액암 진단금",
+  "실손의료비 상해약제", "실손의료비 질병약제", "일반사망 진단비", "재해사망 진단비", "상해사망 진단비", "질병사망 진단비", 
+  "재해 후유장해3%↑", "상해 후유장해3%↑", "질병 후유장해3%↑", 
+  "일반암 진단금", "고액암 진단금",
   "유사암 진단금", "항암방사선치료비", "항암약물치료비", "암수술비",
-  "뇌혈관 진단금", "허혈성 진단금", "상해수술비", "1종 상해수술비",
+  "뇌혈관질환 진단금", "뇌졸증 진단금", "뇌출혈 진단금", "허혈성심장질환 진단금", "급성심근경색 진단금", "상해수술비", "1종 상해수술비",
   "2종 상해수술비", "3종 상해수술비", "4종 상해수술비", "5종 상해수술비",
   "질병수술비", "1종 질병수술비", "2종 질병수술비", "3종 질병수술비",
   "4종 질병수술비", "5종 질병수술비", "상해입원비", "질병입원비",
@@ -32,7 +44,8 @@ const initialFormState = {
   policy_status: "maintain",
   company: "",
   product: "",
-  premium: "",
+  premium: "", // 폼 상의 premium은 raw 숫자로 유지(저장용)
+  premiumFormatted: "", // ⭐️ 화면 표시용 콤마 포맷 프리미엄 상태 추가
   indemnityGen: "",
   subscriptionDate: "",
   maturityDate: "",
@@ -73,13 +86,11 @@ export default function InsuranceModal({
     fetchCompanies();
   }, []);
 
-  // ⭐️ 업그레이드된 스마트 텍스트 파서
   const handleAnalyzeText = async () => {
     if (!pasteText.trim()) return alert("분석할 텍스트를 입력해주세요.");
     setIsAnalyzing(true);
     
     try {
-      // 분석 로딩 연출
       await new Promise((resolve) => setTimeout(resolve, 800));
 
       let extractedCompany = "";
@@ -89,10 +100,8 @@ export default function InsuranceModal({
       let extractedMatDate = "";
       const extractedDetails: CoverageDetail[] = [];
 
-      // 1. 줄바꿈을 기준으로 배열화
       const lines = pasteText.split('\n').map(l => l.trim()).filter(l => l);
 
-      // 2. 회사명 및 상품명 추출 (처음 발견되는 보험/생명/화재/해상 키워드 기준)
       for (const line of lines) {
         if (line.includes("보험") || line.includes("생명") || line.includes("화재") || line.includes("해상") || line.includes("공제")) {
           extractedProduct = line;
@@ -102,7 +111,6 @@ export default function InsuranceModal({
         }
       }
 
-      // 3. 가입일 및 만기일 추출 (예: 2025.08.29 ~ 2054.08.29)
       const dateRegex = /(\d{4})[./-](\d{2})[./-](\d{2})\s*~\s*(\d{4})[./-](\d{2})[./-](\d{2})/;
       const dateMatch = pasteText.match(dateRegex);
       if (dateMatch) {
@@ -110,59 +118,52 @@ export default function InsuranceModal({
         extractedMatDate = `${dateMatch[4]}-${dateMatch[5]}-${dateMatch[6]}`;
       }
 
-      // 4. 월 보험료 추출 (콤마 섞인 숫자 뒤에 '원'이 붙는 첫 번째 항목)
       const premiumRegex = /([0-9,]+)원/;
       const premiumMatch = pasteText.match(premiumRegex);
       if (premiumMatch) {
         extractedPremium = premiumMatch[1].replace(/,/g, "");
       }
 
-      // 5. 세부 특약 덩어리 추출 (가장 중요한 로직)
-      // 표 데이터를 복사하면 '상태값(정상/유지/해지)'을 기준으로 데이터가 끝남을 이용해 텍스트를 쪼갭니다.
       const rawBlocks = pasteText.split(/(정상|유지|해지)/);
       
       for (let i = 0; i < rawBlocks.length; i++) {
         let part = rawBlocks[i].trim();
         if (!part) continue;
 
-        // "만원" 으로 끝나는 패턴 찾기 (예: 상해사망(유병자)100만원)
         const amountMatch = part.match(/(.+?)([0-9,]+)\s*만원$/);
         
         if (amountMatch) {
           let name = amountMatch[1].trim();
-          let amount = amountMatch[2];
+          let amount = amountMatch[2]; // 기존 콤마 포함 문자열
 
-          // 쓰레기 텍스트 정제 (보장구분, 보장상태 등 표 헤더가 딸려오는 것 방지)
           const garbageKeywords = ["보장구분", "보장명", "보장금액", "보장상태"];
           garbageKeywords.forEach(kw => {
             if (name.includes(kw)) name = name.split(kw).pop() || name;
           });
 
-          // 줄바꿈이 섞여있다면 맨 마지막 줄만 진짜 특약명으로 채택
           if (name.includes("\n")) {
             name = name.split("\n").pop() || name;
           }
 
-          // ⭐️ 이름 앞부분이 반복 기재되는 버그 해결 (예: 상해사망상해사망 -> 상해사망)
-          // 패턴: 2글자 이상 동일한 단어가 연속으로 나오면 하나로 압축
           name = name.replace(/^(.{2,}?)\1/, '$1').trim();
 
           if (name && amount) {
             extractedDetails.push({
               name: name,
-              amount: amount,
+              // 추출된 금액에도 콤마 포맷 적용
+              amount: formatAmountWithComma(amount),
               renewal_type: "비갱신"
             });
           }
         }
       }
 
-      // 6. 상태 반영 및 렌더링
       setCovForm(prev => ({
         ...prev,
         company: extractedCompany || prev.company,
         product: extractedProduct || prev.product,
         premium: extractedPremium || prev.premium,
+        premiumFormatted: extractedPremium ? formatAmountWithComma(extractedPremium) : prev.premiumFormatted, // 포맷팅된 값 업데이트
         subscriptionDate: extractedSubDate || prev.subscriptionDate,
         maturityDate: extractedMatDate || prev.maturityDate,
       }));
@@ -184,7 +185,13 @@ export default function InsuranceModal({
 
   const updateCovDetail = (index: number, field: keyof CoverageDetail, value: string) => {
     const newDetails = [...covDetails];
-    newDetails[index][field] = value;
+    
+    // ⭐️ amount 필드 업데이트 시 콤마 포맷 적용
+    if (field === "amount") {
+        newDetails[index][field] = formatAmountWithComma(value);
+    } else {
+        newDetails[index][field] = value;
+    }
     setCovDetails(newDetails);
   };
 
@@ -198,11 +205,13 @@ export default function InsuranceModal({
   };
 
   const handleSaveCoverage = async () => {
-    if (!covForm.company.trim() || !covForm.product.trim() || !covForm.premium) {
+    if (!covForm.company.trim() || !covForm.product.trim() || !covForm.premiumFormatted) {
       alert("보험사, 상품명, 월 보험료를 모두 입력해주세요.");
       return;
     }
     setIsSaving(true);
+    
+    // ⭐️ 저장 시 amount의 콤마를 제거하지 않고 그대로 문자열로 저장 (DB 구조에 맞춤)
     const validDetails = covDetails.filter((d) => d.name.trim() !== "" && d.amount.trim() !== "");
 
     try {
@@ -212,7 +221,8 @@ export default function InsuranceModal({
           policy_status: covForm.policy_status,
           insurance_company: covForm.company.trim(),
           product_name: covForm.product.trim(),
-          monthly_premium: parseInt(covForm.premium, 10),
+          // premium은 숫자 타입 컬럼이므로 콤마 제거 후 변환
+          monthly_premium: parseInt(covForm.premiumFormatted.replace(/,/g, ""), 10),
           indemnity_generation: covForm.indemnityGen || null,
           subscription_date: covForm.subscriptionDate || null,
           maturity_date: covForm.maturityDate || null,
@@ -231,6 +241,7 @@ export default function InsuranceModal({
 
   const lifeInsurances = companies.filter((c) => c.company_type === "생명보험");
   const nonLifeInsurances = companies.filter((c) => c.company_type === "손해보험");
+  const differentLifeInsurances = companies.filter((c) => c.company_type === "기타");
 
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/60 md:p-4 transition-opacity">
@@ -292,6 +303,11 @@ export default function InsuranceModal({
                     {nonLifeInsurances.map((c) => <option key={c.company_name} value={c.company_name}>{c.company_name}</option>)}
                   </optgroup>
                 )}
+                {differentLifeInsurances.length > 0 && (
+                  <optgroup label="[ 기타 ]">
+                    {differentLifeInsurances.map((c) => <option key={c.company_name} value={c.company_name}>{c.company_name}</option>)}
+                  </optgroup>
+                )}
               </select>
 
               <input type="text" placeholder="상품명" className={inputClassName} value={covForm.product} onChange={(e) => setCovForm({ ...covForm, product: e.target.value })} />
@@ -303,7 +319,19 @@ export default function InsuranceModal({
                 <option value="4세대 실손">4세대 실손 (2021년 7월 이후)</option>
                 <option value="5세대 실손">5세대 실손 (2026년 5월 이후)</option>
               </select>
-              <input type="number" placeholder="월 보험료 (원)" className={inputClassName} value={covForm.premium} onChange={(e) => setCovForm({ ...covForm, premium: e.target.value })} />
+              
+              {/* ⭐️ 월 보험료 입력 시 콤마 자동 적용 (type="text"로 변경) */}
+              <input 
+                type="text" 
+                placeholder="월 보험료 (원)" 
+                className={inputClassName} 
+                value={covForm.premiumFormatted} 
+                onChange={(e) => {
+                    const formatted = formatAmountWithComma(e.target.value);
+                    setCovForm({ ...covForm, premiumFormatted: formatted });
+                }} 
+              />
+              
               <div className="flex flex-col">
                 <label className="text-xs text-gray-500 mb-1 ml-1 font-semibold">보험 가입 일자</label>
                 <input type="date" max="9999-12-31" className={inputClassName} value={covForm.subscriptionDate} onChange={(e) => setCovForm({ ...covForm, subscriptionDate: e.target.value })} />
@@ -329,6 +357,8 @@ export default function InsuranceModal({
                     onChange={(e) => updateCovDetail(index, "name", e.target.value)}
                   />
                   <div className="flex w-full sm:flex-1 gap-1.5 items-center">
+                    
+                    {/* ⭐️ 가입 금액 입력 시 콤마 자동 적용 (type="text"로 유지) */}
                     <input
                       type="text"
                       placeholder="가입 금액"
@@ -336,6 +366,7 @@ export default function InsuranceModal({
                       value={detail.amount}
                       onChange={(e) => updateCovDetail(index, "amount", e.target.value)}
                     />
+                    
                     <select
                       className={`${inputClassName} max-w-[120px] shrink-0 text-[11px] px-1 text-center font-bold text-gray-600 bg-gray-50`}
                       value={detail.renewal_type || "비갱신"}

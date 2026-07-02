@@ -52,17 +52,32 @@ const initialFormState: FormState = {
 };
 
 type LookupItem = { id: string | number; name: string };
-type ClientItem = { id: number; name: string; phone: string };
+type ClientItem = { id: number; name: string; phone: string | null };
 
 type ClientModalProps = {
   onClose: () => void;
   onSuccess: () => void;
 };
 
+// ⭐️ 검색용 리스트에 보여줄 연락처 포맷터 추가
+const formatPhoneForList = (phone: string | null) => {
+  if (!phone) return "연락처없음";
+  const clean = phone.replace(/[^0-9]/g, "");
+  if (clean.length === 11) {
+    return `${clean.slice(0, 3)}-${clean.slice(3, 7)}-${clean.slice(7)}`;
+  } else if (clean.length === 10) {
+    return `${clean.slice(0, 3)}-${clean.slice(3, 6)}-${clean.slice(6)}`;
+  }
+  return phone;
+};
+
 export default function ClientModal({ onClose, onSuccess }: ClientModalProps) {
   const [form, setForm] = useState<FormState>(initialFormState);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingLookups, setIsLoadingLookups] = useState(true);
+
+  // ⭐️ 소개자 검색창 입력 상태 추가
+  const [referrerSearch, setReferrerSearch] = useState("");
 
   const [sources, setSources] = useState<LookupItem[]>([]);
   const [statuses, setStatuses] = useState<LookupItem[]>([]);
@@ -117,7 +132,12 @@ export default function ClientModal({ onClose, onSuccess }: ClientModalProps) {
           if (resTelecom.data) setTelecoms(resTelecom.data.map(d => ({ id: d.id, name: d.telecom })));
           if (resDriving.data) setDrivings(resDriving.data.map(d => ({ id: d.id, name: d.status })));
           if (resBank.data) setBanks(resBank.data.map(d => ({ id: d.id, name: d.bank })));
-          if (resClients.data) setExistingClients(resClients.data);
+          
+          // ⭐️ 가져온 고객 명단을 가나다순으로 자동 정렬
+          if (resClients.data) {
+            const sortedClients = resClients.data.sort((a, b) => a.name.localeCompare(b.name));
+            setExistingClients(sortedClients);
+          }
         }
       } catch (error) {
         console.error("데이터 로드 중 오류 발생:", error);
@@ -157,7 +177,6 @@ export default function ClientModal({ onClose, onSuccess }: ClientModalProps) {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) throw new Error("로그인이 필요합니다.");
 
-      // ⭐️ 1. 담당자 정보 조회 시 agency_id 도 함께 가져옵니다.
       const { data: agent, error: agentError } = await supabase
         .from("agents")
         .select("id, agency_id")
@@ -175,12 +194,11 @@ export default function ClientModal({ onClose, onSuccess }: ClientModalProps) {
 
       const parseId = (val: string) => (val === "" ? null : parseInt(val, 10));
 
-      // ⭐️ 2. 고객 정보 INSERT 시 agency_id 포함
       const { data: newClient, error: insertError } = await supabase
         .from("clients")
         .insert({
           agent_id: agent.id,
-          agency_id: agent.agency_id, // 추가된 부분
+          agency_id: agent.agency_id,
           name: form.name.trim(),
           phone: form.phone.trim() || null,
           registration_number: registrationNumber,
@@ -201,17 +219,16 @@ export default function ClientModal({ onClose, onSuccess }: ClientModalProps) {
 
       if (insertError) throw insertError;
 
-      // ⭐️ 3. 일정 정보 INSERT 시 스케줄 테이블 변경점에 맞춰 agency_id와 schedule_type 포함
       const { error: scheduleError } = await supabase
         .from("schedules")
         .insert({
           agent_id: agent.id,
-          agency_id: agent.agency_id, // 스케줄 테이블을 위해 추가
+          agency_id: agent.agency_id,
           client_id: newClient.id,
           date: form.scheduleDate,
           time: form.scheduleTime,
           content: form.scheduleContent.trim() || `${form.name} 고객 신규 등록 상담`,
-          schedule_type: 'personal', // 스케줄 테이블 필수값 추가
+          schedule_type: 'personal',
           repeat: false
         });
 
@@ -227,6 +244,10 @@ export default function ClientModal({ onClose, onSuccess }: ClientModalProps) {
       setIsSaving(false);
     }
   };
+
+  // ⭐️ 선택한 가입경로가 "소개"인지 유동적 판단
+  const selectedSourceName = sources.find(s => String(s.id) === String(form.client_source))?.name || "";
+  const isReferral = selectedSourceName.includes("소개");
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col md:items-center md:justify-center bg-white md:bg-black/60 md:backdrop-blur-sm md:p-4">
@@ -342,17 +363,27 @@ export default function ClientModal({ onClose, onSuccess }: ClientModalProps) {
                 </select>
               </div>
 
-              {form.client_source === "3" && (
+              {/* ⭐️ 동적으로 나타나는 HTML5 Datalist 검색 창 */}
+              {isReferral && (
                 <div className="md:col-span-2 bg-blue-50 border border-blue-100 p-5 rounded-2xl animate-in fade-in zoom-in-95">
-                  <label className={labelClassName}>소개해준 고객 (소개 원수)</label>
-                  <select value={form.introduce_client} onChange={(e) => updateField("introduce_client", e.target.value)} className={`${inputClassName} bg-white`}>
-                    <option value="">-- 기존 고객 선택 --</option>
+                  <label className={labelClassName}>소개해준 기존 고객 검색 (가나다순)</label>
+                  <input
+                    list="client-list"
+                    value={referrerSearch}
+                    onChange={(e) => {
+                      setReferrerSearch(e.target.value);
+                      // 선택된 텍스트와 정확히 일치하는 고객을 찾아 ID 매핑
+                      const matched = existingClients.find(c => `${c.name} (${formatPhoneForList(c.phone)})` === e.target.value);
+                      updateField("introduce_client", matched ? String(matched.id) : "");
+                    }}
+                    className={inputClassName}
+                    placeholder="이름이나 전화번호를 타이핑해 보세요..."
+                  />
+                  <datalist id="client-list">
                     {existingClients.map((client) => (
-                      <option key={client.id} value={client.id}>
-                        {client.name} {client.phone ? `(${client.phone.slice(-4)})` : ''}
-                      </option>
+                      <option key={client.id} value={`${client.name} (${formatPhoneForList(client.phone)})`} />
                     ))}
-                  </select>
+                  </datalist>
                 </div>
               )}
 

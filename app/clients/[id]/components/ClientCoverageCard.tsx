@@ -6,11 +6,11 @@ import { Shield, Trash2, ChevronDown, ChevronUp, Plus, BarChart3, Edit2, RotateC
 import { supabase } from "@/lib/supabase";
 import InsuranceModal from "@/app/clients/[id]/components/InsuranceModal";
 
-// ⭐️ 금액 포맷팅 유틸리티 함수 (숫자만 추출해서 3자리 콤마 적용 후 텍스트와 결합)
+// 금액 포맷팅 유틸리티 함수
 const formatAmount = (val: string) => {
   if (!val) return "";
-  const raw = val.replace(/,/g, ""); // 기존 콤마 제거
-  const numericPart = raw.match(/\d+/); // 숫자 부분만 추출
+  const raw = val.replace(/,/g, ""); 
+  const numericPart = raw.match(/\d+/); 
   if (numericPart) {
     const formattedNum = Number(numericPart[0]).toLocaleString();
     return raw.replace(numericPart[0], formattedNum);
@@ -38,7 +38,6 @@ type Coverage = {
   maturity_date?: string | null; 
 };
 
-// ⭐️ DB 보험사 타입 추가
 type InsuranceCompany = {
   company_type: string;
   company_name: string;
@@ -54,27 +53,24 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
   const [coverages, setCoverages] = useState<Coverage[]>([]);
   const [expandedCovId, setExpandedCovId] = useState<number | null>(null);
   const [isCovModalOpen, setIsCovModalOpen] = useState(false);
-    // ⭐️ 보험사 목록 리스트 상태
-    const [companies, setCompanies] = useState<InsuranceCompany[]>([]);
+  const [companies, setCompanies] = useState<InsuranceCompany[]>([]);
 
-    // 기본 정보(상품명 등) 수정을 위한 상태
   const [editingPolicyId, setEditingPolicyId] = useState<number | null>(null);
   const [editingPolicyForm, setEditingPolicyForm] = useState<Partial<Coverage> | null>(null);
 
-  // 특약 수정을 위한 상태
   const [editingDetail, setEditingDetail] = useState<{ covId: number, idx: number, tempName: string, tempAmount: string, tempRenewalType: string, mode: 'edit' | 'reduce' | 'new' } | null>(null);
 
   const fetchCoverages = async () => {
     const { data } = await supabase.from("subscription_insurance").select("*").eq("client_id", clientId);
     if (data) {
-      // ⭐️ 1. 전체 보험 리스트를 '가입일' 순으로 정렬 (오래된 순, 가입일 없으면 뒤로)
-      const sortedData = data.sort((a, b) => {
+      // 1. 전체 보험 리스트를 '가입일' 순으로 정렬
+      const sortedData = [...data].sort((a, b) => {
         const dateA = a.subscription_date ? new Date(a.subscription_date).getTime() : Infinity;
         const dateB = b.subscription_date ? new Date(b.subscription_date).getTime() : Infinity;
         return dateA - dateB;
       });
 
-      // ⭐️ 2. 각 보험 내부의 특약 리스트를 '가나다순'으로 정렬
+      // 2. 특약 리스트 가나다 정렬 (안전한 복사 후 정렬)
       const processedData = sortedData.map(cov => ({
         ...cov,
         details: cov.details ? [...cov.details].sort((a, b) => a.name.localeCompare(b.name)) : null
@@ -83,7 +79,6 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     }
   };
 
-  // ⭐️ 최초 로드 시 보험사 리스트도 함께 패치
   useEffect(() => { 
     const fetchCompanies = async () => {
       const { data } = await supabase
@@ -98,24 +93,20 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     void fetchCompanies();
   }, [clientId]);
 
-
   const toggleCoverage = (id: number) => {
-    // 기본 정보 수정 중일 때는 아코디언 토글 방지
     if (editingPolicyId === id) return;
     setExpandedCovId(prev => (prev === id ? null : id));
   };
 
-  // --- [기본 정보 수정 로직] ---
   const handleStartEditPolicy = (cov: Coverage) => {
     setEditingPolicyId(cov.id);
     setEditingPolicyForm({ ...cov });
-    setExpandedCovId(cov.id); // 수정 모드 시 자동으로 열어둠
+    setExpandedCovId(cov.id);
   };
 
   const handleSavePolicyEdit = async () => {
     if (!editingPolicyId || !editingPolicyForm) return;
     
-    // 금액 포맷팅 제거 후 숫자로 변환
     const cleanPremium = Number(String(editingPolicyForm.monthly_premium).replace(/,/g, ''));
 
     const { error } = await supabase.from("subscription_insurance").update({
@@ -132,10 +123,9 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     } else {
       setEditingPolicyId(null);
       setEditingPolicyForm(null);
-      fetchCoverages(); // 재정렬을 위해 다시 패치
+      fetchCoverages();
     }
   };
-  // -------------------------
 
   const handleDeleteCoverage = async (covId: number) => {
     if (!window.confirm("이 보장 내역을 완전히 삭제하시겠습니까?")) return;
@@ -148,13 +138,14 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     await supabase.from("subscription_insurance").update({ policy_status: newStatus }).eq("id", covId);
   };
 
+  // ⭐️ 데이터베이스 통신(저장)
   const updateCoverageDetailsInDB = async (covId: number, newDetails: CoverageDetail[]) => {
-    // ⭐️ 데이터베이스 업데이트 전 특약 배열을 항상 가나다순으로 정렬 유지
-    const sortedDetails = [...newDetails].sort((a, b) => a.name.localeCompare(b.name));
-    
-    setCoverages(prev => prev.map(c => c.id === covId ? { ...c, details: sortedDetails } : c));
-    const { error } = await supabase.from("subscription_insurance").update({ details: sortedDetails }).eq("id", covId);
-    if (error) { alert("업데이트 실패"); fetchCoverages(); }
+    const { error } = await supabase.from("subscription_insurance").update({ details: newDetails }).eq("id", covId);
+    if (error) { 
+      alert("업데이트 실패"); 
+    }
+    // DB 업데이트 성공 후 가나다순으로 재정렬된 상태를 불러옴
+    fetchCoverages();
   };
 
   const handleToggleDetailDelete = async (covId: number, idx: number) => {
@@ -169,7 +160,8 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     if (!window.confirm("이 특약을 목록에서 완전히 삭제하시겠습니까?")) return;
     const cov = coverages.find(c => c.id === covId);
     if (!cov || !cov.details) return;
-    const newDetails = cov.details.filter((_, i) => i !== idx);
+    const newDetails = [...cov.details];
+    newDetails.splice(idx, 1);
     await updateCoverageDetailsInDB(covId, newDetails.length > 0 ? newDetails : []);
   };
 
@@ -192,7 +184,7 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     if (!cov || !cov.details) return;
     
     const newDetails = [...cov.details];
-    const currentDetail = newDetails[idx];
+    const currentDetail = { ...newDetails[idx] };
     
     if (editingDetail.mode === 'reduce') {
       if (currentDetail.amount === editingDetail.tempAmount) {
@@ -213,18 +205,22 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
       }
     }
     
-    await updateCoverageDetailsInDB(covId, newDetails);
+    newDetails[idx] = currentDetail;
     setEditingDetail(null);
+    await updateCoverageDetailsInDB(covId, newDetails);
   };
 
+  // ⭐️ 특약 새 줄 추가 로직 (충돌 원인 교정)
   const handleAddNewDetail = async (covId: number) => {
     const cov = coverages.find(c => c.id === covId);
     if (!cov) return;
+    
     const newDetails = cov.details ? [...cov.details] : [];
     const newIdx = newDetails.length;
     
+    // DB에 저장하지 않고 UI 화면상에만 임시로 새 줄을 만들어 띄움
     newDetails.push({ name: "", amount: "", renewal_type: "비갱신" });
-    await updateCoverageDetailsInDB(covId, newDetails);
+    setCoverages(prev => prev.map(c => c.id === covId ? { ...c, details: newDetails } : c));
     
     setEditingDetail({ covId, idx: newIdx, tempName: "", tempAmount: "", tempRenewalType: "비갱신", mode: 'new' });
   };
@@ -233,17 +229,19 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     const cov = coverages.find(c => c.id === covId);
     if (cov && cov.details) {
       const detail = cov.details[idx];
+      // 빈 껍데기(새 줄 추가)였다면 배열에서 제거하고 화면 원상복구
       if (detail.name === "" && detail.amount === "") {
-        const newDetails = cov.details.filter((_, i) => i !== idx);
-        await updateCoverageDetailsInDB(covId, newDetails);
+        const newDetails = [...cov.details];
+        newDetails.splice(idx, 1);
+        setCoverages(prev => prev.map(c => c.id === covId ? { ...c, details: newDetails } : c));
       }
     }
     setEditingDetail(null);
   };
-  // 보험사 목록 필터링
+
   const lifeInsurances = companies.filter((c) => c.company_type === "생명보험");
   const nonLifeInsurances = companies.filter((c) => c.company_type === "손해보험");
-
+  const differentLifeInsurances = companies.filter((c) => c.company_type === "기타");
 
   return (
     <>
@@ -280,12 +278,11 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                 const currentStatus = cov.policy_status || "maintain";
                 const theme = statusTheme[currentStatus];
                 const isPolicyEditing = editingPolicyId === cov.id;
-                // 기존 DB에 있던 보험사명이 목록에 없을 경우를 위한 체크
                 const isCustomCompany = editingPolicyForm?.insurance_company && !companies.some(c => c.company_name === editingPolicyForm.insurance_company);
+                
                 return (
                   <div key={cov.id} className={`relative group rounded-lg border text-sm overflow-hidden flex flex-col transition-colors h-fit ${theme.bg} ${theme.border}`}>
                     
-                    {/* ⭐️ 기본 정보 블록 (수정 모드 vs 일반 모드) */}
                     {isPolicyEditing ? (
                       <div className="p-4 bg-white border-b border-gray-200 shadow-inner flex flex-col gap-3">
                         <div className="flex items-center justify-between mb-1">
@@ -296,8 +293,6 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                           </div>
                         </div>
                         <div className="grid grid-cols-2 gap-2 text-xs">
-                                                    
-                          {/* 1. 보험사 셀렉트박스 */}
                           <select 
                             value={editingPolicyForm?.insurance_company || ""} 
                             onChange={e => setEditingPolicyForm({...editingPolicyForm!, insurance_company: e.target.value})} 
@@ -314,18 +309,20 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                                 {nonLifeInsurances.map((c) => <option key={c.company_name} value={c.company_name}>{c.company_name}</option>)}
                               </optgroup>
                             )}
-                            {/* DB에 없는 커스텀 데이터 보존 */}
+                            {differentLifeInsurances.length > 0 && (
+                              <optgroup label="[ 기타 ]">
+                                {differentLifeInsurances.map((c) => <option key={c.company_name} value={c.company_name}>{c.company_name}</option>)}
+                              </optgroup>
+                            )}
                             {isCustomCompany && <option value={editingPolicyForm!.insurance_company}>{editingPolicyForm!.insurance_company}</option>}
                           </select>
-
 
                           <input type="text" placeholder="상품명" value={editingPolicyForm?.product_name || ""} onChange={e => setEditingPolicyForm({...editingPolicyForm!, product_name: e.target.value})} className="border border-gray-200 rounded p-2 outline-none focus:border-blue-500" />
                           <div className="flex items-center border border-gray-200 rounded p-2 bg-white focus-within:border-blue-500">
                             <input type="text" placeholder="월 보험료" value={formatAmount(String(editingPolicyForm?.monthly_premium || ""))} onChange={e => setEditingPolicyForm({...editingPolicyForm!, monthly_premium: Number(e.target.value.replace(/,/g, ''))})} className="flex-1 w-full outline-none" />
                             <span className="text-gray-400">원</span>
                           </div>
-                                                    
-                          {/* 2. 실손 세대 셀렉트박스 */}
+                                                                            
                           <select 
                             value={editingPolicyForm?.indemnity_generation || ""} 
                             onChange={e => setEditingPolicyForm({...editingPolicyForm!, indemnity_generation: e.target.value})} 
@@ -338,7 +335,6 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                             <option value="4세대 실손">4세대 실손 (2021년 7월 이후)</option>
                             <option value="5세대 실손">5세대 실손 (2026년 5월 이후)</option>
                           </select>
-
 
                           <input type="date" max="9999-12-31" placeholder="가입일" value={editingPolicyForm?.subscription_date || ""} onChange={e => setEditingPolicyForm({...editingPolicyForm!, subscription_date: e.target.value})} className="border border-gray-200 rounded p-2 outline-none focus:border-blue-500" title="가입일" />
                           <input type="date" max="9999-12-31" placeholder="만기일" value={editingPolicyForm?.maturity_date || ""} onChange={e => setEditingPolicyForm({...editingPolicyForm!, maturity_date: e.target.value})} className="border border-gray-200 rounded p-2 outline-none focus:border-blue-500" title="만기일" />
@@ -382,7 +378,6 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                       </div>
                     )}
 
-                    {/* 우측 상단 수정/삭제 툴바 */}
                     {!isPolicyEditing && (
                       <div className="absolute top-2 right-2 flex gap-1.5 z-10 text-right flex flex-col items-end cursor-pointer" onClick={() => toggleCoverage(cov.id)}>
                         <div>
@@ -445,7 +440,6 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                                       {detail.original_amount && detail.original_amount !== detail.amount && !isDeleted && <span className="text-red-400 line-through text-[10px] font-medium">{detail.original_amount}</span>}
                                       
                                       <div className="flex items-center gap-1.5 mt-0.5">
-                                        {/* ⭐️ 갱신 뱃지 강조 UI */}
                                         {detail.renewal_type && detail.renewal_type !== "비갱신" && !isDeleted ? (
                                           <span className="text-[9px] bg-orange-50 text-orange-600 border border-orange-200 px-1 py-0.5 rounded font-bold tracking-tighter whitespace-nowrap">
                                             {detail.renewal_type.replace(' 갱신', '')}

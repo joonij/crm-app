@@ -23,17 +23,20 @@ export default function ClientDetailModal({ client, onClose, onRefresh }: { clie
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   
-  // ⭐️ 1. formData에 registration_number 추가
+  // 소개자 검색을 위한 상태
+  const [referrerSearch, setReferrerSearch] = useState("");
+  
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
-    registration_number: "", // 추가됨
+    registration_number: "", 
     job: "",
     address: "",
     bank_info: "",
     card_withdrawal_date: "",
     notes: "",
     client_source: "",
+    introduce_client: "", 
     contract_status: "",
     telecom_carriers: "",
     driving_statuses: "",
@@ -46,6 +49,7 @@ export default function ClientDetailModal({ client, onClose, onRefresh }: { clie
     telecoms: [] as LookupItem[],
     drivings: [] as LookupItem[],
     banks: [] as LookupItem[],
+    clients: [] as { id: number; name: string; phone: string | null }[], 
   });
 
   useEffect(() => {
@@ -68,6 +72,7 @@ export default function ClientDetailModal({ client, onClose, onRefresh }: { clie
       card_withdrawal_date: client?.card_withdrawal_date || "",
       notes: client?.notes || "",
       client_source: client?.client_source?.id || client?.client_source_id || "",
+      introduce_client: client?.introduce_client || "", 
       contract_status: client?.contract_status?.id || client?.contract_status_id || "",
       telecom_carriers: client?.telecom_carriers?.id || client?.telecom_carriers_id || "",
       driving_statuses: client?.driving_statuses?.id || client?.driving_statuses_id || "",
@@ -78,13 +83,21 @@ export default function ClientDetailModal({ client, onClose, onRefresh }: { clie
   useEffect(() => {
     if (isEditing && lookups.sources.length === 0) {
       async function fetchLookups() {
-        const [resSource, resStatus, resTelecom, resDriving, resBank] = await Promise.all([
+        // ⭐️ 해당 담당자(agent_id)의 고객만 불러오도록 .eq("agent_id", client.agent_id) 필터 추가
+        const clientQuery = client?.agent_id 
+          ? supabase.from("clients").select("id, name, phone").eq("agent_id", client.agent_id)
+          : supabase.from("clients").select("id, name, phone");
+
+        const [resSource, resStatus, resTelecom, resDriving, resBank, resClients] = await Promise.all([
           supabase.from("client_source").select("id, source"),
           supabase.from("contract_status").select("id, status"),
           supabase.from("telecom_carriers").select("id, telecom"),
           supabase.from("driving_statuses").select("id, status"),
           supabase.from("bank_lists").select("id, bank"),
+          clientQuery, // ⭐️ 수정된 필터 적용
         ]);
+
+        const fetchedClients = resClients.data || [];
 
         setLookups({
           sources: resSource.data?.map(d => ({ id: d.id, name: d.source })) || [],
@@ -92,11 +105,20 @@ export default function ClientDetailModal({ client, onClose, onRefresh }: { clie
           telecoms: resTelecom.data?.map(d => ({ id: d.id, name: d.telecom })) || [],
           drivings: resDriving.data?.map(d => ({ id: d.id, name: d.status })) || [],
           banks: resBank.data?.map(d => ({ id: d.id, name: d.bank })) || [],
+          clients: fetchedClients,
         });
+
+        // 이미 소개자가 등록되어 있다면 검색창에 이름(연락처) 세팅
+        if (client?.introduce_client && fetchedClients.length > 0) {
+          const matched = fetchedClients.find(c => c.id === client.introduce_client);
+          if (matched) {
+            setReferrerSearch(`${matched.name} (${matched.phone || '연락처없음'})`);
+          }
+        }
       }
       fetchLookups();
     }
-  }, [isEditing, lookups.sources.length]);
+  }, [isEditing, lookups.sources.length, client]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -114,17 +136,15 @@ export default function ClientDetailModal({ client, onClose, onRefresh }: { clie
 
     setIsSaving(true);
     try {
-      const parseId = (val: string) => val ? parseInt(val, 10) : null;
+      const parseId = (val: string | number) => val ? parseInt(String(val), 10) : null;
       
-      // ⭐️ 3. 저장 전 주민등록번호 암호화 로직 처리
-      let finalRegNumber = client.registration_number; // 기본값: 기존의 암호화된 값
+      let finalRegNumber = client.registration_number; 
       
-      // 만약 폼의 주민번호가 원래의 복호화된 주민번호와 다르다면 (즉, 사용자가 수정했다면)
       if (formData.registration_number !== decryptedReg) {
         if (formData.registration_number.trim() !== "") {
-          finalRegNumber = await encryptRegNumber(formData.registration_number); // 새롭게 암호화
+          finalRegNumber = await encryptRegNumber(formData.registration_number); 
         } else {
-          finalRegNumber = null; // 완전히 지웠을 경우
+          finalRegNumber = null; 
         }
       }
 
@@ -133,13 +153,14 @@ export default function ClientDetailModal({ client, onClose, onRefresh }: { clie
         .update({
           name: formData.name,
           phone: formData.phone || null,
-          registration_number: finalRegNumber, // ⭐️ 암호화된 값 전송
+          registration_number: finalRegNumber,
           job: formData.job || null,
           address: formData.address || null,
           bank_info: formData.bank_info || null,
           card_withdrawal_date: formData.card_withdrawal_date || null,
           notes: formData.notes || null,
           client_source: parseId(formData.client_source),
+          introduce_client: parseId(formData.introduce_client),
           contract_status: parseId(formData.contract_status),
           telecom_carriers: parseId(formData.telecom_carriers),
           driving_statuses: parseId(formData.driving_statuses),
@@ -160,6 +181,9 @@ export default function ClientDetailModal({ client, onClose, onRefresh }: { clie
   };
 
   if (!client) return null;
+
+  const selectedSourceName = lookups.sources.find(s => String(s.id) === String(formData.client_source))?.name || "";
+  const isReferral = selectedSourceName.includes("소개");
 
   return (
     <div 
@@ -266,7 +290,7 @@ export default function ClientDetailModal({ client, onClose, onRefresh }: { clie
               </div>
 
               <div className="flex flex-col gap-1">
-                <span className="text-[11px] font-bold text-gray-400 uppercase">가입경로</span>
+                <span className="text-[11px] font-bold text-gray-400 uppercase">가입경로 <span className="text-red-500">*</span></span>
                 {isEditing ? (
                   <select name="client_source" value={formData.client_source} onChange={handleChange} className={inputClass}>
                     <option value="">선택 안함</option>
@@ -274,6 +298,28 @@ export default function ClientDetailModal({ client, onClose, onRefresh }: { clie
                   </select>
                 ) : <span className="text-sm font-black text-blue-600">{client.client_source?.source || "-"}</span>}
               </div>
+              
+              {isEditing && isReferral && (
+                <div className="col-span-2 flex flex-col gap-1 animate-in fade-in zoom-in-95 duration-200 mt-1 p-3 bg-blue-50/50 rounded-xl border border-blue-100">
+                  <span className="text-[11px] font-bold text-blue-600 uppercase">소개해준 기존 고객 검색</span>
+                  <input
+                    list="client-list"
+                    value={referrerSearch}
+                    onChange={(e) => {
+                      setReferrerSearch(e.target.value);
+                      const matched = lookups.clients.find(c => `${c.name} (${c.phone || '연락처없음'})` === e.target.value);
+                      setFormData(prev => ({ ...prev, introduce_client: matched ? String(matched.id) : "" }));
+                    }}
+                    className={`${inputClass} border-blue-200 focus:ring-blue-400 placeholder:text-blue-300`}
+                    placeholder="고객 이름 검색 및 선택..."
+                  />
+                  <datalist id="client-list">
+                    {lookups.clients.map(c => (
+                      <option key={c.id} value={`${c.name} (${c.phone || '연락처없음'})`} />
+                    ))}
+                  </datalist>
+                </div>
+              )}
 
               <div className="flex flex-col gap-1">
                 <span className="text-[11px] font-bold text-gray-400 uppercase">계약 상태</span>
