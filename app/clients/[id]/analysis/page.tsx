@@ -319,7 +319,7 @@ export default function AnalysisPage() {
             <div className="flex flex-col md:flex-row gap-4 print:flex print:flex-col print:flex-row">
               <div className="flex-1 bg-slate-50 border border-slate-200 p-6 rounded-2xl print:border-slate-300 flex flex-col justify-between print:flex-1 print:justify-between">
                  <p className="text-sm font-bold text-slate-500 mb-6 flex items-center gap-1.5">
-                   <AlertCircle className="w-4 h-4"/> 기존 유지안 (AS-IS)
+                   <AlertCircle className="w-4 h-4"/> 기존 유지안
                  </p>
                  <div className="space-y-4">
                    <div>
@@ -331,7 +331,7 @@ export default function AnalysisPage() {
                    <div className="border-t border-slate-200 pt-4 print:border-slate-300">
                      <p className="text-xs font-bold text-slate-400 mb-1">20년 누적 총 납입 원금</p>
                      <p className="text-xl font-black text-slate-500 line-through decoration-slate-400">
-                       {formatMoney(analysisData.premium.before * 12 * 20)}
+                       {formatMoney(analysisData.premium.before * 12 * 20 / 10000)}
                      </p>
                    </div>
                   )}
@@ -340,7 +340,7 @@ export default function AnalysisPage() {
 
               <div className="flex-1 bg-blue-50/50 border border-blue-200 p-6 rounded-2xl print:bg-blue-50 print:border-blue-300 flex flex-col justify-between  print:flex-1 print:justify-between">
                  <p className="text-sm font-bold text-blue-600 mb-6 flex items-center gap-1.5">
-                   <CheckCircle2 className="w-4 h-4"/> 최적화 제안 (TO-BE)
+                   <CheckCircle2 className="w-4 h-4"/> 최적화 제안
                  </p>
                  <div className="space-y-4">
                    <div>
@@ -352,7 +352,7 @@ export default function AnalysisPage() {
                    <div className="border-t border-blue-100 pt-4 print:border-blue-200">
                      <p className="text-xs font-bold text-blue-400 mb-1">20년 누적 총 납입 원금</p>
                      <p className="text-xl font-black text-gray-900">
-                       {formatMoney(analysisData.premium.after * 12 * 20)}
+                       {formatMoney(analysisData.premium.after * 12 * 20 / 10000)}
                      </p>
                    </div>
                   )}

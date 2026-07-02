@@ -7,7 +7,6 @@ import { Shield, X, Plus, Sparkles, FileText, Loader2 } from "lucide-react";
 const inputClassName =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20";
 
-// ⭐️ renewal_type (갱신 주기) 타입 추가
 type CoverageDetail = {
   name: string;
   amount: string;
@@ -22,7 +21,7 @@ type InsuranceCompany = {
 const COVERAGE_OPTIONS = [
   "실손의료비 상해입원", "실손의료비 질병입원", "실손의료비 상해통원", "실손의료비 질병통원",
   "실손의료비 상해약제", "실손의료비 질병약제", "일반암 진단금", "고액암 진단금",
-  "유사암 진단금", "항암방사선치료비", "항암약물물치료비", "암수술비",
+  "유사암 진단금", "항암방사선치료비", "항암약물치료비", "암수술비",
   "뇌혈관 진단금", "허혈성 진단금", "상해수술비", "1종 상해수술비",
   "2종 상해수술비", "3종 상해수술비", "4종 상해수술비", "5종 상해수술비",
   "질병수술비", "1종 질병수술비", "2종 질병수술비", "3종 질병수술비",
@@ -49,15 +48,12 @@ export default function InsuranceModal({
   onSuccess: () => void;
 }) {
   const [covForm, setCovForm] = useState(initialFormState);
-  
-  // ⭐️ 초기 배열 생성 시 renewal_type 기본값을 '비갱신'으로 세팅
   const [covDetails, setCovDetails] = useState<CoverageDetail[]>(
     Array(5).fill(null).map(() => ({ name: "", amount: "", renewal_type: "비갱신" }))
   );
   
   const [isSaving, setIsSaving] = useState(false);
   const [companies, setCompanies] = useState<InsuranceCompany[]>([]);
-
   const [pasteText, setPasteText] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
@@ -77,26 +73,108 @@ export default function InsuranceModal({
     fetchCompanies();
   }, []);
 
+  // ⭐️ 업그레이드된 스마트 텍스트 파서
   const handleAnalyzeText = async () => {
     if (!pasteText.trim()) return alert("분석할 텍스트를 입력해주세요.");
     setIsAnalyzing(true);
+    
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      alert("⚠️ 실제 분석 API가 연결되지 않아 데모 값으로 채워집니다. 백엔드 연동이 필요합니다.");
-      setCovForm((prev) => ({
+      // 분석 로딩 연출
+      await new Promise((resolve) => setTimeout(resolve, 800));
+
+      let extractedCompany = "";
+      let extractedProduct = "";
+      let extractedPremium = "";
+      let extractedSubDate = "";
+      let extractedMatDate = "";
+      const extractedDetails: CoverageDetail[] = [];
+
+      // 1. 줄바꿈을 기준으로 배열화
+      const lines = pasteText.split('\n').map(l => l.trim()).filter(l => l);
+
+      // 2. 회사명 및 상품명 추출 (처음 발견되는 보험/생명/화재/해상 키워드 기준)
+      for (const line of lines) {
+        if (line.includes("보험") || line.includes("생명") || line.includes("화재") || line.includes("해상") || line.includes("공제")) {
+          extractedProduct = line;
+          const companyMatch = line.match(/([가-힣]+(?:생명|화재|해상|손해|보험|공제))/);
+          if (companyMatch) extractedCompany = companyMatch[1];
+          break;
+        }
+      }
+
+      // 3. 가입일 및 만기일 추출 (예: 2025.08.29 ~ 2054.08.29)
+      const dateRegex = /(\d{4})[./-](\d{2})[./-](\d{2})\s*~\s*(\d{4})[./-](\d{2})[./-](\d{2})/;
+      const dateMatch = pasteText.match(dateRegex);
+      if (dateMatch) {
+        extractedSubDate = `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`;
+        extractedMatDate = `${dateMatch[4]}-${dateMatch[5]}-${dateMatch[6]}`;
+      }
+
+      // 4. 월 보험료 추출 (콤마 섞인 숫자 뒤에 '원'이 붙는 첫 번째 항목)
+      const premiumRegex = /([0-9,]+)원/;
+      const premiumMatch = pasteText.match(premiumRegex);
+      if (premiumMatch) {
+        extractedPremium = premiumMatch[1].replace(/,/g, "");
+      }
+
+      // 5. 세부 특약 덩어리 추출 (가장 중요한 로직)
+      // 표 데이터를 복사하면 '상태값(정상/유지/해지)'을 기준으로 데이터가 끝남을 이용해 텍스트를 쪼갭니다.
+      const rawBlocks = pasteText.split(/(정상|유지|해지)/);
+      
+      for (let i = 0; i < rawBlocks.length; i++) {
+        let part = rawBlocks[i].trim();
+        if (!part) continue;
+
+        // "만원" 으로 끝나는 패턴 찾기 (예: 상해사망(유병자)100만원)
+        const amountMatch = part.match(/(.+?)([0-9,]+)\s*만원$/);
+        
+        if (amountMatch) {
+          let name = amountMatch[1].trim();
+          let amount = amountMatch[2];
+
+          // 쓰레기 텍스트 정제 (보장구분, 보장상태 등 표 헤더가 딸려오는 것 방지)
+          const garbageKeywords = ["보장구분", "보장명", "보장금액", "보장상태"];
+          garbageKeywords.forEach(kw => {
+            if (name.includes(kw)) name = name.split(kw).pop() || name;
+          });
+
+          // 줄바꿈이 섞여있다면 맨 마지막 줄만 진짜 특약명으로 채택
+          if (name.includes("\n")) {
+            name = name.split("\n").pop() || name;
+          }
+
+          // ⭐️ 이름 앞부분이 반복 기재되는 버그 해결 (예: 상해사망상해사망 -> 상해사망)
+          // 패턴: 2글자 이상 동일한 단어가 연속으로 나오면 하나로 압축
+          name = name.replace(/^(.{2,}?)\1/, '$1').trim();
+
+          if (name && amount) {
+            extractedDetails.push({
+              name: name,
+              amount: amount,
+              renewal_type: "비갱신"
+            });
+          }
+        }
+      }
+
+      // 6. 상태 반영 및 렌더링
+      setCovForm(prev => ({
         ...prev,
-        company: "삼성생명", 
-        product: "무배당 삼성생명 종합건강보험",
-        premium: "125000",
-        subscriptionDate: "2020-05-10",
+        company: extractedCompany || prev.company,
+        product: extractedProduct || prev.product,
+        premium: extractedPremium || prev.premium,
+        subscriptionDate: extractedSubDate || prev.subscriptionDate,
+        maturityDate: extractedMatDate || prev.maturityDate,
       }));
-      // AI 파싱 시 갱신 여부도 세팅하도록 수정
-      setCovDetails([
-        { name: "일반암 진단금", amount: "5000만원", renewal_type: "비갱신" },
-        { name: "뇌혈관 진단금", amount: "2000만원", renewal_type: "비갱신" },
-        { name: "실손의료비 질병입원", amount: "5000만원", renewal_type: "1년 갱신" },
-      ]);
+
+      if (extractedDetails.length > 0) {
+        setCovDetails(extractedDetails);
+      } else {
+        alert("특약 내역을 추출하지 못했습니다. 형식이 다르거나 텍스트가 부족할 수 있습니다.");
+      }
+
       setPasteText("");
+
     } catch (error) {
       alert("분석 중 오류가 발생했습니다.");
     } finally {
@@ -170,7 +248,7 @@ export default function InsuranceModal({
           <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-4 space-y-3">
             <div className="flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-indigo-500" />
-              <p className="text-sm font-bold text-indigo-900">증권 텍스트 자동 분석 (AI)</p>
+              <p className="text-sm font-bold text-indigo-900">증권 텍스트 스마트 파싱</p>
             </div>
             <div className="flex flex-col sm:flex-row gap-2">
               <textarea 
@@ -178,7 +256,7 @@ export default function InsuranceModal({
                 className="flex-1 rounded-lg border border-indigo-200 bg-white p-2.5 text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 resize-none h-14"
                 value={pasteText} onChange={(e) => setPasteText(e.target.value)}
               />
-              <button onClick={handleAnalyzeText} disabled={isAnalyzing} className="sm:w-28 flex items-center justify-center gap-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold transition-colors hover:bg-indigo-700 disabled:opacity-50">
+              <button onClick={handleAnalyzeText} disabled={isAnalyzing} className="sm:w-28 flex items-center justify-center gap-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold transition-colors hover:bg-indigo-700 disabled:opacity-50 shadow-md">
                 {isAnalyzing ? <><Loader2 className="w-4 h-4 animate-spin" /> 분석중</> : <><FileText className="w-4 h-4" /> 추출하기</>}
               </button>
             </div>
@@ -258,7 +336,6 @@ export default function InsuranceModal({
                       value={detail.amount}
                       onChange={(e) => updateCovDetail(index, "amount", e.target.value)}
                     />
-                    {/* ⭐️ 통합 갱신 주기 셀렉트 박스 */}
                     <select
                       className={`${inputClassName} max-w-[120px] shrink-0 text-[11px] px-1 text-center font-bold text-gray-600 bg-gray-50`}
                       value={detail.renewal_type || "비갱신"}
