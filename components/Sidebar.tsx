@@ -277,13 +277,13 @@ export default function Sidebar() {
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-[11px]">
-                  <span className="text-gray-500 font-medium">소속팀</span>
+                  <span className="text-gray-500 font-medium">소속팀 ({agencyId || "-"})</span>
                   <span className="text-gray-300 font-bold truncate max-w-[100px] text-right" title={branchName}>
                     {branchName || "-"} {teamNumber || "-"} 팀
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-[11px] mt-0.5 pt-1.5 border-t border-gray-800">
-                  <span className="text-gray-500 font-medium">사번 (ID)</span>
+                  <span className="text-gray-500 font-medium">사번</span>
                   <span className="text-blue-400 font-black tracking-wide">
                     {agentCode || "-"}
                   </span>
