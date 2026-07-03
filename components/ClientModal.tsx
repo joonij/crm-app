@@ -366,7 +366,7 @@ export default function ClientModal({ onClose, onSuccess }: ClientModalProps) {
               {/* ⭐️ 동적으로 나타나는 HTML5 Datalist 검색 창 */}
               {isReferral && (
                 <div className="md:col-span-2 bg-blue-50 border border-blue-100 p-5 rounded-2xl animate-in fade-in zoom-in-95">
-                  <label className={labelClassName}>소개해준 기존 고객 검색 (가나다순)</label>
+                  <label className={labelClassName}>소개 고객 검색</label>
                   <input
                     list="client-list"
                     value={referrerSearch}
@@ -377,7 +377,7 @@ export default function ClientModal({ onClose, onSuccess }: ClientModalProps) {
                       updateField("introduce_client", matched ? String(matched.id) : "");
                     }}
                     className={inputClassName}
-                    placeholder="이름이나 전화번호를 타이핑해 보세요..."
+                    placeholder="성함 또는 전화번호 검색"
                   />
                   <datalist id="client-list">
                     {existingClients.map((client) => (

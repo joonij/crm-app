@@ -369,7 +369,7 @@ export default function InsuranceModal({
           <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-4 space-y-3">
             <div className="flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-indigo-500" />
-              <p className="text-sm font-bold text-indigo-900">증권 텍스트 스마트 파싱</p>
+              <p className="text-sm font-bold text-indigo-900">메리츠화재 보장분석 텍스트 파싱</p>
             </div>
             <div className="flex flex-col sm:flex-row gap-2">
               <textarea 
@@ -439,25 +439,30 @@ export default function InsuranceModal({
                 <input type="text" className={inputClassName} value={covForm.agent_name} onChange={(e) => setCovForm({ ...covForm, agent_name: e.target.value })} />
               </div>
 
-              <select className={`${inputClassName} cursor-pointer`} value={covForm.indemnityGen} onChange={(e) => setCovForm({ ...covForm, indemnityGen: e.target.value })}>
-                <option value="">실손 세대 선택 (해당 없음)</option>
-                <option value="1세대 실손">1세대 실손 (2009년 9월 이전)</option>
-                <option value="2세대 실손">2세대 실손 (2009년 10월 이후)</option>
-                <option value="3세대 실손">3세대 실손 (2017년 4월 이후)</option>
-                <option value="4세대 실손">4세대 실손 (2021년 7월 이후)</option>
-                <option value="5세대 실손">5세대 실손 (2026년 5월 이후)</option>
-              </select>
-              
-              <input 
-                type="text" 
-                placeholder="월 보험료 (원)" 
-                className={inputClassName} 
-                value={covForm.premiumFormatted} 
-                onChange={(e) => {
-                    const formatted = formatAmountWithComma(e.target.value);
-                    setCovForm({ ...covForm, premiumFormatted: formatted });
-                }} 
-              />
+              <div className="flex flex-col">
+                <label className="text-xs text-gray-500 mb-1 ml-1 font-semibold">실손의료비</label>
+                <select className={`${inputClassName} cursor-pointer`} value={covForm.indemnityGen} onChange={(e) => setCovForm({ ...covForm, indemnityGen: e.target.value })}>
+                  <option value="">실손 세대 선택 (해당 없음)</option>
+                  <option value="1세대 실손">1세대 실손 (2009년 9월 이전)</option>
+                  <option value="2세대 실손">2세대 실손 (2009년 10월 이후)</option>
+                  <option value="3세대 실손">3세대 실손 (2017년 4월 이후)</option>
+                  <option value="4세대 실손">4세대 실손 (2021년 7월 이후)</option>
+                  <option value="5세대 실손">5세대 실손 (2026년 5월 이후)</option>
+                </select>
+              </div>
+              <div className="flex flex-col">
+                <label className="text-xs text-gray-500 mb-1 ml-1 font-semibold">보험료</label>
+                <input 
+                  type="text" 
+                  placeholder="월 보험료 (원)" 
+                  className={inputClassName} 
+                  value={covForm.premiumFormatted} 
+                  onChange={(e) => {
+                      const formatted = formatAmountWithComma(e.target.value);
+                      setCovForm({ ...covForm, premiumFormatted: formatted });
+                  }} 
+                />
+              </div>
               
               <div className="flex flex-col">
                 <label className="text-xs text-gray-500 mb-1 ml-1 font-semibold">보험 가입 일자</label>
@@ -470,7 +475,15 @@ export default function InsuranceModal({
               
               <div className="flex flex-col">
                 <label className="text-xs text-gray-500 mb-1 ml-1 font-semibold">납입 기간</label>
-                <input type="text" placeholder="예: 20년, 전기납" className={inputClassName} value={covForm.paymentPeriod} onChange={(e) => setCovForm({ ...covForm, paymentPeriod: e.target.value })} />
+                <select className={`${inputClassName} cursor-pointer`} value={covForm.paymentPeriod} onChange={(e) => setCovForm({ ...covForm, paymentPeriod: e.target.value })}>
+                  <option value="일시납">일시납</option>
+                  <option value="3년납">3년납</option>
+                  <option value="5년납">5년납</option>
+                  <option value="7년납">7년납</option>
+                  <option value="10년납">10년납</option>
+                  <option value="15년납">15년납</option>
+                  <option value="20년납">20년납</option>
+                </select>
               </div>
 
             </div>

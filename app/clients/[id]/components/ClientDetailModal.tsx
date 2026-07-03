@@ -301,7 +301,7 @@ export default function ClientDetailModal({ client, onClose, onRefresh }: { clie
               
               {isEditing && isReferral && (
                 <div className="col-span-2 flex flex-col gap-1 animate-in fade-in zoom-in-95 duration-200 mt-1 p-3 bg-blue-50/50 rounded-xl border border-blue-100">
-                  <span className="text-[11px] font-bold text-blue-600 uppercase">소개해준 기존 고객 검색</span>
+                  <span className="text-[11px] font-bold text-blue-600 uppercase">소개 고객 검색</span>
                   <input
                     list="client-list"
                     value={referrerSearch}
@@ -310,8 +310,8 @@ export default function ClientDetailModal({ client, onClose, onRefresh }: { clie
                       const matched = lookups.clients.find(c => `${c.name} (${c.phone || '연락처없음'})` === e.target.value);
                       setFormData(prev => ({ ...prev, introduce_client: matched ? String(matched.id) : "" }));
                     }}
-                    className={`${inputClass} border-blue-200 focus:ring-blue-400 placeholder:text-blue-300`}
-                    placeholder="고객 이름 검색 및 선택..."
+                    className={`${inputClass}`}
+                    placeholder="성함 또는 전화번호 검색"
                   />
                   <datalist id="client-list">
                     {lookups.clients.map(c => (
