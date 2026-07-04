@@ -195,20 +195,31 @@ export default function InsuranceModal({
         extractedMatDate = `${dateMatch[4]}-${dateMatch[5]}-${dateMatch[6]}`;
       }
 
-      // 4. 납입기간 추출
-      const periodRegex = /\(.*?납,\s*([0-9]+(?:년|세납)|전기납)\)/;
-      const periodMatch = pasteText.match(periodRegex);
+      // ⭐️ 4. 납입기간 추출 및 규격화 완벽 처리
+      const periodMatch = pasteText.match(/\((?:.*?납)?[,\s]*([0-9]+(?:년|세납|세|년납)|전기납|일시납)\)/) 
+                       || pasteText.match(/([0-9]+(?:년납|세납|년|세)|전기납|일시납)/);
+
       if (periodMatch) {
-        extractedPaymentPeriod = periodMatch[1];
+        let p = periodMatch[1];
+        if (!p.includes("납") && !p.includes("일시") && !p.includes("전기")) {
+          p += "납";
+        }
+        extractedPaymentPeriod = p;
+
       }
 
-      // ⭐️ 5. 보험료 추출 ('약관조회' 키워드 윗줄 추적)
-      const termsIndex = lines.findIndex(l => l.includes("약관조회"));
-      if (termsIndex > 0) {
-        const premiumLine = lines[termsIndex - 1];
-        const premiumMatch = premiumLine.match(/([0-9,]+)/);
-        if (premiumMatch) {
-          extractedPremium = premiumMatch[1].replace(/,/g, "");
+      // ⭐️ 5. 보험료 추출 기능 고도화 (약관조회 또는 상품공시실 앞 라벨 완벽 매칭)
+      const premiumRegex = /([0-9,]+)원\s*(?:약관조회|상품공시실)/;
+      const premiumMatch = pasteText.match(premiumRegex);
+      if (premiumMatch) {
+        extractedPremium = premiumMatch[1].replace(/,/g, "");
+      } else {
+        const termsIndex = lines.findIndex(l => l.includes("약관조회") || l.includes("상품공시실"));
+        if (termsIndex > 0) {
+          const premiumLine = lines[termsIndex - 1];
+          const backupMatch = premiumLine.match(/([0-9,]+)/);
+          if (backupMatch) extractedPremium = backupMatch[1].replace(/,/g, "");
+
         }
       }
       
@@ -483,8 +494,8 @@ export default function InsuranceModal({
                   <option value="10년납">10년납</option>
                   <option value="15년납">15년납</option>
                   <option value="20년납">20년납</option>
-                  <option value="20년납">25년납</option>
-                  <option value="20년납">30년납</option>
+                  <option value="25년납">25년납</option>
+                  <option value="30년납">30년납</option>
                 </select>
               </div>
 
@@ -524,6 +535,7 @@ export default function InsuranceModal({
                       <option value="10년 갱신">10년 갱신</option>
                       <option value="15년 갱신">15년 갱신</option>
                       <option value="20년 갱신">20년 갱신</option>
+                      <option value="25년 갱신">25년 갱신</option>
                       <option value="30년 갱신">30년 갱신</option>
                     </select>
                     <button onClick={() => removeCovDetail(index)} className="p-1.5 text-gray-400 hover:text-red-500 transition-colors shrink-0 bg-white rounded-md border border-gray-200">

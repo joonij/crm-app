@@ -18,6 +18,18 @@ const formatAmount = (val: string) => {
   return raw;
 };
 
+// ⭐️ 데이터리스트용 특약 옵션 배열
+const COVERAGE_OPTIONS = [
+  "실손의료비 상해입원", "실손의료비 질병입원", "실손의료비 상해통원", "실손의료비 질병통원",
+  "실손의료비 상해약제", "실손의료비 질병약제", "일반사망 진단비", "재해사망 진단비", "상해사망 진단비", "질병사망 진단비", 
+  "재해 후유장해3%↑", "상해 후유장해3%↑", "질병 후유장해3%↑", 
+  "일반암 진단금", "고액암 진단금", "유사암 진단금", "항암방사선치료비", "항암약물치료비", "암수술비",
+  "뇌산정특례대상 진단비", "뇌혈관질환 진단금", "뇌졸증 진단금", "뇌출혈 진단금", "심장산정특례대상 진단비", "허혈성심장질환 진단금", "급성심근경색 진단금",
+  "상해수술비", "1종 상해수술비", "2종 상해수술비", "3종 상해수술비", "4종 상해수술비", "5종 상해수술비",
+  "질병수술비", "1종 질병수술비", "2종 질병수술비", "3종 질병수술비", "4종 질병수술비", "5종 질병수술비",
+  "상해입원비", "질병입원비",
+];
+
 type CoverageDetail = { 
   name: string; 
   amount: string; 
@@ -35,7 +47,13 @@ type Coverage = {
   indemnity_generation: string | null; 
   policy_status?: string | null; 
   subscription_date?: string | null; 
-  maturity_date?: string | null; 
+  maturity_date?: string | null;
+  // ⭐️ 새로 추가된 필드들 타입 정의
+  contractor?: string | null;
+  insured?: string | null;
+  beneficiary?: string | null;
+  agent_name?: string | null;
+  payment_period?: string | null;
 };
 
 type InsuranceCompany = {
@@ -63,14 +81,12 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
   const fetchCoverages = async () => {
     const { data } = await supabase.from("subscription_insurance").select("*").eq("client_id", clientId);
     if (data) {
-      // 1. 전체 보험 리스트를 '가입일' 순으로 정렬
       const sortedData = [...data].sort((a, b) => {
         const dateA = a.subscription_date ? new Date(a.subscription_date).getTime() : Infinity;
         const dateB = b.subscription_date ? new Date(b.subscription_date).getTime() : Infinity;
         return dateA - dateB;
       });
 
-      // 2. 특약 리스트 가나다 정렬 (안전한 복사 후 정렬)
       const processedData = sortedData.map(cov => ({
         ...cov,
         details: cov.details ? [...cov.details].sort((a, b) => a.name.localeCompare(b.name)) : null
@@ -109,6 +125,7 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     
     const cleanPremium = Number(String(editingPolicyForm.monthly_premium).replace(/,/g, ''));
 
+    // ⭐️ 기본 폼 수정 내용에 신규 필드들 반영
     const { error } = await supabase.from("subscription_insurance").update({
       insurance_company: editingPolicyForm.insurance_company,
       product_name: editingPolicyForm.product_name,
@@ -116,6 +133,11 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
       subscription_date: editingPolicyForm.subscription_date || null,
       maturity_date: editingPolicyForm.maturity_date || null,
       indemnity_generation: editingPolicyForm.indemnity_generation || null,
+      contractor: editingPolicyForm.contractor || null,
+      insured: editingPolicyForm.insured || null,
+      beneficiary: editingPolicyForm.beneficiary || null,
+      agent_name: editingPolicyForm.agent_name || null,
+      payment_period: editingPolicyForm.payment_period || null,
     }).eq("id", editingPolicyId);
 
     if (error) {
@@ -138,13 +160,11 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     await supabase.from("subscription_insurance").update({ policy_status: newStatus }).eq("id", covId);
   };
 
-  // ⭐️ 데이터베이스 통신(저장)
   const updateCoverageDetailsInDB = async (covId: number, newDetails: CoverageDetail[]) => {
     const { error } = await supabase.from("subscription_insurance").update({ details: newDetails }).eq("id", covId);
     if (error) { 
       alert("업데이트 실패"); 
     }
-    // DB 업데이트 성공 후 가나다순으로 재정렬된 상태를 불러옴
     fetchCoverages();
   };
 
@@ -210,7 +230,6 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     await updateCoverageDetailsInDB(covId, newDetails);
   };
 
-  // ⭐️ 특약 새 줄 추가 로직 (충돌 원인 교정)
   const handleAddNewDetail = async (covId: number) => {
     const cov = coverages.find(c => c.id === covId);
     if (!cov) return;
@@ -218,7 +237,6 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     const newDetails = cov.details ? [...cov.details] : [];
     const newIdx = newDetails.length;
     
-    // DB에 저장하지 않고 UI 화면상에만 임시로 새 줄을 만들어 띄움
     newDetails.push({ name: "", amount: "", renewal_type: "비갱신" });
     setCoverages(prev => prev.map(c => c.id === covId ? { ...c, details: newDetails } : c));
     
@@ -229,7 +247,6 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     const cov = coverages.find(c => c.id === covId);
     if (cov && cov.details) {
       const detail = cov.details[idx];
-      // 빈 껍데기(새 줄 추가)였다면 배열에서 제거하고 화면 원상복구
       if (detail.name === "" && detail.amount === "") {
         const newDetails = [...cov.details];
         newDetails.splice(idx, 1);
@@ -318,26 +335,77 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                           </select>
 
                           <input type="text" placeholder="상품명" value={editingPolicyForm?.product_name || ""} onChange={e => setEditingPolicyForm({...editingPolicyForm!, product_name: e.target.value})} className="border border-gray-200 rounded p-2 outline-none focus:border-blue-500" />
-                          <div className="flex items-center border border-gray-200 rounded p-2 bg-white focus-within:border-blue-500">
-                            <input type="text" placeholder="월 보험료" value={formatAmount(String(editingPolicyForm?.monthly_premium || ""))} onChange={e => setEditingPolicyForm({...editingPolicyForm!, monthly_premium: Number(e.target.value.replace(/,/g, ''))})} className="flex-1 w-full outline-none" />
-                            <span className="text-gray-400">원</span>
+                          
+                          {/* ⭐️ 계약 관계자 수정 폼 (4종) */}
+                          <div className="flex flex-col">
+                            <span className="text-[10px] text-gray-500 mb-0.5 ml-1">계약자</span>
+                            <input type="text" placeholder="계약자" value={editingPolicyForm?.contractor || ""} onChange={e => setEditingPolicyForm({...editingPolicyForm!, contractor: e.target.value})} className="border border-gray-200 rounded p-2 outline-none focus:border-blue-500" />
                           </div>
-                                                                            
-                          <select 
-                            value={editingPolicyForm?.indemnity_generation || ""} 
-                            onChange={e => setEditingPolicyForm({...editingPolicyForm!, indemnity_generation: e.target.value})} 
-                            className="border border-gray-200 rounded p-2 outline-none focus:border-blue-500 bg-white"
-                          >
-                            <option value="">실손 세대 (해당 없음)</option>
-                            <option value="1세대 실손">1세대 실손 (2009년 9월 이전)</option>
-                            <option value="2세대 실손">2세대 실손 (2009년 10월 이후)</option>
-                            <option value="3세대 실손">3세대 실손 (2017년 4월 이후)</option>
-                            <option value="4세대 실손">4세대 실손 (2021년 7월 이후)</option>
-                            <option value="5세대 실손">5세대 실손 (2026년 5월 이후)</option>
-                          </select>
+                          <div className="flex flex-col">
+                            <span className="text-[10px] text-gray-500 mb-0.5 ml-1">피보험자</span>
+                            <input type="text" placeholder="피보험자" value={editingPolicyForm?.insured || ""} onChange={e => setEditingPolicyForm({...editingPolicyForm!, insured: e.target.value})} className="border border-gray-200 rounded p-2 outline-none focus:border-blue-500" />
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-[10px] text-gray-500 mb-0.5 ml-1">수익자</span>
+                            <input type="text" placeholder="수익자" value={editingPolicyForm?.beneficiary || ""} onChange={e => setEditingPolicyForm({...editingPolicyForm!, beneficiary: e.target.value})} className="border border-gray-200 rounded p-2 outline-none focus:border-blue-500" />
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-[10px] text-gray-500 mb-0.5 ml-1">담당설계사</span>
+                            <input type="text" placeholder="담당설계사" value={editingPolicyForm?.agent_name || ""} onChange={e => setEditingPolicyForm({...editingPolicyForm!, agent_name: e.target.value})} className="border border-gray-200 rounded p-2 outline-none focus:border-blue-500" />
+                          </div>
+                          
+                          {/* ⭐️ 보험료, 실손 세대 및 납입기간 */}
+                          <div className="flex flex-col">
+                            <span className="text-[10px] text-gray-500 mb-0.5 ml-1">월 보험료</span>
+                            <div className="flex items-center border border-gray-200 rounded p-2 bg-white focus-within:border-blue-500">
+                              <input type="text" placeholder="월 보험료" value={formatAmount(String(editingPolicyForm?.monthly_premium || ""))} onChange={e => setEditingPolicyForm({...editingPolicyForm!, monthly_premium: Number(e.target.value.replace(/,/g, ''))})} className="flex-1 w-full outline-none" />
+                              <span className="text-gray-400">원</span>
+                            </div>
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-[10px] text-gray-500 mb-0.5 ml-1">실손 세대</span>
+                            <select 
+                              value={editingPolicyForm?.indemnity_generation || ""} 
+                              onChange={e => setEditingPolicyForm({...editingPolicyForm!, indemnity_generation: e.target.value})} 
+                              className="border border-gray-200 rounded p-2 outline-none focus:border-blue-500 bg-white h-[34px]"
+                            >
+                              <option value="">해당 없음</option>
+                              <option value="1세대 실손">1세대 실손</option>
+                              <option value="2세대 실손">2세대 실손</option>
+                              <option value="3세대 실손">3세대 실손</option>
+                              <option value="4세대 실손">4세대 실손</option>
+                              <option value="5세대 실손">5세대 실손</option>
+                            </select>
+                          </div>
 
-                          <input type="date" max="9999-12-31" placeholder="가입일" value={editingPolicyForm?.subscription_date || ""} onChange={e => setEditingPolicyForm({...editingPolicyForm!, subscription_date: e.target.value})} className="border border-gray-200 rounded p-2 outline-none focus:border-blue-500" title="가입일" />
-                          <input type="date" max="9999-12-31" placeholder="만기일" value={editingPolicyForm?.maturity_date || ""} onChange={e => setEditingPolicyForm({...editingPolicyForm!, maturity_date: e.target.value})} className="border border-gray-200 rounded p-2 outline-none focus:border-blue-500" title="만기일" />
+                          <div className="flex flex-col">
+                            <span className="text-[10px] text-gray-500 mb-0.5 ml-1">가입일자</span>
+                            <input type="date" max="9999-12-31" value={editingPolicyForm?.subscription_date || ""} onChange={e => setEditingPolicyForm({...editingPolicyForm!, subscription_date: e.target.value})} className="border border-gray-200 rounded p-2 outline-none focus:border-blue-500 h-[34px]" />
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-[10px] text-gray-500 mb-0.5 ml-1">만기일자</span>
+                            <input type="date" max="9999-12-31" value={editingPolicyForm?.maturity_date || ""} onChange={e => setEditingPolicyForm({...editingPolicyForm!, maturity_date: e.target.value})} className="border border-gray-200 rounded p-2 outline-none focus:border-blue-500 h-[34px]" />
+                          </div>
+                          <div className="flex flex-col col-span-2">
+                            <span className="text-[10px] text-gray-500 mb-0.5 ml-1">납입 기간</span>
+                            <select 
+                              value={editingPolicyForm?.payment_period || ""} 
+                              onChange={e => setEditingPolicyForm({...editingPolicyForm!, payment_period: e.target.value})} 
+                              className="border border-gray-200 rounded p-2 outline-none focus:border-blue-500 bg-white"
+                            >
+                              <option value="">선택 안함</option>
+                              <option value="일시납">일시납</option>
+                              <option value="3년납">3년납</option>
+                              <option value="5년납">5년납</option>
+                              <option value="7년납">7년납</option>
+                              <option value="10년납">10년납</option>
+                              <option value="15년납">15년납</option>
+                              <option value="20년납">20년납</option>
+                              <option value="25년납">25년납</option>
+                              <option value="30년납">30년납</option>
+                              <option value="전기납">전기납</option>
+                            </select>
+                          </div>
                         </div>
                       </div>
                     ) : (
@@ -415,7 +483,16 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                                     </div>
                                   ) : (
                                     <div className="flex items-center gap-1.5 w-full flex-wrap sm:flex-nowrap">
-                                      <input type="text" placeholder="특약명" value={editingDetail.tempName} onChange={(e) => setEditingDetail({ ...editingDetail, tempName: e.target.value })} className="border border-blue-300 rounded px-2 py-1.5 flex-1 min-w-[100px] text-xs outline-none focus:border-blue-500" autoFocus={editingDetail.mode === 'new'} />
+                                      {/* ⭐️ 특약 추가/수정 시 Datalist 적용 */}
+                                      <input 
+                                        type="text" 
+                                        list="edit-coverage-options"
+                                        placeholder="특약명" 
+                                        value={editingDetail.tempName} 
+                                        onChange={(e) => setEditingDetail({ ...editingDetail, tempName: e.target.value })} 
+                                        className="border border-blue-300 rounded px-2 py-1.5 flex-1 min-w-[100px] text-xs outline-none focus:border-blue-500" 
+                                        autoFocus={editingDetail.mode === 'new'} 
+                                      />
                                       <input type="text" placeholder="가입 금액" value={formatAmount(editingDetail.tempAmount)} onChange={(e) => setEditingDetail({ ...editingDetail, tempAmount: formatAmount(e.target.value) })} className="border border-blue-300 rounded px-2 py-1.5 w-16 text-right text-xs outline-none focus:border-blue-500" autoFocus={editingDetail.mode === 'edit'} />만원
                                       <select className="border border-blue-300 rounded px-1 py-1.5 w-[48px] text-[10px] outline-none focus:border-blue-500 shrink-0 font-medium text-gray-600 bg-white" value={editingDetail.tempRenewalType} onChange={(e) => setEditingDetail({ ...editingDetail, tempRenewalType: e.target.value })}>
                                         <option value="비갱신">비갱신</option>
@@ -506,6 +583,11 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
         </div>
       </div>
       {isCovModalOpen && <InsuranceModal clientId={clientId} onClose={() => setIsCovModalOpen(false)} onSuccess={fetchCoverages} />}
+      
+      {/* ⭐️ 수정을 위한 Datalist 마운트 */}
+      <datalist id="edit-coverage-options">
+        {COVERAGE_OPTIONS.map((opt) => <option key={opt} value={opt} />)}
+      </datalist>
     </>
   );
 }
