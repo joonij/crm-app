@@ -483,6 +483,8 @@ export default function InsuranceModal({
                   <option value="10년납">10년납</option>
                   <option value="15년납">15년납</option>
                   <option value="20년납">20년납</option>
+                  <option value="20년납">25년납</option>
+                  <option value="20년납">30년납</option>
                 </select>
               </div>
 

@@ -85,7 +85,7 @@ export default function SignUpPage() {
             <h3 className="text-sm font-black text-gray-950 bg-purple-50 px-3 py-1 rounded-full inline-block">1. 소속 정보</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className={labelClass}>이름 (실명) <span className="text-red-500">*</span></label>
+                <label className={labelClass}>이름<span className="text-red-500">*</span></label>
                 <div className="relative">
                   <User className={iconClass} />
                   <input name="name" type="text" required placeholder="예: 홍길동" className={inputClass} />
@@ -93,7 +93,7 @@ export default function SignUpPage() {
               </div>
               
               <div>
-                <label className={labelClass}>사번 (Agent Code) <span className="text-red-500">*</span></label>
+                <label className={labelClass}>사번<span className="text-red-500">*</span></label>
                 <div className="relative">
                   <Hash className={iconClass} />
                   <input name="agent_code" type="text" required placeholder="고유 사번 입력" className={inputClass} />
@@ -101,7 +101,7 @@ export default function SignUpPage() {
               </div>
 
               <div>
-                <label className={labelClass}>소속 팀 ID <span className="text-red-500">*</span></label>
+                <label className={labelClass}>소속 ID <span className="text-red-500">*</span></label>
                 <div className="relative">
                   <Building2 className={iconClass} />
                   <input name="agency_id" type="number" required placeholder="팀 ID (예: 1)" className={inputClass} />
@@ -117,12 +117,13 @@ export default function SignUpPage() {
                     <option value="SM">SM (Sales Manager)</option>
                     <option value="BM">BM (Branch Manager)</option>
                     <option value="RM">RM (Regional Manager)</option>
+                    <option value="RM">RM (Regional Manager)</option>
                   </select>
                 </div>
               </div>
 
               <div className="md:col-span-2">
-                <label className={labelClass}>상급자 코드 (Manager Code)</label>
+                <label className={labelClass}>상급자 사번</label>
                 <div className="relative">
                   <UserCog className={iconClass} />
                   <input name="manager_code" type="text" placeholder="관리자/상급자의 ID (선택)" className={inputClass} />
