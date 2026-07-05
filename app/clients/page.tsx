@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, useMemo, useRef } from "react";
-import { Plus, Users, X, CheckSquare, Square, BarChart3, Phone, Search, Crown, UserPlus } from "lucide-react";
+import { Plus, Users, X, CheckSquare, Square, BarChart3, Phone, Search, Crown, UserPlus, Star, Trash2 } from "lucide-react";
 import ClientModal from "@/components/ClientModal";
 import { supabase } from "@/lib/supabase";
 import Link from 'next/link';
@@ -15,6 +15,7 @@ type Client = {
   contract_status: string | number | null;
   introduce_client: number | null;
   isKeyman?: boolean;
+  is_favorite?: boolean; // ⭐️ 즐겨찾기 상태 추가
 };
 
 const contractStatusMap: Record<string, string> = {
@@ -96,14 +97,12 @@ export default function ClientsPage() {
   const [page, setPage] = useState(1);
   const ITEMS_PER_PAGE = 20;
 
-  // ⭐️ 무한 스크롤을 위한 Observer Ref 추가
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
   const fetchClients = useCallback(async () => {
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     
     if (userError || !user) {
-      console.error("로그인 정보가 없습니다.");
       setClients([]);
       return;
     }
@@ -115,7 +114,6 @@ export default function ClientsPage() {
       .single();
 
     if (agentError || !agent) {
-      console.error("담당자 정보를 찾을 수 없습니다:", agentError?.message);
       setClients([]);
       return;
     }
@@ -126,7 +124,6 @@ export default function ClientsPage() {
       .eq("agent_id", agent.id);
 
     if (error) {
-      console.error("데이터 불러오기 에러:", error.message);
       setClients([]);
       return;
     }
@@ -140,12 +137,19 @@ export default function ClientsPage() {
       return acc;
     }, {} as Record<number, number>);
 
+    // ⭐️ 즐겨찾기 상태를 DB값 그대로 가져옴 (없으면 false)
     const clientsWithKeyman = fetchedData.map(client => ({
       ...client,
-      isKeyman: (introCounts[client.id] || 0) >= 3
+      isKeyman: (introCounts[client.id] || 0) >= 3,
+      is_favorite: !!client.is_favorite
     }));
 
-    clientsWithKeyman.sort((a, b) => a.name.localeCompare(b.name, 'ko-KR'));
+    // 정렬 1순위: 즐겨찾기, 2순위: 가나다순
+    clientsWithKeyman.sort((a, b) => {
+      if (a.is_favorite && !b.is_favorite) return -1;
+      if (!a.is_favorite && b.is_favorite) return 1;
+      return a.name.localeCompare(b.name, 'ko-KR');
+    });
 
     setClients(clientsWithKeyman);
   }, []);
@@ -158,7 +162,6 @@ export default function ClientsPage() {
     setPage(1);
   }, [searchTerm, statusFilter]);
 
-  // 전체 필터링된 결과물 계산
   const filteredClients = useMemo(() => {
     if (!clients) return [];
     
@@ -175,6 +178,8 @@ export default function ClientsPage() {
         matchesStatus = true;
       } else if (statusFilter === "keyman") {
         matchesStatus = !!client.isKeyman; 
+      } else if (statusFilter === "favorite") { // ⭐️ 즐겨찾기 필터 분기 추가
+        matchesStatus = !!client.is_favorite;
       } else {
         const clientStatusId = client.contract_status !== null ? String(client.contract_status) : "";
         matchesStatus = clientStatusId === statusFilter;
@@ -184,27 +189,23 @@ export default function ClientsPage() {
     });
   }, [clients, searchTerm, statusFilter]);
 
-  // ⭐️ 100% 확실한 Intersection Observer 방식 무한 스크롤 적용
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
-        // 박스가 화면에 보이면 페이지 1 증가
         if (entries[0].isIntersecting) {
           setPage((prev) => prev + 1);
         }
       },
-      { threshold: 0.1 } // 박스가 10%라도 보이면 트리거
+      { threshold: 0.1 } 
     );
 
     const currentTarget = loadMoreRef.current;
-    if (currentTarget) {
-      observer.observe(currentTarget);
-    }
+    if (currentTarget) observer.observe(currentTarget);
 
     return () => {
       if (currentTarget) observer.unobserve(currentTarget);
     };
-  }, [filteredClients.length, page]); // 렌더링 상황이 바뀔 때마다 옵저버 갱신
+  }, [filteredClients.length, page]); 
 
   const displayedClients = filteredClients.slice(0, page * ITEMS_PER_PAGE);
   
@@ -214,15 +215,48 @@ export default function ClientsPage() {
     );
     setEditingClientId(null);
 
-    const { error } = await supabase
-      .from("clients")
-      .update({ contract_status: newStatusId })
-      .eq("id", clientId);
-
+    const { error } = await supabase.from("clients").update({ contract_status: newStatusId }).eq("id", clientId);
     if (error) {
-      console.error("DB 업데이트 에러 상세:", JSON.stringify(error, null, 2));
       alert(`계약 상태 변경 실패!\n원인: ${error.message}`);
       void fetchClients();
+    }
+  };
+
+  // ⭐️ 1. 즐겨찾기 토글 함수
+  const handleToggleFavorite = async (e: React.MouseEvent, clientId: number, currentStatus: boolean) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const newStatus = !currentStatus;
+    
+    // UI 즉각 반영 (Optimistic UI)
+    setClients((prev) => 
+      prev ? prev.map((c) => (c.id === clientId ? { ...c, is_favorite: newStatus } : c)) : null
+    );
+
+    const { error } = await supabase.from("clients").update({ is_favorite: newStatus }).eq("id", clientId);
+    
+    if (error) {
+      alert(`즐겨찾기 변경 실패!\n원인: ${error.message}`);
+      void fetchClients(); // 롤백
+    }
+  };
+
+  // ⭐️ 2. 고객 완전 삭제 함수
+  const handleDeleteClient = async (e: React.MouseEvent, clientId: number, clientName: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!window.confirm(`⚠️ 정말 [${clientName}] 고객님을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없으며, 관련된 보장 분석 및 일정도 모두 삭제될 수 있습니다.`)) return;
+
+    // UI에서 먼저 제거
+    setClients((prev) => prev ? prev.filter((c) => c.id !== clientId) : null);
+
+    const { error } = await supabase.from("clients").delete().eq("id", clientId);
+    
+    if (error) {
+      alert(`고객 삭제 실패!\n원인: ${error.message}`);
+      void fetchClients(); // 롤백
     }
   };
 
@@ -232,24 +266,14 @@ export default function ClientsPage() {
     const currentSteps = parseSteps(progressModalClient.progress_status);
     const isCompleted = currentSteps.includes(stepId);
     
-    const newSteps = isCompleted
-      ? currentSteps.filter((id) => id !== stepId)
-      : [...currentSteps, stepId];
-
+    const newSteps = isCompleted ? currentSteps.filter((id) => id !== stepId) : [...currentSteps, stepId];
     const newStatusString = JSON.stringify(newSteps);
 
     setProgressModalClient({ ...progressModalClient, progress_status: newStatusString });
-    setClients((prev) =>
-      prev ? prev.map((c) => (c.id === progressModalClient.id ? { ...c, progress_status: newStatusString } : c)) : null
-    );
+    setClients((prev) => prev ? prev.map((c) => (c.id === progressModalClient.id ? { ...c, progress_status: newStatusString } : c)) : null);
 
-    const { error } = await supabase
-      .from("clients")
-      .update({ progress_status: newStatusString }) 
-      .eq("id", progressModalClient.id);
-
+    const { error } = await supabase.from("clients").update({ progress_status: newStatusString }).eq("id", progressModalClient.id);
     if (error) {
-      console.error("DB 업데이트 에러 상세:", JSON.stringify(error, null, 2));
       alert(`영업 프로세스 업데이트 실패!\n원인: ${error.message}`);
       void fetchClients();
     }
@@ -261,24 +285,14 @@ export default function ClientsPage() {
     const currentSteps = parseSteps(recruitingModalClient.recruiting_status);
     const isCompleted = currentSteps.includes(stepId);
     
-    const newSteps = isCompleted
-      ? currentSteps.filter((id) => id !== stepId)
-      : [...currentSteps, stepId];
-
+    const newSteps = isCompleted ? currentSteps.filter((id) => id !== stepId) : [...currentSteps, stepId];
     const newStatusString = JSON.stringify(newSteps);
 
     setRecruitingModalClient({ ...recruitingModalClient, recruiting_status: newStatusString });
-    setClients((prev) =>
-      prev ? prev.map((c) => (c.id === recruitingModalClient.id ? { ...c, recruiting_status: newStatusString } : c)) : null
-    );
+    setClients((prev) => prev ? prev.map((c) => (c.id === recruitingModalClient.id ? { ...c, recruiting_status: newStatusString } : c)) : null);
 
-    const { error } = await supabase
-      .from("clients")
-      .update({ recruiting_status: newStatusString }) 
-      .eq("id", recruitingModalClient.id);
-
+    const { error } = await supabase.from("clients").update({ recruiting_status: newStatusString }).eq("id", recruitingModalClient.id);
     if (error) {
-      console.error("DB 업데이트 에러 상세:", JSON.stringify(error, null, 2));
       alert(`리쿠르팅 프로세스 업데이트 실패!\n원인: ${error.message}`);
       void fetchClients();
     }
@@ -350,6 +364,19 @@ export default function ClientsPage() {
               키맨
             </button>
 
+            {/* ⭐️ 즐겨찾기 필터 버튼 */}
+            <button 
+              onClick={() => setStatusFilter("favorite")} 
+              className={`shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-bold transition-colors ${
+                statusFilter === "favorite" 
+                  ? "bg-yellow-400 text-white shadow-sm border-yellow-400" 
+                  : "bg-white border border-gray-200 text-gray-600 hover:bg-yellow-50"
+              }`}
+            >
+              <Star className={`w-4 h-4 ${statusFilter === "favorite" ? "fill-white text-white" : "text-yellow-400"}`} />
+              즐겨찾기
+            </button>
+
             {Object.entries(contractStatusMap).map(([idKey, label]) => (
               <button 
                 key={idKey} 
@@ -370,8 +397,8 @@ export default function ClientsPage() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50/80">
               <tr>
-                {["이름", "", "영업 진행률", "리쿠르팅 진행률", "계약상태", "연락처"].map((header, idx) => (
-                  <th key={idx} scope="col" className="px-6 py-4 text-left text-xs font-bold tracking-wider text-gray-500 uppercase">
+                {["이름", "", "영업 진행률", "리쿠르팅 진행률", "계약상태", "연락처", "관리"].map((header, idx) => (
+                  <th key={idx} scope="col" className={`px-6 py-4 text-xs font-bold tracking-wider text-gray-500 uppercase ${header === "관리" ? "text-right" : "text-left"}`}>
                     {header}
                   </th>
                 ))}
@@ -380,7 +407,7 @@ export default function ClientsPage() {
             <tbody className="divide-y divide-gray-100 bg-white">
               {displayedClients.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-sm text-gray-500">
+                  <td colSpan={7} className="px-6 py-12 text-center text-sm text-gray-500">
                     {clients.length === 0 
                       ? "등록된 고객이 없습니다. 새 고객을 등록해주세요." 
                       : "검색 조건에 맞는 고객이 없습니다."}
@@ -400,6 +427,14 @@ export default function ClientsPage() {
                     <tr key={client.id} className="hover:bg-blue-50/20 transition-colors group">
                       <td className="px-6 py-3 whitespace-nowrap">
                         <div className="flex items-center gap-2">
+                          {/* ⭐️ 즐겨찾기 아이콘 */}
+                          <button 
+                            onClick={(e) => handleToggleFavorite(e, client.id, !!client.is_favorite)}
+                            className="p-1 -ml-1 rounded-full hover:bg-gray-100 transition-colors"
+                          >
+                            <Star className={`w-4 h-4 transition-colors ${client.is_favorite ? "fill-yellow-400 text-yellow-400" : "text-gray-300 hover:text-yellow-400"}`} />
+                          </button>
+                          
                           <Link href={`/clients/${client.id}`} className="block text-base font-bold text-gray-900 group-hover:text-blue-600 transition-colors py-1.5">
                             {client.name}
                           </Link>
@@ -415,7 +450,6 @@ export default function ClientsPage() {
                         </div>
                       </td>
                       
-                      {/* 영업 진행률 */}
                       <td className="px-6 py-3 whitespace-nowrap">
                         <div 
                           className="flex items-center gap-3 cursor-pointer group/progress p-1 -ml-1 rounded-lg hover:bg-gray-50 transition-colors"
@@ -431,7 +465,6 @@ export default function ClientsPage() {
                         </div>
                       </td>
 
-                      {/* 리쿠르팅 진행률 */}
                       <td className="px-6 py-3 whitespace-nowrap">
                         <div 
                           className="flex items-center gap-3 cursor-pointer group/recruiting p-1 -ml-1 rounded-lg hover:bg-purple-50 transition-colors"
@@ -476,6 +509,16 @@ export default function ClientsPage() {
                       <td className="whitespace-nowrap px-6 py-3 text-sm text-gray-500">
                         <div className="flex items-center h-8">{client.phone ?? "-"}</div>
                       </td>
+                      {/* ⭐️ 데스크탑 고객 삭제 버튼 */}
+                      <td className="px-6 py-3 whitespace-nowrap text-right">
+                        <button 
+                          onClick={(e) => handleDeleteClient(e, client.id, client.name)}
+                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="고객 완전 삭제"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
                     </tr>
                   );
                 })
@@ -501,10 +544,26 @@ export default function ClientsPage() {
               const clientStatusId = client.contract_status !== null ? String(client.contract_status) : "";
 
               return (
-                <div key={client.id} className="p-4 flex flex-col gap-4 bg-white hover:bg-gray-50 transition-colors">
+                <div key={client.id} className="relative p-4 flex flex-col gap-4 bg-white hover:bg-gray-50 transition-colors">
                   
-                  <div className="flex justify-between items-center">
+                  {/* ⭐️ 모바일 고객 삭제 버튼 (우측 상단 절대 배치) */}
+                  <button 
+                    onClick={(e) => handleDeleteClient(e, client.id, client.name)}
+                    className="absolute top-4 right-4 p-1.5 text-gray-300 hover:text-red-500 bg-white hover:bg-red-50 rounded-md transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+
+                  <div className="flex justify-between items-center pr-10">
                     <div className="flex items-center gap-2">
+                      {/* ⭐️ 즐겨찾기 아이콘 */}
+                      <button 
+                        onClick={(e) => handleToggleFavorite(e, client.id, !!client.is_favorite)}
+                        className="p-1 -ml-1 rounded-full hover:bg-gray-100 transition-colors"
+                      >
+                        <Star className={`w-5 h-5 transition-colors ${client.is_favorite ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`} />
+                      </button>
+
                       <Link href={`/clients/${client.id}`} className="text-lg font-extrabold text-gray-900 hover:text-blue-600">
                         {client.name}
                       </Link>
@@ -514,8 +573,11 @@ export default function ClientsPage() {
                         </span>
                       )}
                     </div>
-                    
-                    <div className="h-8 w-24">
+                  </div>
+                  
+                  {/* 계약 상태 및 연락처 */}
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-24 shrink-0">
                       {editingClientId === client.id ? (
                         <select
                           value={clientStatusId}
@@ -537,6 +599,10 @@ export default function ClientsPage() {
                           {contractStatusMap[clientStatusId] || "미지정"}
                         </span>
                       )}
+                    </div>
+                    <div className="flex items-center gap-1.5 text-sm text-gray-500">
+                      <Phone className="w-3.5 h-3.5 text-gray-400" />
+                      <span>{client.phone || "연락처 없음"}</span>
                     </div>
                   </div>
 
@@ -568,17 +634,13 @@ export default function ClientsPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 text-sm text-gray-500 mt-1">
-                    <Phone className="w-3.5 h-3.5 text-gray-400" />
-                    <span>{client.phone || "연락처 미등록"}</span>
-                  </div>
                 </div>
               );
             })
           )}
         </div>
 
-        {/* ⭐️ 무한 스크롤 트리거 역할을 하는 투명 박스 (더 불러올 데이터가 있을 때만 렌더링) */}
+        {/* 무한 스크롤 트리거 */}
         {displayedClients.length < filteredClients.length && (
           <div ref={loadMoreRef} className="h-10 w-full" />
         )}
