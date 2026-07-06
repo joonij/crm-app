@@ -205,7 +205,7 @@ export default function MyPage() {
     if (typeof window !== "undefined" && globalWindow.Kakao) {
       const kakao = globalWindow.Kakao;
       
-      const KAKAO_KEY = process.env.NEXT_PUBLIC_KAKAO_JS_KEY || "여기에_카카오_자바스크립트_키를_넣으세요";
+      const KAKAO_KEY = process.env.NEXT_PUBLIC_KAKAO_JS_KEY || "ccb428fb9e389bec1c8579c12828fd97";
 
       if (!kakao.isInitialized()) {
         kakao.init(KAKAO_KEY);
