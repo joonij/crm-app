@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { User, Building2, Phone, Mail, LogOut, Camera, Save, Loader2, Award, QrCode, MapPin, Printer, Share2, MessageCircle, X, Quote } from "lucide-react";
+import { User, Building2, Phone, Mail, LogOut, Camera, Save, Loader2, Award, QrCode, MapPin, Printer, Share2, MessageCircle, X, Quote, Briefcase, Network, Plus, Trash2 } from "lucide-react";
 
 type AgentProfile = {
   id: number;
@@ -11,39 +11,60 @@ type AgentProfile = {
   email: string;
   bio: string; 
   office_address: string;
-  fax: string; // ⭐️ fax_number -> fax 로 변경
+  fax: string; 
   rank: string;
   agent_code: string;
   corporation_name: string;
   branch_name: string;
   team_number: string;
+  avatar_url: string | null;
+  agency_id: number; // ⭐️ 추가: 조직도 쿼리를 위한 소속 ID
+  company_codes: Record<string, string>; // ⭐️ 추가: 보험사별 코드 저장 객체
+};
+
+type TeamMember = {
+  id: number;
+  name: string;
+  rank: string;
+  phone: string;
+  avatar_url: string | null;
 };
 
 export default function MyPage() {
   const [profile, setProfile] = useState<AgentProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [isCardModalOpen, setIsCardModalOpen] = useState(false); 
+
+  // ⭐️ 신규: 조직도 및 보험사 리스트 상태
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [insuranceCompanies, setInsuranceCompanies] = useState<{company_type: string, company_name: string}[]>([]);
+  
+  // ⭐️ 신규: 보험사 코드 입력 폼 상태
+  const [newCompany, setNewCompany] = useState("");
+  const [newCompanyCode, setNewCompanyCode] = useState("");
+  const [companyCodes, setCompanyCodes] = useState<Record<string, string>>({});
 
   const [form, setForm] = useState({
     name: "",
     phone: "",
     bio: "",
     office_address: "",
-    fax: "", // ⭐️ fax 로 변경
+    fax: "", 
   });
 
   useEffect(() => {
-    const fetchProfile = async () => {
+    const fetchProfileData = async () => {
       setIsLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
       
       if (user) {
-        // ⭐️ select 문에서도 fax 로 변경
+        // 1. 내 프로필 정보 가져오기 (company_codes, agency_id 포함)
         const { data: agentData, error } = await supabase
           .from("agents")
           .select(`
-            id, name, phone, bio, office_address, fax, rank, agent_code,
+            id, name, phone, bio, office_address, fax, rank, agent_code, avatar_url, company_codes, agency_id,
             agencies (corporation_name, branch_name, team_number)
           `)
           .eq("auth_id", user.id)
@@ -62,6 +83,9 @@ export default function MyPage() {
             fax: agentData.fax || "",
             rank: agentData.rank || "FC",
             agent_code: agentData.agent_code || "",
+            avatar_url: agentData.avatar_url || null,
+            agency_id: agentData.agency_id,
+            company_codes: agentData.company_codes || {},
             corporation_name: agency?.corporation_name || "",
             branch_name: agency?.branch_name || "",
             team_number: agency?.team_number || "",
@@ -74,12 +98,27 @@ export default function MyPage() {
             office_address: agentData.office_address || "",
             fax: agentData.fax || "",
           });
+
+          setCompanyCodes(agentData.company_codes || {});
+
+          // 2. 조직도용 같은 소속 팀원 불러오기
+          if (agentData.agency_id) {
+            const { data: membersData } = await supabase
+              .from("agents")
+              .select("id, name, rank, phone, avatar_url")
+              .eq("agency_id", agentData.agency_id);
+            if (membersData) setTeamMembers(membersData);
+          }
         }
+
+        // 3. 보험사 리스트 불러오기 (Datalist용)
+        const { data: compData } = await supabase.from("insurance_companies").select("company_type, company_name");
+        if (compData) setInsuranceCompanies(compData);
       }
       setIsLoading(false);
     };
 
-    fetchProfile();
+    fetchProfileData();
   }, []);
 
   const handleSaveProfile = async () => {
@@ -93,17 +132,63 @@ export default function MyPage() {
         phone: form.phone,
         bio: form.bio,
         office_address: form.office_address,
-        fax: form.fax, // ⭐️ fax 업데이트
+        fax: form.fax,
+        company_codes: companyCodes, // ⭐️ 보험사 코드 묶음 업데이트
       })
       .eq("id", profile.id);
 
     if (error) {
       alert("프로필 저장에 실패했습니다.");
     } else {
-      alert("프로필이 성공적으로 업데이트되었습니다.");
-      setProfile({ ...profile, ...form });
+      alert("프로필 및 코드 정보가 성공적으로 업데이트되었습니다.");
+      setProfile({ ...profile, ...form, company_codes: companyCodes });
     }
     setIsSaving(false);
+  };
+
+  // ⭐️ 신규: 보험사별 코드 추가 및 삭제 핸들러
+  const handleAddCompanyCode = () => {
+    if (!newCompany.trim() || !newCompanyCode.trim()) {
+      return alert("보험사 이름과 사번(코드)을 모두 입력해주세요.");
+    }
+    setCompanyCodes(prev => ({ ...prev, [newCompany.trim()]: newCompanyCode.trim() }));
+    setNewCompany("");
+    setNewCompanyCode("");
+  };
+
+  const handleRemoveCompanyCode = (companyName: string) => {
+    setCompanyCodes(prev => {
+      const updated = { ...prev };
+      delete updated[companyName];
+      return updated;
+    });
+  };
+
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      if (!event.target.files || event.target.files.length === 0) return;
+      setIsUploading(true);
+      
+      const file = event.target.files[0];
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${profile?.id}-${Math.random()}.${fileExt}`; 
+      const filePath = `${fileName}`;
+
+      const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file);
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(filePath);
+
+      const { error: updateError } = await supabase.from('agents').update({ avatar_url: publicUrl }).eq('id', profile?.id);
+      if (updateError) throw updateError;
+
+      setProfile(prev => prev ? { ...prev, avatar_url: publicUrl } : null);
+      alert('프로필 사진이 성공적으로 등록되었습니다.');
+    } catch (error: any) {
+      alert(`사진 업로드 실패: ${error.message}`);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleLogout = async () => {
@@ -112,8 +197,54 @@ export default function MyPage() {
     window.location.href = "/login"; 
   };
 
+  // ⭐️ 신뢰감 있는 디자인으로 구성된 카카오톡 전송 함수
   const handleKakaoShare = () => {
-    alert("카카오톡 공유 API가 연동되면, 고객님의 카카오톡으로 세련된 디지털 명함 링크가 전송됩니다!");
+    // 카카오 SDK가 정상적으로 로드되었는지 확인
+    if (typeof window !== "undefined" && window.Kakao) {
+      const kakao = window.Kakao;
+      
+      // 발급받은 카카오 JavaScript 키 (3단계에서 발급받아 여기에 넣습니다)
+      const KAKAO_KEY = process.env.NEXT_PUBLIC_KAKAO_JS_KEY || "ccb428fb9e389bec1c8579c12828fd97";
+
+      // 카카오 SDK 초기화 (한 번만 실행되도록)
+      if (!kakao.isInitialized()) {
+        kakao.init(KAKAO_KEY);
+      }
+
+      // 프로필 사진이 없을 경우를 대비한 럭셔리 비즈니스 배경 이미지
+      const defaultImageUrl = "https://images.unsplash.com/photo-1560520653-9e0e4c89eb11?auto=format&fit=crop&q=80&w=800";
+      
+      // 고객이 링크를 눌렀을 때 이동할 주소 (추후 만들 Public 명함 페이지 주소)
+      const myCardUrl = `${window.location.origin}/card/${profile?.id}`;
+
+      // 카카오톡 기본 피드(Feed) 메시지 전송
+      kakao.Share.sendDefault({
+        objectType: 'feed',
+        content: {
+          title: `[디지털 명함] ${profile?.corporation_name}\n${profile?.name} ${profile?.rank}`,
+          description: profile?.bio || "고객님의 든든한 금융 파트너가 되겠습니다. 언제든 편하게 연락주세요.",
+          imageUrl: profile?.avatar_url || defaultImageUrl,
+          link: {
+            mobileWebUrl: myCardUrl,
+            webUrl: myCardUrl,
+          },
+        },
+        itemContent: {
+          profileText: `${profile?.branch_name} ${profile?.team_number ? profile.team_number + '팀' : ''}`,
+        },
+        buttons: [
+          {
+            title: '💳 모바일 명함 열기',
+            link: {
+              mobileWebUrl: myCardUrl,
+              webUrl: myCardUrl,
+            },
+          },
+        ],
+      });
+    } else {
+      alert("카카오톡 시스템을 불러오는 중입니다. 잠시 후 다시 시도해주세요.");
+    }
   };
 
   if (isLoading) {
@@ -126,31 +257,46 @@ export default function MyPage() {
 
   const inputClass = "w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all";
 
+  // ⭐️ 조직도 계층 분리 로직
+  const managers = teamMembers.filter(m => ["BM", "RM", "본부장", "지점장"].includes(m.rank.toUpperCase()));
+  const teamLeaders = teamMembers.filter(m => ["SM", "팀장"].includes(m.rank.toUpperCase()));
+  const members = teamMembers.filter(m => !["BM", "RM", "본부장", "지점장", "SM", "팀장"].includes(m.rank.toUpperCase()));
+
   return (
-    <div className="w-full mx-auto max-w-[1000px] space-y-6 p-4 md:p-8 pb-24">
+    <div className="w-full mx-auto max-w-[1200px] space-y-6 p-4 md:p-8 pb-24">
       
       <div>
         <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-gray-900 flex items-center gap-2">
           <User className="w-7 h-7 text-blue-600" />
           마이페이지
         </h1>
-        <p className="mt-2 text-sm text-gray-500">내 프로필 정보와 계정 설정을 관리합니다.</p>
+        <p className="mt-2 text-sm text-gray-500">내 프로필, 보험사 코드 및 소속 조직을 관리합니다.</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
-        {/* 좌측: 중앙 정렬된 프로필 요약 카드 */}
-        <div className="lg:col-span-1 space-y-6">
+        {/* 좌측: 프로필 요약 카드 */}
+        <div className="lg:col-span-4 space-y-6">
           <div className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden text-center">
-            <div className="h-28">
-                <div className="w-full h-full bg-gray-100 flex items-center justify-center relative overflow-hidden group cursor-pointer">
-                    <User className="w-10 h-10 text-gray-400" />
+            <div className="h-28 bg-gradient-to-r from-blue-600 to-indigo-700"></div>
+            
+            <div className="px-6 pb-6 relative">
+              <div className="absolute -top-12 left-1/2 -translate-x-1/2">
+                <div className="w-24 h-24 bg-white rounded-2xl p-1.5 shadow-md transform rotate-1 transition-transform hover:rotate-0">
+                  <label className="w-full h-full bg-gray-100 rounded-xl flex items-center justify-center relative overflow-hidden group cursor-pointer border border-gray-100">
+                    {profile.avatar_url ? (
+                      <img src={profile.avatar_url} alt="Profile" className="w-full h-full object-cover" />
+                    ) : (
+                      <User className="w-10 h-10 text-gray-400" />
+                    )}
                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Camera className="w-6 h-6 text-white" />
+                      {isUploading ? <Loader2 className="w-6 h-6 text-white animate-spin" /> : <Camera className="w-6 h-6 text-white" />}
                     </div>
+                    <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} disabled={isUploading} />
+                  </label>
                 </div>
-            </div>
-            <div className="px-6 pb-6 relative">              
+              </div>
+              
               <div className="mt-14 flex flex-col items-center">
                 <div className="flex items-center gap-2 justify-center">
                   <h2 className="text-xl font-extrabold text-gray-900">{profile.name}</h2>
@@ -160,10 +306,7 @@ export default function MyPage() {
               </div>
 
               <div className="mt-6 pt-6 border-t border-gray-100 space-y-3">
-                <button 
-                  onClick={() => setIsCardModalOpen(true)}
-                  className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-gray-900 to-gray-800 hover:from-gray-800 hover:to-gray-700 text-white rounded-xl py-3 text-sm font-bold transition-all shadow-md hover:shadow-lg"
-                >
+                <button onClick={() => setIsCardModalOpen(true)} className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-gray-900 to-gray-800 hover:from-gray-800 hover:to-gray-700 text-white rounded-xl py-3 text-sm font-bold transition-all shadow-md hover:shadow-lg">
                   <QrCode className="w-4 h-4 text-blue-300" /> 모바일 명함 확인 및 전송
                 </button>
                 <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 rounded-xl py-3 text-sm font-bold transition-colors">
@@ -172,17 +315,95 @@ export default function MyPage() {
               </div>
             </div>
           </div>
-        </div>
 
-        {/* 우측: 정보 수정 폼 */}
-        <div className="lg:col-span-2 space-y-6">
+          {/* ⭐️ 신규: 하위 조직도 (Team Directory) */}
           <div className="bg-white rounded-3xl border border-gray-200 shadow-sm p-6">
-            <h3 className="text-lg font-bold text-gray-900 mb-5 flex items-center gap-2">
-              <Award className="w-5 h-5 text-gray-400" /> 기본 정보 설정
+            <h3 className="text-base font-bold text-gray-900 mb-5 flex items-center gap-2">
+              <Network className="w-5 h-5 text-gray-400" /> 우리 팀 조직도
             </h3>
             
             <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* 지점장/본부장 그룹 */}
+              {managers.length > 0 && (
+                <div className="bg-blue-50/50 rounded-2xl p-3 border border-blue-100 space-y-2">
+                  <span className="text-[10px] font-black text-blue-500 px-2 uppercase tracking-wider">Manager</span>
+                  {managers.map(m => (
+                    <div key={m.id} className="flex items-center gap-3 bg-white p-2.5 rounded-xl shadow-sm border border-blue-100/50">
+                      <div className="w-10 h-10 bg-blue-100 rounded-lg overflow-hidden shrink-0 flex items-center justify-center">
+                        {m.avatar_url ? <img src={m.avatar_url} className="w-full h-full object-cover" /> : <User className="w-5 h-5 text-blue-400" />}
+                      </div>
+                      <div className="flex flex-col">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-sm font-bold text-gray-900">{m.name}</span>
+                          <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">{m.rank}</span>
+                        </div>
+                        <span className="text-xs text-gray-500 font-medium">{m.phone}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* 팀장 그룹 */}
+              {teamLeaders.length > 0 && (
+                <div className="bg-indigo-50/50 rounded-2xl p-3 border border-indigo-100 space-y-2 relative">
+                  {managers.length > 0 && <div className="absolute -top-4 left-6 w-0.5 h-4 bg-gray-200" />}
+                  <span className="text-[10px] font-black text-indigo-500 px-2 uppercase tracking-wider">Team Leader</span>
+                  {teamLeaders.map(m => (
+                    <div key={m.id} className="flex items-center gap-3 bg-white p-2.5 rounded-xl shadow-sm border border-indigo-100/50">
+                      <div className="w-10 h-10 bg-indigo-100 rounded-lg overflow-hidden shrink-0 flex items-center justify-center">
+                        {m.avatar_url ? <img src={m.avatar_url} className="w-full h-full object-cover" /> : <User className="w-5 h-5 text-indigo-400" />}
+                      </div>
+                      <div className="flex flex-col">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-sm font-bold text-gray-900">{m.name}</span>
+                          <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">{m.rank}</span>
+                        </div>
+                        <span className="text-xs text-gray-500 font-medium">{m.phone}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* 팀원 그룹 */}
+              {members.length > 0 && (
+                <div className="bg-gray-50 rounded-2xl p-3 border border-gray-100 space-y-2 relative">
+                  {(managers.length > 0 || teamLeaders.length > 0) && <div className="absolute -top-4 left-6 w-0.5 h-4 bg-gray-200" />}
+                  <span className="text-[10px] font-black text-gray-500 px-2 uppercase tracking-wider">Members</span>
+                  <div className="grid grid-cols-1 gap-2">
+                    {members.map(m => (
+                      <div key={m.id} className={`flex items-center gap-3 bg-white p-2.5 rounded-xl border ${m.id === profile.id ? 'border-blue-400 shadow-md ring-2 ring-blue-50' : 'border-gray-200 shadow-sm'}`}>
+                        <div className="w-10 h-10 bg-gray-100 rounded-lg overflow-hidden shrink-0 flex items-center justify-center">
+                          {m.avatar_url ? <img src={m.avatar_url} className="w-full h-full object-cover" /> : <User className="w-5 h-5 text-gray-400" />}
+                        </div>
+                        <div className="flex flex-col">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm font-bold text-gray-900">{m.name}</span>
+                            <span className="text-[10px] font-bold text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">{m.rank}</span>
+                            {m.id === profile.id && <span className="text-[10px] font-black text-white bg-blue-500 px-1.5 py-0.5 rounded-full ml-1">ME</span>}
+                          </div>
+                          <span className="text-xs text-gray-500 font-medium">{m.phone}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* 우측: 정보 및 코드 수정 폼 */}
+        <div className="lg:col-span-8 space-y-6">
+          
+          <div className="bg-white rounded-3xl border border-gray-200 shadow-sm p-6 md:p-8">
+            <h3 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
+              <Award className="w-5 h-5 text-blue-600" /> 기본 정보 설정
+            </h3>
+            
+            <div className="space-y-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
                   <label className="block text-xs font-bold text-gray-600 mb-1.5 ml-1">이름</label>
                   <input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} className={inputClass} />
@@ -193,9 +414,9 @@ export default function MyPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1.5 ml-1">팩스</label>
+                  <label className="block text-xs font-bold text-gray-600 mb-1.5 ml-1">팩스 번호</label>
                   <div className="relative">
                     <Printer className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <input type="text" value={form.fax} onChange={e => setForm({...form, fax: e.target.value})} placeholder="02-000-0000" className={`${inputClass} pl-9`} />
@@ -214,13 +435,7 @@ export default function MyPage() {
                 <label className="block text-xs font-bold text-gray-600 mb-1.5 ml-1">사무실 주소</label>
                 <div className="relative">
                   <MapPin className="absolute left-3 top-3.5 w-4 h-4 text-gray-400" />
-                  <input 
-                    type="text" 
-                    value={form.office_address} 
-                    onChange={e => setForm({...form, office_address: e.target.value})} 
-                    placeholder="사무실 주소를 입력해주세요."
-                    className={`${inputClass} pl-9`} 
-                  />
+                  <input type="text" value={form.office_address} onChange={e => setForm({...form, office_address: e.target.value})} placeholder="사무실 주소를 입력해주세요." className={`${inputClass} pl-9`} />
                 </div>
               </div>
 
@@ -234,43 +449,85 @@ export default function MyPage() {
                   className={`${inputClass} resize-none leading-relaxed`} 
                 />
               </div>
-
-              <div className="pt-4 flex justify-end border-t border-gray-100 mt-2">
-                <button 
-                  onClick={handleSaveProfile}
-                  disabled={isSaving}
-                  className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-6 py-2.5 text-sm font-bold transition-colors disabled:opacity-50 shadow-sm"
-                >
-                  {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  내 정보 저장
-                </button>
-              </div>
             </div>
           </div>
 
-          {/* 소속 및 직급 정보 (Read-Only) */}
-          <div className="bg-white rounded-3xl border border-gray-200 shadow-sm p-6">
-            <h3 className="text-lg font-bold text-gray-900 mb-5 flex items-center gap-2">
-              <Building2 className="w-5 h-5 text-gray-400" /> 소속 및 보안 정보
-            </h3>
+          {/* ⭐️ 신규: 보험사별 사번(코드) 관리 구역 */}
+          <div className="bg-white rounded-3xl border border-gray-200 shadow-sm p-6 md:p-8">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <Briefcase className="w-5 h-5 text-blue-600" /> 보험사별 전속 코드(사번) 관리
+              </h3>
+              <p className="text-xs text-gray-500 font-medium">원수사 시스템 로그인 시 사용하는 사번을 기록하세요.</p>
+            </div>
             
-            <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-              <div>
-                <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">소속 대리점 / 본부</span>
-                <p className="text-sm font-bold text-gray-800">{profile.corporation_name || "-"}</p>
+            <div className="bg-slate-50/50 border border-slate-200 rounded-2xl p-4 md:p-5">
+              
+              {/* 등록된 코드 목록 */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 mb-5">
+                {Object.entries(companyCodes).length === 0 ? (
+                  <div className="col-span-full py-4 text-center text-sm text-gray-400 bg-white rounded-xl border border-dashed border-gray-300">
+                    아직 등록된 보험사 코드가 없습니다. 아래에서 추가해주세요.
+                  </div>
+                ) : (
+                  Object.entries(companyCodes).map(([company, code]) => (
+                    <div key={company} className="flex items-center justify-between bg-white border border-slate-200 p-3 rounded-xl shadow-sm hover:border-blue-300 transition-colors">
+                      <div className="flex flex-col overflow-hidden pr-2">
+                        <span className="text-[10px] font-bold text-gray-500 mb-0.5 truncate">{company}</span>
+                        <span className="text-sm font-black text-gray-900 tracking-wide truncate">{code}</span>
+                      </div>
+                      <button onClick={() => handleRemoveCompanyCode(company)} className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors shrink-0">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))
+                )}
               </div>
-              <div>
-                <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">지점 / 팀</span>
-                <p className="text-sm font-bold text-gray-800">{profile.branch_name || "-"} {profile.team_number ? `${profile.team_number}팀` : ""}</p>
+
+              {/* 새 코드 추가 폼 */}
+              <div className="flex flex-col sm:flex-row gap-2 pt-4 border-t border-slate-200">
+                <div className="flex-1">
+                  <input 
+                    type="text" 
+                    list="company-list" 
+                    placeholder="보험사명 (검색 또는 직접입력)" 
+                    value={newCompany} 
+                    onChange={e => setNewCompany(e.target.value)} 
+                    className="w-full text-sm rounded-lg border border-slate-300 px-3 py-2.5 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  />
+                  <datalist id="company-list">
+                    {insuranceCompanies.map(c => <option key={c.company_name} value={c.company_name} />)}
+                  </datalist>
+                </div>
+                <div className="flex-1">
+                  <input 
+                    type="text" 
+                    placeholder="사번 / 코드 입력" 
+                    value={newCompanyCode} 
+                    onChange={e => setNewCompanyCode(e.target.value)} 
+                    className="w-full text-sm rounded-lg border border-slate-300 px-3 py-2.5 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-medium"
+                    onKeyDown={e => e.key === 'Enter' && handleAddCompanyCode()}
+                  />
+                </div>
+                <button 
+                  onClick={handleAddCompanyCode} 
+                  className="bg-slate-800 hover:bg-slate-900 text-white rounded-lg px-4 py-2.5 text-sm font-bold flex items-center justify-center gap-1 transition-colors shrink-0"
+                >
+                  <Plus className="w-4 h-4" /> 코드 추가
+                </button>
               </div>
-              <div>
-                <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">현재 직급</span>
-                <p className="text-sm font-bold text-gray-800">{profile.rank}</p>
-              </div>
-              <div>
-                <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">설계사 사번(코드)</span>
-                <p className="text-sm font-black text-blue-600 tracking-wider">{profile.agent_code || "-"}</p>
-              </div>
+            </div>
+
+            {/* 전체 정보 저장 버튼 (플로팅 또는 최하단) */}
+            <div className="pt-8 flex justify-end mt-2">
+              <button 
+                onClick={handleSaveProfile}
+                disabled={isSaving}
+                className="w-full md:w-auto flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl px-8 py-3.5 text-base font-black transition-all disabled:opacity-50 shadow-lg hover:shadow-xl hover:-translate-y-0.5"
+              >
+                {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                모든 변경사항 저장하기
+              </button>
             </div>
           </div>
 
@@ -297,10 +554,13 @@ export default function MyPage() {
               </div>
               
               <div className="relative px-6 pb-6">
-                {/* ⭐️ 디지털 명함의 사진도 '둥근 사각형(rounded-2xl)' 으로 변경 */}
                 <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-24 h-24 bg-white rounded-2xl p-1.5 shadow-xl">
                   <div className="w-full h-full bg-slate-100 rounded-xl flex items-center justify-center overflow-hidden border border-gray-200">
-                    <User className="w-10 h-10 text-gray-300" />
+                    {profile.avatar_url ? (
+                      <img src={profile.avatar_url} alt="Profile" className="w-full h-full object-cover" />
+                    ) : (
+                      <User className="w-10 h-10 text-gray-300" />
+                    )}
                   </div>
                 </div>
 
@@ -334,7 +594,6 @@ export default function MyPage() {
                     <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
                       <Printer className="w-4 h-4" />
                     </div>
-                    {/* ⭐️ fax 로 렌더링 */}
                     <span className="tracking-wide">{profile.fax || "팩스 미등록"}</span>
                   </div>
 
