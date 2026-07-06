@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation"; // ⭐️ useRouter 추가
+import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import {
   Calendar,
@@ -13,6 +13,8 @@ import {
   GraduationCap,
   Lock,
   Bell,
+  Settings,
+  User,
 } from "lucide-react";
 
 const navItems = [
@@ -30,7 +32,7 @@ function isActivePath(pathname: string, href: string) {
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const router = useRouter(); // ⭐️ 라우터 선언
+  const router = useRouter(); 
   const [isOpen, setIsOpen] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   
@@ -39,6 +41,7 @@ export default function Sidebar() {
   const [userRole, setUserRole] = useState<string>("user");
   const [userName, setUserName] = useState<string>(""); 
   const [userRank, setUserRank] = useState<string>(""); 
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null); // ⭐️ 아바타 URL 추가
   const [agencyId, setAgencyId] = useState<string>("");
   const [companyName, setCompanyName] = useState<string>("");
   const [branchName, setBranchName] = useState<string>("");
@@ -48,12 +51,11 @@ export default function Sidebar() {
   // 알림 상태
   const [unreadCount, setUnreadCount] = useState(0);
 
-  // ---------------------------------------------------------
   // 1. 유저 정보 조회 및 인증 상태 감지
-  // ---------------------------------------------------------
   useEffect(() => {
     const fetchUserProfile = async (userId: string) => {
       setIsLoading(true);
+      // ⭐️ avatar_url 도 불러오기
       const { data: agentData, error } = await supabase
         .from("agents")
         .select(`
@@ -61,6 +63,7 @@ export default function Sidebar() {
           name, 
           rank, 
           agent_code,
+          avatar_url,
           agencies (id, corporation_name, branch_name, team_number)
         `)
         .eq("auth_id", userId)
@@ -70,6 +73,7 @@ export default function Sidebar() {
         setAgentId(agentData.id);
         setUserName(agentData.name || "담당자");
         setUserRank(agentData.rank || "");
+        setAvatarUrl(agentData.avatar_url || null);
         setAgentCode(agentData.agent_code ? String(agentData.agent_code) : "");
         
         const agency = Array.isArray(agentData.agencies) ? agentData.agencies[0] : agentData.agencies;
@@ -95,28 +99,21 @@ export default function Sidebar() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user?.id) {
         fetchUserProfile(session.user.id);
-        // ⭐️ 로그인 이벤트 발생 시 Next.js 레이아웃 강제 리로딩
-        if (event === 'SIGNED_IN') {
-          router.refresh();
-        }
+        if (event === 'SIGNED_IN') router.refresh();
       } else {
         setAgentId(null);
         setUserName("");
+        setAvatarUrl(null);
         setUnreadCount(0);
         setIsLoading(false);
-        // ⭐️ 로그아웃 시 강제 리로딩
-        if (event === 'SIGNED_OUT') {
-          router.refresh();
-        }
+        if (event === 'SIGNED_OUT') router.refresh();
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [router]); // router 의존성 추가
+  }, [router]); 
 
-  // ---------------------------------------------------------
   // 2. 알림 개수 조회 및 실시간 연동
-  // ---------------------------------------------------------
   useEffect(() => {
     if (!agentId) return;
 
@@ -244,60 +241,83 @@ export default function Sidebar() {
         </ul>
       </nav>
 
-      {/* 하단 유저 프로필 영역 */}
-      <div className={`mt-auto shrink-0 border-t border-gray-800 ${isOpen ? "p-4" : "flex justify-center p-3"}`}>
+      {/* ⭐️ 마이페이지 이동 링크로 변경된 하단 유저 프로필 영역 */}
+      <div className={`mt-auto shrink-0 border-t border-gray-800 ${isOpen ? "p-3" : "flex justify-center p-3"}`}>
         {isLoading ? (
-          <div className="animate-pulse flex flex-col gap-3 w-full">
-            <div className="flex items-center gap-2 px-1">
-              <div className="h-4 bg-gray-800 rounded w-16"></div>
-              <div className="h-4 bg-gray-800 rounded w-10"></div>
-            </div>
-            <div className="rounded-xl bg-gray-900/50 p-3 h-20 border border-gray-800/80 flex flex-col gap-2 justify-center">
-              <div className="h-3 bg-gray-800 rounded w-full"></div>
-              <div className="h-3 bg-gray-800 rounded w-3/4"></div>
+          <div className="animate-pulse flex flex-col gap-3 w-full px-1 py-2">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 bg-gray-800 rounded-lg shrink-0"></div>
+              {isOpen && (
+                <div className="flex flex-col gap-1.5 flex-1">
+                  <div className="h-3 bg-gray-800 rounded w-16"></div>
+                  <div className="h-2.5 bg-gray-800 rounded w-24"></div>
+                </div>
+              )}
             </div>
           </div>
         ) : isOpen ? (
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-2 px-1">
-              <span className="text-sm font-bold text-white tracking-tight">{userName || "로그인 필요"}</span>
-              {userRank && (
-                <span className="text-[10px] bg-blue-600/20 text-blue-400 px-1.5 py-0.5 rounded font-black uppercase">
-                  {userRank}
+          <Link 
+            href="/mypage" 
+            className="group flex flex-col gap-3 p-3 rounded-xl hover:bg-gray-900 transition-colors border border-transparent hover:border-gray-800 relative cursor-pointer"
+          >
+            {/* 상단: 프로필 사진 및 이름/직급 */}
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 bg-gray-800 border border-gray-700 flex items-center justify-center relative">
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  <User className="w-5 h-5 text-gray-500" />
+                )}
+              </div>
+              
+              <div className="flex flex-col flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm font-bold text-white tracking-tight truncate">{userName || "로그인 필요"}</span>
+                  {userRank && (
+                    <span className="text-[10px] bg-blue-600/20 text-blue-400 px-1.5 py-0.5 rounded font-black uppercase shrink-0">
+                      {userRank}
+                    </span>
+                  )}
+                </div>
+                <span className="text-xs text-gray-500 truncate mt-0.5">
+                  {companyName} {branchName ? `/ ${branchName}` : ""}
                 </span>
-              )}
+              </div>
+              
+              {/* 설정 이동 화살표 아이콘 */}
+              <Settings className="w-4 h-4 text-gray-600 group-hover:text-blue-400 transition-colors shrink-0" />
             </div>
             
+            {/* 하단: 사번 박스 */}
             {agentId && (
-              <div className="flex flex-col gap-1.5 rounded-xl bg-gray-900/50 p-3 border border-gray-800/80">
-                <div className="flex justify-between items-center text-[11px]">
-                  <span className="text-gray-500 font-medium">소속회사</span>
-                  <span className="text-gray-300 font-bold truncate max-w-[100px] text-right" title={companyName}>
-                    {companyName || "-"}
-                  </span>
-                </div>
+              <div className="flex flex-col gap-1.5 rounded-lg bg-gray-950/50 p-2.5 border border-gray-800/80 group-hover:border-gray-700/80 transition-colors mt-1">
                 <div className="flex justify-between items-center text-[11px]">
                   <span className="text-gray-500 font-medium">소속팀 ({agencyId || "-"})</span>
-                  <span className="text-gray-300 font-bold truncate max-w-[100px] text-right" title={branchName}>
-                    {branchName || "-"} {teamNumber || "-"} 팀
+                  <span className="text-gray-300 font-bold truncate max-w-[120px] text-right" title={branchName}>
+                    {teamNumber || "-"} 팀
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-[11px] mt-0.5 pt-1.5 border-t border-gray-800">
-                  <span className="text-gray-500 font-medium">사번</span>
+                  <span className="text-gray-500 font-medium">관리 사번</span>
                   <span className="text-blue-400 font-black tracking-wide">
                     {agentCode || "-"}
                   </span>
                 </div>
               </div>
             )}
-          </div>
+          </Link>
         ) : (
-          <div
-            className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600/20 text-sm font-bold text-blue-400 border border-blue-500/20 shadow-inner cursor-default"
-            title={`${userName} ${userRank}\n${companyName} / ${branchName}`}
+          <Link
+            href="/mypage"
+            className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-900 text-sm font-bold text-gray-400 border border-gray-800 hover:border-gray-600 hover:bg-gray-800 hover:text-white transition-colors overflow-hidden"
+            title="마이페이지 이동"
           >
-            {userName ? userName.substring(0, 1) : "?"}
-          </div>
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
+            ) : (
+              userName ? userName.substring(0, 1) : "?"
+            )}
+          </Link>
         )}
       </div>
     </aside>

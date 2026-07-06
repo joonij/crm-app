@@ -18,8 +18,8 @@ type AgentProfile = {
   branch_name: string;
   team_number: string;
   avatar_url: string | null;
-  agency_id: number; // ⭐️ 추가: 조직도 쿼리를 위한 소속 ID
-  company_codes: Record<string, string>; // ⭐️ 추가: 보험사별 코드 저장 객체
+  agency_id: number; 
+  company_codes: Record<string, string>; 
 };
 
 type TeamMember = {
@@ -37,11 +37,9 @@ export default function MyPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [isCardModalOpen, setIsCardModalOpen] = useState(false); 
 
-  // ⭐️ 신규: 조직도 및 보험사 리스트 상태
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [insuranceCompanies, setInsuranceCompanies] = useState<{company_type: string, company_name: string}[]>([]);
   
-  // ⭐️ 신규: 보험사 코드 입력 폼 상태
   const [newCompany, setNewCompany] = useState("");
   const [newCompanyCode, setNewCompanyCode] = useState("");
   const [companyCodes, setCompanyCodes] = useState<Record<string, string>>({});
@@ -60,7 +58,6 @@ export default function MyPage() {
       const { data: { user } } = await supabase.auth.getUser();
       
       if (user) {
-        // 1. 내 프로필 정보 가져오기 (company_codes, agency_id 포함)
         const { data: agentData, error } = await supabase
           .from("agents")
           .select(`
@@ -101,7 +98,6 @@ export default function MyPage() {
 
           setCompanyCodes(agentData.company_codes || {});
 
-          // 2. 조직도용 같은 소속 팀원 불러오기
           if (agentData.agency_id) {
             const { data: membersData } = await supabase
               .from("agents")
@@ -111,7 +107,6 @@ export default function MyPage() {
           }
         }
 
-        // 3. 보험사 리스트 불러오기 (Datalist용)
         const { data: compData } = await supabase.from("insurance_companies").select("company_type, company_name");
         if (compData) setInsuranceCompanies(compData);
       }
@@ -133,7 +128,7 @@ export default function MyPage() {
         bio: form.bio,
         office_address: form.office_address,
         fax: form.fax,
-        company_codes: companyCodes, // ⭐️ 보험사 코드 묶음 업데이트
+        company_codes: companyCodes, 
       })
       .eq("id", profile.id);
 
@@ -146,7 +141,6 @@ export default function MyPage() {
     setIsSaving(false);
   };
 
-  // ⭐️ 신규: 보험사별 코드 추가 및 삭제 핸들러
   const handleAddCompanyCode = () => {
     if (!newCompany.trim() || !newCompanyCode.trim()) {
       return alert("보험사 이름과 사번(코드)을 모두 입력해주세요.");
@@ -197,9 +191,7 @@ export default function MyPage() {
     window.location.href = "/login"; 
   };
 
-  // ⭐️ 신뢰감 있는 디자인으로 구성된 카카오톡 전송 함수
   const handleKakaoShare = () => {
-    // window 객체를 any 타입으로 형변환하여 Kakao 속성 접근 시 발생하는 타입 에러를 우회합니다.
     const globalWindow = window as any;
 
     if (typeof window !== "undefined" && globalWindow.Kakao) {
@@ -253,10 +245,44 @@ export default function MyPage() {
 
   const inputClass = "w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all";
 
-  // ⭐️ 조직도 계층 분리 로직
   const managers = teamMembers.filter(m => ["BM", "RM", "본부장", "지점장"].includes(m.rank.toUpperCase()));
   const teamLeaders = teamMembers.filter(m => ["SM", "팀장"].includes(m.rank.toUpperCase()));
   const members = teamMembers.filter(m => !["BM", "RM", "본부장", "지점장", "SM", "팀장"].includes(m.rank.toUpperCase()));
+
+  const getCompanyTypePriority = (companyName: string) => {
+    const company = insuranceCompanies.find(c => c.company_name === companyName);
+    if (company?.company_type === "생명보험") return 1;
+    if (company?.company_type === "손해보험") return 2;
+    return 3; 
+  };
+
+  // ⭐️ [정렬 엔진 고도화] 영어(알파벳) 선행 후 한글 가나다순으로 정렬하는 헬퍼 함수
+  const compareEnglishKorean = (a: string, b: string) => {
+    const aIsEng = /^[A-Za-z]/.test(a);
+    const bIsEng = /^[A-Za-z]/.test(b);
+
+    if (aIsEng && !bIsEng) return -1; // 영어가 먼저 오도록
+    if (!aIsEng && bIsEng) return 1;  // 한글이 뒤로 가도록
+    return a.localeCompare(b, "ko-KR"); // 같은 문자 계열 내에서는 순차 정렬
+  };
+
+  // 드롭다운(Datalist)용 보험사 목록 정렬 (생명->손해->기타 그룹 정렬 후 내부 영어->한글 정렬)
+  const sortedInsuranceCompanies = [...insuranceCompanies].sort((a, b) => {
+    const priorityA = a.company_type === "생명보험" ? 1 : a.company_type === "손해보험" ? 2 : 3;
+    const priorityB = b.company_type === "생명보험" ? 1 : b.company_type === "손해보험" ? 2 : 3;
+    
+    if (priorityA !== priorityB) return priorityA - priorityB; 
+    return compareEnglishKorean(a.company_name, b.company_name); 
+  });
+
+  // 화면에 표시되는 등록된 사번(코드) 목록 정렬 (생명->손해->기타 그룹 정렬 후 내부 영어->한글 정렬)
+  const sortedCompanyCodes = Object.entries(companyCodes).sort(([companyA], [companyB]) => {
+    const priorityA = getCompanyTypePriority(companyA);
+    const priorityB = getCompanyTypePriority(companyB);
+    
+    if (priorityA !== priorityB) return priorityA - priorityB; 
+    return compareEnglishKorean(companyA, companyB); 
+  });
 
   return (
     <div className="w-full mx-auto max-w-[1200px] space-y-6 p-4 md:p-8 pb-24">
@@ -274,24 +300,21 @@ export default function MyPage() {
         {/* 좌측: 프로필 요약 카드 */}
         <div className="lg:col-span-4 space-y-6">
           <div className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden text-center">
-            <div className="h-28 bg-gradient-to-r from-blue-600 to-indigo-700"></div>
+            <div className="h-82 bg-gradient-to-r from-blue-600 to-indigo-700">
+              <label className="w-full h-full bg-gray-100 flex items-center justify-center relative overflow-hidden group cursor-pointer border border-gray-100">
+                {profile.avatar_url ? (
+                  <img src={profile.avatar_url} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  <User className="w-10 h-10 text-gray-400" />
+                )}
+                <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  {isUploading ? <Loader2 className="w-6 h-6 text-white animate-spin" /> : <Camera className="w-6 h-6 text-white" />}
+                </div>
+                <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} disabled={isUploading} />
+              </label>
+            </div>
             
             <div className="px-6 pb-6 relative">
-              <div className="absolute -top-12 left-1/2 -translate-x-1/2">
-                <div className="w-24 h-24 bg-white rounded-2xl p-1.5 shadow-md transform rotate-1 transition-transform hover:rotate-0">
-                  <label className="w-full h-full bg-gray-100 rounded-xl flex items-center justify-center relative overflow-hidden group cursor-pointer border border-gray-100">
-                    {profile.avatar_url ? (
-                      <img src={profile.avatar_url} alt="Profile" className="w-full h-full object-cover" />
-                    ) : (
-                      <User className="w-10 h-10 text-gray-400" />
-                    )}
-                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      {isUploading ? <Loader2 className="w-6 h-6 text-white animate-spin" /> : <Camera className="w-6 h-6 text-white" />}
-                    </div>
-                    <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} disabled={isUploading} />
-                  </label>
-                </div>
-              </div>
               
               <div className="mt-14 flex flex-col items-center">
                 <div className="flex items-center gap-2 justify-center">
@@ -312,7 +335,7 @@ export default function MyPage() {
             </div>
           </div>
 
-          {/* ⭐️ 신규: 하위 조직도 (Team Directory) */}
+          {/* 하위 조직도 (Team Directory) */}
           <div className="bg-white rounded-3xl border border-gray-200 shadow-sm p-6">
             <h3 className="text-base font-bold text-gray-900 mb-5 flex items-center gap-2">
               <Network className="w-5 h-5 text-gray-400" /> 우리 팀 조직도
@@ -448,7 +471,7 @@ export default function MyPage() {
             </div>
           </div>
 
-          {/* ⭐️ 신규: 보험사별 사번(코드) 관리 구역 */}
+          {/* 보험사별 사번(코드) 관리 구역 */}
           <div className="bg-white rounded-3xl border border-gray-200 shadow-sm p-6 md:p-8">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
               <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
@@ -459,24 +482,35 @@ export default function MyPage() {
             
             <div className="bg-slate-50/50 border border-slate-200 rounded-2xl p-4 md:p-5">
               
-              {/* 등록된 코드 목록 */}
+              {/* 등록된 코드 목록 (생명 -> 손해 -> 기타 순 및 각 내부 영어 -> 한글 정렬) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 mb-5">
-                {Object.entries(companyCodes).length === 0 ? (
+                {sortedCompanyCodes.length === 0 ? (
                   <div className="col-span-full py-4 text-center text-sm text-gray-400 bg-white rounded-xl border border-dashed border-gray-300">
                     아직 등록된 보험사 코드가 없습니다. 아래에서 추가해주세요.
                   </div>
                 ) : (
-                  Object.entries(companyCodes).map(([company, code]) => (
-                    <div key={company} className="flex items-center justify-between bg-white border border-slate-200 p-3 rounded-xl shadow-sm hover:border-blue-300 transition-colors">
-                      <div className="flex flex-col overflow-hidden pr-2">
-                        <span className="text-[10px] font-bold text-gray-500 mb-0.5 truncate">{company}</span>
-                        <span className="text-sm font-black text-gray-900 tracking-wide truncate">{code}</span>
+                  sortedCompanyCodes.map(([company, code]) => {
+                    const priority = getCompanyTypePriority(company);
+                    const badgeClass = priority === 1 ? "bg-blue-50 text-blue-600 border-blue-100" 
+                                     : priority === 2 ? "bg-amber-50 text-amber-600 border-amber-100" 
+                                     : "bg-gray-100 text-gray-500 border-gray-200";
+                    const badgeText = priority === 1 ? "생명" : priority === 2 ? "손해" : "기타";
+
+                    return (
+                      <div key={company} className="flex items-center justify-between bg-white border border-slate-200 p-3 rounded-xl shadow-sm hover:border-blue-300 transition-colors">
+                        <div className="flex flex-col overflow-hidden pr-2">
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border ${badgeClass}`}>{badgeText}</span>
+                            <span className="text-[10px] font-bold text-gray-500 truncate">{company}</span>
+                          </div>
+                          <span className="text-sm font-black text-gray-900 tracking-wide truncate">{code}</span>
+                        </div>
+                        <button onClick={() => handleRemoveCompanyCode(company)} className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors shrink-0">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
-                      <button onClick={() => handleRemoveCompanyCode(company)} className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors shrink-0">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
 
@@ -492,7 +526,7 @@ export default function MyPage() {
                     className="w-full text-sm rounded-lg border border-slate-300 px-3 py-2.5 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   />
                   <datalist id="company-list">
-                    {insuranceCompanies.map(c => <option key={c.company_name} value={c.company_name} />)}
+                    {sortedInsuranceCompanies.map(c => <option key={c.company_name} value={c.company_name} />)}
                   </datalist>
                 </div>
                 <div className="flex-1">
@@ -514,7 +548,7 @@ export default function MyPage() {
               </div>
             </div>
 
-            {/* 전체 정보 저장 버튼 (플로팅 또는 최하단) */}
+            {/* 전체 정보 저장 버튼 */}
             <div className="pt-8 flex justify-end mt-2">
               <button 
                 onClick={handleSaveProfile}
@@ -530,7 +564,7 @@ export default function MyPage() {
         </div>
       </div>
 
-      {/* ⭐️ 중앙 정렬된 모바일 디지털 명함 미리보기 모달 */}
+      {/* 중앙 정렬된 모바일 디지털 명함 미리보기 모달 */}
       {isCardModalOpen && (
         <div 
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 transition-opacity animate-in fade-in"
@@ -542,23 +576,17 @@ export default function MyPage() {
           >
             {/* 디지털 명함 본체 */}
             <div className="bg-white rounded-3xl overflow-hidden shadow-2xl relative text-center">
-              <div className="h-32 bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 relative">
-                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-20 mix-blend-overlay"></div>
-                <div className="absolute top-5 right-5 text-white/50 border border-white/30 px-2 py-0.5 rounded text-[10px] font-black tracking-widest uppercase">
-                  Digital Card
+              <div className="h-90 relative p-2">
+                <div className="w-full h-full bg-slate-100 rounded-xl flex items-center justify-center overflow-hidden border border-gray-200">
+                  {profile.avatar_url ? (
+                    <img src={profile.avatar_url} alt="Profile" className="w-full h-full object-cover" />
+                  ) : (
+                    <User className="w-10 h-10 text-gray-400" />
+                  )}
                 </div>
               </div>
               
               <div className="relative px-6 pb-6">
-                <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-24 h-24 bg-white rounded-2xl p-1.5 shadow-xl">
-                  <div className="w-full h-full bg-slate-100 rounded-xl flex items-center justify-center overflow-hidden border border-gray-200">
-                    {profile.avatar_url ? (
-                      <img src={profile.avatar_url} alt="Profile" className="w-full h-full object-cover" />
-                    ) : (
-                      <User className="w-10 h-10 text-gray-300" />
-                    )}
-                  </div>
-                </div>
 
                 <div className="mt-14 space-y-1">
                   <p className="text-blue-600 font-extrabold text-xs tracking-tight">{profile.corporation_name} {profile.branch_name}</p>
