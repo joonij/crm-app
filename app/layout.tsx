@@ -8,7 +8,7 @@ import Script from "next/script";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "CareLink",
+  title: "InsuCareLink",
   description: "고객 맞춤 케어 플랫폼",
 };
 

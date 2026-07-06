@@ -18,16 +18,18 @@ const formatAmount = (val: string) => {
   return raw;
 };
 
-// ⭐️ 데이터리스트용 특약 옵션 배열
 const COVERAGE_OPTIONS = [
-  "실손의료비 상해입원", "실손의료비 질병입원", "실손의료비 상해통원", "실손의료비 질병통원",
-  "실손의료비 상해약제", "실손의료비 질병약제", "일반사망 진단비", "재해사망 진단비", "상해사망 진단비", "질병사망 진단비", 
+  "실손의료비 상해입원", "실손의료비 질병입원", "실손의료비 상해통원", "실손의료비 질병통원", "실손의료비 상해약제", "실손의료비 질병약제",
+  "일반사망 진단비", "재해사망 진단비", "상해사망 진단비", "질병사망 진단비", 
   "재해 후유장해3%↑", "상해 후유장해3%↑", "질병 후유장해3%↑", 
-  "일반암 진단금", "고액암 진단금", "유사암 진단금", "항암방사선치료비", "항암약물치료비", "암수술비",
-  "뇌산정특례대상 진단비", "뇌혈관질환 진단금", "뇌졸증 진단금", "뇌출혈 진단금", "심장산정특례대상 진단비", "허혈성심장질환 진단금", "급성심근경색 진단금",
-  "상해수술비", "1종 상해수술비", "2종 상해수술비", "3종 상해수술비", "4종 상해수술비", "5종 상해수술비",
-  "질병수술비", "1종 질병수술비", "2종 질병수술비", "3종 질병수술비", "4종 질병수술비", "5종 질병수술비",
-  "상해입원비", "질병입원비",
+  "일반암 진단금", "고액암 진단금", "유사암 진단금", "소액암 진단금", "항암방사선 치료비", "항암약물 치료비", "암 수술비",
+  "뇌산정특례대상 진단비", "뇌혈관질환 진단비", "뇌졸증 진단비", "뇌출혈 진단비", "심장산정특례대상 진단비", "허혈성심장질환 진단비", "급성심근경색 진단비",
+  "상해수술비", "상해1종 수술비", "상해2종 수술비", "상해3종 수술비", "상해4종 수술비", "상해5종 수술비",
+  "질병수술비", "질병1종 수술비", "질병2종 수술비", "질병3종 수술비", "질병4종 수술비", "질병5종 수술비",
+  "상해 입원일당", "질병 입원일당", "상해중환자실 입원일당", "질병중환자실 입원일당",
+  "통합상해 진단금", "골절진단금", "화상진단금",
+  "재가급여 1~5등급", "시설급여 1~5등급", "시설급여 1~2등급", "간병인 사용일당", "간병인 지원일당",
+  "레진", "인레이", "크라운", "임플란트", "보존치료", "보철치료"
 ];
 
 type CoverageDetail = { 
@@ -43,12 +45,12 @@ type Coverage = {
   insurance_company: string; 
   product_name: string; 
   monthly_premium: number; 
+  remodeled_amount?: number | null; 
   details: CoverageDetail[] | null; 
   indemnity_generation: string | null; 
   policy_status?: string | null; 
   subscription_date?: string | null; 
   maturity_date?: string | null;
-  // ⭐️ 새로 추가된 필드들 타입 정의
   contractor?: string | null;
   insured?: string | null;
   beneficiary?: string | null;
@@ -76,7 +78,12 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
   const [editingPolicyId, setEditingPolicyId] = useState<number | null>(null);
   const [editingPolicyForm, setEditingPolicyForm] = useState<Partial<Coverage> | null>(null);
 
+  const [reducingPolicyId, setReducingPolicyId] = useState<number | null>(null);
+  const [reducingPremium, setReducingPremium] = useState<string>("");
+
   const [editingDetail, setEditingDetail] = useState<{ covId: number, idx: number, tempName: string, tempAmount: string, tempRenewalType: string, mode: 'edit' | 'reduce' | 'new' } | null>(null);
+  
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   const fetchCoverages = async () => {
     const { data } = await supabase.from("subscription_insurance").select("*").eq("client_id", clientId);
@@ -110,14 +117,60 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
   }, [clientId]);
 
   const toggleCoverage = (id: number) => {
-    if (editingPolicyId === id) return;
+    if (editingPolicyId === id || reducingPolicyId === id) return;
     setExpandedCovId(prev => (prev === id ? null : id));
   };
 
   const handleStartEditPolicy = (cov: Coverage) => {
     setEditingPolicyId(cov.id);
     setEditingPolicyForm({ ...cov });
+    setReducingPolicyId(null);
     setExpandedCovId(cov.id);
+  };
+
+  const handleStartReducePolicy = (cov: Coverage) => {
+    setReducingPolicyId(cov.id);
+    setReducingPremium(cov.monthly_premium.toString());
+    setEditingPolicyId(null);
+  };
+
+  const handleSavePolicyReduce = async (covId: number) => {
+    const cov = coverages.find(c => c.id === covId);
+    if (!cov) return;
+    
+    const cleanPremium = Number(reducingPremium.replace(/,/g, ''));
+    if (cleanPremium === cov.monthly_premium) {
+      setReducingPolicyId(null);
+      return;
+    }
+
+    const original = cov.remodeled_amount ? cov.remodeled_amount : cov.monthly_premium;
+
+    const { error } = await supabase.from("subscription_insurance").update({
+      monthly_premium: cleanPremium,
+      remodeled_amount: original
+    }).eq("id", covId);
+
+    if (!error) {
+      setCoverages(prev => prev.map(c => c.id === covId ? { ...c, monthly_premium: cleanPremium, remodeled_amount: original } : c));
+      setReducingPolicyId(null);
+    } else {
+      alert("보험료 감액 처리에 실패했습니다.");
+    }
+  };
+
+  const handleRestorePolicyPremium = async (covId: number) => {
+    const cov = coverages.find(c => c.id === covId);
+    if (!cov || !cov.remodeled_amount) return;
+
+    const { error } = await supabase.from("subscription_insurance").update({
+      monthly_premium: cov.remodeled_amount,
+      remodeled_amount: null
+    }).eq("id", covId);
+
+    if (!error) {
+      setCoverages(prev => prev.map(c => c.id === covId ? { ...c, monthly_premium: cov.remodeled_amount!, remodeled_amount: null } : c));
+    }
   };
 
   const handleSavePolicyEdit = async () => {
@@ -125,7 +178,6 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     
     const cleanPremium = Number(String(editingPolicyForm.monthly_premium).replace(/,/g, ''));
 
-    // ⭐️ 기본 폼 수정 내용에 신규 필드들 반영
     const { error } = await supabase.from("subscription_insurance").update({
       insurance_company: editingPolicyForm.insurance_company,
       product_name: editingPolicyForm.product_name,
@@ -270,7 +322,7 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
             </div>
             <div>
               <h2 className="text-lg font-semibold text-gray-900">보장 분석 내역</h2>
-              <p className="text-xs text-gray-500 mt-0.5">특약을 부분해지, 감액, 삭제하여 비교하세요.</p>
+              <p className="text-xs text-gray-500 mt-0.5">보험과 특약을 감액, 삭제하여 비교하세요.</p>
             </div>
           </div>
           
@@ -295,6 +347,7 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                 const currentStatus = cov.policy_status || "maintain";
                 const theme = statusTheme[currentStatus];
                 const isPolicyEditing = editingPolicyId === cov.id;
+                const isPolicyReducing = reducingPolicyId === cov.id;
                 const isCustomCompany = editingPolicyForm?.insurance_company && !companies.some(c => c.company_name === editingPolicyForm.insurance_company);
                 
                 return (
@@ -336,7 +389,6 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
 
                           <input type="text" placeholder="상품명" value={editingPolicyForm?.product_name || ""} onChange={e => setEditingPolicyForm({...editingPolicyForm!, product_name: e.target.value})} className="border border-gray-200 rounded p-2 outline-none focus:border-blue-500" />
                           
-                          {/* ⭐️ 계약 관계자 수정 폼 (4종) */}
                           <div className="flex flex-col">
                             <span className="text-[10px] text-gray-500 mb-0.5 ml-1">계약자</span>
                             <input type="text" placeholder="계약자" value={editingPolicyForm?.contractor || ""} onChange={e => setEditingPolicyForm({...editingPolicyForm!, contractor: e.target.value})} className="border border-gray-200 rounded p-2 outline-none focus:border-blue-500" />
@@ -354,7 +406,6 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                             <input type="text" placeholder="담당설계사" value={editingPolicyForm?.agent_name || ""} onChange={e => setEditingPolicyForm({...editingPolicyForm!, agent_name: e.target.value})} className="border border-gray-200 rounded p-2 outline-none focus:border-blue-500" />
                           </div>
                           
-                          {/* ⭐️ 보험료, 실손 세대 및 납입기간 */}
                           <div className="flex flex-col">
                             <span className="text-[10px] text-gray-500 mb-0.5 ml-1">월 보험료</span>
                             <div className="flex items-center border border-gray-200 rounded p-2 bg-white focus-within:border-blue-500">
@@ -395,6 +446,7 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                             >
                               <option value="">선택 안함</option>
                               <option value="일시납">일시납</option>
+                              <option value="전기납">전기납</option>
                               <option value="3년납">3년납</option>
                               <option value="5년납">5년납</option>
                               <option value="7년납">7년납</option>
@@ -403,110 +455,230 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                               <option value="20년납">20년납</option>
                               <option value="25년납">25년납</option>
                               <option value="30년납">30년납</option>
-                              <option value="전기납">전기납</option>
                             </select>
                           </div>
                         </div>
                       </div>
                     ) : (
-                      <div className="p-3 pr-14 cursor-pointer hover:bg-black/5 transition-colors" onClick={() => toggleCoverage(cov.id)}>
-                        <div className="flex justify-between items-start gap-3">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <p className="font-bold text-gray-900 truncate" title={cov.insurance_company}>{cov.insurance_company}</p>
-                              <select
-                                value={currentStatus}
-                                onChange={(e) => updatePolicyStatus(cov.id, e.target.value)}
-                                onClick={(e) => e.stopPropagation()}
-                                className={`text-[11px] font-extrabold rounded px-1.5 py-0.5 border cursor-pointer outline-none focus:ring-2 focus:ring-offset-1 focus:ring-${theme.text.split('-')[1]}-400 ${theme.bg} ${theme.border} ${theme.text}`}
-                              >
-                                <option value="maintain">유지</option>
-                                <option value="cancel">해지</option>
-                                <option value="new">신규 제안</option>
-                              </select>
-                            </div>
-                            <div className="flex flex-col gap-1">
-                              <div className="flex items-center gap-1 flex-wrap">
-                                <p className="text-gray-600 text-xs truncate flex-1 min-w-0">{cov.product_name}</p>
-                                {cov.indemnity_generation && <span className="inline-flex shrink-0 items-center rounded bg-white px-1.5 py-0.5 text-[10px] font-semibold text-gray-500 border border-gray-200">{cov.indemnity_generation}</span>}
+                      <div className="p-4 cursor-pointer hover:bg-black/5 transition-colors flex flex-col gap-2" onClick={() => toggleCoverage(cov.id)}>
+                        
+                        <div className="flex justify-between items-start gap-2">
+                          <div className="flex items-center gap-2 min-w-0 pr-2">
+                            <p className="font-bold text-gray-900 truncate text-base" title={cov.insurance_company}>{cov.insurance_company}</p>
+                            <select
+                              value={currentStatus}
+                              onChange={(e) => updatePolicyStatus(cov.id, e.target.value)}
+                              onClick={(e) => e.stopPropagation()}
+                              className={`text-[11px] font-extrabold rounded px-1.5 py-0.5 border cursor-pointer outline-none focus:ring-2 focus:ring-offset-1 focus:ring-${theme.text.split('-')[1]}-400 ${theme.bg} ${theme.border} ${theme.text}`}
+                            >
+                              <option value="maintain">유지</option>
+                              <option value="cancel">해지</option>
+                              <option value="new">신규 제안</option>
+                            </select>
+                          </div>
+                          
+                          {!isPolicyReducing && (
+                            <div className="flex items-center opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity shrink-0" onClick={e => e.stopPropagation()}>
+                              <div className="flex items-center bg-white border border-gray-200 shadow-sm rounded-md overflow-hidden">
+                                {cov.remodeled_amount && (
+                                  <button onClick={() => handleRestorePolicyPremium(cov.id)} className="text-purple-500 hover:bg-purple-50 p-1.5 border-r border-gray-100/50" title="감액 취소">
+                                    <Undo className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
+                                <button onClick={() => handleStartReducePolicy(cov)} className="text-gray-500 hover:text-purple-600 hover:bg-purple-50 p-1.5 border-r border-gray-100/50" title="보험료 감액">
+                                  <TrendingDown className="h-3.5 w-3.5" />
+                                </button>
+                                <button onClick={() => handleStartEditPolicy(cov)} className="text-gray-500 hover:text-blue-500 hover:bg-blue-50 p-1.5 border-r border-gray-100/50" title="기본 정보 수정">
+                                  <Edit2 className="h-3.5 w-3.5" />
+                                </button>
+                                <button onClick={() => handleDeleteCoverage(cov.id)} className="text-gray-500 hover:text-red-500 hover:bg-red-50 p-1.5" title="보장 내역 완전 삭제">
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
                               </div>
-                              {(cov.subscription_date || cov.maturity_date) && (
-                                <p className="text-[11px] font-medium text-gray-400 mt-0.5 flex gap-1.5">
-                                  {cov.subscription_date && <span>가입 {cov.subscription_date}</span>}
-                                  {cov.subscription_date && cov.maturity_date && <span>|</span>}
-                                  {cov.maturity_date && <span>만기 {cov.maturity_date}</span>}
-                                </p>
-                              )}
                             </div>
+                          )}
+                        </div>
+
+                        <div className="flex justify-between items-end gap-3 mt-1">
+                          <div className="flex flex-col gap-1 flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <p className="text-gray-700 text-sm font-medium truncate min-w-0">{cov.product_name}</p>
+                              {cov.indemnity_generation && <span className="shrink-0 bg-white border border-gray-200 px-1.5 py-0.5 text-[10px] font-semibold rounded text-gray-500">{cov.indemnity_generation}</span>}
+                            </div>
+                            {(cov.subscription_date || cov.maturity_date) && (
+                              <p className="text-[11px] font-medium text-gray-400 flex gap-1.5 mt-0.5">
+                                {cov.subscription_date && <span>가입 {cov.subscription_date}</span>}
+                                {cov.subscription_date && cov.maturity_date && <span>|</span>}
+                                {cov.maturity_date && <span>만기 {cov.maturity_date}</span>}
+                              </p>
+                            )}
                           </div>
-                          <div className="text-right flex flex-col items-end gap-1 shrink-0 mt-0.5">
-                            <p className={`font-bold ${currentStatus === 'cancel' ? 'text-gray-400 line-through' : theme.text}`}>{cov.monthly_premium.toLocaleString()}원</p>
+
+                          <div className="text-right shrink-0 flex flex-col items-end z-20" onClick={e => e.stopPropagation()}>
+                            {isPolicyReducing ? (
+                              <div className="flex flex-col items-end gap-1.5 bg-purple-50 p-2 rounded-lg border border-purple-200 shadow-sm" onClick={e => e.stopPropagation()}>
+                                <div className="flex items-center gap-1">
+                                  <span className="line-through text-red-400 text-[10px] font-medium leading-none">
+                                    {(cov.remodeled_amount || cov.monthly_premium).toLocaleString()} ➔
+                                  </span>
+                                  <input 
+                                    type="text" 
+                                    value={formatAmount(reducingPremium)} 
+                                    onChange={e => setReducingPremium(formatAmount(e.target.value))} 
+                                    className="border border-purple-300 rounded px-2 py-1 w-[88px] text-right text-xs outline-none focus:border-purple-500 font-bold" 
+                                    autoFocus 
+                                  />
+                                </div>
+                                <div className="flex gap-1 w-full justify-end">
+                                  <button onClick={() => handleSavePolicyReduce(cov.id)} className="text-[10px] text-purple-600 font-bold bg-white border border-purple-200 px-2 py-1 rounded hover:bg-purple-100 flex-1">적용</button>
+                                  <button onClick={() => setReducingPolicyId(null)} className="text-[10px] text-gray-500 font-medium bg-gray-100 px-2 py-1 rounded hover:bg-gray-200 flex-1">취소</button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-end gap-0.5" onClick={() => toggleCoverage(cov.id)}>
+                                {cov.remodeled_amount && cov.remodeled_amount !== cov.monthly_premium && currentStatus !== 'cancel' && (
+                                  <span className="text-red-400 line-through text-[11px] font-medium leading-none">{cov.remodeled_amount.toLocaleString()}</span>
+                                )}
+                                <div className="flex items-baseline gap-1.5">
+                                  {cov.payment_period && <span className="text-xs text-gray-500 font-medium tracking-tight">{cov.payment_period}</span>}
+                                  <p className={`text-lg font-black tracking-tight ${currentStatus === 'cancel' ? 'text-gray-400 line-through' : theme.text}`}>
+                                    {cov.monthly_premium.toLocaleString()}<span className="text-sm font-bold ml-0.5">원</span>
+                                  </p>
+                                </div>
+                              </div>
+                            )}
                           </div>
+                        </div>
+
+                        <div className="flex justify-center -mb-2 mt-1 opacity-40 group-hover:opacity-100 transition-opacity">
+                          {expandedCovId === cov.id ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
                         </div>
                       </div>
                     )}
 
-                    {!isPolicyEditing && (
-                      <div className="absolute top-2 right-2 flex gap-1.5 z-10 text-right flex flex-col items-end cursor-pointer" onClick={() => toggleCoverage(cov.id)}>
-                        <div>
-                        <button onClick={(e) => { e.stopPropagation(); handleStartEditPolicy(cov); }} className="text-gray-300 hover:text-blue-500 p-1" title="기본 정보 수정">
-                          <Edit2 className="h-4 w-4" />
-                        </button>
-                        <button onClick={(e) => { e.stopPropagation(); handleDeleteCoverage(cov.id); }} className="text-gray-300 hover:text-red-500 p-1 pr-0" title="보장 내역 완전 삭제">
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                        </div>
-                        {expandedCovId === cov.id ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
-                      </div>
-                    )}
-
+                    {/* 확장된 특약 및 상세 정보 패널 */}
                     {expandedCovId === cov.id && !isPolicyEditing && (
-                      <div className="border-t border-black/10 bg-white/60 p-3 space-y-3">
+                      <div className="border-t border-black/10 bg-white/60 p-4 space-y-3">
+                        
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-gray-50/80 p-2.5 rounded-lg border border-gray-200/60 mb-2">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-[9px] text-gray-400 font-bold tracking-wider">계약자</span>
+                            <span className="text-[11px] text-gray-800 font-bold truncate">{cov.contractor || "-"}</span>
+                          </div>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-[9px] text-gray-400 font-bold tracking-wider">피보험자</span>
+                            <span className="text-[11px] text-gray-800 font-bold truncate">{cov.insured || "-"}</span>
+                          </div>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-[9px] text-gray-400 font-bold tracking-wider">수익자</span>
+                            <span className="text-[11px] text-gray-800 font-bold truncate">{cov.beneficiary || "-"}</span>
+                          </div>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-[9px] text-gray-400 font-bold tracking-wider">담당설계사</span>
+                            <span className="text-[11px] text-gray-800 font-bold truncate">{cov.agent_name || "-"}</span>
+                          </div>
+                        </div>
+
                         {cov.details && cov.details.map((detail, idx) => {
                           const isDeleted = detail.is_deleted;
                           const isEditing = editingDetail?.covId === cov.id && editingDetail?.idx === idx;
                           
+                          const filteredOptions = isEditing && editingDetail.tempName.trim()
+                            ? COVERAGE_OPTIONS.filter((opt) => opt.includes(editingDetail.tempName) && opt !== editingDetail.tempName)
+                            : [];
+
                           return (
                             <div key={idx} className={`flex flex-col text-xs border-b border-gray-200/50 pb-2 last:border-0 last:pb-0 ${isDeleted ? 'opacity-60 grayscale' : ''}`}>
                               <div className="flex justify-between items-start sm:items-center gap-2">
                                 
                                 {isEditing ? (
                                   editingDetail.mode === 'reduce' ? (
-                                    <div className="flex items-center gap-1.5 w-full flex-wrap sm:flex-nowrap bg-purple-50 p-1.5 rounded-lg border border-purple-100">
-                                      <span className="text-gray-700 font-bold truncate flex-1 px-1">{detail.name}</span>
-                                      <span className="line-through text-red-400 text-[10px] shrink-0 font-medium">{detail.original_amount || detail.amount} ➔</span>
-                                      <input type="text" placeholder="감액 금액" value={formatAmount(editingDetail.tempAmount)} onChange={(e) => setEditingDetail({ ...editingDetail, tempAmount: formatAmount(e.target.value) })} className="border border-purple-300 rounded px-2 py-1.5 w-24 text-right text-xs outline-none focus:border-purple-500 font-bold" autoFocus />만원
-                                      <div className="flex gap-1 shrink-0">
-                                        <button onClick={() => handleSaveDetail(cov.id, idx)} className="text-purple-600 font-bold bg-white border border-purple-200 px-2 py-1.5 rounded hover:bg-purple-100">적용</button>
-                                        <button onClick={() => handleCancelEdit(cov.id, idx)} className="text-gray-500 font-medium bg-gray-100 px-2 py-1.5 rounded hover:bg-gray-200">취소</button>
+                                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full bg-purple-50 p-2.5 rounded-lg border border-purple-200 shadow-sm my-1">
+                                      <span className="text-gray-700 font-bold truncate flex-1 px-1 text-sm">{detail.name}</span>
+                                      <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="line-through text-red-400 text-[11px] font-bold">{detail.original_amount || detail.amount} ➔</span>
+                                          <div className="flex items-center bg-white border border-purple-300 rounded-md overflow-hidden focus-within:border-purple-500 focus-within:ring-2 focus-within:ring-purple-500/20 w-[90px]">
+                                            <input type="text" placeholder="금액" value={formatAmount(editingDetail.tempAmount)} onChange={(e) => setEditingDetail({ ...editingDetail, tempAmount: formatAmount(e.target.value) })} className="w-full text-right text-xs px-2 py-1.5 outline-none font-black text-purple-700" autoFocus />
+                                          </div>
+                                        </div>
+                                        <div className="flex gap-1.5 shrink-0">
+                                          <button onClick={() => handleSaveDetail(cov.id, idx)} className="text-[11px] text-purple-600 font-bold bg-white border border-purple-300 px-3.5 py-1.5 rounded-md hover:bg-purple-100 shadow-sm">적용</button>
+                                          <button onClick={() => handleCancelEdit(cov.id, idx)} className="text-[11px] text-gray-500 font-bold bg-gray-100 px-3.5 py-1.5 rounded-md hover:bg-gray-200 border border-gray-200 shadow-sm">취소</button>
+                                        </div>
                                       </div>
                                     </div>
                                   ) : (
-                                    <div className="flex items-center gap-1.5 w-full flex-wrap sm:flex-nowrap">
-                                      {/* ⭐️ 특약 추가/수정 시 Datalist 적용 */}
-                                      <input 
-                                        type="text" 
-                                        list="edit-coverage-options"
-                                        placeholder="특약명" 
-                                        value={editingDetail.tempName} 
-                                        onChange={(e) => setEditingDetail({ ...editingDetail, tempName: e.target.value })} 
-                                        className="border border-blue-300 rounded px-2 py-1.5 flex-1 min-w-[100px] text-xs outline-none focus:border-blue-500" 
-                                        autoFocus={editingDetail.mode === 'new'} 
-                                      />
-                                      <input type="text" placeholder="가입 금액" value={formatAmount(editingDetail.tempAmount)} onChange={(e) => setEditingDetail({ ...editingDetail, tempAmount: formatAmount(e.target.value) })} className="border border-blue-300 rounded px-2 py-1.5 w-16 text-right text-xs outline-none focus:border-blue-500" autoFocus={editingDetail.mode === 'edit'} />만원
-                                      <select className="border border-blue-300 rounded px-1 py-1.5 w-[48px] text-[10px] outline-none focus:border-blue-500 shrink-0 font-medium text-gray-600 bg-white" value={editingDetail.tempRenewalType} onChange={(e) => setEditingDetail({ ...editingDetail, tempRenewalType: e.target.value })}>
-                                        <option value="비갱신">비갱신</option>
-                                        <option value="1년 갱신">1년</option>
-                                        <option value="3년 갱신">3년</option>
-                                        <option value="5년 갱신">5년</option>
-                                        <option value="10년 갱신">10년</option>
-                                        <option value="15년 갱신">15년</option>
-                                        <option value="20년 갱신">20년</option>
-                                        <option value="30년 갱신">30년</option>
-                                      </select>
-                                      <div className="flex gap-1 shrink-0">
-                                        <button onClick={() => handleSaveDetail(cov.id, idx)} className="text-blue-600 font-bold bg-blue-50 px-2 py-1.5 rounded hover:bg-blue-100">확인</button>
-                                        <button onClick={() => handleCancelEdit(cov.id, idx)} className="text-gray-500 font-medium bg-gray-100 px-2 py-1.5 rounded hover:bg-gray-200">취소</button>
+                                    // ⭐️ 수정됨: 단일 라인 포기하고 상/하 2줄 분리 배치 구조로 가독성 개선
+                                    <div className="flex flex-col gap-2 w-full bg-blue-50/40 p-2.5 rounded-lg border border-blue-200 shadow-sm my-1">
+                                      
+                                      {/* 상단: 특약명 + 연관 검색어 팝업 */}
+                                      <div className="relative w-full">
+                                        <input 
+                                          type="text" 
+                                          placeholder="특약명 (검색 또는 직접입력)" 
+                                          value={editingDetail.tempName} 
+                                          onChange={(e) => setEditingDetail({ ...editingDetail, tempName: e.target.value })} 
+                                          onFocus={() => setIsDropdownOpen(true)}
+                                          onBlur={() => setTimeout(() => setIsDropdownOpen(false), 150)}
+                                          className="border border-blue-300 rounded-md px-3 py-2 w-full text-xs font-bold text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all placeholder:text-gray-400 placeholder:font-normal" 
+                                          autoComplete="off"
+                                          autoFocus={editingDetail.mode === 'new'} 
+                                        />
+                                        {/* 연관 검색어 창이 더 이상 폭에 갇히지 않도록 min-w 적용 및 whitespace-nowrap 추가 */}
+                                        {isDropdownOpen && filteredOptions.length > 0 && (
+                                          <ul className="absolute z-50 left-0 top-full mt-1 min-w-full sm:min-w-[260px] max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-xl py-1">
+                                            {filteredOptions.map((opt) => (
+                                              <li
+                                                key={opt}
+                                                onMouseDown={(e) => {
+                                                  e.preventDefault(); 
+                                                  setEditingDetail({ ...editingDetail, tempName: opt });
+                                                  setIsDropdownOpen(false);
+                                                }}
+                                                className="px-3 py-2.5 text-xs font-bold text-gray-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer transition-colors whitespace-nowrap"
+                                              >
+                                                {opt}
+                                              </li>
+                                            ))}
+                                          </ul>
+                                        )}
+                                      </div>
+
+                                      {/* 하단: 금액, 옵션, 저장 버튼들 */}
+                                      <div className="flex justify-between items-center w-full gap-2">
+                                        <div className="flex items-center gap-1.5 flex-1">
+                                          <div className="flex items-center bg-white border border-blue-300 rounded-md overflow-hidden focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all">
+                                            <input 
+                                              type="text" 
+                                              placeholder="가입 금액" 
+                                              value={formatAmount(editingDetail.tempAmount)} 
+                                              onChange={(e) => setEditingDetail({ ...editingDetail, tempAmount: formatAmount(e.target.value) })} 
+                                              className="w-full text-right text-xs px-2 py-1.5 outline-none font-bold text-blue-700 placeholder:text-gray-300 placeholder:font-normal" 
+                                              autoFocus={editingDetail.mode === 'edit'} 
+                                            />
+                                            <span className="text-[11px] font-bold text-gray-500 pr-2.5 bg-white whitespace-nowrap">만원</span>
+                                          </div>
+                                          <select 
+                                            className="border border-blue-300 rounded-md px-1.5 py-1.5 w-[76px] sm:w-[84px] text-[11px] outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 font-bold text-gray-600 bg-white cursor-pointer transition-all" 
+                                            value={editingDetail.tempRenewalType} 
+                                            onChange={(e) => setEditingDetail({ ...editingDetail, tempRenewalType: e.target.value })}
+                                          >
+                                            <option value="비갱신">비갱신</option>
+                                            <option value="1년 갱신">1년</option>
+                                            <option value="3년 갱신">3년</option>
+                                            <option value="5년 갱신">5년</option>
+                                            <option value="10년 갱신">10년</option>
+                                            <option value="15년 갱신">15년</option>
+                                            <option value="20년 갱신">20년</option>
+                                            <option value="25년 갱신">25년</option>
+                                            <option value="30년 갱신">30년</option>
+                                          </select>
+                                        </div>
+                                        <div className="flex gap-1.5 shrink-0">
+                                          <button onClick={() => handleSaveDetail(cov.id, idx)} className="text-[11px] text-white font-bold bg-blue-600 px-3.5 py-1.5 rounded-md hover:bg-blue-700 shadow-sm transition-colors active:scale-95">확인</button>
+                                          <button onClick={() => handleCancelEdit(cov.id, idx)} className="text-[11px] text-gray-600 font-bold bg-white border border-gray-300 px-3.5 py-1.5 rounded-md hover:bg-gray-50 shadow-sm transition-colors active:scale-95">취소</button>
+                                        </div>
                                       </div>
                                     </div>
                                   )
@@ -583,11 +755,6 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
         </div>
       </div>
       {isCovModalOpen && <InsuranceModal clientId={clientId} onClose={() => setIsCovModalOpen(false)} onSuccess={fetchCoverages} />}
-      
-      {/* ⭐️ 수정을 위한 Datalist 마운트 */}
-      <datalist id="edit-coverage-options">
-        {COVERAGE_OPTIONS.map((opt) => <option key={opt} value={opt} />)}
-      </datalist>
     </>
   );
 }

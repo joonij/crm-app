@@ -285,7 +285,7 @@ export default function ClientModal({ onClose, onSuccess }: ClientModalProps) {
 
               <div>
                 <label className={labelClassName}>상담 날짜 <span className="text-red-500">*</span></label>
-                <input type="date" required value={form.scheduleDate} onChange={(e) => updateField("scheduleDate", e.target.value)} className={inputClassName} />
+                <input type="date" required value={form.scheduleDate} max="9999-12-31" onChange={(e) => updateField("scheduleDate", e.target.value)} className={inputClassName} />
               </div>
 
               <div>
