@@ -199,25 +199,21 @@ export default function MyPage() {
 
   // ⭐️ 신뢰감 있는 디자인으로 구성된 카카오톡 전송 함수
   const handleKakaoShare = () => {
-    // 카카오 SDK가 정상적으로 로드되었는지 확인
-    if (typeof window !== "undefined" && window.Kakao) {
-      const kakao = window.Kakao;
-      
-      // 발급받은 카카오 JavaScript 키 (3단계에서 발급받아 여기에 넣습니다)
-      const KAKAO_KEY = process.env.NEXT_PUBLIC_KAKAO_JS_KEY || "ccb428fb9e389bec1c8579c12828fd97";
+    // window 객체를 any 타입으로 형변환하여 Kakao 속성 접근 시 발생하는 타입 에러를 우회합니다.
+    const globalWindow = window as any;
 
-      // 카카오 SDK 초기화 (한 번만 실행되도록)
+    if (typeof window !== "undefined" && globalWindow.Kakao) {
+      const kakao = globalWindow.Kakao;
+      
+      const KAKAO_KEY = process.env.NEXT_PUBLIC_KAKAO_JS_KEY || "여기에_카카오_자바스크립트_키를_넣으세요";
+
       if (!kakao.isInitialized()) {
         kakao.init(KAKAO_KEY);
       }
 
-      // 프로필 사진이 없을 경우를 대비한 럭셔리 비즈니스 배경 이미지
       const defaultImageUrl = "https://images.unsplash.com/photo-1560520653-9e0e4c89eb11?auto=format&fit=crop&q=80&w=800";
-      
-      // 고객이 링크를 눌렀을 때 이동할 주소 (추후 만들 Public 명함 페이지 주소)
       const myCardUrl = `${window.location.origin}/card/${profile?.id}`;
 
-      // 카카오톡 기본 피드(Feed) 메시지 전송
       kakao.Share.sendDefault({
         objectType: 'feed',
         content: {
