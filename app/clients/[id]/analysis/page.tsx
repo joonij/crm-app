@@ -379,7 +379,7 @@ export default function AnalysisPage() {
             <div className="text-right">
               <p className="text-sm text-slate-400 mb-2 uppercase tracking-wider">Financial Consultant</p>
               <p className="text-2xl font-bold text-slate-900">
-                {agentInfo?.name || "담당자"} <span className="text-lg font-normal text-slate-600">{agentInfo?.rank || "FC"}</span>
+                {agentInfo?.name || "담당자"}
               </p>
             </div>
           </div>
