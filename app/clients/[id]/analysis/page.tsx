@@ -411,7 +411,7 @@ export default function AnalysisPage() {
                    <div className="border-t border-slate-200 pt-4 print:border-slate-300">
                      <p className="text-xs font-bold text-slate-400 mb-1">총 납입원금</p>
                      <p className={`text-xl font-black text-slate-500 ${totalPremiumDiff < 0 ? 'line-through decoration-slate-400' : ''}`}>
-                       {formatMoney(analysisData.totalPremium.before / 10000)}
+                       {formatMoney(Math.round(analysisData.totalPremium.before / 10000))}
                      </p>
                    </div>
                  </div>
@@ -430,7 +430,7 @@ export default function AnalysisPage() {
                    <div className="border-t border-blue-100 pt-4 print:border-blue-200">
                      <p className="text-xs font-bold text-blue-400 mb-1">총 납입원금</p>
                      <p className="text-xl font-black text-gray-900">
-                       {formatMoney(analysisData.totalPremium.after / 10000)}
+                       {formatMoney(Math.round(analysisData.totalPremium.after / 10000))}
                      </p>
                    </div>
                  </div>
@@ -482,7 +482,7 @@ export default function AnalysisPage() {
                   <>
                     <p className="text-[11px] font-medium mb-1 text-white/70">총 납입원금 기준 최종 세이브 자산</p>
                     <p className="text-2xl font-black text-yellow-300">
-                      {formatMoney(Math.abs(totalPremiumDiff / 10000))}
+                      {formatMoney(Math.round(Math.abs(totalPremiumDiff) / 10000))}
                     </p>
                   </>
                 ) : (
