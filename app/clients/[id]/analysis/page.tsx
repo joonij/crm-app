@@ -263,7 +263,7 @@ export default function AnalysisPage() {
     const dateStr = `${yy}${mm}${dd}`;
 
     const clientName = client?.name || "고객";
-    const printTitle = `${dateStr}_${clientName}_보장분석 및 리모델링 제안서`;
+    const printTitle = `${dateStr}_${clientName}_보장분석 및 비교 분석표`;
 
     const originalTitle = document.title;
     document.title = printTitle;
@@ -328,7 +328,7 @@ export default function AnalysisPage() {
             <div>
               <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
                 <ShieldCheck className="w-7 h-7 text-blue-600" />
-                보장 분석 및 리모델링 제안서
+                보장 분석 및 비교 분석표
               </h1>
             </div>
           </div>
@@ -367,7 +367,7 @@ export default function AnalysisPage() {
           <div className="relative z-10 my-24 print:my-auto">
             <p className="text-blue-400 font-semibold tracking-widest mb-6 border-l-4 border-blue-500 pl-4">COMPREHENSIVE INSURANCE ANALYSIS</p>
             <h1 className="text-5xl md:text-6xl lg:text-7xl font-black leading-tight mb-8 text-slate-900">
-              보장 분석 및<br />리모델링 제안서
+              보장 분석 및<br />비교 분석표
             </h1>
           </div>
 
@@ -391,7 +391,7 @@ export default function AnalysisPage() {
           <div className="flex items-center justify-between border-b border-slate-200 pb-4 shrink-0 print:border-slate-300">
             <h2 className="text-xl font-black text-slate-800 flex items-center gap-2 uppercase tracking-widest">
               <ShieldCheck className="w-6 h-6 text-blue-600" />
-              종합 재무 & 보장 최적화 리포트
+              보장 리포트
             </h2>
           </div>
           
@@ -526,7 +526,7 @@ export default function AnalysisPage() {
                 <h4 className="text-lg font-black text-gray-900 flex items-center gap-2">
                   <ShieldCheck className="w-5 h-5 text-emerald-600"/> 핵심 방어막 업그레이드 TOP 3
                 </h4>
-                <p className="text-xs font-bold text-gray-500 mt-1">리모델링을 통해 기존 대비 보장 금액이 <strong className="text-emerald-600">가장 많이 늘어난 3가지 핵심 담보</strong>입니다.</p>
+                <p className="text-xs font-bold text-gray-500 mt-1">기존 대비 보장 금액이 <strong className="text-emerald-600">가장 많이 늘어난 3가지 핵심 담보</strong>입니다.</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 print:grid-cols-3 gap-4">
@@ -593,7 +593,7 @@ export default function AnalysisPage() {
           <div className="flex items-center justify-between border-b border-slate-200 pb-4 mb-6 print:border-slate-300">
             <h2 className="text-lg font-black text-slate-800 flex items-center gap-2 uppercase tracking-widest">
             <AlertCircle className="w-5 h-5 text-blue-600" />
-            리모델링 보장 금액 합산
+            보장 금액 비교
             </h2>
           </div>
           
@@ -601,8 +601,8 @@ export default function AnalysisPage() {
             <thead className="bg-white">
               <tr>
                 <th className="px-4 py-4 text-left font-bold text-gray-900 w-3/9">담보 항목</th>
-                <th className="px-4 py-4 text-right text-gray-500 w-2/9">리모델링 전</th>
-                <th className="px-4 py-4 text-right font-bold text-blue-600 bg-blue-50/20 w-2/9">리모델링 후</th>
+                <th className="px-4 py-4 text-right text-gray-500 w-2/9">기존</th>
+                <th className="px-4 py-4 text-right font-bold text-blue-600 bg-blue-50/20 w-2/9">권장</th>
                 <th className="px-4 py-4 text-right font-bold text-gray-900 w-2/9">증감</th>
               </tr>
             </thead>
@@ -635,7 +635,7 @@ export default function AnalysisPage() {
           <div className="flex items-center justify-between border-b border-slate-200 pb-4 mb-6 print:border-slate-300">
             <h2 className="text-lg font-black text-slate-800 flex items-center gap-2 uppercase tracking-widest">
             <AlertCircle className="w-5 h-5 text-blue-600" />
-            리모델링 상세 내역
+            보험 상세 내역
             </h2>
           </div>
           
@@ -644,7 +644,7 @@ export default function AnalysisPage() {
             {/* 왼쪽: 리모델링 전 */}
             <div className="p-4 md:p-6 border-0">
               <h3 className="font-bold text-slate-700 mb-5 flex items-center gap-2 border-b border-slate-200 pb-3 text-lg">
-                리모델링 전 보험내역
+                기존 보험내역
               </h3>
               <div className="space-y-5">
                 {analysisData.rawPolicies
@@ -686,7 +686,7 @@ export default function AnalysisPage() {
             {/* 오른쪽: 리모델링 후 (유지, 신규, 해지 포함) */}
             <div className="p-4 md:p-6 border-0">
               <h3 className="font-bold text-blue-700 mb-5 flex items-center gap-2 border-b border-blue-200 pb-3 text-lg">
-                리모델링 후 보험내역
+                권장 보험내역
               </h3>
               <div className="space-y-5">
                 {analysisData.rawPolicies
