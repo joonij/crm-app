@@ -31,15 +31,20 @@ const COVERAGE_OPTIONS = [
   "일반사망 진단비", "재해사망 진단비", "상해사망 진단비", "질병사망 진단비", 
   "재해 후유장해3%↑", "상해 후유장해3%↑", "질병 후유장해3%↑", 
   "재해 후유장해80%↑", "상해 후유장해80%↑", "질병 후유장해80%↑", 
-  "일반암 진단금", "고액암 진단금", "유사암 진단금", "소액암 진단금",
+  "일반암 진단비", "고액암 진단비", "유사암 진단비", "소액암 진단비",
   "항암방사선약물 치료비", "암 수술비",
   "뇌산정특례대상 진단비", "뇌혈관질환 진단비", "뇌졸증 진단비", "뇌출혈 진단비",
   "심장산정특례대상 진단비", "허혈성심장질환 진단비", "급성심근경색 진단비",
   "상해수술비", "상해1종 수술비", "상해2종 수술비", "상해3종 수술비", "상해4종 수술비", "상해5종 수술비",
   "질병수술비", "질병1종 수술비", "질병2종 수술비", "질병3종 수술비", "질병4종 수술비", "질병5종 수술비",
-  "상해 입원일당", "질병 입원일당", "상해중환자실 입원일당", "질병중환자실 입원일당",
-  "통합상해 진단금", "골절진단금", "화상진단금",
-  "재가급여 1~5등급", "시설급여 1~5등급", "시설급여 1~2등급", "간병인 사용일당", "간병인 지원일당",
+  "상해 입원비", "질병 입원비", "상해중환자실 입원비", "질병중환자실 입원비",
+  "골절철심제거 수술비", "5대골절 수술비", "골절 수술비", "화상 수술비", "깁스 치료비", "골절부목 치료비(치아파절제외)",
+  "통합상해 진단비", "골절 진단비", "화상 진단비",
+  "장기요양 1~2등급 진단비", "장기요양 1~3등급 진단비", "장기요양 1~4등급 진단비", "장기요양 1~5등급 진단비", "장기요양 1~인지지원등급 진단비", 
+  "장기요양 1~2등급 재가급여", "장기요양 1~3등급 재가급여", "장기요양 1~4등급 재가급여", "장기요양 1~5등급 재가급여", "장기요양 1~인지지원등급 재가급여", 
+  "장기요양 1~2등급 시설급여", "장기요양 1~3등급 시설급여", "장기요양 1~4등급 시설급여", "장기요양 1~5등급 시설급여", "장기요양 1~인지지원등급 시설급여", 
+  "응급실내원비(비응급)", "응급실내원비(응급)",
+  "간병인 사용비", "간병인 지원비",
   "레진", "인레이", "크라운", "임플란트", "보존치료", "보철치료"
 ];
 
@@ -80,6 +85,7 @@ const mapToStandardCoverage = (rawName: string) => {
   if (name.includes("심장") && name.includes("특례")) return "심장산정특례대상 진단비";
   
   if (name.includes("특정") && name.includes("장해")) return rawName;
+  if (name.includes("교통") && name.includes("장해")) return rawName;
   if (name.includes("상해") && name.includes("장해") && name.includes("3")) return "상해 후유장해3%↑";
   if (name.includes("질병") && name.includes("장해") && name.includes("3")) return "질병 후유장해3%↑";
   if (name.includes("재해") && name.includes("장해") && name.includes("3")) return "재해 후유장해3%↑";
@@ -94,12 +100,15 @@ const mapToStandardCoverage = (rawName: string) => {
   if (name.includes("재해") && name.includes("사망")) return "재해사망 진단비";
   if (name.includes("일반") && name.includes("사망")) return "일반사망 진단비";
   
+  if (name.includes("손상") && name.includes("수술")) return rawName;
+  if (name.includes("복원") && name.includes("수술")) return rawName;
+  if (name.includes("흉터") && name.includes("수술")) return rawName;
   if (name.includes("제외") && name.includes("수술")) return rawName;
   if (name.includes("대") && name.includes("수술")) return rawName;
   if (name.includes("특정") && name.includes("수술")) return rawName;
 
-  if (name.includes("입원") && name.includes("상해") && name.includes("수술")) return "상해입원 수술비(당일입원제외)";
-  if (name.includes("통원") && name.includes("상해") && name.includes("수술")) return "상해통원 수술비(당일입원포함)";
+  if (name.includes("입원제외") && name.includes("상해") && name.includes("수술")) return "상해입원 수술비(당일입원제외)";
+  if (name.includes("입원포함") && name.includes("상해") && name.includes("수술")) return "상해통원 수술비(당일입원포함)";
   if (name.includes("1종") && name.includes("상해")) return "상해1종 수술비";
   if (name.includes("2종") && name.includes("상해")) return "상해2종 수술비";
   if (name.includes("3종") && name.includes("상해")) return "상해3종 수술비";
@@ -119,17 +128,17 @@ const mapToStandardCoverage = (rawName: string) => {
   if (name.includes("5종") && name.includes("수술")) return "5종 수술비";
   if (name.includes("질병") && name.includes("수술")) return "질병 수술비";
 
-  if (name.includes("특정") && name.includes("입원일당")) return rawName;
+  if (name.includes("특정") && name.includes("입원비")) return rawName;
   
-  if ((name.includes("이상") || name.includes("초과")) && name.includes("재해") && name.includes("입원") && name.includes("3")) return "재해 입원일당(3일이상)";
-  if ((name.includes("이상") || name.includes("초과")) && name.includes("상해") && name.includes("입원") && name.includes("3")) return "상해 입원일당(3일이상)";
-  if ((name.includes("이상") || name.includes("초과")) && name.includes("질병") && name.includes("입원") && name.includes("3")) return "질병 입원일당(3일이상)";
-  if (name.includes("중환자") && name.includes("재해") && name.includes("입원")) return "재해중환자실 입원일당";
-  if (name.includes("중환자") && name.includes("상해") && name.includes("입원")) return "상해중환자실 입원일당";
-  if (name.includes("중환자") && name.includes("질병") && name.includes("입원")) return "질병중환자실 입원일당";
-  if (name.includes("재해") && name.includes("입원일당")) return "재해 입원일당";
-  if (name.includes("상해") && name.includes("입원일당")) return "상해 입원일당";
-  if (name.includes("질병") && name.includes("입원일당")) return "질병 입원일당";
+  if ((name.includes("이상") || name.includes("초과")) && (name.includes("3") || name.includes("4")) && name.includes("재해") && name.includes("입원")) return "재해 입원비(3일이상)";
+  if ((name.includes("이상") || name.includes("초과")) && (name.includes("3") || name.includes("4")) && name.includes("상해") && name.includes("입원")) return "상해 입원비(3일이상)";
+  if ((name.includes("이상") || name.includes("초과")) && (name.includes("3") || name.includes("4")) && name.includes("질병") && name.includes("입원")) return "질병 입원비(3일이상)";
+  if (name.includes("중환자") && name.includes("재해") && name.includes("입원")) return "재해중환자실 입원비";
+  if (name.includes("중환자") && name.includes("상해") && name.includes("입원")) return "상해중환자실 입원비";
+  if (name.includes("중환자") && name.includes("질병") && name.includes("입원")) return "질병중환자실 입원비";
+  if (name.includes("재해") && name.includes("입원일당")) return "재해 입원비";
+  if (name.includes("상해") && name.includes("입원일당")) return "상해 입원비";
+  if (name.includes("질병") && name.includes("입원일당")) return "질병 입원비";
   
   if (name.includes("골절") && name.includes("진단") && name.includes("제외")) return "골절 진단비(치아파절제외)";
   if (name.includes("5대") && name.includes("골절") && name.includes("진단")) return "5대골절 진단비";
@@ -145,6 +154,24 @@ const mapToStandardCoverage = (rawName: string) => {
 
   if (name.includes("응급실") && name.includes("비응급")) return "응급실내원비(비응급)";
   if (name.includes("응급실") && name.includes("응급")) return "응급실내원비(응급)";
+
+  if (name.includes("요양") && name.includes("1~2") && name.includes("진단")) return "장기요양 1~2등급 진단비";
+  if (name.includes("요양") && name.includes("1~3") && name.includes("진단")) return "장기요양 1~3등급 진단비";
+  if (name.includes("요양") && name.includes("1~4") && name.includes("진단")) return "장기요양 1~4등급 진단비";
+  if (name.includes("요양") && name.includes("1~5") && name.includes("진단")) return "장기요양 1~5등급 진단비";
+  if (name.includes("요양") && name.includes("1~인지") && name.includes("진단")) return "장기요양 1~인지지원등급 진단비";
+
+  if (name.includes("요양") && name.includes("1~2") && name.includes("재가")) return "장기요양 1~2등급 재가급여";
+  if (name.includes("요양") && name.includes("1~3") && name.includes("재가")) return "장기요양 1~3등급 재가급여";
+  if (name.includes("요양") && name.includes("1~4") && name.includes("재가")) return "장기요양 1~4등급 재가급여";
+  if (name.includes("요양") && name.includes("1~5") && name.includes("재가")) return "장기요양 1~5등급 재가급여";
+  if (name.includes("요양") && name.includes("1~인지") && name.includes("재가")) return "장기요양 1~인지지원등급 재가급여";
+
+  if (name.includes("요양") && name.includes("1~2") && name.includes("시설")) return "장기요양 1~2등급 시설급여";
+  if (name.includes("요양") && name.includes("1~3") && name.includes("시설")) return "장기요양 1~3등급 시설급여";
+  if (name.includes("요양") && name.includes("1~4") && name.includes("시설")) return "장기요양 1~4등급 시설급여";
+  if (name.includes("요양") && name.includes("1~5") && name.includes("시설")) return "장기요양 1~5등급 시설급여";
+  if (name.includes("요양") && name.includes("1~인지") && name.includes("시설")) return "장기요양 1~인지지원등급 시설급여";
 
   return rawName; 
 };

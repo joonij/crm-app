@@ -1,8 +1,9 @@
+// ClientCoverageCard.tsx
 "use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Shield, Trash2, ChevronDown, ChevronUp, Plus, BarChart3, Edit2, RotateCcw, MinusCircle, TrendingDown, Undo, Check, X } from "lucide-react";
+import { Shield, Trash2, ChevronDown, ChevronUp, Plus, BarChart3, Edit2, RotateCcw, MinusCircle, TrendingDown, Undo, Check, X, PartyPopper } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import InsuranceModal from "@/app/clients/[id]/components/InsuranceModal";
 
@@ -22,13 +23,21 @@ const COVERAGE_OPTIONS = [
   "실손의료비 상해입원", "실손의료비 질병입원", "실손의료비 상해통원", "실손의료비 질병통원", "실손의료비 상해약제", "실손의료비 질병약제",
   "일반사망 진단비", "재해사망 진단비", "상해사망 진단비", "질병사망 진단비", 
   "재해 후유장해3%↑", "상해 후유장해3%↑", "질병 후유장해3%↑", 
-  "일반암 진단금", "고액암 진단금", "유사암 진단금", "소액암 진단금", "항암방사선 치료비", "항암약물 치료비", "암 수술비",
-  "뇌산정특례대상 진단비", "뇌혈관질환 진단비", "뇌졸증 진단비", "뇌출혈 진단비", "심장산정특례대상 진단비", "허혈성심장질환 진단비", "급성심근경색 진단비",
+  "재해 후유장해80%↑", "상해 후유장해80%↑", "질병 후유장해80%↑", 
+  "일반암 진단비", "고액암 진단비", "유사암 진단비", "소액암 진단비",
+  "항암방사선약물 치료비", "암 수술비",
+  "뇌산정특례대상 진단비", "뇌혈관질환 진단비", "뇌졸증 진단비", "뇌출혈 진단비",
+  "심장산정특례대상 진단비", "허혈성심장질환 진단비", "급성심근경색 진단비",
   "상해수술비", "상해1종 수술비", "상해2종 수술비", "상해3종 수술비", "상해4종 수술비", "상해5종 수술비",
   "질병수술비", "질병1종 수술비", "질병2종 수술비", "질병3종 수술비", "질병4종 수술비", "질병5종 수술비",
-  "상해 입원일당", "질병 입원일당", "상해중환자실 입원일당", "질병중환자실 입원일당",
-  "통합상해 진단금", "골절진단금", "화상진단금",
-  "재가급여 1~5등급", "시설급여 1~5등급", "시설급여 1~2등급", "간병인 사용일당", "간병인 지원일당",
+  "상해 입원비", "질병 입원비", "상해중환자실 입원비", "질병중환자실 입원비",
+  "골절철심제거 수술비", "5대골절 수술비", "골절 수술비", "화상 수술비", "깁스 치료비", "골절부목 치료비(치아파절제외)",
+  "통합상해 진단비", "골절 진단비", "화상 진단비",
+  "장기요양 1~2등급 진단비", "장기요양 1~3등급 진단비", "장기요양 1~4등급 진단비", "장기요양 1~5등급 진단비", "장기요양 1~인지지원등급 진단비", 
+  "장기요양 1~2등급 재가급여", "장기요양 1~3등급 재가급여", "장기요양 1~4등급 재가급여", "장기요양 1~5등급 재가급여", "장기요양 1~인지지원등급 재가급여", 
+  "장기요양 1~2등급 시설급여", "장기요양 1~3등급 시설급여", "장기요양 1~4등급 시설급여", "장기요양 1~5등급 시설급여", "장기요양 1~인지지원등급 시설급여", 
+  "응급실내원비(비응급)", "응급실내원비(응급)",
+  "간병인 사용비", "간병인 지원비",
   "레진", "인레이", "크라운", "임플란트", "보존치료", "보철치료"
 ];
 
@@ -210,6 +219,26 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
   const updatePolicyStatus = async (covId: number, newStatus: string) => {
     setCoverages(prev => prev.map(c => (c.id === covId ? { ...c, policy_status: newStatus } : c)));
     await supabase.from("subscription_insurance").update({ policy_status: newStatus }).eq("id", covId);
+  };
+
+  // ⭐️ 신규 제안 ➔ 체결 완료 원클릭 전환 로직
+  const handleCompletePolicy = async (covId: number) => {
+    if (!window.confirm("이 제안을 최종 체결 처리하시겠습니까?\n오늘 날짜로 가입일이 자동 지정되며 대시보드 성과에 반영됩니다.")) return;
+    
+    // 오늘 날짜 구하기 (YYYY-MM-DD 포맷)
+    const today = new Date();
+    const formattedDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+    const { error } = await supabase.from("subscription_insurance").update({ 
+      policy_status: "maintain",
+      subscription_date: formattedDate
+    }).eq("id", covId);
+
+    if (error) {
+      alert("체결 처리에 실패했습니다.");
+    } else {
+      fetchCoverages(); // 데이터 새로고침
+    }
   };
 
   const updateCoverageDetailsInDB = async (covId: number, newDetails: CoverageDetail[]) => {
@@ -464,7 +493,17 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                         
                         <div className="flex justify-between items-start gap-2">
                           <div className="flex items-center gap-2 min-w-0 pr-2">
-                            <p className="font-bold text-gray-900 truncate text-base" title={cov.insurance_company}>{cov.insurance_company}</p>
+                            <p className="font-bold text-gray-900 truncate text-base" title={cov.insurance_company}>{cov.insurance_company}</p>                       
+                            {/* ⭐️ 신규 제안 ➔ 체결 완료 원클릭 전환 버튼 */}
+                            {currentStatus === 'new' && (
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); handleCompletePolicy(cov.id); }}
+                                className="flex items-center gap-1 text-[10px] font-black bg-emerald-100 hover:bg-emerald-200 text-emerald-700 border border-emerald-300 px-2 py-0.5 rounded shadow-sm transition-colors animate-pulse"
+                                title="이 제안을 체결로 확정하고 가입일을 오늘로 지정합니다."
+                              >
+                                <PartyPopper className="w-3 h-3" /> 체결
+                              </button>
+                            )}
                             <select
                               value={currentStatus}
                               onChange={(e) => updatePolicyStatus(cov.id, e.target.value)}
@@ -609,7 +648,6 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                                       </div>
                                     </div>
                                   ) : (
-                                    // ⭐️ 수정됨: 단일 라인 포기하고 상/하 2줄 분리 배치 구조로 가독성 개선
                                     <div className="flex flex-col gap-2 w-full bg-blue-50/40 p-2.5 rounded-lg border border-blue-200 shadow-sm my-1">
                                       
                                       {/* 상단: 특약명 + 연관 검색어 팝업 */}
@@ -625,7 +663,6 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                                           autoComplete="off"
                                           autoFocus={editingDetail.mode === 'new'} 
                                         />
-                                        {/* 연관 검색어 창이 더 이상 폭에 갇히지 않도록 min-w 적용 및 whitespace-nowrap 추가 */}
                                         {isDropdownOpen && filteredOptions.length > 0 && (
                                           <ul className="absolute z-50 left-0 top-full mt-1 min-w-full sm:min-w-[260px] max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-xl py-1">
                                             {filteredOptions.map((opt) => (
