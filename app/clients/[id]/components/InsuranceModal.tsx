@@ -121,9 +121,9 @@ const mapToStandardCoverage = (rawName: string) => {
 
   if (name.includes("특정") && name.includes("입원일당")) return rawName;
   
-  if ((name.includes("이상") || name.includes("초과")) && name.includes("재해") && name.includes("3")) return "재해 입원일당(3일이상)";
-  if ((name.includes("이상") || name.includes("초과")) && name.includes("상해") && name.includes("3")) return "상해 입원일당(3일이상)";
-  if ((name.includes("이상") || name.includes("초과")) && name.includes("질병") && name.includes("3")) return "질병 입원일당(3일이상)";
+  if ((name.includes("이상") || name.includes("초과")) && name.includes("재해") && name.includes("입원") && name.includes("3")) return "재해 입원일당(3일이상)";
+  if ((name.includes("이상") || name.includes("초과")) && name.includes("상해") && name.includes("입원") && name.includes("3")) return "상해 입원일당(3일이상)";
+  if ((name.includes("이상") || name.includes("초과")) && name.includes("질병") && name.includes("입원") && name.includes("3")) return "질병 입원일당(3일이상)";
   if (name.includes("중환자") && name.includes("재해") && name.includes("입원")) return "재해중환자실 입원일당";
   if (name.includes("중환자") && name.includes("상해") && name.includes("입원")) return "상해중환자실 입원일당";
   if (name.includes("중환자") && name.includes("질병") && name.includes("입원")) return "질병중환자실 입원일당";
