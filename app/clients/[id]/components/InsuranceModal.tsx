@@ -54,10 +54,10 @@ const mapToStandardCoverage = (rawName: string) => {
   
   if ((name.includes("실손") || name.includes("의료")) && name.includes("상해") && name.includes("입원")) return "실손의료비 상해입원";
   if ((name.includes("실손") || name.includes("의료")) && name.includes("질병") && name.includes("입원")) return "실손의료비 질병입원";
-  if ((name.includes("실손") || name.includes("의료") || name.includes("외래")) && name.includes("상해") && name.includes("통원")) return "실손의료비 상해통원";
-  if ((name.includes("실손") || name.includes("의료") || name.includes("외래")) && name.includes("질병") && name.includes("통원")) return "실손의료비 질병통원";
-  if ((name.includes("실손") || name.includes("의료") || name.includes("처방")) && name.includes("상해") && name.includes("약제")) return "실손의료비 상해약제";
-  if ((name.includes("실손") || name.includes("의료") || name.includes("처방")) && name.includes("질병") && name.includes("약제")) return "실손의료비 질병약제";
+  if ((name.includes("실손") || name.includes("의료")) && (name.includes("외래") || name.includes("통원")) && name.includes("상해")) return "실손의료비 상해통원";
+  if ((name.includes("실손") || name.includes("의료")) && (name.includes("외래") || name.includes("통원")) && name.includes("질병")) return "실손의료비 질병통원";
+  if ((name.includes("실손") || name.includes("의료")) && (name.includes("처방") || name.includes("약제")) && name.includes("상해")) return "실손의료비 상해약제";
+  if ((name.includes("실손") || name.includes("의료")) && (name.includes("처방") || name.includes("약제")) && name.includes("질병")) return "실손의료비 질병약제";
 
   if (name.includes("일반암") && name.includes("진단")) return "일반암 진단비";
   if (name.includes("고액암") && name.includes("진단")) return "고액암 진단비";
@@ -79,31 +79,27 @@ const mapToStandardCoverage = (rawName: string) => {
   if (name.includes("급성심근") && name.includes("진단")) return "급성심근경색 진단비";
   if (name.includes("심장") && name.includes("특례")) return "심장산정특례대상 진단비";
   
-  if (name.includes("상해") && name.includes("후유장해") && name.includes("3")) return "상해 후유장해3%↑";
-  if (name.includes("질병") && name.includes("후유장해") && name.includes("3")) return "질병 후유장해3%↑";
-  if (name.includes("재해") && name.includes("후유장해") && name.includes("3")) return "재해 후유장해3%↑";
-  if (name.includes("상해") && name.includes("후유장해") && name.includes("80")) return "상해 후유장해80%↑";
-  if (name.includes("질병") && name.includes("후유장해") && name.includes("80")) return "질병 후유장해80%↑";
-  if (name.includes("재해") && name.includes("후유장해") && name.includes("80")) return "재해 후유장해80%↑";
+  if (name.includes("특정") && name.includes("장해")) return rawName;
+  if (name.includes("상해") && name.includes("장해") && name.includes("3")) return "상해 후유장해3%↑";
+  if (name.includes("질병") && name.includes("장해") && name.includes("3")) return "질병 후유장해3%↑";
+  if (name.includes("재해") && name.includes("장해") && name.includes("3")) return "재해 후유장해3%↑";
+  if (name.includes("상해") && name.includes("장해") && name.includes("80")) return "상해 후유장해80%↑";
+  if (name.includes("질병") && name.includes("장해") && name.includes("80")) return "질병 후유장해80%↑";
+  if (name.includes("재해") && name.includes("장해") && name.includes("80")) return "재해 후유장해80%↑";
 
+  if (name.includes("특정") && name.includes("사망")) return rawName;
+  if (name.includes("교통") && name.includes("사망")) return rawName;
   if (name.includes("상해") && name.includes("사망")) return "상해사망 진단비";
   if (name.includes("질병") && name.includes("사망")) return "질병사망 진단비";
   if (name.includes("재해") && name.includes("사망")) return "재해사망 진단비";
   if (name.includes("일반") && name.includes("사망")) return "일반사망 진단비";
   
-  if (name.includes("제외") && name.includes("재해") && name.includes("수술")) return rawName;
-  if (name.includes("대") && name.includes("재해") && name.includes("수술")) return rawName;
-  if (name.includes("1종") && name.includes("재해")) return "재해1종 수술비";
-  if (name.includes("2종") && name.includes("재해")) return "재해2종 수술비";
-  if (name.includes("3종") && name.includes("재해")) return "재해3종 수술비";
-  if (name.includes("4종") && name.includes("재해")) return "재해4종 수술비";
-  if (name.includes("5종") && name.includes("재해")) return "재해5종 수술비";
-  if (name.includes("재해") && name.includes("수술")) return "상해 수술비";
+  if (name.includes("제외") && name.includes("수술")) return rawName;
+  if (name.includes("대") && name.includes("수술")) return rawName;
+  if (name.includes("특정") && name.includes("수술")) return rawName;
 
   if (name.includes("입원") && name.includes("상해") && name.includes("수술")) return "상해입원 수술비(당일입원제외)";
   if (name.includes("통원") && name.includes("상해") && name.includes("수술")) return "상해통원 수술비(당일입원포함)";
-  if (name.includes("제외") && name.includes("상해") && name.includes("수술")) return rawName;
-  if (name.includes("대") && name.includes("상해") && name.includes("수술")) return rawName;
   if (name.includes("1종") && name.includes("상해")) return "상해1종 수술비";
   if (name.includes("2종") && name.includes("상해")) return "상해2종 수술비";
   if (name.includes("3종") && name.includes("상해")) return "상해3종 수술비";
@@ -111,18 +107,23 @@ const mapToStandardCoverage = (rawName: string) => {
   if (name.includes("5종") && name.includes("상해")) return "상해5종 수술비";
   if (name.includes("상해") && name.includes("수술")) return "상해 수술비";
   
-  if (name.includes("제외") && name.includes("질병") && name.includes("수술")) return rawName;
-  if (name.includes("대") && name.includes("질병") && name.includes("수술")) return rawName;
   if (name.includes("1종") && name.includes("질병")) return "질병1종 수술비";
   if (name.includes("2종") && name.includes("질병")) return "질병2종 수술비";
   if (name.includes("3종") && name.includes("질병")) return "질병3종 수술비";
   if (name.includes("4종") && name.includes("질병")) return "질병4종 수술비";
   if (name.includes("5종") && name.includes("질병")) return "질병5종 수술비";
+  if (name.includes("1종") && name.includes("수술")) return "1종 수술비";
+  if (name.includes("2종") && name.includes("수술")) return "2종 수술비";
+  if (name.includes("3종") && name.includes("수술")) return "3종 수술비";
+  if (name.includes("4종") && name.includes("수술")) return "4종 수술비";
+  if (name.includes("5종") && name.includes("수술")) return "5종 수술비";
   if (name.includes("질병") && name.includes("수술")) return "질병 수술비";
+
+  if (name.includes("특정") && name.includes("입원일당")) return rawName;
   
-  if ((name.includes("이상") || name.includes("초과")) && name.includes("재해") && name.includes("입원일당")) return "재해 입원일당(3일이상)";
-  if ((name.includes("이상") || name.includes("초과")) && name.includes("상해") && name.includes("입원일당")) return "상해 입원일당(3일이상)";
-  if ((name.includes("이상") || name.includes("초과")) && name.includes("질병") && name.includes("입원일당")) return "질병 입원일당(3일이상)";
+  if ((name.includes("이상") || name.includes("초과")) && name.includes("재해") && name.includes("3")) return "재해 입원일당(3일이상)";
+  if ((name.includes("이상") || name.includes("초과")) && name.includes("상해") && name.includes("3")) return "상해 입원일당(3일이상)";
+  if ((name.includes("이상") || name.includes("초과")) && name.includes("질병") && name.includes("3")) return "질병 입원일당(3일이상)";
   if (name.includes("중환자") && name.includes("재해") && name.includes("입원")) return "재해중환자실 입원일당";
   if (name.includes("중환자") && name.includes("상해") && name.includes("입원")) return "상해중환자실 입원일당";
   if (name.includes("중환자") && name.includes("질병") && name.includes("입원")) return "질병중환자실 입원일당";
