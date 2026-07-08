@@ -25,6 +25,7 @@ const formatAmountWithComma = (value: string) => {
   return Number(numericValue).toLocaleString("ko-KR");
 };
 
+// ⭐️ 자동완성을 위한 옵션 리스트 정의
 const COVERAGE_OPTIONS = [
   "실손의료비 상해입원", "실손의료비 질병입원", "실손의료비 상해통원", "실손의료비 질병통원", "실손의료비 상해약제", "실손의료비 질병약제",
   "일반사망 진단비", "재해사망 진단비", "상해사망 진단비", "질병사망 진단비", 
@@ -38,6 +39,9 @@ const COVERAGE_OPTIONS = [
   "재가급여 1~5등급", "시설급여 1~5등급", "시설급여 1~2등급", "간병인 사용일당", "간병인 지원일당",
   "레진", "인레이", "크라운", "임플란트", "보존치료", "보철치료"
 ];
+
+const POLICY_PERIOD_OPTIONS = ["10년납", "15년납", "20년납", "25년납", "30년납", "전기납", "일시납"];
+const RENEWAL_OPTIONS = ["비갱신", "1년 갱신", "3년 갱신", "5년 갱신", "10년 갱신", "15년 갱신", "20년 갱신", "30년 갱신", "10년납", "15년납", "20년납", "25년납", "30년납", "전기납", "일시납"];
 
 // 특약명 지능형 매핑 헬퍼 함수
 const mapToStandardCoverage = (rawName: string) => {
@@ -136,7 +140,10 @@ export default function InsuranceModal({
   const [pasteText, setPasteText] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
+  // ⭐️ 각 인풋 필드별 포커스 관리 (자동완성 표시용)
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
+  const [focusedRenewalIndex, setFocusedRenewalIndex] = useState<number | null>(null);
+  const [focusedPolicyPeriod, setFocusedPolicyPeriod] = useState(false);
 
   useEffect(() => {
     setCovForm(initialFormState);
@@ -245,10 +252,8 @@ export default function InsuranceModal({
       }
 
       for (const line of lines) {
-        // ⭐️ '실손구분' 헤더도 건너뛰도록 조건 추가
         if (line.includes("보장구분") || line.includes("보장명") || line.includes("실손구분")) continue;
 
-        // ⭐️ 정규식 고도화: 1억3,000만원 인식 및 중간 보장기간 날짜 텍스트 무시
         const coverageRegex = /^(.*?)\s+((?:\d+,?)+\s*(?:억\s*(?:\d+,?)*\s*만원|억원|만원|원))\s+(?:[\d.\-~ ]+\s+)?(정상|소멸|유지|해지)$/;
         const match = line.match(coverageRegex);
         
@@ -274,7 +279,6 @@ export default function InsuranceModal({
             name = parts.join(" ");
           }
 
-          // ⭐️ 금액 파싱 고도화: 1억3,000만원 -> 13000 으로 변환
           let cleanAmount = amountStr.replace(/,/g, "").replace(/\s/g, "");
           let parsedAmountNum = 0;
 
@@ -387,6 +391,11 @@ export default function InsuranceModal({
   const nonLifeInsurances = companies.filter((c) => c.company_type === "손해보험");
   const differentLifeInsurances = companies.filter((c) => c.company_type === "기타");
 
+  // ⭐️ 보험의 납입기간 필터링
+  const filteredPolicyPeriods = covForm.paymentPeriod.trim()
+    ? POLICY_PERIOD_OPTIONS.filter((opt) => opt.includes(covForm.paymentPeriod) && opt !== covForm.paymentPeriod)
+    : POLICY_PERIOD_OPTIONS;
+
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/60 md:p-4 transition-opacity">
       <div className="bg-white w-full max-w-4xl flex flex-col max-h-[90vh] md:max-h-[85vh] rounded-t-2xl md:rounded-xl shadow-2xl animate-in slide-in-from-bottom-4 md:slide-in-from-bottom-0 md:zoom-in-95" onClick={(e) => e.stopPropagation()}>
@@ -403,11 +412,11 @@ export default function InsuranceModal({
           <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-4 space-y-3">
             <div className="flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-indigo-500" />
-              <p className="text-sm font-bold text-indigo-900">메리츠 보장분석 텍스트 파싱</p>
+              <p className="text-sm font-bold text-indigo-900">메리츠/삼성화재 등 보장분석 텍스트 파싱</p>
             </div>
             <div className="flex flex-col sm:flex-row gap-2">
               <textarea 
-                placeholder="보장분석 텍스트를 복사하여 붙여넣기 하세요."
+                placeholder="보험 증권의 PDF 텍스트나 카카오톡 내용을 여기에 붙여넣기 하세요."
                 className="flex-1 rounded-lg border border-indigo-200 bg-white p-2.5 text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 resize-none h-14"
                 value={pasteText} onChange={(e) => setPasteText(e.target.value)}
               />
@@ -507,20 +516,35 @@ export default function InsuranceModal({
                 <input type="date" max="9999-12-31" className={inputClassName} value={covForm.maturityDate} onChange={(e) => setCovForm({ ...covForm, maturityDate: e.target.value })} />
               </div>
               
-              <div className="flex flex-col">
+              {/* ⭐️ 보험의 납입기간 (입력 + 자동완성 적용) */}
+              <div className="flex flex-col relative">
                 <label className="text-xs text-gray-500 mb-1 ml-1 font-semibold">납입 기간</label>
-                <select className={`${inputClassName} cursor-pointer`} value={covForm.paymentPeriod} onChange={(e) => setCovForm({ ...covForm, paymentPeriod: e.target.value })}>
-                  <option value="일시납">일시납</option>
-                  <option value="전기납">전기납</option>
-                  <option value="3년납">3년납</option>
-                  <option value="5년납">5년납</option>
-                  <option value="7년납">7년납</option>
-                  <option value="10년납">10년납</option>
-                  <option value="15년납">15년납</option>
-                  <option value="20년납">20년납</option>
-                  <option value="25년납">25년납</option>
-                  <option value="30년납">30년납</option>
-                </select>
+                <input
+                  type="text"
+                  placeholder="직접 입력 또는 선택"
+                  className={inputClassName}
+                  value={covForm.paymentPeriod}
+                  onChange={(e) => setCovForm({ ...covForm, paymentPeriod: e.target.value })}
+                  onFocus={() => setFocusedPolicyPeriod(true)}
+                  onBlur={() => setTimeout(() => setFocusedPolicyPeriod(false), 150)}
+                />
+                {focusedPolicyPeriod && filteredPolicyPeriods.length > 0 && (
+                  <ul className="absolute z-50 left-0 right-0 top-full mt-1 max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-xl py-1">
+                    {filteredPolicyPeriods.map((opt) => (
+                      <li
+                        key={opt}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          setCovForm({ ...covForm, paymentPeriod: opt });
+                          setFocusedPolicyPeriod(false);
+                        }}
+                        className="px-3 py-2 text-sm font-medium text-gray-700 hover:bg-blue-50 cursor-pointer transition-colors"
+                      >
+                        {opt}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
 
             </div>
@@ -530,92 +554,114 @@ export default function InsuranceModal({
             <p className="text-sm font-semibold text-gray-700">세부 보장 항목</p>
             <div className="grid grid-cols-1 md:grid-cols-1 gap-x-6 gap-y-3">
               {covDetails.map((detail, index) => {
+                
+                // ⭐️ 특약명 자동완성 필터 (비어있으면 전체 리스트 노출)
                 const filteredOptions = detail.name.trim() 
-                ? COVERAGE_OPTIONS.filter((opt) => opt.includes(detail.name) && opt !== detail.name)
-                : [];
+                  ? COVERAGE_OPTIONS.filter((opt) => opt.includes(detail.name) && opt !== detail.name)
+                  : COVERAGE_OPTIONS;
 
-              return (
-                <div key={index} className="flex flex-wrap sm:flex-nowrap gap-2 items-center p-2 sm:p-0 bg-gray-50/50 sm:bg-transparent rounded-lg border sm:border-0 border-gray-100">
-                  
-                  {/* ⭐️ 기본 datalist를 제거하고 자체 Dropdown이 결합된 형태의 컨테이너 구성 */}
-                  <div className="relative w-full sm:w-[45%] shrink-0">
-                    <input
-                      type="text"
-                      placeholder="특약 항목명 (검색)"
-                      className={`${inputClassName} w-full text-xs font-medium`}
-                      value={detail.name}
-                      onChange={(e) => updateCovDetail(index, "name", e.target.value)}
-                      onFocus={() => setFocusedIndex(index)}
-                      onBlur={() => setTimeout(() => setFocusedIndex(null), 150)} // 클릭 이벤트 실행을 위해 약간의 지연
-                      autoComplete="off"
-                    />
+                // ⭐️ 특약별 갱신/납입기간 자동완성 필터 (비어있으면 전체 리스트 노출)
+                const filteredRenewalOptions = detail.renewal_type?.trim()
+                  ? RENEWAL_OPTIONS.filter((opt) => opt.includes(detail.renewal_type!) && opt !== detail.renewal_type)
+                  : RENEWAL_OPTIONS;
+
+                return (
+                  <div key={index} className="flex flex-wrap sm:flex-nowrap gap-2 items-center p-2 sm:p-0 bg-gray-50/50 sm:bg-transparent rounded-lg border sm:border-0 border-gray-100 relative">
                     
-                    {/* 입력값이 있고, 포커스 상태이며, 매칭되는 검색어가 있을 때만 목록 노출 */}
-                    {focusedIndex === index && filteredOptions.length > 0 && (
-                      <ul className="absolute z-50 left-0 right-0 top-full mt-1 max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-xl py-1">
-                        {filteredOptions.map((opt) => (
-                          <li
-                            key={opt}
-                            onMouseDown={(e) => {
-                              e.preventDefault(); // input 포커스 아웃(blur) 방지
-                              updateCovDetail(index, "name", opt);
-                              setFocusedIndex(null);
-                            }}
-                            className="px-3 py-2 text-xs font-medium text-gray-700 hover:bg-blue-50 cursor-pointer transition-colors"
-                          >
-                            {opt}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
+                    {/* 특약 항목명 (검색 또는 직접입력) */}
+                    <div className="relative w-full sm:w-[45%] shrink-0">
+                      <input
+                        type="text"
+                        placeholder="특약 항목명 (검색 또는 직접입력)"
+                        className={`${inputClassName} w-full text-xs font-bold`}
+                        value={detail.name}
+                        onChange={(e) => updateCovDetail(index, "name", e.target.value)}
+                        onFocus={() => setFocusedIndex(index)}
+                        onBlur={() => setTimeout(() => setFocusedIndex(null), 150)}
+                        autoComplete="off"
+                      />
+                      
+                      {focusedIndex === index && filteredOptions.length > 0 && (
+                        <ul className="absolute z-50 left-0 right-0 top-full mt-1 max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-xl py-1">
+                          {filteredOptions.map((opt) => (
+                            <li
+                              key={opt}
+                              onMouseDown={(e) => {
+                                e.preventDefault(); 
+                                updateCovDetail(index, "name", opt);
+                                setFocusedIndex(null);
+                              }}
+                              className="px-3 py-2 text-xs font-bold text-gray-700 hover:bg-blue-50 cursor-pointer transition-colors"
+                            >
+                              {opt}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                    
+                    <div className="flex w-full sm:flex-1 gap-1.5 items-center">
+                      <input
+                        type="text"
+                        placeholder="가입 금액"
+                        className={`${inputClassName} flex-1 min-w-0 text-xs text-right`}
+                        value={detail.amount}
+                        onChange={(e) => updateCovDetail(index, "amount", e.target.value)}
+                      />
+                      
+                      {/* ⭐️ 특약별 갱신/납입기간 (입력 + 자동완성 적용) */}
+                      <div className="relative shrink-0 w-[84px] sm:w-[100px]">
+                        <input
+                          type="text"
+                          placeholder="납입/갱신"
+                          className={`${inputClassName} w-full px-1 text-center text-[11px] font-bold text-gray-600 bg-gray-50`}
+                          value={detail.renewal_type || ""}
+                          onChange={(e) => updateCovDetail(index, "renewal_type", e.target.value)}
+                          onFocus={() => setFocusedRenewalIndex(index)}
+                          onBlur={() => setTimeout(() => setFocusedRenewalIndex(null), 150)}
+                        />
+                        {focusedRenewalIndex === index && filteredRenewalOptions.length > 0 && (
+                          <ul className="absolute z-50 right-0 top-full mt-1 w-[120px] max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-xl py-1">
+                            {filteredRenewalOptions.map((opt) => (
+                              <li
+                                key={opt}
+                                onMouseDown={(e) => {
+                                  e.preventDefault();
+                                  updateCovDetail(index, "renewal_type", opt);
+                                  setFocusedRenewalIndex(null);
+                                }}
+                                className="px-3 py-2 text-xs font-medium text-gray-700 hover:bg-blue-50 cursor-pointer transition-colors text-center"
+                              >
+                                {opt}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+
+                      <button onClick={() => removeCovDetail(index)} className="p-1.5 text-gray-400 hover:text-red-500 transition-colors shrink-0 bg-white cursor-pointer">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
-                  
-                  <div className="flex w-full sm:flex-1 gap-1.5 items-center">
-                    <input
-                      type="text"
-                      placeholder="가입 금액"
-                      className={`${inputClassName} flex-1 min-w-0 text-xs text-right`}
-                      value={detail.amount}
-                      onChange={(e) => updateCovDetail(index, "amount", e.target.value)}
-                    />
-                    <select
-                      className={`${inputClassName} max-w-[120px] shrink-0 text-[11px] px-1 text-center font-bold text-gray-600 bg-gray-50 cursor-pointer`}
-                      value={detail.renewal_type || "비갱신"}
-                      onChange={(e) => updateCovDetail(index, "renewal_type", e.target.value)}
-                    >
-                      <option value="비갱신">비갱신</option>
-                      <option value="1년 갱신">1년 갱신</option>
-                      <option value="3년 갱신">3년 갱신</option>
-                      <option value="5년 갱신">5년 갱신</option>
-                      <option value="10년 갱신">10년 갱신</option>
-                      <option value="15년 갱신">15년 갱신</option>
-                      <option value="20년 갱신">20년 갱신</option>
-                      <option value="25년 갱신">25년 갱신</option>
-                      <option value="30년 갱신">30년 갱신</option>
-                    </select>
-                    <button onClick={() => removeCovDetail(index)} className="p-1.5 text-gray-400 hover:text-red-500 transition-colors shrink-0 bg-white cursor-pointer">
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
+            <button onClick={addCovDetail} className="w-full py-3 md:py-2.5 flex items-center justify-center gap-1 text-sm font-medium text-blue-600 border border-dashed border-blue-200 bg-blue-50/50 rounded-lg hover:bg-blue-50 transition-colors mt-4">
+              <Plus className="w-4 h-4" /> 빈 항목 한 줄 추가
+            </button>
           </div>
-          <button onClick={addCovDetail} className="w-full py-3 md:py-2.5 flex items-center justify-center gap-1 text-sm font-medium text-blue-600 border border-dashed border-blue-200 bg-blue-50/50 rounded-lg hover:bg-blue-50 transition-colors mt-4">
-            <Plus className="w-4 h-4" /> 빈 항목 한 줄 추가
+        </div>
+
+        <div className="p-4 md:p-5 border-t border-gray-100 bg-gray-50 md:rounded-b-xl flex justify-end gap-2 shrink-0 pb-safe">
+          <button onClick={onClose} className="flex-1 md:flex-none px-4 py-3 md:py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+            취소
+          </button>
+          <button onClick={handleSaveCoverage} disabled={isSaving} className="flex-1 md:flex-none px-6 py-3 md:py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50">
+            {isSaving ? "저장 중..." : "보장 내역 완전히 저장"}
           </button>
         </div>
       </div>
-
-      <div className="p-4 md:p-5 border-t border-gray-100 bg-gray-50 md:rounded-b-xl flex justify-end gap-2 shrink-0 pb-safe">
-        <button onClick={onClose} className="flex-1 md:flex-none px-4 py-3 md:py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-          취소
-        </button>
-        <button onClick={handleSaveCoverage} disabled={isSaving} className="flex-1 md:flex-none px-6 py-3 md:py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50">
-          {isSaving ? "저장 중..." : "보장 내역 완전히 저장"}
-        </button>
-      </div>
     </div>
-  </div>
-);
+  );
 }
