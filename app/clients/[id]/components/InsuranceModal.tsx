@@ -30,8 +30,11 @@ const COVERAGE_OPTIONS = [
   "실손의료비 상해입원", "실손의료비 질병입원", "실손의료비 상해통원", "실손의료비 질병통원", "실손의료비 상해약제", "실손의료비 질병약제",
   "일반사망 진단비", "재해사망 진단비", "상해사망 진단비", "질병사망 진단비", 
   "재해 후유장해3%↑", "상해 후유장해3%↑", "질병 후유장해3%↑", 
-  "일반암 진단금", "고액암 진단금", "유사암 진단금", "소액암 진단금", "항암방사선 치료비", "항암약물 치료비", "암 수술비",
-  "뇌산정특례대상 진단비", "뇌혈관질환 진단비", "뇌졸증 진단비", "뇌출혈 진단비", "심장산정특례대상 진단비", "허혈성심장질환 진단비", "급성심근경색 진단비",
+  "재해 후유장해80%↑", "상해 후유장해80%↑", "질병 후유장해80%↑", 
+  "일반암 진단금", "고액암 진단금", "유사암 진단금", "소액암 진단금",
+  "항암방사선약물 치료비", "암 수술비",
+  "뇌산정특례대상 진단비", "뇌혈관질환 진단비", "뇌졸증 진단비", "뇌출혈 진단비",
+  "심장산정특례대상 진단비", "허혈성심장질환 진단비", "급성심근경색 진단비",
   "상해수술비", "상해1종 수술비", "상해2종 수술비", "상해3종 수술비", "상해4종 수술비", "상해5종 수술비",
   "질병수술비", "질병1종 수술비", "질병2종 수술비", "질병3종 수술비", "질병4종 수술비", "질병5종 수술비",
   "상해 입원일당", "질병 입원일당", "상해중환자실 입원일당", "질병중환자실 입원일당",
@@ -63,14 +66,18 @@ const mapToStandardCoverage = (rawName: string) => {
   if (name.includes("항암방사선약물")) return "항암방사선약물 치료비";
   if (name.includes("암수술")) return "암 수술비";
   
+  if (name.includes("대") && name.includes("혈관") && (name.includes("질환") || name.includes("진단"))) return rawName;
+  if (name.includes("대") && name.includes("순환계") && (name.includes("질환") || name.includes("진단"))) return rawName;
+
+  if (name.includes("대") && name.includes("뇌혈관") && (name.includes("질환") || name.includes("진단"))) return rawName;
   if (name.includes("뇌혈관") && (name.includes("질환") || name.includes("진단"))) return "뇌혈관질환 진단비";
   if (name.includes("뇌졸증") && name.includes("진단")) return "뇌졸증 진단비";
   if (name.includes("뇌출혈") && name.includes("진단")) return "뇌출혈 진단비";
-  if (name.includes("뇌") && name.includes("산정특례")) return "뇌산정특례대상 진단비";
+  if (name.includes("뇌") && name.includes("특례")) return "뇌산정특례대상 진단비";
   
   if (name.includes("허혈") && (name.includes("질환") || name.includes("진단"))) return "허혈성심장질환 진단비";
   if (name.includes("급성심근") && name.includes("진단")) return "급성심근경색 진단비";
-  if (name.includes("심장") && name.includes("산정특례")) return "심장산정특례대상 진단비";
+  if (name.includes("심장") && name.includes("특례")) return "심장산정특례대상 진단비";
   
   if (name.includes("상해") && name.includes("후유장해") && name.includes("3")) return "상해 후유장해3%↑";
   if (name.includes("질병") && name.includes("후유장해") && name.includes("3")) return "질병 후유장해3%↑";
@@ -84,8 +91,8 @@ const mapToStandardCoverage = (rawName: string) => {
   if (name.includes("재해") && name.includes("사망")) return "재해사망 진단비";
   if (name.includes("일반") && name.includes("사망")) return "일반사망 진단비";
   
-  if (name.includes("제외") && name.includes("재해") && name.includes("수술")) return "재해 수술비(제외)";
-  if (name.includes("대") && name.includes("재해") && name.includes("수술")) return "N대재해 수술비";
+  if (name.includes("제외") && name.includes("재해") && name.includes("수술")) return rawName;
+  if (name.includes("대") && name.includes("재해") && name.includes("수술")) return rawName;
   if (name.includes("1종") && name.includes("재해")) return "재해1종 수술비";
   if (name.includes("2종") && name.includes("재해")) return "재해2종 수술비";
   if (name.includes("3종") && name.includes("재해")) return "재해3종 수술비";
@@ -95,7 +102,8 @@ const mapToStandardCoverage = (rawName: string) => {
 
   if (name.includes("입원") && name.includes("상해") && name.includes("수술")) return "상해입원 수술비(당일입원제외)";
   if (name.includes("통원") && name.includes("상해") && name.includes("수술")) return "상해통원 수술비(당일입원포함)";
-  if (name.includes("대") && name.includes("상해") && name.includes("수술")) return "N대상해 수술비";
+  if (name.includes("제외") && name.includes("상해") && name.includes("수술")) return rawName;
+  if (name.includes("대") && name.includes("상해") && name.includes("수술")) return rawName;
   if (name.includes("1종") && name.includes("상해")) return "상해1종 수술비";
   if (name.includes("2종") && name.includes("상해")) return "상해2종 수술비";
   if (name.includes("3종") && name.includes("상해")) return "상해3종 수술비";
@@ -103,8 +111,8 @@ const mapToStandardCoverage = (rawName: string) => {
   if (name.includes("5종") && name.includes("상해")) return "상해5종 수술비";
   if (name.includes("상해") && name.includes("수술")) return "상해 수술비";
   
-  if (name.includes("제외") && name.includes("질병") && name.includes("수술")) return "질병 수술비(특정N대질병제외)";
-  if (name.includes("대") && name.includes("질병") && name.includes("수술")) return "N대질병 수술비";
+  if (name.includes("제외") && name.includes("질병") && name.includes("수술")) return rawName;
+  if (name.includes("대") && name.includes("질병") && name.includes("수술")) return rawName;
   if (name.includes("1종") && name.includes("질병")) return "질병1종 수술비";
   if (name.includes("2종") && name.includes("질병")) return "질병2종 수술비";
   if (name.includes("3종") && name.includes("질병")) return "질병3종 수술비";
@@ -175,7 +183,7 @@ export default function InsuranceModal({
   const [pasteText, setPasteText] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-  // 각 인풋 필드별 포커스 관리 (자동완성 표시용)
+  // 인풋 필드별 포커스 활성화 여부
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
   const [focusedRenewalIndex, setFocusedRenewalIndex] = useState<number | null>(null);
   const [focusedPolicyPeriod, setFocusedPolicyPeriod] = useState(false);
@@ -426,13 +434,18 @@ export default function InsuranceModal({
   const nonLifeInsurances = companies.filter((c) => c.company_type === "손해보험");
   const differentLifeInsurances = companies.filter((c) => c.company_type === "기타");
 
-  // ⭐️ 1. 보험의 납입기간 필터 (입력값이 없거나, 완벽히 일치하거나, 검색 결과가 없으면 무조건 전체 목록 노출)
-  let filteredPolicyPeriods = covForm.paymentPeriod.trim() 
-    ? POLICY_PERIOD_OPTIONS.filter((opt) => opt.includes(covForm.paymentPeriod))
-    : POLICY_PERIOD_OPTIONS;
-  if (filteredPolicyPeriods.length === 0 || POLICY_PERIOD_OPTIONS.includes(covForm.paymentPeriod.trim())) {
-    filteredPolicyPeriods = POLICY_PERIOD_OPTIONS;
-  }
+  // ⭐️ [공백 제거 비교 연동검색 엔진]
+  const getDisplayOptions = (currentInput: string, optionsList: string[]) => {
+    const cleanInput = currentInput.replace(/\s+/g, "").toLowerCase();
+    if (!cleanInput) return optionsList; // 입력 없으면 전체 표시
+
+    const filtered = optionsList.filter((opt) => 
+      opt.replace(/\s+/g, "").toLowerCase().includes(cleanInput)
+    );
+    return filtered.length > 0 ? filtered : optionsList; // 결과 없거나 동일 매칭 시 전체 fallback
+  };
+
+  const displayPolicyPeriods = getDisplayOptions(covForm.paymentPeriod, POLICY_PERIOD_OPTIONS);
 
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/60 md:p-4 transition-opacity">
@@ -554,6 +567,7 @@ export default function InsuranceModal({
                 <input type="date" max="9999-12-31" className={inputClassName} value={covForm.maturityDate} onChange={(e) => setCovForm({ ...covForm, maturityDate: e.target.value })} />
               </div>
               
+              {/* 보험의 납입기간 (입력 + 자동완성 적용) */}
               <div className="flex flex-col relative">
                 <label className="text-xs text-gray-500 mb-1 ml-1 font-semibold">납입 기간</label>
                 <input
@@ -563,15 +577,17 @@ export default function InsuranceModal({
                   value={covForm.paymentPeriod}
                   onChange={(e) => setCovForm({ ...covForm, paymentPeriod: e.target.value })}
                   onFocus={() => setFocusedPolicyPeriod(true)}
-                  onBlur={() => setTimeout(() => setFocusedPolicyPeriod(false), 150)}
+                  onBlur={() => setFocusedPolicyPeriod(false)}
                 />
-                {focusedPolicyPeriod && filteredPolicyPeriods.length > 0 && (
-                  <ul className="absolute z-50 left-0 right-0 top-full mt-1 max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-xl py-1">
-                    {filteredPolicyPeriods.map((opt) => (
+                {focusedPolicyPeriod && displayPolicyPeriods.length > 0 && (
+                  <ul 
+                    className="absolute z-50 left-0 right-0 top-full mt-1 max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-xl py-1"
+                    onMouseDown={(e) => e.preventDefault()} // ⭐️ 포커스 아웃 버블링 가드 추가
+                  >
+                    {displayPolicyPeriods.map((opt) => (
                       <li
                         key={opt}
-                        onMouseDown={(e) => {
-                          e.preventDefault();
+                        onClick={() => {
                           setCovForm({ ...covForm, paymentPeriod: opt });
                           setFocusedPolicyPeriod(false);
                         }}
@@ -591,26 +607,13 @@ export default function InsuranceModal({
             <p className="text-sm font-semibold text-gray-700">세부 보장 항목</p>
             <div className="grid grid-cols-1 md:grid-cols-1 gap-x-6 gap-y-3">
               {covDetails.map((detail, index) => {
-                
-                // ⭐️ 2. 특약명 자동완성 필터
-                let filteredOptions = detail.name.trim() 
-                  ? COVERAGE_OPTIONS.filter((opt) => opt.includes(detail.name))
-                  : COVERAGE_OPTIONS;
-                if (filteredOptions.length === 0 || COVERAGE_OPTIONS.includes(detail.name.trim())) {
-                  filteredOptions = COVERAGE_OPTIONS;
-                }
-
-                // ⭐️ 3. 특약별 갱신/납입기간 자동완성 필터
-                let filteredRenewalOptions = detail.renewal_type?.trim()
-                  ? RENEWAL_OPTIONS.filter((opt) => opt.includes(detail.renewal_type!))
-                  : RENEWAL_OPTIONS;
-                if (filteredRenewalOptions.length === 0 || RENEWAL_OPTIONS.includes(detail.renewal_type?.trim() || "")) {
-                  filteredRenewalOptions = RENEWAL_OPTIONS;
-                }
+                const displayCoverages = getDisplayOptions(detail.name, COVERAGE_OPTIONS);
+                const displayRenewals = getDisplayOptions(detail.renewal_type || "", RENEWAL_OPTIONS);
 
                 return (
                   <div key={index} className="flex flex-wrap sm:flex-nowrap gap-2 items-center p-2 sm:p-0 bg-gray-50/50 sm:bg-transparent rounded-lg border sm:border-0 border-gray-100 relative">
                     
+                    {/* 특약 항목명 (검색 또는 직접입력) */}
                     <div className="relative w-full sm:w-[45%] shrink-0">
                       <input
                         type="text"
@@ -619,17 +622,19 @@ export default function InsuranceModal({
                         value={detail.name}
                         onChange={(e) => updateCovDetail(index, "name", e.target.value)}
                         onFocus={() => setFocusedIndex(index)}
-                        onBlur={() => setTimeout(() => setFocusedIndex(null), 150)}
+                        onBlur={() => setFocusedIndex(null)}
                         autoComplete="off"
                       />
                       
-                      {focusedIndex === index && filteredOptions.length > 0 && (
-                        <ul className="absolute z-50 left-0 right-0 top-full mt-1 max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-xl py-1">
-                          {filteredOptions.map((opt) => (
+                      {focusedIndex === index && displayCoverages.length > 0 && (
+                        <ul 
+                          className="absolute z-50 left-0 right-0 top-full mt-1 max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-xl py-1"
+                          onMouseDown={(e) => e.preventDefault()} // ⭐️ 버블링 블러 가드
+                        >
+                          {displayCoverages.map((opt) => (
                             <li
                               key={opt}
-                              onMouseDown={(e) => {
-                                e.preventDefault(); 
+                              onClick={() => {
                                 updateCovDetail(index, "name", opt);
                                 setFocusedIndex(null);
                               }}
@@ -651,6 +656,7 @@ export default function InsuranceModal({
                         onChange={(e) => updateCovDetail(index, "amount", e.target.value)}
                       />
                       
+                      {/* 특약별 갱신/납입기간 (입력 + 자동완성 적용) */}
                       <div className="relative shrink-0 w-[84px] sm:w-[100px]">
                         <input
                           type="text"
@@ -659,15 +665,18 @@ export default function InsuranceModal({
                           value={detail.renewal_type || ""}
                           onChange={(e) => updateCovDetail(index, "renewal_type", e.target.value)}
                           onFocus={() => setFocusedRenewalIndex(index)}
-                          onBlur={() => setTimeout(() => setFocusedRenewalIndex(null), 150)}
+                          onBlur={() => setFocusedRenewalIndex(null)}
+                          autoComplete="off"
                         />
-                        {focusedRenewalIndex === index && filteredRenewalOptions.length > 0 && (
-                          <ul className="absolute z-50 right-0 top-full mt-1 w-[120px] max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-xl py-1">
-                            {filteredRenewalOptions.map((opt) => (
+                        {focusedRenewalIndex === index && displayRenewals.length > 0 && (
+                          <ul 
+                            className="absolute z-50 right-0 top-full mt-1 w-[120px] max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-xl py-1"
+                            onMouseDown={(e) => e.preventDefault()} // ⭐️ 버블링 블러 가드
+                          >
+                            {displayRenewals.map((opt) => (
                               <li
                                 key={opt}
-                                onMouseDown={(e) => {
-                                  e.preventDefault();
+                                onClick={() => {
                                   updateCovDetail(index, "renewal_type", opt);
                                   setFocusedRenewalIndex(null);
                                 }}
@@ -680,7 +689,7 @@ export default function InsuranceModal({
                         )}
                       </div>
 
-                      <button onClick={() => removeCovDetail(index)} className="p-1.5 text-gray-400 hover:text-red-500 transition-colors shrink-0 bg-white rounded-md border border-gray-200">
+                      <button onClick={() => removeCovDetail(index)} className="p-1.5 text-gray-400 hover:text-red-500 transition-colors shrink-0 bg-white rounded-md border border-gray-200 cursor-pointer">
                         <X className="w-4 h-4" />
                       </button>
                     </div>
