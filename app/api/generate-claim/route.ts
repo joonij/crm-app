@@ -86,7 +86,8 @@ export async function POST(req: NextRequest) {
     const pdfBytesOut = await pdfDoc.save();
     console.log("🎉 8. PDF 최종 생성 완료!!");
 
-    return new NextResponse(pdfBytesOut, {
+    // ⭐️ Buffer.from() 으로 감싸서 깐깐한 타입 에러를 우회(해결)합니다.
+    return new NextResponse(Buffer.from(pdfBytesOut), {
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": "inline; filename=claim.pdf",
