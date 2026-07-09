@@ -221,17 +221,38 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     await supabase.from("subscription_insurance").update({ policy_status: newStatus }).eq("id", covId);
   };
 
-  // ⭐️ 신규 제안 ➔ 체결 완료 원클릭 전환 로직
+  // ⭐️ 신규 제안 ➔ 체결 완료 원클릭 전환 로직 (만기일 자동연장 포함)
   const handleCompletePolicy = async (covId: number) => {
-    if (!window.confirm("이 제안을 최종 체결 처리하시겠습니까?\n오늘 날짜로 가입일이 자동 지정되며 대시보드 성과에 반영됩니다.")) return;
+    const cov = coverages.find(c => c.id === covId);
+    if (!cov) return;
+
+    if (!window.confirm("이 제안을 최종 체결 처리하시겠습니까?\n가입일이 오늘로 설정되며 만기일도 동일하게 연장됩니다.")) return;
     
-    // 오늘 날짜 구하기 (YYYY-MM-DD 포맷)
     const today = new Date();
-    const formattedDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const formattedToday = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    
+    let newMaturityDate = cov.maturity_date;
+
+    // 만기일자가 존재하고, 종신(9999-12-31)이 아닌 경우 기간 차이를 계산하여 자동 연장
+    if (cov.subscription_date && cov.maturity_date && cov.maturity_date !== '9999-12-31') {
+      const oldSub = new Date(cov.subscription_date);
+      const oldMat = new Date(cov.maturity_date);
+      
+      if (!isNaN(oldSub.getTime()) && !isNaN(oldMat.getTime())) {
+        const diffYears = oldMat.getFullYear() - oldSub.getFullYear();
+        const diffMonths = oldMat.getMonth() - oldSub.getMonth();
+        const diffDays = oldMat.getDate() - oldSub.getDate();
+
+        // 오늘 날짜에 기존 보험기간의 년, 월, 일 차이를 정확하게 더함
+        const newMat = new Date(today.getFullYear() + diffYears, today.getMonth() + diffMonths, today.getDate() + diffDays);
+        newMaturityDate = `${newMat.getFullYear()}-${String(newMat.getMonth() + 1).padStart(2, '0')}-${String(newMat.getDate()).padStart(2, '0')}`;
+      }
+    }
 
     const { error } = await supabase.from("subscription_insurance").update({ 
       policy_status: "maintain",
-      subscription_date: formattedDate
+      subscription_date: formattedToday,
+      maturity_date: newMaturityDate
     }).eq("id", covId);
 
     if (error) {
@@ -493,8 +514,9 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                         
                         <div className="flex justify-between items-start gap-2">
                           <div className="flex items-center gap-2 min-w-0 pr-2">
-                            <p className="font-bold text-gray-900 truncate text-base" title={cov.insurance_company}>{cov.insurance_company}</p>                       
-                            {/* ⭐️ 신규 제안 ➔ 체결 완료 원클릭 전환 버튼 */}
+                            <p className="font-bold text-gray-900 truncate text-base" title={cov.insurance_company}>{cov.insurance_company}</p>
+                            
+                            {/* 신규 제안 ➔ 체결 완료 전환 버튼 */}
                             {currentStatus === 'new' && (
                               <button 
                                 onClick={(e) => { e.stopPropagation(); handleCompletePolicy(cov.id); }}
@@ -504,6 +526,7 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                                 <PartyPopper className="w-3 h-3" /> 체결
                               </button>
                             )}
+                            
                             <select
                               value={currentStatus}
                               onChange={(e) => updatePolicyStatus(cov.id, e.target.value)}
@@ -650,7 +673,6 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                                   ) : (
                                     <div className="flex flex-col gap-2 w-full bg-blue-50/40 p-2.5 rounded-lg border border-blue-200 shadow-sm my-1">
                                       
-                                      {/* 상단: 특약명 + 연관 검색어 팝업 */}
                                       <div className="relative w-full">
                                         <input 
                                           type="text" 
@@ -682,7 +704,6 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                                         )}
                                       </div>
 
-                                      {/* 하단: 금액, 옵션, 저장 버튼들 */}
                                       <div className="flex justify-between items-center w-full gap-2">
                                         <div className="flex items-center gap-1.5 flex-1">
                                           <div className="flex items-center bg-white border border-blue-300 rounded-md overflow-hidden focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all">

@@ -558,7 +558,7 @@ export default function InsuranceModal({
               </div>
               <div className="flex flex-col">
                 <label className="text-xs text-gray-500 mb-1 ml-1 font-semibold">담당설계사</label>
-                <input type="text" className={inputClassName} value={covForm.agent_name} onChange={(e) => setCovForm({ ...covForm, agent_name: e.target.value })} />
+                <input type="text" className={inputClassName} onChange={(e) => setCovForm({ ...covForm, agent_name: e.target.value })} />
               </div>
 
               <div className="flex flex-col">
