@@ -47,77 +47,64 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
 
 // 발송 액션들
 const handleAction = async (type: string) => {
+  // 1. 필수값 검사
+  if (!accidentDesc) {
+    return alert("청구 사유(진단명 및 내용)는 필수입니다.");
+  }
+  
+  setIsLoading(true);
+  try {
+    // 2. 서버로 보낼 폼 데이터 구성
+    const formData = new FormData();
+    formData.append("insuredName", insured.name);
+    formData.append("insuredRrn", insured.rrn);
+    formData.append("insuredPhone", insured.phone);
+    formData.append("bankName", bankName);
+    formData.append("accountNumber", accountNumber);
+    formData.append("accidentDesc", accidentDesc);
     
-    // 1. 필수값 검사
-    if (!accidentDesc) {
-      return alert("청구 사유(진단명 및 내용)는 필수입니다.");
-    }
-    if ((type === "mobile" || type === "popbill") && uploadedFiles.length === 0) {
-      return alert("팩스 전송을 위해서는 진료비 영수증 첨부가 필수입니다.");
-    }
-    
-    setIsLoading(true);
-    try {
-      // ⭐️ 2. 어떤 버튼을 누르든 일단 서버에 택배(FormData)를 보내서 PDF를 만들어 옵니다.
-      const formData = new FormData();
-      formData.append("insuredName", insured.name);
-      formData.append("insuredRrn", insured.rrn);
-      formData.append("insuredPhone", insured.phone);
-      formData.append("bankName", bankName);
-      formData.append("accountNumber", accountNumber);
-      formData.append("accidentDesc", accidentDesc);
-      
-      uploadedFiles.forEach(file => {
-        formData.append("receipts", file);
-      });
+    uploadedFiles.forEach(file => {
+      formData.append("receipts", file);
+    });
 
-      const res = await fetch("/api/generate-claim", {
-        method: "POST",
-        body: formData,
-      });
+    // 3. 백엔드 PDF 생성 API 호출
+    const res = await fetch("/api/generate-claim", {
+      method: "POST",
+      body: formData,
+    });
 
-      if (!res.ok) throw new Error("서버에서 PDF를 만들지 못했습니다.");
-      
-      // ⭐️ 3. 서버가 만들어준 완성된 PDF 파일(Blob)을 받습니다.
-      const blob = await res.blob();
+    if (!res.ok) throw new Error("서버에서 PDF를 만들지 못했습니다.");
+    const blob = await res.blob();
 
-      // ==========================================
-      // 🎯 분기 처리: 누른 버튼에 따라 행동이 달라집니다.
-      // ==========================================
-      if (type === "pdf") {
-        // [PDF 인쇄] 버튼: 새 창에 띄워줍니다.
-        const pdfUrl = URL.createObjectURL(blob);
-        window.open(pdfUrl, "_blank");
+    // 4. 버튼 타입에 따른 분기 처리
+    if (type === "pdf") {
+      // [PDF 인쇄] 버튼: 새 탭에서 열기
+      const pdfUrl = URL.createObjectURL(blob);
+      window.open(pdfUrl, "_blank");
 
-      } else if (type === "mobile") {
-        // [모바일 팩스] 버튼: 스마트폰의 공유 기능을 켭니다.
-        // Blob 데이터를 실제 PDF 파일 객체로 변환
-        const pdfFile = new File([blob], `${client.name}_보험금청구서.pdf`, { type: "application/pdf" });
+    } else if (type === "mobile") {
+      // ⭐️ [모바일 팩스] 버튼: 스마트폰 공유 화면 호출
+      const pdfFile = new File([blob], `${client.name}_보험금청구서.pdf`, { type: "application/pdf" });
 
-        if (navigator.share) {
-          await navigator.share({
-            title: `${client.name} 청구 서류`,
-            text: `다이렉트 팩스 전송용 서류입니다.`,
-            files: [pdfFile] // ⭐️ 영수증 사진이 아니라, 완성된 PDF를 통째로 넘김!
-          });
-        } else {
-          // PC 브라우저 등 모바일 공유 기능을 지원하지 않는 경우
-          alert("현재 기기에서는 공유 기능(모바일 팩스 연결)을 지원하지 않습니다. PDF 인쇄 버튼을 눌러 다운로드해 주세요.");
-        }
-
-      } else if (type === "popbill") {
-        // 네이버 클라우드 API를 연결할 자리 (임시 알림)
-        await new Promise(r => setTimeout(r, 1500));
-        alert("네이버 클라우드 팩스 발송 준비 중입니다!");
-        onClose();
+      // 브라우저가 파일 공유 기능을 지원하는지 검사
+      if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+        await navigator.share({
+          title: `${client.name} 고객 보험금 청구 서류`,
+          text: `다이렉트 모바일 팩스 전송을 위한 PDF 파일입니다.`,
+          files: [pdfFile]
+        });
+      } else {
+        // PC 브라우저이거나 구형 브라우저일 경우 예외 처리
+        alert("현재 기기(또는 브라우저)에서는 모바일 공유 기능을 지원하지 않습니다. 스마트폰에서 실행하거나 PDF 인쇄 버튼을 이용해 주세요.");
       }
-    } catch (error) {
-      console.error(error);
-      alert("처리 중 에러가 발생했습니다.");
-    } finally {
-      setIsLoading(false);
     }
-  };
+  } catch (error) {
+    console.error(error);
+    alert("처리 중 에러가 발생했습니다.");
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
@@ -204,7 +191,7 @@ const handleAction = async (type: string) => {
         </div>
 
         {/* ⭐️ 하단 액션 버튼 3종 세트 */}
-        <div className="p-4 border-t border-gray-100 bg-white grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="p-4 border-t border-gray-100 bg-white grid grid-cols-1 md:grid-cols-2 gap-3">
           <button onClick={() => handleAction('pdf')} disabled={isLoading} className="flex items-center justify-center gap-2 p-3 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold text-sm transition-colors">
             <Printer className="w-4 h-4" /> PDF 인쇄
           </button>
@@ -213,10 +200,10 @@ const handleAction = async (type: string) => {
             <Share2 className="w-4 h-4" /> 모바일 팩스
           </button>
           
-          <button onClick={() => handleAction('popbill')} disabled={isLoading} className="flex items-center justify-center gap-2 p-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm transition-colors shadow-sm">
+          {/* <button onClick={() => handleAction('popbill')} disabled={isLoading} className="flex items-center justify-center gap-2 p-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm transition-colors shadow-sm">
             {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} 
             팝빌 자동 접수
-          </button>
+          </button> */}
         </div>
 
       </div>
