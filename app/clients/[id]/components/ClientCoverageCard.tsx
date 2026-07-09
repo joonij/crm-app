@@ -3,9 +3,12 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Shield, Trash2, ChevronDown, ChevronUp, Plus, BarChart3, Edit2, RotateCcw, MinusCircle, TrendingDown, Undo, Check, X, PartyPopper } from "lucide-react";
+import { Shield, Trash2, ChevronDown, ChevronUp, Plus, BarChart3, Edit2, RotateCcw, MinusCircle, TrendingDown, Undo, Check, X, PartyPopper, Send } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import InsuranceModal from "@/app/clients/[id]/components/InsuranceModal";
+
+// ⭐️ 방금 만든 퀵 청구 모달 불러오기
+import QuickClaimModal from "./QuickClaimModal";
 
 // 금액 포맷팅 유틸리티 함수
 const formatAmount = (val: string) => {
@@ -79,6 +82,7 @@ const statusTheme: Record<string, { bg: string; border: string; text: string }> 
 };
 
 export default function ClientCoverageCard({ clientId }: { clientId: string }) {
+  const [clientData, setClientData] = useState<any>(null); // 모달에 넘겨주기 위한 고객 기본 정보
   const [coverages, setCoverages] = useState<Coverage[]>([]);
   const [expandedCovId, setExpandedCovId] = useState<number | null>(null);
   const [isCovModalOpen, setIsCovModalOpen] = useState(false);
@@ -91,8 +95,11 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
   const [reducingPremium, setReducingPremium] = useState<string>("");
 
   const [editingDetail, setEditingDetail] = useState<{ covId: number, idx: number, tempName: string, tempAmount: string, tempRenewalType: string, mode: 'edit' | 'reduce' | 'new' } | null>(null);
-  
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+  // ⭐️ 퀵 청구 모달 상태
+  const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
+  const [selectedClaimIns, setSelectedClaimIns] = useState<Coverage | null>(null);
 
   const fetchCoverages = async () => {
     const { data } = await supabase.from("subscription_insurance").select("*").eq("client_id", clientId);
@@ -120,9 +127,15 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
         .order("company_name", { ascending: true });
       if (data) setCompanies(data);
     };
+
+    const fetchClient = async () => {
+      const { data } = await supabase.from("clients").select("*").eq("id", clientId).single();
+      if (data) setClientData(data);
+    };
     
     void fetchCoverages(); 
     void fetchCompanies();
+    void fetchClient();
   }, [clientId]);
 
   const toggleCoverage = (id: number) => {
@@ -130,6 +143,13 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     setExpandedCovId(prev => (prev === id ? null : id));
   };
 
+  // ⭐️ 청구 모달 열기 핸들러
+  const handleOpenClaimModal = (cov: Coverage) => {
+    setSelectedClaimIns(cov);
+    setIsClaimModalOpen(true);
+  };
+
+  // (이하 편집/수정/삭제 함수들은 기존과 완전히 동일)
   const handleStartEditPolicy = (cov: Coverage) => {
     setEditingPolicyId(cov.id);
     setEditingPolicyForm({ ...cov });
@@ -221,7 +241,6 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     await supabase.from("subscription_insurance").update({ policy_status: newStatus }).eq("id", covId);
   };
 
-  // ⭐️ 신규 제안 ➔ 체결 완료 원클릭 전환 로직 (만기일 자동연장 포함)
   const handleCompletePolicy = async (covId: number) => {
     const cov = coverages.find(c => c.id === covId);
     if (!cov) return;
@@ -233,7 +252,6 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     
     let newMaturityDate = cov.maturity_date;
 
-    // 만기일자가 존재하고, 종신(9999-12-31)이 아닌 경우 기간 차이를 계산하여 자동 연장
     if (cov.subscription_date && cov.maturity_date && cov.maturity_date !== '9999-12-31') {
       const oldSub = new Date(cov.subscription_date);
       const oldMat = new Date(cov.maturity_date);
@@ -243,7 +261,6 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
         const diffMonths = oldMat.getMonth() - oldSub.getMonth();
         const diffDays = oldMat.getDate() - oldSub.getDate();
 
-        // 오늘 날짜에 기존 보험기간의 년, 월, 일 차이를 정확하게 더함
         const newMat = new Date(today.getFullYear() + diffYears, today.getMonth() + diffMonths, today.getDate() + diffDays);
         newMaturityDate = `${newMat.getFullYear()}-${String(newMat.getMonth() + 1).padStart(2, '0')}-${String(newMat.getDate()).padStart(2, '0')}`;
       }
@@ -258,15 +275,13 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     if (error) {
       alert("체결 처리에 실패했습니다.");
     } else {
-      fetchCoverages(); // 데이터 새로고침
+      fetchCoverages(); 
     }
   };
 
   const updateCoverageDetailsInDB = async (covId: number, newDetails: CoverageDetail[]) => {
     const { error } = await supabase.from("subscription_insurance").update({ details: newDetails }).eq("id", covId);
-    if (error) { 
-      alert("업데이트 실패"); 
-    }
+    if (error) { alert("업데이트 실패"); }
     fetchCoverages();
   };
 
@@ -364,7 +379,9 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
 
   return (
     <>
-      <div className="w-full h-full flex flex-col rounded-2xl border border-gray-200 bg-white p-5 md:p-6 shadow-sm min-h-0">
+      <div className="w-full h-full flex flex-col rounded-2xl border border-gray-200 bg-white p-5 md:p-6 shadow-sm min-h-0 relative">
+        
+        {/* 상단 헤더 영역 */}
         <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0 border-b border-gray-100 pb-4">
           <div className="flex items-center gap-2.5">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-600">
@@ -386,6 +403,7 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
           </div>
         </div>
         
+        {/* 보험 리스트 출력 영역 */}
         <div className="flex-1 overflow-y-auto pr-2 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-thumb]:rounded-full">
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 content-start pb-4">
             {coverages.length === 0 ? (
@@ -403,6 +421,7 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                 return (
                   <div key={cov.id} className={`relative group rounded-lg border text-sm overflow-hidden flex flex-col transition-colors h-fit ${theme.bg} ${theme.border}`}>
                     
+                    {/* 1. 보험 기본정보 '수정 모드' 뷰 */}
                     {isPolicyEditing ? (
                       <div className="p-4 bg-white border-b border-gray-200 shadow-inner flex flex-col gap-3">
                         <div className="flex items-center justify-between mb-1">
@@ -510,13 +529,13 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                         </div>
                       </div>
                     ) : (
+                      // 2. 보험 기본정보 '일반 보기 모드' 뷰
                       <div className="p-4 cursor-pointer hover:bg-black/5 transition-colors flex flex-col gap-2" onClick={() => toggleCoverage(cov.id)}>
                         
                         <div className="flex justify-between items-start gap-2">
                           <div className="flex items-center gap-2 min-w-0 pr-2">
                             <p className="font-bold text-gray-900 truncate text-base" title={cov.insurance_company}>{cov.insurance_company}</p>
                             
-                            {/* 신규 제안 ➔ 체결 완료 전환 버튼 */}
                             {currentStatus === 'new' && (
                               <button 
                                 onClick={(e) => { e.stopPropagation(); handleCompletePolicy(cov.id); }}
@@ -567,6 +586,17 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                               <p className="text-gray-700 text-sm font-medium truncate min-w-0">{cov.product_name}</p>
                               {cov.indemnity_generation && <span className="shrink-0 bg-white border border-gray-200 px-1.5 py-0.5 text-[10px] font-semibold rounded text-gray-500">{cov.indemnity_generation}</span>}
                             </div>
+
+                            {/* ⭐️ [다이렉트 청구하기] 버튼 추가 위치 */}
+                            {/* <div className="mt-1" onClick={e => e.stopPropagation()}>
+                              <button 
+                                onClick={() => handleOpenClaimModal(cov)}
+                                className="flex items-center gap-1.5 text-[11px] font-bold text-blue-600 bg-white hover:bg-blue-50 border border-blue-200 px-2 py-1 rounded-md transition-colors shadow-sm"
+                              >
+                                <Send className="w-3 h-3" /> 이 보험으로 다이렉트 청구하기
+                              </button>
+                            </div> */}
+
                             {(cov.subscription_date || cov.maturity_date) && (
                               <p className="text-[11px] font-medium text-gray-400 flex gap-1.5 mt-0.5">
                                 {cov.subscription_date && <span>가입 {cov.subscription_date}</span>}
@@ -618,7 +648,7 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                       </div>
                     )}
 
-                    {/* 확장된 특약 및 상세 정보 패널 */}
+                    {/* 확장된 특약 및 상세 정보 패널 (기존과 동일) */}
                     {expandedCovId === cov.id && !isPolicyEditing && (
                       <div className="border-t border-black/10 bg-white/60 p-4 space-y-3">
                         
@@ -812,7 +842,17 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
           </div>
         </div>
       </div>
+      
+      {/* ⭐️ 보험 추가 모달 (기존) */}
       {isCovModalOpen && <InsuranceModal clientId={clientId} onClose={() => setIsCovModalOpen(false)} onSuccess={fetchCoverages} />}
+      
+      {/* ⭐️ 방금 추가한 원클릭 청구 모달 렌더링 */}
+      <QuickClaimModal 
+        isOpen={isClaimModalOpen} 
+        onClose={() => setIsClaimModalOpen(false)} 
+        client={clientData} 
+        insurance={selectedClaimIns} 
+      />
     </>
   );
 }

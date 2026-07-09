@@ -23,6 +23,7 @@ const navItems = [
   { label: "스케줄 보드", href: "/schedules", icon: Calendar, requiredRole: "user" },
   { label: "사내 교육", href: "/training", icon: GraduationCap, requiredRole: "user" },
   { label: "알림 센터", href: "/notifications", icon: Bell, requiredRole: "user" },
+  { label: "청구 관리", href: "/", icon: Bell, requiredRole: "admin" },
 ] as const;
 
 function isActivePath(pathname: string, href: string) {

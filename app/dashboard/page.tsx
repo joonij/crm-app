@@ -9,11 +9,22 @@ import {
   ChevronRight, Calendar, Clock, Loader2, TrendingUp, Users, Gift, Bell, Check
 } from "lucide-react";
 
-// 날짜 계산 헬퍼 함수
+// ⭐️ 강력한 날짜 계산 헬퍼 함수 (마침표, 공백이 섞여도 완벽하게 계산)
 const calculateDDay = (targetDateStr: string | null) => {
   if (!targetDateStr) return null;
-  const target = new Date(targetDateStr);
+  
+  // "2026. 08. 15." 같은 포맷을 "2026-08-15"로 강제 변환
+  let cleanStr = targetDateStr.replace(/\./g, '-').replace(/\s/g, '');
+  if (cleanStr.endsWith('-')) cleanStr = cleanStr.slice(0, -1);
+
+  const target = new Date(cleanStr);
+  if (isNaN(target.getTime())) return null;
+
+  // 자정(0시 0분 0초) 기준으로 세팅하여 시간 오차 방지
+  target.setHours(0, 0, 0, 0);
   const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  
   const diffTime = target.getTime() - now.getTime();
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 };
@@ -21,7 +32,11 @@ const calculateDDay = (targetDateStr: string | null) => {
 // 상령일(보험나이 변경일) 계산 헬퍼 함수
 const calculateSangryungDDay = (birthDateStr: string | null) => {
   if (!birthDateStr) return null;
-  const birth = new Date(birthDateStr);
+  
+  let cleanStr = birthDateStr.replace(/\./g, '-').replace(/\s/g, '');
+  if (cleanStr.endsWith('-')) cleanStr = cleanStr.slice(0, -1);
+
+  const birth = new Date(cleanStr);
   if (isNaN(birth.getTime())) return null;
 
   const now = new Date();
@@ -80,13 +95,11 @@ export default function DashboardPage() {
   const [totalInProgressPremium, setTotalInProgressPremium] = useState(0);
   const [monthlyStats, setMonthlyStats] = useState({ thisMonth: 0, lastMonth: 0, twoMonthsAgo: 0 });
 
-  // 🔔 알림 센터 관련 상태
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isNotiOpen, setIsNotiOpen] = useState(false);
   const notiRef = useRef<HTMLDivElement>(null);
 
-  // 알림창 바깥 클릭 시 닫기
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (notiRef.current && !notiRef.current.contains(event.target as Node)) {
@@ -102,46 +115,68 @@ export default function DashboardPage() {
       setIsLoading(true);
 
       let myName = "";
+      let validAgentIds: number[] = [];
+
+      // 1. 로그인 유저 정보 및 열람 권한 범위(validAgentIds) 획득
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data: agentData } = await supabase.from("agents").select("name").eq("auth_id", user.id).single();
+        const { data: agentData } = await supabase.from("agents").select("*").eq("auth_id", user.id).single();
         if (agentData) {
           myName = agentData.name;
           setCurrentAgentName(myName);
+          validAgentIds.push(agentData.id); // 내 숫자 ID 추가
+
+          // 팀장(SM)인 경우 같은 지점 팀원의 ID도 권한 목록에 추가
+          if (agentData.rank === "SM" && agentData.agency_id) {
+            const { data: teamAgents } = await supabase.from("agents").select("id").eq("agency_id", agentData.agency_id);
+            if (teamAgents) {
+              teamAgents.forEach(a => {
+                if (!validAgentIds.includes(a.id)) validAgentIds.push(a.id);
+              });
+            }
+          }
         }
       }
 
-      // ⭐️ 안전하게 스케줄 데이터를 가져오는 헬퍼 함수 (에러 방지)
       const fetchSchedulesSafe = async () => {
         try {
           const res = await supabase.from("schedules").select("*");
-          if (res.error) return { data: [] }; // 테이블이 없거나 권한 에러 시 빈 배열 반환
+          if (res.error) return { data: [] }; 
           return res;
         } catch (error) {
           return { data: [] };
         }
       };
 
+      // 2. 전체 데이터 호출
       const [clientsRes, insRes, schedulesRes] = await Promise.all([
         supabase.from("clients").select("*"),
         supabase.from("subscription_insurance").select("*"),
-        fetchSchedulesSafe() // 안전한 헬퍼 함수로 교체
+        fetchSchedulesSafe() 
       ]);
 
-      const clients = clientsRes.data || [];
-      const insurances = insRes.data || [];
-      const schedules = schedulesRes.data || [];
+      const allClients = clientsRes.data || [];
+      const allInsurances = insRes.data || [];
+      const allSchedules = schedulesRes.data || [];
 
-      const clientMap = new Map(clients.map(c => [c.id, c.name]));
+      // ⭐️ 3. 보안 로직: 내가 열람할 수 있는 고객 데이터만 남기기
+      const myClients = allClients.filter(c => validAgentIds.includes(Number(c.agent_id)));
+      const myClientIds = myClients.map(c => Number(c.id));
+      const clientMap = new Map(myClients.map(c => [Number(c.id), c.name]));
+
+      // ⭐️ 4. 내 고객의 보험과 일정만 남기기 (원천 차단)
+      const myInsurances = allInsurances.filter(ins => myClientIds.includes(Number(ins.client_id)));
+      const mySchedules = allSchedules.filter(sch => myClientIds.includes(Number(sch.client_id)));
+
       const generatedNotis: Notification[] = [];
 
       // ----------------------------------------------------
       // ① 재터치 리스트 (스케줄 포함 30일 이상 경과)
       // ----------------------------------------------------
-      const retouchList = clients
+      const retouchList = myClients
         .map(c => {
-          const clientInsurances = insurances.filter(ins => ins.client_id === c.id);
-          const clientSchedules = schedules.filter(sch => sch.client_id === c.id);
+          const clientInsurances = myInsurances.filter(ins => Number(ins.client_id) === Number(c.id));
+          const clientSchedules = mySchedules.filter(sch => Number(sch.client_id) === Number(c.id));
 
           const insDates = clientInsurances.map(i => new Date(i.created_at || 0).getTime());
           const schDates = clientSchedules.map(s => new Date(s.schedule_date || s.created_at || 0).getTime()); 
@@ -172,7 +207,7 @@ export default function DashboardPage() {
       // ----------------------------------------------------
       // ② 상령일 임박 리스트 (D-30 이내)
       // ----------------------------------------------------
-      const sangryungList = clients
+      const sangryungList = myClients
         .map(c => {
           const dDay = calculateSangryungDDay(c.birth_date);
           return { ...c, dDay };
@@ -192,9 +227,6 @@ export default function DashboardPage() {
         });
       });
 
-      // ----------------------------------------------------
-      // ③ 알림 센터 읽음 처리 로직 (localStorage 활용)
-      // ----------------------------------------------------
       const readNotiIds = JSON.parse(localStorage.getItem('readNotis') || '[]');
       const unreadCount = generatedNotis.filter(n => !readNotiIds.includes(n.id)).length;
       
@@ -202,21 +234,27 @@ export default function DashboardPage() {
       setUnreadCount(unreadCount);
 
       // ----------------------------------------------------
-      // ④ 자동차보험 갱신 리스트 (D-60 이내)
+      // ④ 자동차보험 갱신 리스트 (D-60 이내, 오직 내 고객만)
       // ----------------------------------------------------
-      const autoList = insurances
-        .filter(ins => ins.product_name?.includes("자동차") && ins.maturity_date)
-        .map(ins => ({ ...ins, dDay: calculateDDay(ins.maturity_date), clientName: clientMap.get(ins.client_id) }))
+      const autoList = myInsurances // 👈 이제 myInsurances를 사용하므로 남의 고객은 절대 안 뜸
+        .filter(ins => ins.product_name && ins.product_name.includes("자동차") && ins.maturity_date)
+        .map(ins => ({ 
+          ...ins, 
+          dDay: calculateDDay(ins.maturity_date), 
+          clientName: clientMap.get(Number(ins.client_id)) 
+        }))
+        // D-Day가 null이 아니고 0 이상 60 이하인 것들만 렌더링
         .filter(ins => ins.dDay !== null && ins.dDay >= 0 && ins.dDay <= 60)
-        .sort((a, b) => a.dDay - b.dDay);
+        .sort((a, b) => (a.dDay || 0) - (b.dDay || 0));
+        
       setAutoRenewals(autoList);
 
       // ----------------------------------------------------
-      // ⑤ 진행 중인 계약 리스트 (new 상태 + 내 계약만)
+      // ⑤ 진행 중인 계약 리스트 (new 상태 + 내 실적만)
       // ----------------------------------------------------
-      const newPolicies = insurances
+      const newPolicies = myInsurances
         .filter(ins => ins.policy_status === "new" && ins.agent_name === myName)
-        .map(ins => ({ ...ins, clientName: clientMap.get(ins.client_id) }))
+        .map(ins => ({ ...ins, clientName: clientMap.get(Number(ins.client_id)) }))
         .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
       setInProgress(newPolicies);
       
@@ -224,7 +262,7 @@ export default function DashboardPage() {
       setTotalInProgressPremium(totalNewPremium);
 
       // ----------------------------------------------------
-      // ⑥ 최근 체결한 보험 & 통계 (maintain 상태 + 최근 30일 + 내 계약만)
+      // ⑥ 최근 체결한 보험 & 통계 (maintain 상태 + 최근 30일 + 내 실적만)
       // ----------------------------------------------------
       const thisMonthStr = getMonthString(0);
       const lastMonthStr = getMonthString(1);
@@ -232,16 +270,19 @@ export default function DashboardPage() {
 
       let statThisMonth = 0, statLastMonth = 0, statTwoMonthsAgo = 0;
 
-      const completedPolicies = insurances
+      const completedPolicies = myInsurances
         .filter(ins => ins.policy_status === "maintain" && ins.subscription_date && ins.agent_name === myName)
         .map(ins => {
-          const subDate = ins.subscription_date!;
-          if (subDate.startsWith(thisMonthStr)) statThisMonth += (ins.monthly_premium || 0);
-          else if (subDate.startsWith(lastMonthStr)) statLastMonth += (ins.monthly_premium || 0);
-          else if (subDate.startsWith(twoMonthsAgoStr)) statTwoMonthsAgo += (ins.monthly_premium || 0);
-          return { ...ins, clientName: clientMap.get(ins.client_id) };
+          let cleanSubDate = ins.subscription_date!.replace(/\./g, '-').replace(/\s/g, '');
+          if (cleanSubDate.endsWith('-')) cleanSubDate = cleanSubDate.slice(0, -1);
+
+          if (cleanSubDate.startsWith(thisMonthStr)) statThisMonth += (ins.monthly_premium || 0);
+          else if (cleanSubDate.startsWith(lastMonthStr)) statLastMonth += (ins.monthly_premium || 0);
+          else if (cleanSubDate.startsWith(twoMonthsAgoStr)) statTwoMonthsAgo += (ins.monthly_premium || 0);
+          
+          return { ...ins, clientName: clientMap.get(Number(ins.client_id)) };
         })
-        .sort((a, b) => new Date(b.subscription_date!).getTime() - new Date(a.subscription_date!).getTime())
+        .sort((a, b) => new Date(b.subscription_date || 0).getTime() - new Date(a.subscription_date || 0).getTime())
         .slice(0, 10); 
 
       setCompleted(completedPolicies);
@@ -253,7 +294,6 @@ export default function DashboardPage() {
     fetchDashboardData();
   }, []);
 
-  // 알림 클릭 시 개별 읽음 처리 함수
   const markAsRead = (id: string) => {
     const readNotiIds = JSON.parse(localStorage.getItem('readNotis') || '[]');
     if (!readNotiIds.includes(id)) {
@@ -263,7 +303,6 @@ export default function DashboardPage() {
     }
   };
 
-  // 알림 모두 읽음 처리
   const markAllAsRead = () => {
     const allIds = notifications.map(n => n.id);
     const readNotiIds = JSON.parse(localStorage.getItem('readNotis') || '[]');
@@ -505,7 +544,7 @@ export default function DashboardPage() {
                       </div>
                       <div className="flex items-center gap-3 shrink-0">
                         <p className="text-sm font-black text-blue-600">{formatMoney(ins.monthly_premium)}</p>
-                        <Link href={`/clients/${ins.client_id}`} className="text-gray-300 group-hover:text-blue-500 transition-colors"><ChevronRight className="w-5 h-5" /></Link>
+                        <Link href={`/clients/${ins.client_id}/analysis`} className="text-gray-300 group-hover:text-blue-500 transition-colors"><ChevronRight className="w-5 h-5" /></Link>
                       </div>
                     </li>
                   ))}
