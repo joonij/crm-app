@@ -23,8 +23,9 @@ export default function ClientDetailModal({ client, onClose, onRefresh }: { clie
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   
-  // 소개자 검색을 위한 상태
-  const [referrerSearch, setReferrerSearch] = useState("");
+  // ⭐️ 소개자 검색을 위한 상태 (하이브리드용으로 변경)
+  const [referrerSearchText, setReferrerSearchText] = useState("");
+  const [isReferrerFocused, setIsReferrerFocused] = useState(false);
   
   const [formData, setFormData] = useState({
     name: "",
@@ -83,9 +84,17 @@ export default function ClientDetailModal({ client, onClose, onRefresh }: { clie
   useEffect(() => {
     if (isEditing && lookups.sources.length === 0) {
       async function fetchLookups() {
-        // ⭐️ 해당 담당자(agent_id)의 고객만 불러오도록 .eq("agent_id", client.agent_id) 필터 추가
-        const clientQuery = client?.agent_id 
-          ? supabase.from("clients").select("id, name, phone").eq("agent_id", client.agent_id)
+        // 해당 담당자의 고객만 불러오기 (로그인 기반 연동)
+        const { data: { user } } = await supabase.auth.getUser();
+        let agentId = client?.agent_id;
+        
+        if (!agentId && user) {
+           const { data: agentData } = await supabase.from("agents").select("id").eq("auth_id", user.id).single();
+           if (agentData) agentId = agentData.id;
+        }
+
+        const clientQuery = agentId 
+          ? supabase.from("clients").select("id, name, phone").eq("agent_id", agentId)
           : supabase.from("clients").select("id, name, phone");
 
         const [resSource, resStatus, resTelecom, resDriving, resBank, resClients] = await Promise.all([
@@ -94,7 +103,7 @@ export default function ClientDetailModal({ client, onClose, onRefresh }: { clie
           supabase.from("telecom_carriers").select("id, telecom"),
           supabase.from("driving_statuses").select("id, status"),
           supabase.from("bank_lists").select("id, bank"),
-          clientQuery, // ⭐️ 수정된 필터 적용
+          clientQuery, 
         ]);
 
         const fetchedClients = resClients.data || [];
@@ -108,11 +117,11 @@ export default function ClientDetailModal({ client, onClose, onRefresh }: { clie
           clients: fetchedClients,
         });
 
-        // 이미 소개자가 등록되어 있다면 검색창에 이름(연락처) 세팅
+        // 이미 소개자가 있다면 텍스트 세팅
         if (client?.introduce_client && fetchedClients.length > 0) {
           const matched = fetchedClients.find(c => c.id === client.introduce_client);
           if (matched) {
-            setReferrerSearch(`${matched.name} (${matched.phone || '연락처없음'})`);
+            setReferrerSearchText(matched.name); // 이름만 깔끔하게 세팅
           }
         }
       }
@@ -185,6 +194,18 @@ export default function ClientDetailModal({ client, onClose, onRefresh }: { clie
   const selectedSourceName = lookups.sources.find(s => String(s.id) === String(formData.client_source))?.name || "";
   const isReferral = selectedSourceName.includes("소개");
 
+  // ⭐️ 소개자 필터링 로직
+  const cleanNameInput = referrerSearchText.replace(/\s+/g, "").toLowerCase();
+  const cleanPhoneInput = referrerSearchText.replace(/[^0-9]/g, "");
+
+  const filteredReferrers = referrerSearchText
+    ? lookups.clients.filter(c => {
+        const matchName = c.name ? c.name.replace(/\s+/g, "").toLowerCase().includes(cleanNameInput) : false;
+        const matchPhone = cleanPhoneInput && c.phone ? c.phone.replace(/[^0-9]/g, "").includes(cleanPhoneInput) : false;
+        return matchName || matchPhone;
+      })
+    : lookups.clients;
+
   return (
     <div 
       className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/10 backdrop-blur-sm p-0 md:p-4 transition-opacity"
@@ -234,17 +255,13 @@ export default function ClientDetailModal({ client, onClose, onRefresh }: { clie
               <User className="w-4 h-4 text-blue-600" /> 기본 정보
             </h4>
             <div className="bg-gray-50 border border-gray-100 rounded-2xl p-5 grid grid-cols-2 gap-y-6 gap-x-4">
-              <div className="flex flex-col gap-1">
-                <span className="text-[11px] font-bold text-gray-400 uppercase">이름 <span className="text-red-500">*</span></span>
+              <div className="col-span-2 flex flex-col gap-1">
+                <span className="text-[11px] font-bold text-gray-400 uppercase">- 이름</span>
                 {isEditing ? <input name="name" value={formData.name} onChange={handleChange} className={inputClass} /> : <span className="text-sm font-black text-gray-900">{client.name || "-"}</span>}
-              </div>
-              <div className="flex flex-col gap-1">
-                <span className="text-[11px] font-bold text-gray-400 uppercase">연락처</span>
-                {isEditing ? <input name="phone" value={formData.phone} onChange={handleChange} className={inputClass} /> : <span className="text-sm font-black text-gray-900">{client.phone || "-"}</span>}
               </div>
               
               <div className="col-span-2 flex flex-col gap-1">
-                <span className="text-[11px] font-bold text-gray-400 uppercase flex items-center gap-1">주민등록번호</span>
+                <span className="text-[11px] font-bold text-gray-400 uppercase flex items-center gap-1">- 주민등록번호</span>
                 
                 {isEditing ? (
                   <input 
@@ -255,22 +272,19 @@ export default function ClientDetailModal({ client, onClose, onRefresh }: { clie
                     placeholder="번호 입력 (예: 000000-0000000)" 
                   />
                 ) : (
-                  <span className="text-sm font-black text-gray-900 tracking-widest bg-white px-3 py-1.5 rounded-md border border-gray-200 inline-block w-fit">
+                  <span className="text-sm font-black text-gray-900 tracking-widest rounded-md  border-gray-200 inline-block w-fit">
                     {decryptedReg ? decryptedReg : "미등록"}
                   </span>
                 )}
               </div>
-
+              
               <div className="flex flex-col gap-1">
-                <span className="text-[11px] font-bold text-gray-400 uppercase">직업</span>
-                <div className="flex items-center gap-1.5">
-                  <Briefcase className="w-3 h-3 text-gray-400 shrink-0" />
-                  {isEditing ? <input name="job" value={formData.job} onChange={handleChange} className={inputClass} /> : <span className="text-sm font-black text-gray-900">{client.job || "-"}</span>}
-                </div>
+                <span className="text-[11px] font-bold text-gray-400 uppercase">- 연락처</span>
+                {isEditing ? <input name="phone" value={formData.phone} onChange={handleChange} className={inputClass} /> : <span className="text-sm font-black text-gray-900">{client.phone || "-"}</span>}
               </div>
-
+              
               <div className="flex flex-col gap-1">
-                <span className="text-[11px] font-bold text-gray-400 uppercase">통신사</span>
+                <span className="text-[11px] font-bold text-gray-400 uppercase">- 통신사</span>
                 {isEditing ? (
                   <select name="telecom_carriers" value={formData.telecom_carriers} onChange={handleChange} className={inputClass}>
                     <option value="">선택 안함</option>
@@ -279,8 +293,22 @@ export default function ClientDetailModal({ client, onClose, onRefresh }: { clie
                 ) : <span className="text-sm font-black text-gray-900">{client.telecom_carriers?.telecom || "-"}</span>}
               </div>
 
+              <div className="col-span-2 flex flex-col gap-1">
+                <span className="text-[11px] font-bold text-gray-400 uppercase">- 주소</span>
+                <div className="flex items-start gap-1.5">
+                  {isEditing ? <input name="address" value={formData.address} onChange={handleChange} className={inputClass} /> : <span className="text-sm font-black text-gray-900 leading-relaxed">{client.address || "-"}</span>}
+                </div>
+              </div>
+
               <div className="flex flex-col gap-1">
-                <span className="text-[11px] font-bold text-gray-400 uppercase">운전여부</span>
+                <span className="text-[11px] font-bold text-gray-400 uppercase">- 직업</span>
+                <div className="flex items-center gap-1.5">
+                  {isEditing ? <input name="job" value={formData.job} onChange={handleChange} className={inputClass} /> : <span className="text-sm font-black text-gray-900">{client.job || "-"}</span>}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <span className="text-[11px] font-bold text-gray-400 uppercase">- 운전여부</span>
                 {isEditing ? (
                   <select name="driving_statuses" value={formData.driving_statuses} onChange={handleChange} className={inputClass}>
                     <option value="">선택 안함</option>
@@ -290,7 +318,7 @@ export default function ClientDetailModal({ client, onClose, onRefresh }: { clie
               </div>
 
               <div className="flex flex-col gap-1">
-                <span className="text-[11px] font-bold text-gray-400 uppercase">가입경로 <span className="text-red-500">*</span></span>
+                <span className="text-[11px] font-bold text-gray-400 uppercase">- 가입경로</span>
                 {isEditing ? (
                   <select name="client_source" value={formData.client_source} onChange={handleChange} className={inputClass}>
                     <option value="">선택 안함</option>
@@ -299,44 +327,54 @@ export default function ClientDetailModal({ client, onClose, onRefresh }: { clie
                 ) : <span className="text-sm font-black text-blue-600">{client.client_source?.source || "-"}</span>}
               </div>
               
+              {/* ⭐️ 자동완성 적용된 소개 고객 검색창 */}
               {isEditing && isReferral && (
-                <div className="col-span-2 flex flex-col gap-1 animate-in fade-in zoom-in-95 duration-200 mt-1 p-3 bg-blue-50/50 rounded-xl border border-blue-100">
+                <div className="col-span-2 flex flex-col gap-1 animate-in fade-in zoom-in-95 duration-200 mt-1 p-3 bg-blue-50/50 rounded-xl border border-blue-100 relative">
                   <span className="text-[11px] font-bold text-blue-600 uppercase">소개 고객 검색</span>
                   <input
-                    list="client-list"
-                    value={referrerSearch}
+                    type="text"
+                    value={referrerSearchText}
                     onChange={(e) => {
-                      setReferrerSearch(e.target.value);
-                      const matched = lookups.clients.find(c => `${c.name} (${c.phone || '연락처없음'})` === e.target.value);
-                      setFormData(prev => ({ ...prev, introduce_client: matched ? String(matched.id) : "" }));
+                      setReferrerSearchText(e.target.value);
+                      setFormData(prev => ({ ...prev, introduce_client: "" })); // 텍스트 수정 시 ID 초기화
                     }}
-                    className={`${inputClass}`}
-                    placeholder="성함 또는 전화번호 검색"
+                    onFocus={() => setIsReferrerFocused(true)}
+                    onBlur={() => setTimeout(() => setIsReferrerFocused(false), 150)}
+                    className={inputClass}
+                    placeholder="이름 또는 전화번호 검색"
                   />
-                  <datalist id="client-list">
-                    {lookups.clients.map(c => (
-                      <option key={c.id} value={`${c.name} (${c.phone || '연락처없음'})`} />
-                    ))}
-                  </datalist>
+                  {isReferrerFocused && filteredReferrers.length > 0 && (
+                    <ul 
+                      className="absolute z-50 left-0 right-0 top-[65px] mt-1 max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-xl py-1"
+                      onMouseDown={(e) => e.preventDefault()}
+                    >
+                      {filteredReferrers.map(c => (
+                        <li
+                          key={c.id}
+                          onClick={() => {
+                            setReferrerSearchText(c.name);
+                            setFormData(prev => ({ ...prev, introduce_client: String(c.id) }));
+                            setIsReferrerFocused(false);
+                          }}
+                          className="px-3 py-2 text-sm font-medium text-gray-700 hover:bg-blue-50 cursor-pointer transition-colors flex justify-between"
+                        >
+                          <span>{c.name}</span>
+                          {c.phone && <span className="text-xs text-gray-400">{c.phone}</span>}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               )}
 
               <div className="flex flex-col gap-1">
-                <span className="text-[11px] font-bold text-gray-400 uppercase">계약 상태</span>
+                <span className="text-[11px] font-bold text-gray-400 uppercase">- 계약 상태</span>
                 {isEditing ? (
                   <select name="contract_status" value={formData.contract_status} onChange={handleChange} className={inputClass}>
                     <option value="">선택 안함</option>
                     {lookups.statuses.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
                 ) : <span className="text-sm font-black text-gray-900">{client.contract_status?.status || "-"}</span>}
-              </div>
-
-              <div className="col-span-2 flex flex-col gap-1">
-                <span className="text-[11px] font-bold text-gray-400 uppercase">주소</span>
-                <div className="flex items-start gap-1.5">
-                  <MapPin className="w-3.5 h-3.5 text-gray-400 mt-1 shrink-0" />
-                  {isEditing ? <input name="address" value={formData.address} onChange={handleChange} className={inputClass} /> : <span className="text-sm font-black text-gray-900 leading-relaxed">{client.address || "-"}</span>}
-                </div>
               </div>
             </div>
           </section>

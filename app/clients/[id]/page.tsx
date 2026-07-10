@@ -187,14 +187,14 @@ export default function ClientDetailPage() {
         <div className="flex w-full md:w-auto items-center gap-2">
           <button 
             onClick={handleCopyReportLink} 
-            className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 border border-blue-200 text-sm font-bold rounded-xl hover:bg-blue-100 transition-colors shadow-sm"
+            className="cursor-pointer flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 border border-blue-200 text-sm font-bold rounded-xl hover:bg-blue-100 transition-colors shadow-sm"
           >
             <MessageCircle className="w-4 h-4" /> 리포트 공유 링크
           </button>
           
           <button 
             onClick={() => setIsDetailModalOpen(true)}
-            className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-gray-900 text-white text-sm font-bold rounded-xl hover:bg-gray-800 transition-colors shadow-sm"
+            className="cursor-pointer flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-gray-900 text-white text-sm font-bold rounded-xl hover:bg-gray-800 transition-colors shadow-sm"
           >
             <User className="w-4 h-4" /> 상세 프로필
           </button>
@@ -207,7 +207,7 @@ export default function ClientDetailPage() {
           <div className="flex bg-gray-200/60 p-1.5 rounded-xl shrink-0">
             <button
               onClick={() => setActiveTab("memo")}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-bold rounded-lg transition-all ${
+              className={`cursor-pointer flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-bold rounded-lg transition-all ${
                 activeTab === "memo" ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700 hover:bg-gray-200/50"
               }`}
             >
@@ -215,7 +215,7 @@ export default function ClientDetailPage() {
             </button>
             <button
               onClick={() => setActiveTab("medical")}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-bold rounded-lg transition-all ${
+              className={`cursor-pointer flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-bold rounded-lg transition-all ${
                 activeTab === "medical" ? "bg-white shadow-sm text-red-600" : "text-gray-500 hover:text-gray-700 hover:bg-gray-200/50"
               }`}
             >
@@ -223,8 +223,8 @@ export default function ClientDetailPage() {
             </button>
             <button
               onClick={() => setActiveTab("schedule")}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-bold rounded-lg transition-all ${
-                activeTab === "schedule" ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700 hover:bg-gray-200/50"
+              className={`cursor-pointer flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-bold rounded-lg transition-all ${
+                activeTab === "schedule" ? "bg-white shadow-sm text-blue-600" : "text-gray-500 hover:text-gray-700 hover:bg-gray-200/50"
               }`}
             >
               <Calendar className="w-4 h-4" /> 일정

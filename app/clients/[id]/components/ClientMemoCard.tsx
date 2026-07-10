@@ -39,12 +39,15 @@ export default function ClientMemoCard({ clientId, initialNote }: Props) {
     // ⭐️ h-full과 min-h-0을 적용하여 부모 높이를 꽉 채우게 합니다.
     <div className="w-full flex h-full flex-col rounded-2xl border border-gray-200 bg-white p-5 md:p-6 shadow-sm min-h-0">
       
-      <div className="mb-4 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-600">
-        <FileText className="h-5 w-5" strokeWidth={2} />
+      {/* 상단 헤더 영역 */}
+      <div className="mb-4 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-600">
+            <FileText className="h-4 w-4" strokeWidth={2} />
+          </div>
+          <h2 className="text-lg font-semibold text-gray-900">상담 통합 메모</h2>
+        </div>
       </div>
-      <h2 className="text-lg font-semibold text-gray-900 shrink-0">상담 통합 메모</h2>
-      <p className="mt-2 text-sm leading-relaxed text-gray-500 mb-4 shrink-0">고객의 특이사항이나 전체 상담 기록을 누적해서 작성하세요.</p>
-      
       <div className="flex flex-col flex-1 gap-4 relative min-h-0">
         {/* ⭐️ textarea 영역이 남은 공간을 모두 차지하도록 flex-1 flex flex-col 구조를 적용합니다. */}
         <div className="relative flex-1 flex flex-col min-h-0">
@@ -52,7 +55,7 @@ export default function ClientMemoCard({ clientId, initialNote }: Props) {
             className={`w-full flex-1 p-4 rounded-lg border border-gray-200 bg-white text-sm text-gray-800 leading-relaxed resize-none transition-all duration-200 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 ${
               isNoteSaving || noteSaveSuccess ? "bg-gray-50 text-gray-400 cursor-not-allowed opacity-80" : ""
             }`}
-            placeholder="여기에 메모를 입력하고 저장 버튼을 누르세요..."
+            placeholder="여기에 메모를 입력하고 저장 버튼을 누르세요"
             value={noteContent}
             onChange={(e) => setNoteContent(e.target.value)}
             disabled={isNoteSaving || noteSaveSuccess}
@@ -71,7 +74,7 @@ export default function ClientMemoCard({ clientId, initialNote }: Props) {
               ? "bg-green-600 cursor-not-allowed" 
               : isNoteSaving 
                 ? "bg-gray-400 cursor-not-allowed" 
-                : "bg-gray-900 hover:bg-gray-800"
+                : "bg-gray-900 hover:bg-gray-800 cursor-pointer"
           }`}
         >
           {isNoteSaving ? "저장 중..." : noteSaveSuccess ? "✓ 저장 완료" : "메모 전체 저장"}

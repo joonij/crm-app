@@ -113,15 +113,15 @@ export default function ClientScheduleCard({ clientId, agentId }: { clientId: st
   return (
     <div className="w-full flex h-full flex-col rounded-2xl border border-gray-200 bg-white p-5 md:p-6 shadow-sm min-h-0">
       
-      <div className="mb-4 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-600">
-        <Calendar className="h-5 w-5" strokeWidth={2} />
-      </div>
-      <div className="flex items-center gap-2 mb-2 shrink-0">
-        <h2 className="text-lg font-semibold text-gray-900">예정된 일정</h2>
-        {editingId && <span className="text-[10px] font-bold bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full animate-pulse">수정 모드</span>}
-      </div>
-      <p className="text-sm leading-relaxed text-gray-500 mb-4 shrink-0">예정된 미팅 및 후속 일정이 이곳에 표시됩니다.</p>
-      
+      {/* 상단 헤더 영역 */}
+      <div className="mb-4 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-600">
+            <Calendar className="h-4 w-4" strokeWidth={2} />
+          </div>
+          <h2 className="text-lg font-semibold text-gray-900">예정된 일정</h2>
+        </div>
+      </div>      
       <div className="mb-4 flex flex-col gap-2 shrink-0">
         <div className="flex gap-2">
           <input type="date" className={inputClass} max="9999-12-31" value={scheduleForm.date} onChange={(e) => setScheduleForm({ ...scheduleForm, date: e.target.value })} />
@@ -131,13 +131,13 @@ export default function ClientScheduleCard({ clientId, agentId }: { clientId: st
           rows={5} 
           value={scheduleForm.content} 
           onChange={(e) => setScheduleForm({ ...scheduleForm, content: e.target.value })}
-          placeholder="만남 후기 및 기록 내용" 
+          placeholder="만남 후기 및 기록을 입력하고 일정 추가 버튼을 누르세요." 
           className={`${inputClass} resize-none ${editingId ? 'border-blue-300 ring-2 ring-blue-500/10' : ''}`}
         />
         
         {/* ⭐️ 버튼 영역 분기 처리 (추가 vs 수정) */}
         <div className="flex gap-2 mt-2">
-          <button onClick={handleSaveSchedule} disabled={isSaving} className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-bold text-white transition-colors disabled:opacity-50 ${editingId ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-900 hover:bg-gray-800'}`}>
+          <button onClick={handleSaveSchedule} disabled={isSaving} className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-bold text-white transition-colors disabled:opacity-50 ${editingId ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-900 hover:bg-gray-800 cursor-pointer'}`}>
             {isSaving ? "저장 중..." : (editingId ? "일정 내용 수정" : "일정 추가")}
           </button>
           {editingId && (
@@ -174,9 +174,9 @@ export default function ClientScheduleCard({ clientId, agentId }: { clientId: st
                       className="flex items-center gap-1 text-[11px] font-bold text-gray-400 hover:text-gray-600 transition-colors w-fit mt-1"
                     >
                       {isExpanded ? (
-                        <>접기 <ChevronUp className="w-3 h-3" /></>
+                        <>접기 <ChevronUp className="w-3 h-3 cursor-pointer" /></>
                       ) : (
-                        <>더보기 <ChevronDown className="w-3 h-3" /></>
+                        <>더보기 <ChevronDown className="w-3 h-3 cursor-pointer" /></>
                       )}
                     </button>
                   )}

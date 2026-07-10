@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { Shield, X, Plus, Sparkles, FileText, Loader2 } from "lucide-react";
+import { Shield, X, Plus, Sparkles, FileText, Loader2, CheckSquare } from "lucide-react";
 
 const inputClassName =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20";
@@ -25,7 +25,7 @@ const formatAmountWithComma = (value: string) => {
   return Number(numericValue).toLocaleString("ko-KR");
 };
 
-// ⭐️ 자동완성을 위한 옵션 리스트 정의
+// 자동완성을 위한 옵션 리스트 정의
 const COVERAGE_OPTIONS = [
   "실손의료비 상해입원", "실손의료비 질병입원", "실손의료비 상해통원", "실손의료비 질병통원", "실손의료비 상해약제", "실손의료비 질병약제",
   "일반사망 진단비", "재해사망 진단비", "상해사망 진단비", "질병사망 진단비", 
@@ -176,6 +176,7 @@ const mapToStandardCoverage = (rawName: string) => {
   return rawName; 
 };
 
+// 초기 폼 상태
 const initialFormState = {
   policy_status: "maintain",
   company: "",
@@ -186,9 +187,12 @@ const initialFormState = {
   subscriptionDate: "",
   maturityDate: "",
   paymentPeriod: "", 
-  contractor: "",
-  insured: "",
-  beneficiary: "",
+  contractor_name: "",
+  contractor_id: null as number | null,
+  insured_name: "",
+  insured_id: null as number | null,
+  beneficiary_name: "",
+  beneficiary_id: null as number | null,
   agent_name: "",
 };
 
@@ -216,12 +220,51 @@ export default function InsuranceModal({
   const [focusedRenewalIndex, setFocusedRenewalIndex] = useState<number | null>(null);
   const [focusedPolicyPeriod, setFocusedPolicyPeriod] = useState(false);
 
+  // ⭐️ 고객 검색 자동완성용 상태 (전화번호 포함)
+  const [clientsList, setClientsList] = useState<{ id: number; name: string; phone?: string }[]>([]);
+  const [focusedClientField, setFocusedClientField] = useState<'contractor' | 'insured' | 'beneficiary' | null>(null);
+
+  // ⭐️ 담당자(본인) 여부 체크박스 상태
+  const [isCurrentUserAgent, setIsCurrentUserAgent] = useState(false);
+  const [loggedInAgentName, setLoggedInAgentName] = useState("");
+
   useEffect(() => {
     setCovForm(initialFormState);
     setCovDetails(Array(5).fill(null).map(() => ({ name: "", amount: "", renewal_type: "비갱신" })));
     setPasteText("");
 
     const fetchInitialData = async () => {
+      let currentAgentName = "";
+      let currentClientName = "";
+
+      // 1. 현재 로그인한 유저 정보 확인
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (user) {
+        // 본인(담당자) 정보 세팅 (agent의 id와 name 모두 가져오기)
+        const { data: agentData } = await supabase.from("agents").select("id, name").eq("auth_id", user.id).single();
+        
+        if (agentData) {
+          currentAgentName = agentData.name;
+          setLoggedInAgentName(agentData.name);
+
+          // ⭐️ 2. 에러의 원인 해결: 'agent_id'를 기준으로 내 고객 불러오기
+          // 만약 clients 테이블의 담당자 컬럼이 agent_id가 아니라면, 아래 "agent_id" 글자를 대표님의 DB에 맞게 바꿔주세요!
+          const { data: myClients, error: clientsError } = await supabase
+            .from("clients")
+            .select("id, name, phone")
+            .eq("agent_id", agentData.id) 
+            .order("name");
+            
+          // 에러가 났을 때 개발자 도구(F12) 콘솔에서 원인을 바로 확인할 수 있도록 가드 추가
+          if (clientsError) {
+             console.error("🚨 고객 목록 불러오기 실패:", clientsError.message);
+          } else if (myClients) {
+             setClientsList(myClients);
+          }
+        }
+      }
+
       const { data: compData } = await supabase
         .from("insurance_companies")
         .select("company_type, company_name")
@@ -229,23 +272,20 @@ export default function InsuranceModal({
         .order("company_name", { ascending: true });
       if (compData) setCompanies(compData);
 
-      let currentAgentName = "";
-      let currentClientName = "";
-
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: agentData } = await supabase.from("agents").select("name").eq("auth_id", user.id).single();
-        if (agentData) currentAgentName = agentData.name;
-      }
-
+      // 현재 접속한 고객 정보 세팅
       const { data: clientData } = await supabase.from("clients").select("name").eq("id", clientId).single();
       if (clientData) currentClientName = clientData.name;
+      const currentClientId = parseInt(clientId, 10);
 
       setCovForm(prev => ({
         ...prev,
-        contractor: currentClientName,
-        insured: currentClientName,
-        beneficiary: currentClientName,
+        // 모달 켤 때 기본값 세팅
+        contractor_name: currentClientName,
+        contractor_id: currentClientId,
+        insured_name: currentClientName,
+        insured_id: currentClientId,
+        beneficiary_name: currentClientName,
+        beneficiary_id: currentClientId,
         agent_name: currentAgentName,
       }));
     };
@@ -441,9 +481,12 @@ export default function InsuranceModal({
           subscription_date: covForm.subscriptionDate || null,
           maturity_date: covForm.maturityDate || null,
           payment_period: covForm.paymentPeriod.trim() || null, 
-          contractor: covForm.contractor.trim(),
-          insured: covForm.insured.trim(),
-          beneficiary: covForm.beneficiary.trim(),
+          contractor_name: covForm.contractor_name.trim(),
+          contractor_id: covForm.contractor_id,
+          insured_name: covForm.insured_name.trim(),
+          insured_id: covForm.insured_id,
+          beneficiary_name: covForm.beneficiary_name.trim(),
+          beneficiary_id: covForm.beneficiary_id,
           agent_name: covForm.agent_name.trim(),
           details: validDetails.length > 0 ? validDetails : null,
         },
@@ -462,18 +505,84 @@ export default function InsuranceModal({
   const nonLifeInsurances = companies.filter((c) => c.company_type === "손해보험");
   const differentLifeInsurances = companies.filter((c) => c.company_type === "기타");
 
-  // ⭐️ [공백 제거 비교 연동검색 엔진]
   const getDisplayOptions = (currentInput: string, optionsList: string[]) => {
     const cleanInput = currentInput.replace(/\s+/g, "").toLowerCase();
-    if (!cleanInput) return optionsList; // 입력 없으면 전체 표시
+    if (!cleanInput) return optionsList;
 
     const filtered = optionsList.filter((opt) => 
       opt.replace(/\s+/g, "").toLowerCase().includes(cleanInput)
     );
-    return filtered.length > 0 ? filtered : optionsList; // 결과 없거나 동일 매칭 시 전체 fallback
+    return filtered.length > 0 ? filtered : optionsList;
   };
 
   const displayPolicyPeriods = getDisplayOptions(covForm.paymentPeriod, POLICY_PERIOD_OPTIONS);
+
+// ⭐️ [고객 검색 엔진 (이름 + 전화번호 지원 / 버그 수정 완료)]
+  const renderClientSearchInput = (fieldPrefix: 'contractor' | 'insured' | 'beneficiary', label: string) => {
+    const nameField = `${fieldPrefix}_name` as keyof typeof covForm;
+    const idField = `${fieldPrefix}_id` as keyof typeof covForm;
+    
+    // 혹시라도 값이 undefined일 경우를 대비한 안전 장치
+    const currentValue = (covForm[nameField] || "") as string;
+
+    // ⭐️ 검색어 분리: 이름용(공백제거) / 전화번호용(숫자만)
+    const cleanNameInput = currentValue.replace(/\s+/g, "").toLowerCase();
+    const cleanPhoneInput = currentValue.replace(/[^0-9]/g, "");
+
+    const filteredClients = currentValue
+      ? clientsList.filter(c => {
+          // 1. 이름 매칭 (DB에 이름이 비어있지 않을 때만)
+          const matchName = c.name 
+            ? c.name.replace(/\s+/g, "").toLowerCase().includes(cleanNameInput)
+            : false;
+          
+          // 2. 전화번호 매칭 (입력창에 숫자가 하나라도 입력되었을 때만 검사!)
+          const matchPhone = cleanPhoneInput && c.phone
+            ? c.phone.replace(/[^0-9]/g, "").includes(cleanPhoneInput)
+            : false;
+
+          return matchName || matchPhone;
+        })
+      : clientsList;
+
+    return (
+      <div className="flex flex-col relative">
+        <label className="text-xs text-gray-500 mb-1 ml-1 font-semibold">{label}</label>
+        <input
+          type="text"
+          className={inputClassName}
+          placeholder={`${label} 이름 또는 연락처 검색`}
+          value={currentValue}
+          onChange={(e) => {
+            setCovForm(prev => ({ ...prev, [nameField]: e.target.value, [idField]: null }));
+          }}
+          onFocus={() => setFocusedClientField(fieldPrefix)}
+          onBlur={() => setTimeout(() => setFocusedClientField(null), 150)}
+        />
+        {focusedClientField === fieldPrefix && filteredClients.length > 0 && (
+          <ul 
+            className="absolute z-50 left-0 right-0 top-full mt-1 max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-xl py-1"
+            onMouseDown={(e) => e.preventDefault()}
+          >
+            {filteredClients.map(c => (
+              <li
+                key={c.id}
+                onClick={() => {
+                  setCovForm(prev => ({ ...prev, [nameField]: c.name, [idField]: c.id }));
+                  setFocusedClientField(null);
+                }}
+                className="px-3 py-2 text-sm font-medium text-gray-700 hover:bg-blue-50 cursor-pointer transition-colors flex items-center justify-between"
+              >
+                <span>{c.name}</span>
+                {/* ⭐️ 동명이인 구분을 위한 연락처 표시 */}
+                {c.phone && <span className="text-xs text-gray-400 tracking-tight">{c.phone}</span>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/60 md:p-4 transition-opacity">
@@ -491,7 +600,7 @@ export default function InsuranceModal({
           <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-4 space-y-3">
             <div className="flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-indigo-500" />
-              <p className="text-sm font-bold text-indigo-900">메리츠/삼성화재 등 보장분석 텍스트 파싱</p>
+              <p className="text-sm font-bold text-indigo-900">메리츠화재 등 보장분석 텍스트 파싱</p>
             </div>
             <div className="flex flex-col sm:flex-row gap-2">
               <textarea 
@@ -513,7 +622,7 @@ export default function InsuranceModal({
                 { id: "cancel", label: "해지할 보험", color: "bg-red-600 border-red-600" },
                 { id: "new", label: "새로 제안할 보험", color: "bg-green-600 border-green-600" },
               ].map((status) => (
-                <button key={status.id} onClick={() => setCovForm({ ...covForm, policy_status: status.id })} className={`flex-1 py-2 text-xs md:text-sm font-bold rounded-lg border transition-colors ${covForm.policy_status === status.id ? `${status.color} text-white` : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"}`}>
+                <button key={status.id} onClick={() => setCovForm({ ...covForm, policy_status: status.id })} className={`cursor-pointer flex-1 py-2 text-xs md:text-sm font-bold rounded-lg border transition-colors ${covForm.policy_status === status.id ? `${status.color} text-white` : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"}`}>
                   {status.label}
                 </button>
               ))}
@@ -544,23 +653,6 @@ export default function InsuranceModal({
 
               <input type="text" placeholder="상품명" className={inputClassName} value={covForm.product} onChange={(e) => setCovForm({ ...covForm, product: e.target.value })} />
               
-              <div className="flex flex-col">
-                <label className="text-xs text-gray-500 mb-1 ml-1 font-semibold">계약자</label>
-                <input type="text" className={inputClassName} value={covForm.contractor} onChange={(e) => setCovForm({ ...covForm, contractor: e.target.value })} />
-              </div>
-              <div className="flex flex-col">
-                <label className="text-xs text-gray-500 mb-1 ml-1 font-semibold">피보험자</label>
-                <input type="text" className={inputClassName} value={covForm.insured} onChange={(e) => setCovForm({ ...covForm, insured: e.target.value })} />
-              </div>
-              <div className="flex flex-col">
-                <label className="text-xs text-gray-500 mb-1 ml-1 font-semibold">수익자</label>
-                <input type="text" className={inputClassName} value={covForm.beneficiary} onChange={(e) => setCovForm({ ...covForm, beneficiary: e.target.value })} />
-              </div>
-              <div className="flex flex-col">
-                <label className="text-xs text-gray-500 mb-1 ml-1 font-semibold">담당설계사</label>
-                <input type="text" className={inputClassName} onChange={(e) => setCovForm({ ...covForm, agent_name: e.target.value })} />
-              </div>
-
               <div className="flex flex-col">
                 <label className="text-xs text-gray-500 mb-1 ml-1 font-semibold">실손의료비</label>
                 <select className={`${inputClassName} cursor-pointer`} value={covForm.indemnityGen} onChange={(e) => setCovForm({ ...covForm, indemnityGen: e.target.value })}>
@@ -595,7 +687,6 @@ export default function InsuranceModal({
                 <input type="date" max="9999-12-31" className={inputClassName} value={covForm.maturityDate} onChange={(e) => setCovForm({ ...covForm, maturityDate: e.target.value })} />
               </div>
               
-              {/* 보험의 납입기간 (입력 + 자동완성 적용) */}
               <div className="flex flex-col relative">
                 <label className="text-xs text-gray-500 mb-1 ml-1 font-semibold">납입 기간</label>
                 <input
@@ -610,7 +701,7 @@ export default function InsuranceModal({
                 {focusedPolicyPeriod && displayPolicyPeriods.length > 0 && (
                   <ul 
                     className="absolute z-50 left-0 right-0 top-full mt-1 max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-xl py-1"
-                    onMouseDown={(e) => e.preventDefault()} // ⭐️ 포커스 아웃 버블링 가드 추가
+                    onMouseDown={(e) => e.preventDefault()}
                   >
                     {displayPolicyPeriods.map((opt) => (
                       <li
@@ -627,6 +718,40 @@ export default function InsuranceModal({
                   </ul>
                 )}
               </div>
+              
+              <div className="flex flex-col relative"></div>
+
+              {/* 하이브리드 고객 검색창 적용 */}
+              {renderClientSearchInput('contractor', '계약자')}
+              {renderClientSearchInput('insured', '피보험자')}
+              {renderClientSearchInput('beneficiary', '수익자')}
+
+              {/* 담당자 본인 확인 체크박스 적용 */}
+              <div className="flex flex-col">
+                <div className="flex items-center justify-between mb-1 ml-1">
+                  <label className="text-xs text-gray-500 font-semibold">담당설계사</label>
+                  <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer font-bold select-none">
+                    <input 
+                      type="checkbox" 
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      checked={isCurrentUserAgent}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setIsCurrentUserAgent(checked);
+                        setCovForm(prev => ({ ...prev, agent_name: checked ? loggedInAgentName : "" }));
+                      }}
+                    />
+                    내(본인)가 담당
+                  </label>
+                </div>
+                <input 
+                  type="text" 
+                  className={`${inputClassName} ${isCurrentUserAgent ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''}`} 
+                  onChange={(e) => setCovForm({ ...covForm, agent_name: e.target.value })} 
+                  readOnly={isCurrentUserAgent}
+                  placeholder={isCurrentUserAgent ? "본인 담당" : "다른 담당자 이름 직접 입력"}
+                />
+              </div>
 
             </div>
           </div>
@@ -641,7 +766,6 @@ export default function InsuranceModal({
                 return (
                   <div key={index} className="flex flex-wrap sm:flex-nowrap gap-2 items-center p-2 sm:p-0 bg-gray-50/50 sm:bg-transparent rounded-lg border sm:border-0 border-gray-100 relative">
                     
-                    {/* 특약 항목명 (검색 또는 직접입력) */}
                     <div className="relative w-full sm:w-[45%] shrink-0">
                       <input
                         type="text"
@@ -657,7 +781,7 @@ export default function InsuranceModal({
                       {focusedIndex === index && displayCoverages.length > 0 && (
                         <ul 
                           className="absolute z-50 left-0 right-0 top-full mt-1 max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-xl py-1"
-                          onMouseDown={(e) => e.preventDefault()} // ⭐️ 버블링 블러 가드
+                          onMouseDown={(e) => e.preventDefault()}
                         >
                           {displayCoverages.map((opt) => (
                             <li
@@ -684,7 +808,6 @@ export default function InsuranceModal({
                         onChange={(e) => updateCovDetail(index, "amount", e.target.value)}
                       />
                       
-                      {/* 특약별 갱신/납입기간 (입력 + 자동완성 적용) */}
                       <div className="relative shrink-0 w-[84px] sm:w-[100px]">
                         <input
                           type="text"
@@ -699,7 +822,7 @@ export default function InsuranceModal({
                         {focusedRenewalIndex === index && displayRenewals.length > 0 && (
                           <ul 
                             className="absolute z-50 right-0 top-full mt-1 w-[120px] max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-xl py-1"
-                            onMouseDown={(e) => e.preventDefault()} // ⭐️ 버블링 블러 가드
+                            onMouseDown={(e) => e.preventDefault()}
                           >
                             {displayRenewals.map((opt) => (
                               <li

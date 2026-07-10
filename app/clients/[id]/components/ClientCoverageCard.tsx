@@ -1,4 +1,3 @@
-// ClientCoverageCard.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -6,8 +5,6 @@ import Link from "next/link";
 import { Shield, Trash2, ChevronDown, ChevronUp, Plus, BarChart3, Edit2, RotateCcw, MinusCircle, TrendingDown, Undo, Check, X, PartyPopper, Banknote } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import InsuranceModal from "@/app/clients/[id]/components/InsuranceModal";
-
-// ⭐️ 방금 만든 퀵 청구 모달 불러오기
 import QuickClaimModal from "./QuickClaimModal";
 
 // 금액 포맷팅 유틸리티 함수
@@ -52,6 +49,7 @@ type CoverageDetail = {
   renewal_type?: string; 
 };
 
+// ⭐️ DB 구조 변경(B안)에 맞춘 Coverage 타입 업데이트
 type Coverage = { 
   id: number; 
   insurance_company: string; 
@@ -63,9 +61,12 @@ type Coverage = {
   policy_status?: string | null; 
   subscription_date?: string | null; 
   maturity_date?: string | null;
-  contractor?: string | null;
-  insured?: string | null;
-  beneficiary?: string | null;
+  contractor_name?: string | null;
+  contractor_id?: number | null;
+  insured_name?: string | null;
+  insured_id?: number | null;
+  beneficiary_name?: string | null;
+  beneficiary_id?: number | null;
   agent_name?: string | null;
   payment_period?: string | null;
 };
@@ -82,7 +83,7 @@ const statusTheme: Record<string, { bg: string; border: string; text: string }> 
 };
 
 export default function ClientCoverageCard({ clientId }: { clientId: string }) {
-  const [clientData, setClientData] = useState<any>(null); // 모달에 넘겨주기 위한 고객 기본 정보
+  const [clientData, setClientData] = useState<any>(null); 
   const [coverages, setCoverages] = useState<Coverage[]>([]);
   const [expandedCovId, setExpandedCovId] = useState<number | null>(null);
   const [isCovModalOpen, setIsCovModalOpen] = useState(false);
@@ -97,9 +98,12 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
   const [editingDetail, setEditingDetail] = useState<{ covId: number, idx: number, tempName: string, tempAmount: string, tempRenewalType: string, mode: 'edit' | 'reduce' | 'new' } | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
-  // ⭐️ 퀵 청구 모달 상태
   const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
   const [selectedClaimIns, setSelectedClaimIns] = useState<Coverage | null>(null);
+
+  // ⭐️ 검색을 위한 전체 고객 리스트 상태
+  const [clientsList, setClientsList] = useState<{ id: number; name: string; phone?: string }[]>([]);
+  const [focusedClientField, setFocusedClientField] = useState<'contractor' | 'insured' | 'beneficiary' | null>(null);
 
   const fetchCoverages = async () => {
     const { data } = await supabase.from("subscription_insurance").select("*").eq("client_id", clientId);
@@ -132,10 +136,27 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
       const { data } = await supabase.from("clients").select("*").eq("id", clientId).single();
       if (data) setClientData(data);
     };
+
+    // ⭐️ 담당 설계사의 고객 리스트 불러오기 (모달창과 동일한 로직)
+    const fetchMyClients = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: agentData } = await supabase.from("agents").select("id").eq("auth_id", user.id).single();
+        if (agentData) {
+          const { data: myClients } = await supabase
+            .from("clients")
+            .select("id, name, phone")
+            .eq("agent_id", agentData.id) 
+            .order("name");
+          if (myClients) setClientsList(myClients);
+        }
+      }
+    };
     
     void fetchCoverages(); 
     void fetchCompanies();
     void fetchClient();
+    void fetchMyClients();
   }, [clientId]);
 
   const toggleCoverage = (id: number) => {
@@ -143,13 +164,11 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     setExpandedCovId(prev => (prev === id ? null : id));
   };
 
-  // ⭐️ 청구 모달 열기 핸들러
   const handleOpenClaimModal = (cov: Coverage) => {
     setSelectedClaimIns(cov);
     setIsClaimModalOpen(true);
   };
 
-  // (이하 편집/수정/삭제 함수들은 기존과 완전히 동일)
   const handleStartEditPolicy = (cov: Coverage) => {
     setEditingPolicyId(cov.id);
     setEditingPolicyForm({ ...cov });
@@ -207,6 +226,7 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     
     const cleanPremium = Number(String(editingPolicyForm.monthly_premium).replace(/,/g, ''));
 
+    // ⭐️ DB 구조 변경에 맞춘 업데이트 매핑
     const { error } = await supabase.from("subscription_insurance").update({
       insurance_company: editingPolicyForm.insurance_company,
       product_name: editingPolicyForm.product_name,
@@ -214,9 +234,12 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
       subscription_date: editingPolicyForm.subscription_date || null,
       maturity_date: editingPolicyForm.maturity_date || null,
       indemnity_generation: editingPolicyForm.indemnity_generation || null,
-      contractor: editingPolicyForm.contractor || null,
-      insured: editingPolicyForm.insured || null,
-      beneficiary: editingPolicyForm.beneficiary || null,
+      contractor_name: editingPolicyForm.contractor_name || null,
+      contractor_id: editingPolicyForm.contractor_id || null,
+      insured_name: editingPolicyForm.insured_name || null,
+      insured_id: editingPolicyForm.insured_id || null,
+      beneficiary_name: editingPolicyForm.beneficiary_name || null,
+      beneficiary_id: editingPolicyForm.beneficiary_id || null,
       agent_name: editingPolicyForm.agent_name || null,
       payment_period: editingPolicyForm.payment_period || null,
     }).eq("id", editingPolicyId);
@@ -373,6 +396,62 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     setEditingDetail(null);
   };
 
+  // ⭐️ [고객 검색 렌더링 헬퍼 함수]
+  const renderClientSearchInput = (fieldPrefix: 'contractor' | 'insured' | 'beneficiary', label: string) => {
+    if (!editingPolicyForm) return null;
+    const nameField = `${fieldPrefix}_name` as keyof Coverage;
+    const idField = `${fieldPrefix}_id` as keyof Coverage;
+    const currentValue = (editingPolicyForm[nameField] || "") as string;
+
+    const cleanNameInput = currentValue.replace(/\s+/g, "").toLowerCase();
+    const cleanPhoneInput = currentValue.replace(/[^0-9]/g, "");
+
+    const filteredClients = currentValue
+      ? clientsList.filter(c => {
+          const matchName = c.name ? c.name.replace(/\s+/g, "").toLowerCase().includes(cleanNameInput) : false;
+          const matchPhone = cleanPhoneInput && c.phone ? c.phone.replace(/[^0-9]/g, "").includes(cleanPhoneInput) : false;
+          return matchName || matchPhone;
+        })
+      : clientsList;
+
+    return (
+      <div className="flex flex-col relative">
+        <span className="text-[10px] text-gray-500 mb-0.5 ml-1">{label}</span>
+        <input
+          type="text"
+          className="border border-gray-200 rounded p-2 outline-none focus:border-blue-500 text-xs w-full bg-white"
+          placeholder={`${label} (이름/연락처 검색)`}
+          value={currentValue}
+          onChange={(e) => {
+            setEditingPolicyForm({ ...editingPolicyForm, [nameField]: e.target.value, [idField]: null });
+          }}
+          onFocus={() => setFocusedClientField(fieldPrefix)}
+          onBlur={() => setTimeout(() => setFocusedClientField(null), 150)}
+        />
+        {focusedClientField === fieldPrefix && filteredClients.length > 0 && (
+          <ul 
+            className="absolute z-50 left-0 right-0 top-full mt-1 max-h-40 overflow-y-auto bg-white border border-gray-200 rounded shadow-lg py-1 w-[180px]"
+            onMouseDown={(e) => e.preventDefault()}
+          >
+            {filteredClients.map(c => (
+              <li
+                key={c.id}
+                onClick={() => {
+                  setEditingPolicyForm({ ...editingPolicyForm, [nameField]: c.name, [idField]: c.id });
+                  setFocusedClientField(null);
+                }}
+                className="px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-blue-50 cursor-pointer transition-colors flex items-center justify-between"
+              >
+                <span>{c.name}</span>
+                {c.phone && <span className="text-[10px] text-gray-400 tracking-tight">{c.phone}</span>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    );
+  };
+
   const lifeInsurances = companies.filter((c) => c.company_type === "생명보험");
   const nonLifeInsurances = companies.filter((c) => c.company_type === "손해보험");
   const differentLifeInsurances = companies.filter((c) => c.company_type === "기타");
@@ -397,7 +476,7 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
             <Link href={`/clients/${clientId}/analysis`} className="flex flex-1 sm:flex-none items-center justify-center gap-1.5 rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-gray-800">
               <BarChart3 className="w-4 h-4" /> 분석표 비교
             </Link>
-            <button onClick={() => setIsCovModalOpen(true)} className="flex flex-1 sm:flex-none items-center justify-center gap-1.5 rounded-lg bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-600 transition-colors hover:bg-blue-100">
+            <button onClick={() => setIsCovModalOpen(true)} className="cursor-pointer flex flex-1 sm:flex-none items-center justify-center gap-1.5 rounded-lg bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-600 transition-colors hover:bg-blue-100">
               <Plus className="w-4 h-4" /> 보험 추가
             </button>
           </div>
@@ -458,18 +537,11 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
 
                           <input type="text" placeholder="상품명" value={editingPolicyForm?.product_name || ""} onChange={e => setEditingPolicyForm({...editingPolicyForm!, product_name: e.target.value})} className="border border-gray-200 rounded p-2 outline-none focus:border-blue-500" />
                           
-                          <div className="flex flex-col">
-                            <span className="text-[10px] text-gray-500 mb-0.5 ml-1">계약자</span>
-                            <input type="text" placeholder="계약자" value={editingPolicyForm?.contractor || ""} onChange={e => setEditingPolicyForm({...editingPolicyForm!, contractor: e.target.value})} className="border border-gray-200 rounded p-2 outline-none focus:border-blue-500" />
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="text-[10px] text-gray-500 mb-0.5 ml-1">피보험자</span>
-                            <input type="text" placeholder="피보험자" value={editingPolicyForm?.insured || ""} onChange={e => setEditingPolicyForm({...editingPolicyForm!, insured: e.target.value})} className="border border-gray-200 rounded p-2 outline-none focus:border-blue-500" />
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="text-[10px] text-gray-500 mb-0.5 ml-1">수익자</span>
-                            <input type="text" placeholder="수익자" value={editingPolicyForm?.beneficiary || ""} onChange={e => setEditingPolicyForm({...editingPolicyForm!, beneficiary: e.target.value})} className="border border-gray-200 rounded p-2 outline-none focus:border-blue-500" />
-                          </div>
+                          {/* ⭐️ 컴포넌트 내 함수 호출로 검색 드롭다운 적용 */}
+                          {renderClientSearchInput('contractor', '계약자')}
+                          {renderClientSearchInput('insured', '피보험자')}
+                          {renderClientSearchInput('beneficiary', '수익자')}
+
                           <div className="flex flex-col">
                             <span className="text-[10px] text-gray-500 mb-0.5 ml-1">담당설계사</span>
                             <input type="text" placeholder="담당설계사" value={editingPolicyForm?.agent_name || ""} onChange={e => setEditingPolicyForm({...editingPolicyForm!, agent_name: e.target.value})} className="border border-gray-200 rounded p-2 outline-none focus:border-blue-500" />
@@ -560,7 +632,6 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                           
                           {!isPolicyReducing && (
                             <div 
-                            // ⭐️ 모바일에서는 기본 opacity-100 (항상 노출), PC(md 이상)에서만 opacity-0 및 hover 작동
                             className="flex items-center opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100 md:transition-opacity shrink-0" 
                             onClick={e => e.stopPropagation()}
                           >
@@ -645,22 +716,22 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                       </div>
                     )}
 
-                    {/* 확장된 특약 및 상세 정보 패널 (기존과 동일) */}
+                    {/* 확장된 특약 및 상세 정보 패널 */}
                     {expandedCovId === cov.id && !isPolicyEditing && (
                       <div className="border-t border-black/10 bg-white/60 p-4 space-y-3">
                         
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-gray-50/80 p-2.5 rounded-lg border border-gray-200/60 mb-2">
                           <div className="flex flex-col gap-0.5">
                             <span className="text-[9px] text-gray-400 font-bold tracking-wider">계약자</span>
-                            <span className="text-[11px] text-gray-800 font-bold truncate">{cov.contractor || "-"}</span>
+                            <span className="text-[11px] text-gray-800 font-bold truncate">{cov.contractor_name || "-"}</span>
                           </div>
                           <div className="flex flex-col gap-0.5">
                             <span className="text-[9px] text-gray-400 font-bold tracking-wider">피보험자</span>
-                            <span className="text-[11px] text-gray-800 font-bold truncate">{cov.insured || "-"}</span>
+                            <span className="text-[11px] text-gray-800 font-bold truncate">{cov.insured_name || "-"}</span>
                           </div>
                           <div className="flex flex-col gap-0.5">
                             <span className="text-[9px] text-gray-400 font-bold tracking-wider">수익자</span>
-                            <span className="text-[11px] text-gray-800 font-bold truncate">{cov.beneficiary || "-"}</span>
+                            <span className="text-[11px] text-gray-800 font-bold truncate">{cov.beneficiary_name || "-"}</span>
                           </div>
                           <div className="flex flex-col gap-0.5">
                             <span className="text-[9px] text-gray-400 font-bold tracking-wider">담당설계사</span>
@@ -840,10 +911,8 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
         </div>
       </div>
       
-      {/* ⭐️ 보험 추가 모달 (기존) */}
       {isCovModalOpen && <InsuranceModal clientId={clientId} onClose={() => setIsCovModalOpen(false)} onSuccess={fetchCoverages} />}
       
-      {/* ⭐️ 방금 추가한 원클릭 청구 모달 렌더링 */}
       <QuickClaimModal 
         isOpen={isClaimModalOpen} 
         onClose={() => setIsClaimModalOpen(false)} 

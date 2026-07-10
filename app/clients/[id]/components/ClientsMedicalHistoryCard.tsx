@@ -303,12 +303,12 @@ export default function ClientsMedicalHistoryCard({ clientId, initialHistory }: 
   const handleManualSave = () => saveToSupabase(checklist, medicalMemo);
 
   return (
-    <div className="w-full flex h-full flex-col rounded-2xl border border-red-100 bg-white p-5 md:p-6 shadow-sm min-h-0">
+    <div className="w-full flex h-full flex-col rounded-2xl border border-gray-200 bg-white p-5 md:p-6 shadow-sm min-h-0">
       
       {/* 상단 헤더 영역 */}
       <div className="mb-4 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-50 text-red-600">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-600">
             <Stethoscope className="h-4 w-4" strokeWidth={2} />
           </div>
           <h2 className="text-lg font-semibold text-gray-900">병력 및 알릴 의무</h2>
@@ -318,7 +318,7 @@ export default function ClientsMedicalHistoryCard({ clientId, initialHistory }: 
           onClick={handleManualSave} 
           disabled={isSaving || isSaveSuccess || isAnalyzing}
           className={`flex items-center gap-1.5 text-xs font-bold text-white px-3 py-1.5 rounded-md transition-colors shadow-sm disabled:opacity-100 ${
-            isSaveSuccess ? "bg-green-600 cursor-not-allowed" : isSaving ? "bg-red-400 cursor-not-allowed" : "bg-red-600 hover:bg-red-700"
+            isSaveSuccess ? "bg-green-600 cursor-not-allowed" : isSaving ? "bg-gray-400 cursor-not-allowed" : "bg-gray-900 hover:bg-gray-700 cursor-pointer"
           }`}
         >
           {isSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : isSaveSuccess ? <CheckCircle2 className="w-3 h-3" /> : <Save className="w-3 h-3" />}
