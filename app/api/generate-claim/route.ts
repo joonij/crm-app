@@ -7,7 +7,6 @@ import path from "path";
 
 // ⭐️ 분리해둔 보험사별 모듈 불러오기
 import { fillMeritz } from "./handlers/meritz";
-// import { fillSamsung } from "./handlers/samsung";
 
 export async function POST(req: NextRequest) {
   try {
@@ -48,10 +47,6 @@ export async function POST(req: NextRequest) {
     let fileName = "";
     let fillFunction: any = null; // ⭐️ 타입 에러 방지를 위해 null로 초기화
 
-    if (claimData.insuranceCompany.includes("삼성화재")) {
-      fileName = "samsungfire_claim_health.pdf";
-      fillFunction = fillSamsung;
-    } 
     if (claimData.insuranceCompany.includes("메리츠화재")) {
       fileName = "meritzfire_claim_health.pdf";
       fillFunction = fillMeritz;
