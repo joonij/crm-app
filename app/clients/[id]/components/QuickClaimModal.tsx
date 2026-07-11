@@ -209,18 +209,24 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
       
       uploadedFiles.forEach(file => formData.append("receipts", file));
 
-      // 3. 백엔드 PDF 생성 API 호출
-      const res = await fetch("/api/generate-claim", {
-        method: "POST",
-        body: formData,
-      });
-
-      // ⭐️ 서버에서 넘어온 실제 에러 메시지를 읽어서 화면에 띄우도록 수정
-      if (!res.ok) {
-        const errorText = await res.text();
-        throw new Error(`API 오류(${res.status}): ${errorText}`);
-      }
+// 3. 백엔드 PDF 생성 API 호출
+      const res = await fetch("/api/generate-claim", { method: "POST", body: formData });
       
+      // ⭐️ 서버 응답이 실패(res.ok가 false)했을 때 예외 처리 로직
+      if (!res.ok) {
+        // 서버가 보낸 에러 내용을 JSON으로 읽어옵니다.
+        const errorData = await res.json().catch(() => null);
+        
+        // 백엔드에서 우리가 설정한 'UNSUPPORTED_INSURANCE' 에러가 넘어왔다면?
+        if (errorData?.error === "UNSUPPORTED_INSURANCE") {
+          setIsLoading(false); // 로딩 끄기
+          return alert("아직 작성되지 않은 청구서입니다. 관리자에게 문의 남겨주세요.");
+        }
+        
+        // 그 외의 진짜 서버 에러일 경우
+        throw new Error("서버에서 PDF를 만들지 못했습니다.");
+      }
+
       const blob = await res.blob();
 
       if (type === "pdf") {
@@ -303,7 +309,7 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
         <div className="flex justify-between items-center p-5 border-b border-gray-100 bg-slate-50">
           <div>
             <h3 className="font-black text-lg text-slate-800 flex items-center gap-2">
-              <FileText className="w-5 h-5 text-blue-600" /> 다이렉트 보험금 청구
+              <FileText className="w-5 h-5 text-blue-600" /> 보험금 청구
             </h3>
             <p className="text-xs font-bold text-gray-500 mt-1">
               <span className="text-blue-600">{insurance?.insurance_company}</span> - {insurance?.product_name}
