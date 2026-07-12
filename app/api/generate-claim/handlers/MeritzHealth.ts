@@ -1,7 +1,6 @@
-// app/api/generate-claim/handlers/meritz.ts
 import { PDFDocument, PDFFont, rgb } from "pdf-lib";
 
-export const fillMeritz = async (pdfDoc: PDFDocument, data: any, font: PDFFont) => {
+export const fillMeritzHealth = async (pdfDoc: PDFDocument, data: any, font: PDFFont) => {
   const pages = pdfDoc.getPages();
   const firstPage = pages[0]; // 1페이지
   const secondPage = pages.length > 1 ? pages[1] : null; // 2페이지 (있을 경우)
@@ -50,24 +49,28 @@ export const fillMeritz = async (pdfDoc: PDFDocument, data: any, font: PDFFont) 
     page.drawText("V", { x, y, size, font, color: rgb(0, 0, 0) });
   };
 
-  // ⭐️ 2. 서명(이미지) 그리기 로직 추가!
+  // ⭐️ 2. 서명(이미지) 그리기 로직 (안전성 강화 및 좌표 수정)
   if (data.signatureImage) {
-    // 프론트에서 받은 Base64 문자열을 pdf-lib가 읽을 수 있는 이미지 객체로 변환
-    const signatureImg = await pdfDoc.embedPng(data.signatureImage);
+    // 1) 캔버스에서 넘어온 Base64 데이터 앞의 꼬리표("data:image/png;base64,")를 깔끔하게 제거
+    const base64Data = data.signatureImage.includes('base64,') 
+      ? data.signatureImage.split('base64,')[1] 
+      : data.signatureImage;
+
+    // 2) 순수 이미지 데이터를 PDF에 내장
+    const signatureImg = await pdfDoc.embedPng(base64Data);
     
-    // 서명 크기 세팅 (가로 60, 세로 20 정도로 지정)
-    const sigDims = { width: 60, height: 20 };
+    // 3) 서명 크기 세팅 (60x20은 너무 작을 수 있어 80x30 정도로 살짝 키웠습니다)
+    const sigDims = { width: 240, height: 40 };
 
-    // 1페이지 메인 서명란에 쾅! (원하시는 서명란 X, Y 좌표로 바꾸세요)
-    firstPage.drawImage(signatureImg, { x: 450, y: 120, ...sigDims });
+    // ⭐️ 1페이지 서명란 좌표 (수익자 이름인 405, 72의 바로 옆이나 위에 맞게 좌표 조절)
+    firstPage.drawImage(signatureImg, { x: 400, y: 58, ...sigDims });
 
-    // 2페이지, 3페이지 동의서 이름 옆 서명란에도 자동으로 쾅쾅!
-    if (secondPage) {
-      secondPage.drawImage(signatureImg, { x: 450, y: 650, ...sigDims });
-      secondPage.drawImage(signatureImg, { x: 450, y: 500, ...sigDims });
+    // ⭐️ 4페이지 동의서 서명란 좌표 (대표님이 쓰신 이름 좌표 432, 440의 바로 우측)
+    if (fourthPage) {
+      fourthPage.drawImage(signatureImg, { x: 408, y: 425, ...sigDims });
     }
   }
-  
+
   // ----------------------------------------------------
   // [1페이지] 데이터 입력 (메리츠 좌표)
   // ----------------------------------------------------
@@ -82,6 +85,8 @@ export const fillMeritz = async (pdfDoc: PDFDocument, data: any, font: PDFFont) 
 
   drawText(firstPage, data.bankName, 72, 216, 12);
   drawText(firstPage, data.accountNumber, 87, 187, 18, 12.9);
+  drawCenterText(firstPage, data.beneficiaryName, 230, 216, 12);
+  drawCenterText(firstPage, data.beneficiaryRrn, 385, 216, 12);
 
   drawText(firstPage, data.accidentDesc, 72, 367, 12);
 

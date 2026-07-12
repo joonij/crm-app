@@ -6,7 +6,9 @@ import fs from "fs/promises";
 import path from "path";
 
 // ⭐️ 분리해둔 보험사별 모듈 불러오기
-import { fillMeritz } from "./handlers/meritz";
+import { fillMeritzHealth } from "./handlers/MeritzHealth";
+import { fillHyundaiMarineHealth } from "./handlers/HyundaiMarineHealth";
+import { fillDbPropertyHealth } from "./handlers/DbPropertyHealth";
 
 export async function POST(req: NextRequest) {
   try {
@@ -34,7 +36,9 @@ export async function POST(req: NextRequest) {
       accountNumber: formData.get("accountNumber") as string || "",
       accidentDesc: formData.get("accidentDesc") as string || "",
       
-      // 날짜 데이터 추가
+      signatureImage: formData.get("signatureImage") as string || "",
+      insuredSignatureImage: formData.get("insuredSignatureImage") as string || "",
+      
       todayYear: String(today.getFullYear()),
       todayMonth: String(today.getMonth() + 1).padStart(2, '0'),
       todayDay: String(today.getDate()).padStart(2, '0'),
@@ -48,8 +52,17 @@ export async function POST(req: NextRequest) {
     let fillFunction: any = null; // ⭐️ 타입 에러 방지를 위해 null로 초기화
 
     if (claimData.insuranceCompany.includes("메리츠화재")) {
-      fileName = "meritzfire_claim_health.pdf";
-      fillFunction = fillMeritz;
+      fileName = "meritzfire_health.pdf";
+      fillFunction = fillMeritzHealth;
+    } 
+    
+    if (claimData.insuranceCompany.includes("현대해상")) {
+      fileName = "hyundaimarine_health.pdf";
+      fillFunction = fillHyundaiMarineHealth;
+    } 
+    if (claimData.insuranceCompany.includes("DB손해")) {
+      fileName = "dbproperty_health.pdf";
+      fillFunction = fillDbPropertyHealth;
     } 
 
     if (!fileName || !fillFunction) {

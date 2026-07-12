@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { X, Upload, CheckCircle, FileText, Printer, Share2, Send, Loader2, Users, Edit3, Eraser } from "lucide-react";
+import { X, Upload, CheckCircle, FileText, Printer, Share2, Send, Loader2, Users, Edit3, Eraser, Ban } from "lucide-react";
 import { supabase } from "@/lib/supabase"; 
 import { decryptRegNumber } from "@/app/actions/crypto"; 
 import imageCompression from 'browser-image-compression';
@@ -27,17 +27,32 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
   const [accountNumber, setAccountNumber] = useState("");
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
 
-  // ⭐️ 검색용 전체 고객 및 은행 리스트 상태
+  // 검색용 리스트 상태
   const [clientsList, setClientsList] = useState<any[]>([]);
   const [bankLists, setBankLists] = useState<{ id: number; bank: string }[]>([]);
   const [focusedClientField, setFocusedClientField] = useState<'policyholder' | 'insured' | 'beneficiary' | null>(null);
 
-  // ⭐️ 서명 패드(Canvas) 상태 관리
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [hasSignature, setHasSignature] = useState(false); // 서명을 했는지 여부 확인
+  // 서명 패드 상태 관리
+  const insuredCanvasRef = useRef<HTMLCanvasElement>(null);
+  const beneficiaryCanvasRef = useRef<HTMLCanvasElement>(null);
+  const [isInsuredDrawing, setIsInsuredDrawing] = useState(false);
+  const [isBeneficiaryDrawing, setIsBeneficiaryDrawing] = useState(false);
+  const [hasInsuredSignature, setHasInsuredSignature] = useState(false); 
+  const [hasBeneficiarySignature, setHasBeneficiarySignature] = useState(false);
 
-  // 1. 전체 고객 및 은행 리스트 사전 조회
+  // ⭐️ [핵심 1] 보험사별 서명란 활성화/비활성화 설정 로직
+  const companyName = insurance?.insurance_company || "";
+  let needsInsuredSignature = true; // 기본값: 피보험자 서명 필요함
+  let needsBeneficiarySignature = true; // 기본값: 수익자 서명 필요함
+
+  // (예시) 특정 보험사는 피보험자 서명이 불필요할 경우 아래처럼 제어하시면 됩니다.
+  if (companyName.includes("메리츠화재")) {
+    needsInsuredSignature = false; // 삼성화재는 피보험자 서명란 비활성화
+  }
+  if (companyName.includes("현대해상")) {
+    needsInsuredSignature = false; // 삼성화재는 피보험자 서명란 비활성화
+  }
+
   useEffect(() => {
     const fetchLookups = async () => {
       const { data: banks } = await supabase.from("bank_lists").select("id, bank").order("bank");
@@ -59,7 +74,6 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
     fetchLookups();
   }, []);
 
-  // 2. 모달 열릴 때 기본 정보 세팅
   useEffect(() => {
     const loadClaimDefaults = async () => {
       if (!isOpen || !client || !insurance) return;
@@ -84,12 +98,10 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
         return { id: null, name: partyName, rrn: "", phone: "" };
       };
 
-      const newPolicyholder = getPartyInfo(insurance.contractor_name);
-      const newInsured = getPartyInfo(insurance.insured_name);
+      setPolicyholder(getPartyInfo(insurance.contractor_name));
+      setInsured(getPartyInfo(insurance.insured_name));
+      
       const newBeneficiary = getPartyInfo(insurance.beneficiary_name);
-
-      setPolicyholder(newPolicyholder);
-      setInsured(newInsured);
       setBeneficiary(newBeneficiary);
 
       if (newBeneficiary.name === clientName) {
@@ -103,76 +115,94 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
         setAccountNumber("");
       }
 
-      // 모달 열릴 때 서명 패드 초기화
-      clearSignature();
+      clearSignature('insured');
+      clearSignature('beneficiary');
     };
-
     loadClaimDefaults();
   }, [isOpen, client, insurance]);
 
-  // ⭐️ 서명 패드(Canvas) 초기 설정
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (canvas) {
-      const ctx = canvas.getContext("2d");
-      if (ctx) {
-        ctx.strokeStyle = "#000000"; // 펜 색상: 검정
-        ctx.lineWidth = 6;          // 펜 굵기
-        ctx.lineCap = "round";
-        ctx.lineJoin = "round";
+    [insuredCanvasRef.current, beneficiaryCanvasRef.current].forEach(canvas => {
+      if (canvas) {
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.strokeStyle = "#000000"; 
+          ctx.lineWidth = 6;          
+          ctx.lineCap = "round";
+          ctx.lineJoin = "round";
+        }
       }
-    }
+    });
   }, [isOpen]);
 
   if (!isOpen) return null;
 
-  // ⭐️ 서명 패드 그리기 로직 (PC 마우스 & 모바일 터치 대응)
-  const getCoordinates = (e: React.MouseEvent | React.TouchEvent) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return { x: 0, y: 0 };
+  const getCoordinates = (e: React.MouseEvent | React.TouchEvent, canvas: HTMLCanvasElement) => {
     const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
     
-    // 모바일 터치 이벤트
+    let clientX, clientY;
     if ('touches' in e) {
-      return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    } else {
+      clientX = (e as React.MouseEvent).clientX;
+      clientY = (e as React.MouseEvent).clientY;
     }
-    // PC 마우스 이벤트
-    return { x: (e as React.MouseEvent).clientX - rect.left, y: (e as React.MouseEvent).clientY - rect.top };
+    return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
   };
 
-  const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
-    setIsDrawing(true);
-    setHasSignature(true);
-    const { x, y } = getCoordinates(e);
-    const ctx = canvasRef.current?.getContext("2d");
+  const startDrawing = (e: React.MouseEvent | React.TouchEvent, type: 'insured' | 'beneficiary') => {
+    const canvas = type === 'insured' ? insuredCanvasRef.current : beneficiaryCanvasRef.current;
+    if (!canvas) return;
+    
+    if (type === 'insured') {
+      setIsInsuredDrawing(true);
+      setHasInsuredSignature(true);
+    } else {
+      setIsBeneficiaryDrawing(true);
+      setHasBeneficiarySignature(true);
+    }
+    
+    const { x, y } = getCoordinates(e, canvas);
+    const ctx = canvas.getContext("2d");
     if (ctx) {
       ctx.beginPath();
       ctx.moveTo(x, y);
     }
   };
 
-  const draw = (e: React.MouseEvent | React.TouchEvent) => {
+  const draw = (e: React.MouseEvent | React.TouchEvent, type: 'insured' | 'beneficiary') => {
+    const isDrawing = type === 'insured' ? isInsuredDrawing : isBeneficiaryDrawing;
     if (!isDrawing) return;
-    const { x, y } = getCoordinates(e);
-    const ctx = canvasRef.current?.getContext("2d");
+    
+    const canvas = type === 'insured' ? insuredCanvasRef.current : beneficiaryCanvasRef.current;
+    if (!canvas) return;
+
+    const { x, y } = getCoordinates(e, canvas);
+    const ctx = canvas.getContext("2d");
     if (ctx) {
       ctx.lineTo(x, y);
       ctx.stroke();
     }
   };
 
-  const stopDrawing = () => setIsDrawing(false);
+  const stopDrawing = (type: 'insured' | 'beneficiary') => {
+    if (type === 'insured') setIsInsuredDrawing(false);
+    else setIsBeneficiaryDrawing(false);
+  };
 
-  const clearSignature = () => {
-    const canvas = canvasRef.current;
+  const clearSignature = (type: 'insured' | 'beneficiary') => {
+    const canvas = type === 'insured' ? insuredCanvasRef.current : beneficiaryCanvasRef.current;
     const ctx = canvas?.getContext("2d");
     if (canvas && ctx) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      setHasSignature(false);
+      if (type === 'insured') setHasInsuredSignature(false);
+      else setHasBeneficiarySignature(false);
     }
   };
 
-  // 고객 검색 로직
   const handleSelectClient = async (role: 'policyholder' | 'insured' | 'beneficiary', selectedClient: any) => {
     let rrn = "";
     if (selectedClient.registration_number) {
@@ -202,7 +232,6 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
     setFocusedClientField(null);
   };
 
-  // 영수증 압축 업로드
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       setIsLoading(true);
@@ -223,11 +252,15 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
     e.target.value = ''; 
   };
 
-  // 전송 처리
   const handleAction = async (type: string) => {
-    if (!accidentDesc) return alert("청구 사유(진단명 및 내용)는 필수입니다.");
-    // 서명 필수 체크 (필요 없으시다면 이 줄은 삭제하셔도 됩니다)
-    if (!hasSignature) return alert("청구자 서명을 입력해 주세요.");
+    
+    // ⭐️ [핵심 2] 필요하다고 설정된 서명만 유효성 검사 진행
+    if (needsInsuredSignature && !hasInsuredSignature) {
+      return alert("피보험자 서명을 기재해 주세요.");
+    }
+    if (needsBeneficiarySignature && !hasBeneficiarySignature) {
+      return alert("수익자(청구인) 서명을 기재해 주세요.");
+    }
     
     setIsLoading(true);
     try {
@@ -251,10 +284,12 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
       formData.append("accountNumber", accountNumber);
       formData.append("accidentDesc", accidentDesc);
       
-      // ⭐️ 그려진 서명을 Base64 문자열로 추출해서 폼 데이터에 추가!
-      if (hasSignature && canvasRef.current) {
-        const signatureData = canvasRef.current.toDataURL("image/png");
-        formData.append("signatureImage", signatureData);
+      // 필요한 서명만 추출해서 전송
+      if (needsBeneficiarySignature && hasBeneficiarySignature && beneficiaryCanvasRef.current) {
+        formData.append("signatureImage", beneficiaryCanvasRef.current.toDataURL("image/png")); 
+      }
+      if (needsInsuredSignature && hasInsuredSignature && insuredCanvasRef.current) {
+        formData.append("insuredSignatureImage", insuredCanvasRef.current.toDataURL("image/png"));
       }
       
       uploadedFiles.forEach(file => formData.append("receipts", file));
@@ -296,7 +331,6 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
   const renderClientSearchInput = (role: 'policyholder' | 'insured' | 'beneficiary', placeholderText: string) => {
     const currentState = role === 'policyholder' ? policyholder : role === 'insured' ? insured : beneficiary;
     const setState = role === 'policyholder' ? setPolicyholder : role === 'insured' ? setInsured : setBeneficiary;
-    
     const currentValue = currentState.name;
     const cleanNameInput = currentValue.replace(/\s+/g, "").toLowerCase();
     const cleanPhoneInput = currentValue.replace(/[^0-9]/g, "");
@@ -348,18 +382,16 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
               <span className="text-blue-600">{insurance?.insurance_company}</span> - {insurance?.product_name}
             </p>
           </div>
-          <button onClick={onClose} className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-colors">
+          <button onClick={onClose} className="cursor-pointer p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
         
-        {/* 스크롤 가능한 본문 */}
+        {/* 본문 */}
         <div className="flex-1 overflow-y-auto p-5 space-y-6">
-          
-          {/* 계약 관계자 정보 폼 */}
           <div className="bg-slate-50 p-4 rounded-xl border border-gray-200 space-y-4">
             <h4 className="font-bold text-sm text-gray-800 flex items-center gap-1.5 border-b border-gray-200 pb-2">
-              <Users className="w-4 h-4 text-indigo-500" /> 계약 관계자 정보 (검색하여 불러오거나 직접 수정)
+              <Users className="w-4 h-4 text-indigo-500" /> 계약 관계자 정보
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2 bg-white p-3 rounded-lg border border-gray-100 shadow-sm">
@@ -375,7 +407,7 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
                 <input type="text" placeholder="연락처" value={insured.phone} onChange={e => setInsured({...insured, phone: e.target.value})} className="w-full border border-gray-200 rounded p-1.5 text-xs focus:border-blue-500 outline-none" />
               </div>
               <div className="space-y-2 bg-white p-3 rounded-lg border border-gray-100 shadow-sm">
-                <p className="text-xs font-black text-amber-700">③ 수익자 (수령인)</p>
+                <p className="text-xs font-black text-amber-700">③ 수익자 (청구인)</p>
                 {renderClientSearchInput('beneficiary', '이름 (검색 또는 직접입력)')}
                 <input type="text" placeholder="주민번호 (예: 900101-1XXXXXX)" value={beneficiary.rrn} onChange={e => setBeneficiary({...beneficiary, rrn: e.target.value})} className="w-full border border-gray-200 rounded p-1.5 text-xs focus:border-blue-500 outline-none" />
                 <input type="text" placeholder="연락처" value={beneficiary.phone} onChange={e => setBeneficiary({...beneficiary, phone: e.target.value})} className="w-full border border-gray-200 rounded p-1.5 text-xs focus:border-blue-500 outline-none" />
@@ -400,41 +432,91 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
             </div>
           </div>
 
-          {/* ⭐️ 서명 패드 UI 영역 추가 */}
-          <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100">
-            <div className="flex justify-between items-end mb-2">
-              <label className="block text-xs font-bold text-blue-800 flex items-center gap-1.5">
-                <Edit3 className="w-4 h-4" /> 청구자 자필 서명 (동의서 자동 입력용)
-              </label>
-              <button 
-                onClick={clearSignature} 
-                className="text-[10px] flex items-center gap-1 bg-white border border-gray-200 text-gray-500 px-2 py-1 rounded hover:bg-gray-50 hover:text-red-500 transition-colors"
-              >
-                <Eraser className="w-3 h-3" /> 지우기
-              </button>
-            </div>
-            <div className="relative border-2 border-dashed border-blue-200 bg-white rounded-xl overflow-hidden touch-none h-[120px]">
-              {/* 배경 힌트 텍스트 (서명을 시작하면 사라짐) */}
-              {!hasSignature && (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-40">
-                  <p className="text-xs font-bold text-gray-400">여기에 마우스나 손가락으로 서명해 주세요</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            
+            {/* ⭐️ [핵심 3] 피보험자 서명 패드 (비활성화 상태 UI 적용) */}
+            <div className={`relative bg-emerald-50/50 p-4 rounded-xl border border-emerald-100 transition-all ${!needsInsuredSignature ? 'pointer-events-none' : ''}`}>
+              
+              {/* 비활성화 시 화면을 가리는 블러 오버레이 */}
+              {!needsInsuredSignature && (
+                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-white/70 backdrop-blur-[2px] rounded-xl border border-gray-200">
+                  <Ban className="w-6 h-6 text-gray-400 mb-1" />
+                  <span className="bg-gray-800 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm">
+                    이 보험사는 서명이 불필요합니다
+                  </span>
                 </div>
               )}
-              {/* 실제 그리기 영역 (터치 스크롤 방지를 위해 touch-none 클래스 적용됨) */}
-              <canvas
-                ref={canvasRef}
-                width={800} // 내부 해상도를 크게 잡아야 화질이 깨지지 않습니다
-                height={240}
-                className="w-full h-full cursor-crosshair"
-                onMouseDown={startDrawing}
-                onMouseMove={draw}
-                onMouseUp={stopDrawing}
-                onMouseLeave={stopDrawing}
-                onTouchStart={startDrawing}
-                onTouchMove={draw}
-                onTouchEnd={stopDrawing}
-              />
+
+              <div className="flex justify-between items-end mb-2">
+                <label className="block text-xs font-bold text-emerald-800 flex items-center gap-1.5">
+                  <Edit3 className="w-4 h-4" /> 피보험자 자필 서명
+                </label>
+                <button onClick={() => clearSignature('insured')} className="text-[10px] flex items-center gap-1 bg-white border border-gray-200 text-gray-500 px-2 py-1 rounded hover:bg-gray-50 hover:text-red-500 transition-colors">
+                  <Eraser className="w-3 h-3" /> 지우기
+                </button>
+              </div>
+              <div className="relative border-2 border-dashed border-emerald-200 bg-white rounded-xl overflow-hidden touch-none h-[120px]">
+                {!hasInsuredSignature && needsInsuredSignature && (
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-40">
+                    <p className="text-[11px] font-bold text-gray-400">피보험자 서명을 기재해 주세요</p>
+                  </div>
+                )}
+                <canvas
+                  ref={insuredCanvasRef}
+                  width={600} height={200}
+                  className="w-full h-full cursor-crosshair"
+                  onMouseDown={(e) => startDrawing(e, 'insured')}
+                  onMouseMove={(e) => draw(e, 'insured')}
+                  onMouseUp={() => stopDrawing('insured')}
+                  onMouseLeave={() => stopDrawing('insured')}
+                  onTouchStart={(e) => startDrawing(e, 'insured')}
+                  onTouchMove={(e) => draw(e, 'insured')}
+                  onTouchEnd={() => stopDrawing('insured')}
+                />
+              </div>
             </div>
+
+            {/* ⭐️ 수익자 서명 패드 (비활성화 상태 UI 적용) */}
+            <div className={`relative bg-amber-50/50 p-4 rounded-xl border border-amber-100 transition-all ${!needsBeneficiarySignature ? 'pointer-events-none' : ''}`}>
+              
+              {!needsBeneficiarySignature && (
+                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-white/70 backdrop-blur-[2px] rounded-xl border border-gray-200">
+                  <Ban className="w-6 h-6 text-gray-400 mb-1" />
+                  <span className="bg-gray-800 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm">
+                    이 보험사는 서명이 불필요합니다
+                  </span>
+                </div>
+              )}
+
+              <div className="flex justify-between items-end mb-2">
+                <label className="block text-xs font-bold text-amber-800 flex items-center gap-1.5">
+                  <Edit3 className="w-4 h-4" /> 수익자(청구인) 자필 서명
+                </label>
+                <button onClick={() => clearSignature('beneficiary')} className="text-[10px] flex items-center gap-1 bg-white border border-gray-200 text-gray-500 px-2 py-1 rounded hover:bg-gray-50 hover:text-red-500 transition-colors">
+                  <Eraser className="w-3 h-3" /> 지우기
+                </button>
+              </div>
+              <div className="relative border-2 border-dashed border-amber-200 bg-white rounded-xl overflow-hidden touch-none h-[120px]">
+                {!hasBeneficiarySignature && needsBeneficiarySignature && (
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-40">
+                    <p className="text-[11px] font-bold text-gray-400">수익자 서명을 기재해 주세요</p>
+                  </div>
+                )}
+                <canvas
+                  ref={beneficiaryCanvasRef}
+                  width={600} height={200}
+                  className="w-full h-full cursor-crosshair"
+                  onMouseDown={(e) => startDrawing(e, 'beneficiary')}
+                  onMouseMove={(e) => draw(e, 'beneficiary')}
+                  onMouseUp={() => stopDrawing('beneficiary')}
+                  onMouseLeave={() => stopDrawing('beneficiary')}
+                  onTouchStart={(e) => startDrawing(e, 'beneficiary')}
+                  onTouchMove={(e) => draw(e, 'beneficiary')}
+                  onTouchEnd={() => stopDrawing('beneficiary')}
+                />
+              </div>
+            </div>
+
           </div>
 
           <div>
@@ -451,11 +533,10 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
         </div>
 
         <div className="p-4 border-t border-gray-100 bg-white grid grid-cols-1 md:grid-cols-2 gap-3">
-          <button onClick={() => handleAction('pdf')} disabled={isLoading} className="flex items-center justify-center gap-2 p-3 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold text-sm transition-colors">
+          <button onClick={() => handleAction('pdf')} disabled={isLoading} className="cursor-pointer flex items-center justify-center gap-2 p-3 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold text-sm transition-colors">
             <Printer className="w-4 h-4" /> PDF 인쇄
           </button>
-          
-          <button onClick={() => handleAction('mobile')} disabled={isLoading} className="flex items-center justify-center gap-2 p-3 rounded-xl border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold text-sm transition-colors">
+          <button onClick={() => handleAction('mobile')} disabled={isLoading} className="cursor-pointer flex items-center justify-center gap-2 p-3 rounded-xl border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold text-sm transition-colors">
             <Share2 className="w-4 h-4" /> 모바일 팩스
           </button>
         </div>
