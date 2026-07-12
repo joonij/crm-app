@@ -50,6 +50,24 @@ export const fillMeritz = async (pdfDoc: PDFDocument, data: any, font: PDFFont) 
     page.drawText("V", { x, y, size, font, color: rgb(0, 0, 0) });
   };
 
+  // ⭐️ 2. 서명(이미지) 그리기 로직 추가!
+  if (data.signatureImage) {
+    // 프론트에서 받은 Base64 문자열을 pdf-lib가 읽을 수 있는 이미지 객체로 변환
+    const signatureImg = await pdfDoc.embedPng(data.signatureImage);
+    
+    // 서명 크기 세팅 (가로 60, 세로 20 정도로 지정)
+    const sigDims = { width: 60, height: 20 };
+
+    // 1페이지 메인 서명란에 쾅! (원하시는 서명란 X, Y 좌표로 바꾸세요)
+    firstPage.drawImage(signatureImg, { x: 450, y: 120, ...sigDims });
+
+    // 2페이지, 3페이지 동의서 이름 옆 서명란에도 자동으로 쾅쾅!
+    if (secondPage) {
+      secondPage.drawImage(signatureImg, { x: 450, y: 650, ...sigDims });
+      secondPage.drawImage(signatureImg, { x: 450, y: 500, ...sigDims });
+    }
+  }
+  
   // ----------------------------------------------------
   // [1페이지] 데이터 입력 (메리츠 좌표)
   // ----------------------------------------------------
