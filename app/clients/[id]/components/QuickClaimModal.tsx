@@ -498,11 +498,19 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
           <div>
             <label className="block text-xs font-bold text-gray-500 mb-1">진료비 영수증 첨부</label>
             <div className="border-2 border-dashed border-gray-200 hover:border-blue-500 rounded-xl p-4 text-center relative cursor-pointer bg-slate-50/50 transition-colors">
-              <input type="file" multiple onChange={handleFileChange} className="absolute inset-0 opacity-0 cursor-pointer" />
+              {/* ⭐️ accept 속성을 추가하여 모바일/PC에서 이미지와 PDF만 선택되도록 유도 */}
+              <input 
+                type="file" 
+                multiple 
+                accept="image/*, application/pdf" 
+                onChange={handleFileChange} 
+                className="absolute inset-0 opacity-0 cursor-pointer" 
+              />
               <Upload className="w-5 h-5 text-gray-400 mx-auto mb-1" />
-              <p className="text-xs font-bold text-gray-600">클릭하여 영수증 사진 업로드</p>
+              {/* ⭐️ 안내 문구 수정 */}
+              <p className="text-xs font-bold text-gray-600">클릭하여 영수증 사진 또는 PDF 업로드</p>
             </div>
-            {uploadedFiles.length > 0 && <p className="mt-2 text-xs font-semibold text-blue-600 flex items-center gap-1"><CheckCircle className="w-3.5 h-3.5"/> {uploadedFiles.length}장 첨부됨</p>}
+            {uploadedFiles.length > 0 && <p className="mt-2 text-xs font-semibold text-blue-600 flex items-center gap-1"><CheckCircle className="w-3.5 h-3.5"/> {uploadedFiles.length}건 첨부됨</p>}
           </div>
         </div>
 

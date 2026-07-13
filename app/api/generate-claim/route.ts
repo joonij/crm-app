@@ -100,26 +100,34 @@ export async function POST(req: NextRequest) {
       const arrayBuffer = await file.arrayBuffer();
       const fileType = file.type;
 
-      let image;
-      if (fileType === "image/jpeg" || fileType === "image/jpg") {
-        image = await pdfDoc.embedJpg(arrayBuffer);
-      } else if (fileType === "image/png") {
-        image = await pdfDoc.embedPng(arrayBuffer);
+      if (fileType === "application/pdf") {
+        const attachedPdf = await PDFDocument.load(arrayBuffer);
+        const copiedPages = await pdfDoc.copyPages(attachedPdf, attachedPdf.getPageIndices());
+        copiedPages.forEach((page) => pdfDoc.addPage(page));
+      } else if (fileType === "image/jpeg" || fileType === "image/jpg" || fileType === "image/png") {
+        let image;
+        if (fileType === "image/jpeg" || fileType === "image/jpg") {
+          image = await pdfDoc.embedJpg(arrayBuffer);
+        } else if (fileType === "image/png") {
+          image = await pdfDoc.embedPng(arrayBuffer);
+        } else {
+          continue; 
+        }
+
+        const A4_WIDTH = 595;
+        const A4_HEIGHT = 842;
+        const { width, height } = image.scaleToFit(A4_WIDTH - 40, A4_HEIGHT - 40);
+        
+        const newPage = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
+        newPage.drawImage(image, {
+          x: (A4_WIDTH - width) / 2,
+          y: (A4_HEIGHT - height) / 2,
+          width,
+          height,
+        });
       } else {
         continue; 
       }
-
-      const A4_WIDTH = 595;
-      const A4_HEIGHT = 842;
-      const { width, height } = image.scaleToFit(A4_WIDTH - 40, A4_HEIGHT - 40);
-      
-      const newPage = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
-      newPage.drawImage(image, {
-        x: (A4_WIDTH - width) / 2,
-        y: (A4_HEIGHT - height) / 2,
-        width,
-        height,
-      });
     }
 
     // 7. 최종 저장
