@@ -230,17 +230,38 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
       setIsLoading(true);
       try {
         const files = Array.from(e.target.files);
-        const options = { maxSizeMB: 1, maxWidthOrHeight: 1200, useWebWorker: true };
-        const compressedFiles = await Promise.all(
-          files.map(async (file) => (!file.type.startsWith('image/') ? file : await imageCompression(file, options)))
+        
+        // ⭐️ [핵심 1] 모바일 브라우저 충돌의 주범인 Web Worker 기능 비활성화
+        const options = { 
+          maxSizeMB: 1, 
+          maxWidthOrHeight: 1200, 
+          useWebWorker: false // <- 이 부분을 false로 변경했습니다.
+        };
+        
+        const processedFiles = await Promise.all(
+          files.map(async (file) => {
+            // 이미지가 아니면(PDF 등) 압축하지 않고 원본 그대로 패스
+            if (!file.type.startsWith('image/')) return file;
+            
+            // ⭐️ [핵심 2] 압축 중 에러가 나도 앱이 뻗지 않고 원본 파일로 안전하게 대체
+            try {
+              return await imageCompression(file, options);
+            } catch (compressError) {
+              console.error("이미지 압축 실패 (원본 파일로 진행합니다):", compressError);
+              return file; 
+            }
+          })
         );
-        setUploadedFiles((prev) => [...prev, ...compressedFiles]);
+        
+        setUploadedFiles((prev) => [...prev, ...processedFiles]);
       } catch (error) {
-        alert("이미지 처리 중 오류가 발생했습니다.");
+        console.error("파일 처리 전체 에러:", error);
+        alert("파일을 첨부하는 중 문제가 발생했습니다.");
       } finally {
         setIsLoading(false);
       }
     }
+    // 같은 파일을 지웠다 다시 올릴 수 있도록 input 초기화
     e.target.value = ''; 
   };
 
