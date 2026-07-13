@@ -2,7 +2,6 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-// ⭐️ Copy 아이콘 추가
 import { X, Upload, CheckCircle, FileText, Printer, Share2, Send, Loader2, Users, Edit3, Eraser, Ban, Copy } from "lucide-react";
 import { supabase } from "@/lib/supabase"; 
 import { decryptRegNumber } from "@/app/actions/crypto"; 
@@ -15,7 +14,6 @@ type QuickClaimModalProps = {
   insurance: any;
 };
 
-// ⭐️ [신규 추가] 주요 보험사 팩스번호 매핑 딕셔너리 (필요시 번호 수정/추가 가능)
 const FAX_NUMBERS: Record<string, string> = {
   "메리츠화재": "0505-021-3400",
   "현대해상": "0507-774-6060",
@@ -47,10 +45,7 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
   const [bankLists, setBankLists] = useState<{ id: number; bank: string }[]>([]);
   const [focusedClientField, setFocusedClientField] = useState<'policyholder' | 'insured' | 'beneficiary' | null>(null);
   const [readyToShareFile, setReadyToShareFile] = useState<File | null>(null);
-
-  // ⭐️ [신규 상태] 팩스번호 복사 완료 애니메이션 상태
   const [isCopied, setIsCopied] = useState(false);
-
   const insuredCanvasRef = useRef<HTMLCanvasElement>(null);
   const beneficiaryCanvasRef = useRef<HTMLCanvasElement>(null);
   const [isInsuredDrawing, setIsInsuredDrawing] = useState(false);
@@ -58,12 +53,12 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
   const [hasInsuredSignature, setHasInsuredSignature] = useState(false); 
   const [hasBeneficiarySignature, setHasBeneficiarySignature] = useState(false);
 
+  // 보험사별 제어 로직
   const companyName = insurance?.insurance_company || "";
   let needsInsuredSignature = true; 
   let needsBeneficiarySignature = true; 
-  let supportsSavedAccount = false; 
 
-  // ⭐️ [신규 추가] 현재 선택된 보험사의 팩스번호 찾기
+  let supportsSavedAccount = false; 
   const currentFaxNumber = Object.entries(FAX_NUMBERS).find(([key]) => companyName.includes(key))?.[1] || "번호 확인 필요";
 
   if (companyName.includes("메리츠화재")) {
@@ -328,19 +323,6 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
       
       uploadedFiles.forEach(file => formData.append("receipts", file));
 
-      let sharePromiseResolver: (data: any) => void = () => {};
-      const sharePromise = new Promise((resolve) => {
-        sharePromiseResolver = resolve;
-      });
-
-      if (type === "mobile" && typeof navigator.share === "function") {
-        navigator.share(sharePromise as any).catch((e) => {
-          if (e.name !== "AbortError" && !e.message?.includes("Canceled")) {
-            console.warn("내장 브라우저 공유 차단 확인됨");
-          }
-        });
-      }
-
       const res = await fetch("/api/generate-claim", { method: "POST", body: formData });
       
       if (!res.ok) {
@@ -354,7 +336,6 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
 
       const blob = await res.blob();
       const fileName = `${client.name}_${insurance?.insurance_company || '보험금'}_청구서.pdf`;
-
       if (type === "pdf") {
         const pdfUrl = URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -366,16 +347,7 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
         document.body.removeChild(link);
       } else if (type === "mobile") {
         const pdfFile = new File([blob], fileName, { type: "application/pdf" });
-
-        if (typeof navigator.share === "function") {
-          sharePromiseResolver({
-            title: `${client.name} 고객 보험금 청구 서류`,
-            text: `다이렉트 모바일 팩스 전송용 PDF 파일입니다.`,
-            files: [pdfFile]
-          });
-        } else {
-          setReadyToShareFile(pdfFile);
-        }
+        setReadyToShareFile(pdfFile);
       }
     } catch (error: any) {
       console.error(error);
@@ -384,7 +356,6 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
       setIsLoading(false);
     }
   };
-
   const executeDirectShare = async () => {
     if (!readyToShareFile) return;
     try {
@@ -395,7 +366,7 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
       });
     } catch (shareError: any) {
       if (shareError.name === "AbortError" || shareError.message?.includes("Share canceled")) {
-        return; 
+        return;
       }
       alert("공유 기능이 차단된 브라우저입니다. 화면 우측 상단의 다른 브라우저로 열기를 이용해주세요.");
     }
@@ -522,7 +493,7 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
               <span className="text-blue-600">{insurance?.insurance_company}</span> - {insurance?.product_name}
             </p>
           </div>
-          <button onClick={onClose} className="cursor-pointer p-3 sm:p-2 text-slate-400 hover:text-rose-500">
+          <button onClick={onClose} className="cursor-pointer p-3 sm:p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-2xl sm:rounded-xl transition-colors bg-white shadow-sm border border-gray-200 sm:border-transparent sm:bg-transparent sm:shadow-none">
             <X className="w-6 h-6 sm:w-5 sm:h-5" />
           </button>
         </div>
