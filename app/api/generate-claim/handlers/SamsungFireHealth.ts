@@ -1,6 +1,6 @@
 import { PDFDocument, PDFFont, rgb } from "pdf-lib";
 
-export const fillDbPropertyHealth = async (pdfDoc: PDFDocument, data: any, font: PDFFont) => {
+export const fillSamsungFireHealth = async (pdfDoc: PDFDocument, data: any, font: PDFFont) => {
   const pages = pdfDoc.getPages();
   const firstPage = pages[0]; // 1페이지
   const secondPage = pages.length > 1 ? pages[1] : null; // 2페이지 (있을 경우)
@@ -65,11 +65,11 @@ export const fillDbPropertyHealth = async (pdfDoc: PDFDocument, data: any, font:
     const sigDims = { width: 120, height: 20 };
 
     // ⭐️ 1페이지 서명란 좌표 (수익자 이름인 405, 72의 바로 옆이나 위에 맞게 좌표 조절)
-    firstPage.drawImage(signatureImg, { x: 500, y: 108, ...sigDims });
+    firstPage.drawImage(signatureImg, { x: 475, y: 140, ...sigDims });
 
     // ⭐️ 4페이지 동의서 서명란 좌표 (대표님이 쓰신 이름 좌표 432, 440의 바로 우측)
     if (fifthPage) {
-      fifthPage.drawImage(signatureImg, { x: 500, y: 120, ...sigDims });
+      fifthPage.drawImage(signatureImg, { x: 475, y: 390, ...sigDims });
     }
   }
 
@@ -87,65 +87,61 @@ export const fillDbPropertyHealth = async (pdfDoc: PDFDocument, data: any, font:
     const sigDims = { width: 120, height: 20 };
 
     // ⭐️ 1페이지 서명란 좌표 (수익자 이름인 405, 72의 바로 옆이나 위에 맞게 좌표 조절)
-    firstPage.drawImage(insuredsignatureImg, { x: 500, y: 148, ...sigDims });
+    firstPage.drawImage(insuredsignatureImg, { x: 475, y: 170, ...sigDims });
 
     // ⭐️ 4페이지 동의서 서명란 좌표 (대표님이 쓰신 이름 좌표 432, 440의 바로 우측)
     if (fifthPage) {
-      fifthPage.drawImage(insuredsignatureImg, { x: 500, y: 160, ...sigDims });
+      fifthPage.drawImage(insuredsignatureImg, { x: 475, y: 430, ...sigDims });
     }
   }
   // ----------------------------------------------------
   // [1페이지] 데이터 입력 (메리츠 좌표)
   // ----------------------------------------------------
-  drawCenterText(firstPage, data.insuredName, 200, 695, 14);
-  drawText(firstPage, data.insuredRrn, 300, 695, 14);
+  drawCenterText(firstPage, data.insuredName, 165, 663, 12);
+  drawCenterText(firstPage, data.insuredRrn, 335, 663, 12);
+  
+  drawCenterText(firstPage, data.policyholderName, 165, 643, 12);
+  drawCenterText(firstPage, data.policyholderRrn, 335, 643, 12);
 
-  drawCheck(firstPage, 215, 625); // '기타' 또는 '피보험자' 란 체크 (필요시 좌표 수정)
-  drawText(firstPage, data.beneficiaryName, 270, 625, 14);
-  drawText(firstPage, "수익자", 430, 625, 14); 
-  drawText(firstPage, data.beneficiaryPhone, 145, 600, 14);
+  drawCenterText(firstPage, data.beneficiaryName, 225, 623, 12);
+  drawText(firstPage, data.beneficiaryPhone, 310, 623, 12);
+  drawCheck(firstPage, 193, 591);
 
-  drawText(firstPage, data.accidentDesc, 380, 468, 14);
+  drawText(firstPage, data.accidentDesc, 337, 467, 12);
 
-  if (data.useSavedAccount === true || data.useSavedAccount === "true") {
-    drawCheck(firstPage, 135, 310);
-  } else {
-    drawText(firstPage, data.accountNumber, 173, 287, 12);
-    drawText(firstPage, data.bankName, 370, 287, 12);
-    drawCenterText(firstPage, data.beneficiaryName, 492, 287, 12);
-  }
+  drawText(firstPage, data.bankName, 190, 335, 12);
+  drawText(firstPage, data.accountNumber, 305, 335, 12);
+  drawCenterText(firstPage, data.beneficiaryName, 507, 335, 12);
 
-  drawText(firstPage, data.todayYear, 70, 148, 14);
-  drawText(firstPage, data.todayMonth, 133, 148, 14);
-  drawText(firstPage, data.todayDay, 183, 148, 14);
-  drawCenterText(firstPage, data.insuredName, 470, 148, 14); // 피보험자 성명
-  drawCenterText(firstPage, data.beneficiaryName, 470, 113, 14); // 보험수익자 성명
+  drawText(firstPage, data.todayYear, 75, 175, 12);
+  drawText(firstPage, data.todayMonth, 117, 175, 12);
+  drawText(firstPage, data.todayDay, 142, 175, 12);
+  drawCenterText(firstPage, data.insuredName, 460, 175, 12);
+  drawCenterText(firstPage, data.beneficiaryName, 460, 145, 12); // 수익자 성명 (서명칸 좌측)
 
   if (secondPage) {
-    // 체크박스 위치
-    drawCheck(secondPage, 542, 438); // 고유식별정보 동의함
-    drawCheck(secondPage, 542, 348); // 민감정보 동의함
-    drawCheck(secondPage, 542, 255); // 개인(신용)정보 동의함
+    drawCheck(secondPage, 492, 363); // 고유식별정보 수집 동의함
+    drawCheck(secondPage, 492, 267); // 민감정보 수집 동의함
+    drawCheck(secondPage, 492, 172); // 개인(신용)정보 수집 동의함
   }
   if (thirdPage) {
-    drawCheck(thirdPage, 542, 335); 
-    drawCheck(thirdPage, 542, 233); 
-    drawCheck(thirdPage, 542, 95);
   }
   if (fourthPage) {
-    drawCheck(fourthPage, 542, 340); 
-    drawCheck(fourthPage, 542, 240);
+    drawCheck(fourthPage, 492, 674); // 고유식별정보 제공 동의함
+    drawCheck(fourthPage, 492, 575); // 민감정보 제공 동의함
+    drawCheck(fourthPage, 492, 493); // 개인(신용)정보 제공 동의함 (국내)
+    drawCheck(fourthPage, 492, 415); // 개인(신용)정보 제공 동의함 (국외)
   }
   if (fifthPage) {
-    drawCheck(fifthPage, 542, 660); // 고유식별 조회 동의함
-    drawCheck(fifthPage, 542, 590); // 민감정보 조회 동의함
-    drawCheck(fifthPage, 542, 455); // 일반정보 조회 동의함
+    drawCheck(fifthPage, 492, 690); // 고유식별정보 조회 동의함
+    drawCheck(fifthPage, 492, 612); // 민감정보 조회 동의함
+    drawCheck(fifthPage, 492, 540); // 개인(신용)정보 조회 동의함
 
-    drawText(fifthPage, data.todayYear, 80, 162, 14);
-    drawText(fifthPage, data.todayMonth, 150, 162, 14);
-    drawText(fifthPage, data.todayDay, 200, 162, 14);
+    drawText(fifthPage, data.todayYear, 100, 438, 12);
+    drawText(fifthPage, data.todayMonth, 155, 438, 12);
+    drawText(fifthPage, data.todayDay, 190, 438, 12);
 
-    drawText(fifthPage, data.insuredName, 450, 162, 14); // 피보험자 성명
-    drawText(fifthPage, data.beneficiaryName, 450, 125, 14); // 보험수익자 성명
+    drawCenterText(fifthPage, data.insuredName, 440, 438, 12); // 피보험자 이름
+    drawCenterText(fifthPage, data.beneficiaryName, 440, 397, 12); // 수익자 이름
   }
 };

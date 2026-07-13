@@ -9,16 +9,16 @@ import path from "path";
 import { fillMeritzHealth } from "./handlers/MeritzHealth";
 import { fillHyundaiMarineHealth } from "./handlers/HyundaiMarineHealth";
 import { fillDbPropertyHealth } from "./handlers/DbPropertyHealth";
+import { fillSamsungFireHealth } from "./handlers/SamsungFireHealth";
 
 export async function POST(req: NextRequest) {
   try {
     console.log("\n========== [PDF 생성 API 시작] ==========");
     const formData = await req.formData();
     
-    // 1. 프론트엔드 데이터 모두 추출 (Data 객체로 묶기)
     const today = new Date();
     const claimData = {
-      insuranceCompany: formData.get("insuranceCompany") as string || "메리츠화재",
+      insuranceCompany: formData.get("insuranceCompany") as string || "",
       
       policyholderName: formData.get("policyholderName") as string || "",
       policyholderRrn: formData.get("policyholderRrn") as string || "",
@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
       insuredRrn: formData.get("insuredRrn") as string || "",
       insuredPhone: formData.get("insuredPhone") as string || "",
 
+      useSavedAccount: formData.get("useSavedAccount") as string || "",
       beneficiaryName: formData.get("beneficiaryName") as string || "",
       beneficiaryRrn: formData.get("beneficiaryRrn") as string || "",
       beneficiaryPhone: formData.get("beneficiaryPhone") as string || "",
@@ -63,6 +64,10 @@ export async function POST(req: NextRequest) {
     if (claimData.insuranceCompany.includes("DB손해")) {
       fileName = "dbproperty_health.pdf";
       fillFunction = fillDbPropertyHealth;
+    } 
+    if (claimData.insuranceCompany.includes("삼성화재")) {
+      fileName = "samsungfire_health.pdf";
+      fillFunction = fillSamsungFireHealth;
     } 
 
     if (!fileName || !fillFunction) {

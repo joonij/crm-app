@@ -83,10 +83,15 @@ export const fillMeritzHealth = async (pdfDoc: PDFDocument, data: any, font: PDF
   drawCenterText(firstPage, data.beneficiaryName, 140, 620);
   drawText(firstPage, data.beneficiaryPhone, 237, 620, 18, 12.3);
 
-  drawText(firstPage, data.bankName, 72, 216, 12);
-  drawText(firstPage, data.accountNumber, 87, 187, 18, 12.9);
-  drawCenterText(firstPage, data.beneficiaryName, 230, 216, 12);
-  drawCenterText(firstPage, data.beneficiaryRrn, 385, 216, 12);
+  if (data.useSavedAccount === true || data.useSavedAccount === "true") {
+    drawCheck(firstPage, 127, 245);
+  } else {
+    drawText(firstPage, data.bankName, 72, 216, 12);
+    drawCenterText(firstPage, data.beneficiaryName, 230, 216, 12);
+    drawCenterText(firstPage, data.beneficiaryRrn, 385, 216, 12);
+    drawCenterText(firstPage, "수익자", 540, 216, 12);
+    drawText(firstPage, data.accountNumber, 87, 187, 18, 12.9);
+  }
 
   drawText(firstPage, data.accidentDesc, 72, 367, 12);
 

@@ -84,9 +84,14 @@ export const fillHyundaiMarineHealth = async (pdfDoc: PDFDocument, data: any, fo
   drawCenterText(firstPage, data.beneficiaryName, 163, 536);
   drawText(firstPage, data.beneficiaryPhone, 260, 536, 18, 10.8);
 
-  drawText(firstPage, data.bankName, 95, 212, 12);
-  drawText(firstPage, data.accountNumber, 240, 212, 12);
-  drawCenterText(firstPage, data.beneficiaryName, 525, 212, 12);
+  
+  if (data.useSavedAccount === true || data.useSavedAccount === "true") {
+    drawCheck(firstPage, 135, 237);
+  } else {
+    drawText(firstPage, data.bankName, 95, 212, 12);
+    drawText(firstPage, data.accountNumber, 240, 212, 12);
+    drawCenterText(firstPage, data.beneficiaryName, 525, 212, 12);
+  }
 
   drawText(firstPage, data.todayYear, 100, 125, 14);
   drawText(firstPage, data.todayMonth, 165, 125, 14);
@@ -95,21 +100,28 @@ export const fillHyundaiMarineHealth = async (pdfDoc: PDFDocument, data: any, fo
   drawCenterText(firstPage, data.beneficiaryName, 415, 125);
 
   if (secondPage) {
-    // 체크박스 위치
+    drawCenterText(secondPage, data.insuredName, 100, 743, 14);
+    drawText(secondPage, data.insuredRrn, 285, 743, 14);
     drawCheck(secondPage, 512, 405);
     drawCheck(secondPage, 512, 302);
     drawCheck(secondPage, 512, 180);
   }
   if (thirdPage) {
+    drawCenterText(thirdPage, data.insuredName, 100, 743, 14);
+    drawText(thirdPage, data.insuredRrn, 285, 743, 14);
     drawCheck(thirdPage, 508, 275);
     drawCheck(thirdPage, 508, 177);
   }
   if (fourthPage) {
+    drawCenterText(fourthPage, data.insuredName, 100, 743, 14);
+    drawText(fourthPage, data.insuredRrn, 285, 743, 14);
     drawCheck(fourthPage, 507, 633);
     drawCheck(fourthPage, 507, 215);
     drawCheck(fourthPage, 507, 122);
   }
   if (fifthPage) {
+    drawCenterText(fifthPage, data.insuredName, 100, 743, 14);
+    drawText(fifthPage, data.insuredRrn, 285, 743, 14);
     drawCheck(fifthPage, 509, 555);
     drawCheck(fifthPage, 509, 507);
     drawCheck(fifthPage, 509, 420);
