@@ -62,6 +62,12 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
   }
 
   useEffect(() => {
+    if (!supportsSavedAccount) {
+      setUseSavedAccount(false);
+    }
+  }, [supportsSavedAccount]);
+
+  useEffect(() => {
     const fetchLookups = async () => {
       const { data: banks } = await supabase.from("bank_lists").select("id, bank").order("bank");
       if (banks) setBankLists(banks);
@@ -146,6 +152,11 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
 
   if (!isOpen) return null;
 
+  const handleToggleSavedAccount = () => {
+    if (!supportsSavedAccount || isLoading) return;
+    setUseSavedAccount((prev) => !prev);
+  };
+  
   const getCoordinates = (e: React.MouseEvent | React.TouchEvent, canvas: HTMLCanvasElement) => {
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
@@ -318,7 +329,13 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
 
       if (type === "pdf") {
         const pdfUrl = URL.createObjectURL(blob);
-        window.open(pdfUrl, "_blank");
+        const link = document.createElement('a');
+        link.href = pdfUrl;
+        link.download = `${client.name}_${insurance?.insurance_company || '보험금'}_청구서.pdf`; 
+        link.target = '_blank';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
       } else if (type === "mobile") {
         const pdfFile = new File([blob], `${client.name}_${insurance?.insurance_company || '보험금'}_청구서.pdf`, { type: "application/pdf" });
         if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
@@ -327,9 +344,17 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
             text: `다이렉트 모바일 팩스 전송을 위한 PDF 파일입니다.`,
             files: [pdfFile]
           });
-        } else alert("현재 기기에서는 모바일 공유 기능을 지원하지 않습니다.");
+        } else {
+          alert("현재 기기(또는 카카오톡 브라우저)에서는 다이렉트 팩스 기능을 지원하지 않습니다.\n\n화면 우측 상단의 [다른 브라우저로 열기(Safari/Chrome)]를 이용하시거나 [PDF 인쇄] 버튼을 눌러주세요.");
+        }
       }
-    } catch (error) {
+    } catch (error: any) {
+      if (error.name === "AbortError" || error.message?.includes("Share canceled")) {
+        console.log("사용자가 공유 창을 닫았습니다.");
+        return; 
+      }
+      console.error(error);
+
       alert("처리 중 에러가 발생했습니다.");
     } finally {
       setIsLoading(false);
@@ -378,8 +403,19 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+      
+      {/* ⭐️ 모달의 가장 상위 컨테이너에 relative를 부여하여 오버레이가 모달 안에서만 뜨도록 제한 */}
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
         
+        {/* ⭐️ [신규 추가] 데이터를 전송하고 PDF를 만드는 동안 표시될 로딩 오버레이 */}
+        {isLoading && (
+          <div className="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm rounded-2xl">
+            <Loader2 className="w-12 h-12 text-blue-600 animate-spin mb-4" />
+            <h3 className="text-lg font-black text-slate-800">데이터를 처리하고 있습니다</h3>
+            <p className="text-sm font-bold text-gray-500 mt-2">잠시만 기다려주세요...</p>
+          </div>
+        )}
+
         <div className="flex justify-between items-center p-5 border-b border-gray-100 bg-slate-50">
           <div>
             <h3 className="font-black text-lg text-slate-800 flex items-center gap-2">
@@ -425,22 +461,22 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
             <div>
               <div className="flex justify-between items-end mb-1">
                 <label className="block text-xs font-bold text-gray-500">수익자 계좌 정보 (수령인 명의)</label>
-                
-                {/* ⭐️ [신규 기능 1] 기존 계좌로 입금 스위치 UI */}
-                <div className="flex items-center gap-2">
+                <div 
+                  onClick={handleToggleSavedAccount} 
+                  className={`flex items-center gap-2 select-none ${supportsSavedAccount ? 'cursor-pointer hover:opacity-80' : 'cursor-not-allowed'}`}
+                >
                   <span className={`text-[10px] font-bold ${useSavedAccount ? 'text-blue-600' : 'text-gray-400'}`}>
-                    자동이체계좌 요청
+                    기등록 계좌로 입금
                   </span>
                   <button
                     type="button"
                     disabled={!supportsSavedAccount}
-                    onClick={() => setUseSavedAccount(!useSavedAccount)}
-                    className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors ${
-                      !supportsSavedAccount ? 'bg-gray-200 cursor-not-allowed opacity-50' :
-                      useSavedAccount ? 'bg-blue-500 cursor-pointer' : 'bg-gray-300 cursor-pointer'
+                    className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors pointer-events-none ${
+                      !supportsSavedAccount ? 'bg-gray-200 opacity-50' :
+                      useSavedAccount ? 'bg-blue-500' : 'bg-gray-300'
                     }`}
                   >
-                    <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
+                    <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform duration-200 ${
                       useSavedAccount ? 'translate-x-4' : 'translate-x-1'
                     }`} />
                   </button>
@@ -448,10 +484,9 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
               </div>
               
               <div className="flex gap-2 relative">
-                {/* ⭐️ [신규 기능 2] 스위치 켜지면 입력란 비활성화 & 블러 처리 */}
                 {useSavedAccount && (
                   <div className="absolute inset-0 z-10 bg-white/60 backdrop-blur-[1px] rounded-lg border border-blue-200 flex items-center justify-center">
-                    <span className="text-xs font-bold text-blue-700">자동이체계좌로 입금 처리됩니다</span>
+                    <span className="text-xs font-bold text-blue-700">기등록된 계좌로 입금 처리됩니다</span>
                   </div>
                 )}
                 <select 
@@ -490,7 +525,7 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
               )}
               <div className="flex justify-between items-end mb-2">
                 <label className="block text-xs font-bold text-emerald-800 flex items-center gap-1.5"><Edit3 className="w-4 h-4" /> 피보험자 자필 서명</label>
-                <button onClick={() => clearSignature('insured')} className="text-[10px] flex items-center gap-1 bg-white border border-gray-200 text-gray-500 px-2 py-1 rounded hover:bg-gray-50 hover:text-red-500 transition-colors cursor-pointer"><Eraser className="w-3 h-3" /> 지우기</button>
+                <button onClick={() => clearSignature('insured')} className="text-[10px] flex items-center gap-1 bg-white border border-gray-200 text-gray-500 px-2 py-1 rounded hover:bg-gray-50 hover:text-red-500 transition-colors"><Eraser className="w-3 h-3" /> 지우기</button>
               </div>
               <div className="relative border-2 border-dashed border-emerald-200 bg-white rounded-xl overflow-hidden touch-none h-[120px]">
                 {!hasInsuredSignature && needsInsuredSignature && <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-40"><p className="text-[11px] font-bold text-gray-400">피보험자 서명</p></div>}
@@ -507,7 +542,7 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
               )}
               <div className="flex justify-between items-end mb-2">
                 <label className="block text-xs font-bold text-amber-800 flex items-center gap-1.5"><Edit3 className="w-4 h-4" /> 수익자(청구인) 자필 서명</label>
-                <button onClick={() => clearSignature('beneficiary')} className="text-[10px] flex items-center gap-1 bg-white border border-gray-200 text-gray-500 px-2 py-1 rounded hover:bg-gray-50 hover:text-red-500 transition-colors cursor-pointer"><Eraser className="w-3 h-3" /> 지우기</button>
+                <button onClick={() => clearSignature('beneficiary')} className="text-[10px] flex items-center gap-1 bg-white border border-gray-200 text-gray-500 px-2 py-1 rounded hover:bg-gray-50 hover:text-red-500 transition-colors"><Eraser className="w-3 h-3" /> 지우기</button>
               </div>
               <div className="relative border-2 border-dashed border-amber-200 bg-white rounded-xl overflow-hidden touch-none h-[120px]">
                 {!hasBeneficiarySignature && needsBeneficiarySignature && <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-40"><p className="text-[11px] font-bold text-gray-400">수익자 서명</p></div>}
@@ -519,16 +554,8 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
           <div>
             <label className="block text-xs font-bold text-gray-500 mb-1">진료비 영수증 첨부</label>
             <div className="border-2 border-dashed border-gray-200 hover:border-blue-500 rounded-xl p-4 text-center relative cursor-pointer bg-slate-50/50 transition-colors">
-              {/* ⭐️ accept 속성을 추가하여 모바일/PC에서 이미지와 PDF만 선택되도록 유도 */}
-              <input 
-                type="file" 
-                multiple 
-                accept="image/*, application/pdf" 
-                onChange={handleFileChange} 
-                className="absolute inset-0 opacity-0 cursor-pointer" 
-              />
+              <input type="file" multiple accept="image/*, application/pdf" onChange={handleFileChange} className="absolute inset-0 opacity-0 cursor-pointer" />
               <Upload className="w-5 h-5 text-gray-400 mx-auto mb-1" />
-              {/* ⭐️ 안내 문구 수정 */}
               <p className="text-xs font-bold text-gray-600">클릭하여 영수증 사진 또는 PDF 업로드</p>
             </div>
             {uploadedFiles.length > 0 && <p className="mt-2 text-xs font-semibold text-blue-600 flex items-center gap-1"><CheckCircle className="w-3.5 h-3.5"/> {uploadedFiles.length}건 첨부됨</p>}
