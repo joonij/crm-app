@@ -21,9 +21,9 @@ const navItems = [
   { label: "대시보드", href: "/dashboard", icon: LayoutDashboard, requiredRole: "user" },
   { label: "고객 관리", href: "/clients", icon: Users, requiredRole: "user" },
   { label: "스케줄 보드", href: "/schedules", icon: Calendar, requiredRole: "user" },
-  { label: "사내 교육", href: "/training", icon: GraduationCap, requiredRole: "user" },
-  { label: "알림 센터", href: "/notifications", icon: Bell, requiredRole: "user" },
   { label: "청구 관리", href: "/", icon: Bell, requiredRole: "admin" },
+  { label: "알림 센터", href: "/notifications", icon: Bell, requiredRole: "user" },
+  { label: "사내 교육", href: "/training", icon: GraduationCap, requiredRole: "user" },
 ] as const;
 
 function isActivePath(pathname: string, href: string) {
@@ -185,7 +185,7 @@ export default function Sidebar() {
         <button
           type="button"
           onClick={() => setIsOpen((prev) => !prev)}
-          className="hidden md:flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-800 hover:text-gray-100"
+          className="cursor-pointer hidden md:flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-800 hover:text-gray-100"
         >
           {isOpen ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
         </button>

@@ -2,7 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { User, Building2, Phone, Mail, LogOut, Camera, Save, Loader2, Award, QrCode, MapPin, Printer, Share2, MessageCircle, X, Quote, Briefcase, Network, Plus, Trash2 } from "lucide-react";
+import { User, Building2, Phone, Mail, LogOut, Camera, Save, Loader2, Award, QrCode, MapPin, Printer, Share2, MessageCircle, X, Quote, Briefcase, Network, Plus, Trash2, KeyRound } from "lucide-react";
+
+// ⭐️ 1. 타입을 확장하여 password 필드 추가
+type CompanyCredential = { code: string; password?: string };
 
 type AgentProfile = {
   id: number;
@@ -19,7 +22,7 @@ type AgentProfile = {
   team_number: string;
   avatar_url: string | null;
   agency_id: number; 
-  company_codes: Record<string, string>; 
+  company_codes: Record<string, CompanyCredential>; // ⭐️ 2. 타입 변경
 };
 
 type TeamMember = {
@@ -42,7 +45,8 @@ export default function MyPage() {
   
   const [newCompany, setNewCompany] = useState("");
   const [newCompanyCode, setNewCompanyCode] = useState("");
-  const [companyCodes, setCompanyCodes] = useState<Record<string, string>>({});
+  const [newCompanyPassword, setNewCompanyPassword] = useState(""); // ⭐️ 3. 비밀번호 입력 상태 추가
+  const [companyCodes, setCompanyCodes] = useState<Record<string, CompanyCredential>>({});
 
   const [form, setForm] = useState({
     name: "",
@@ -70,6 +74,18 @@ export default function MyPage() {
         if (agentData) {
           const agency = Array.isArray(agentData.agencies) ? agentData.agencies[0] : agentData.agencies;
           
+          // ⭐️ 4. 기존 데이터 호환성 로직 (기존 문자열을 객체로 안전하게 변환)
+          const rawCodes = agentData.company_codes || {};
+          const formattedCodes: Record<string, CompanyCredential> = {};
+          
+          for (const [key, value] of Object.entries(rawCodes)) {
+            if (typeof value === 'string') {
+              formattedCodes[key] = { code: value, password: "" }; // 예전 데이터
+            } else {
+              formattedCodes[key] = value as CompanyCredential; // 최신 데이터
+            }
+          }
+
           setProfile({
             id: agentData.id,
             name: agentData.name || "",
@@ -82,7 +98,7 @@ export default function MyPage() {
             agent_code: agentData.agent_code || "",
             avatar_url: agentData.avatar_url || null,
             agency_id: agentData.agency_id,
-            company_codes: agentData.company_codes || {},
+            company_codes: formattedCodes,
             corporation_name: agency?.corporation_name || "",
             branch_name: agency?.branch_name || "",
             team_number: agency?.team_number || "",
@@ -96,7 +112,7 @@ export default function MyPage() {
             fax: agentData.fax || "",
           });
 
-          setCompanyCodes(agentData.company_codes || {});
+          setCompanyCodes(formattedCodes);
 
           if (agentData.agency_id) {
             const { data: membersData } = await supabase
@@ -143,11 +159,21 @@ export default function MyPage() {
 
   const handleAddCompanyCode = () => {
     if (!newCompany.trim() || !newCompanyCode.trim()) {
-      return alert("보험사 이름과 사번(코드)을 모두 입력해주세요.");
+      return alert("보험사 이름과 사번(코드)은 필수 입력 사항입니다.");
     }
-    setCompanyCodes(prev => ({ ...prev, [newCompany.trim()]: newCompanyCode.trim() }));
+    
+    // ⭐️ 5. 객체 형태로 저장
+    setCompanyCodes(prev => ({ 
+      ...prev, 
+      [newCompany.trim()]: {
+        code: newCompanyCode.trim(),
+        password: newCompanyPassword.trim()
+      } 
+    }));
+    
     setNewCompany("");
     setNewCompanyCode("");
+    setNewCompanyPassword("");
   };
 
   const handleRemoveCompanyCode = (companyName: string) => {
@@ -256,17 +282,15 @@ export default function MyPage() {
     return 3; 
   };
 
-  // ⭐️ [정렬 엔진 고도화] 영어(알파벳) 선행 후 한글 가나다순으로 정렬하는 헬퍼 함수
   const compareEnglishKorean = (a: string, b: string) => {
     const aIsEng = /^[A-Za-z]/.test(a);
     const bIsEng = /^[A-Za-z]/.test(b);
 
-    if (aIsEng && !bIsEng) return -1; // 영어가 먼저 오도록
-    if (!aIsEng && bIsEng) return 1;  // 한글이 뒤로 가도록
-    return a.localeCompare(b, "ko-KR"); // 같은 문자 계열 내에서는 순차 정렬
+    if (aIsEng && !bIsEng) return -1; 
+    if (!aIsEng && bIsEng) return 1;  
+    return a.localeCompare(b, "ko-KR"); 
   };
 
-  // 드롭다운(Datalist)용 보험사 목록 정렬 (생명->손해->기타 그룹 정렬 후 내부 영어->한글 정렬)
   const sortedInsuranceCompanies = [...insuranceCompanies].sort((a, b) => {
     const priorityA = a.company_type === "생명보험" ? 1 : a.company_type === "손해보험" ? 2 : 3;
     const priorityB = b.company_type === "생명보험" ? 1 : b.company_type === "손해보험" ? 2 : 3;
@@ -275,7 +299,6 @@ export default function MyPage() {
     return compareEnglishKorean(a.company_name, b.company_name); 
   });
 
-  // 화면에 표시되는 등록된 사번(코드) 목록 정렬 (생명->손해->기타 그룹 정렬 후 내부 영어->한글 정렬)
   const sortedCompanyCodes = Object.entries(companyCodes).sort(([companyA], [companyB]) => {
     const priorityA = getCompanyTypePriority(companyA);
     const priorityB = getCompanyTypePriority(companyB);
@@ -477,19 +500,19 @@ export default function MyPage() {
               <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                 <Briefcase className="w-5 h-5 text-blue-600" /> 보험사별 전속 코드(사번) 관리
               </h3>
-              <p className="text-xs text-gray-500 font-medium">원수사 시스템 로그인 시 사용하는 사번을 기록하세요.</p>
+              <p className="text-xs text-gray-500 font-medium">원수사 시스템 로그인 시 사용하는 사번과 비밀번호를 기록하세요.</p>
             </div>
             
             <div className="bg-slate-50/50 border border-slate-200 rounded-2xl p-4 md:p-5">
               
-              {/* 등록된 코드 목록 (생명 -> 손해 -> 기타 순 및 각 내부 영어 -> 한글 정렬) */}
+              {/* ⭐️ 6. 리스트 출력 UI 수정 (비밀번호 표출) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 mb-5">
                 {sortedCompanyCodes.length === 0 ? (
                   <div className="col-span-full py-4 text-center text-sm text-gray-400 bg-white rounded-xl border border-dashed border-gray-300">
                     아직 등록된 보험사 코드가 없습니다. 아래에서 추가해주세요.
                   </div>
                 ) : (
-                  sortedCompanyCodes.map(([company, code]) => {
+                  sortedCompanyCodes.map(([company, data]) => {
                     const priority = getCompanyTypePriority(company);
                     const badgeClass = priority === 1 ? "bg-blue-50 text-blue-600 border-blue-100" 
                                      : priority === 2 ? "bg-amber-50 text-amber-600 border-amber-100" 
@@ -498,12 +521,18 @@ export default function MyPage() {
 
                     return (
                       <div key={company} className="flex items-center justify-between bg-white border border-slate-200 p-3 rounded-xl shadow-sm hover:border-blue-300 transition-colors">
-                        <div className="flex flex-col overflow-hidden pr-2">
-                          <div className="flex items-center gap-1.5 mb-0.5">
+                        <div className="flex flex-col overflow-hidden pr-2 gap-0.5">
+                          <div className="flex items-center gap-1.5">
                             <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border ${badgeClass}`}>{badgeText}</span>
-                            <span className="text-[10px] font-bold text-gray-500 truncate">{company}</span>
+                            <span className="text-[11px] font-bold text-gray-500 truncate">{company}</span>
                           </div>
-                          <span className="text-sm font-black text-gray-900 tracking-wide truncate">{code}</span>
+                          <span className="text-sm font-black text-gray-900 tracking-wide truncate mt-0.5">{data.code}</span>
+                          {/* 비밀번호 표시 공간 */}
+                          {data.password && (
+                            <span className="text-[10px] text-gray-400 font-medium flex items-center gap-1 mt-0.5">
+                              <KeyRound className="w-2.5 h-2.5" /> {data.password}
+                            </span>
+                          )}
                         </div>
                         <button onClick={() => handleRemoveCompanyCode(company)} className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors shrink-0">
                           <Trash2 className="w-4 h-4" />
@@ -514,13 +543,13 @@ export default function MyPage() {
                 )}
               </div>
 
-              {/* 새 코드 추가 폼 */}
-              <div className="flex flex-col sm:flex-row gap-2 pt-4 border-t border-slate-200">
-                <div className="flex-1">
+              {/* ⭐️ 7. 입력 폼 UI 수정 (비밀번호 칸 추가) */}
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-2 pt-4 border-t border-slate-200">
+                <div className="md:col-span-4">
                   <input 
                     type="text" 
                     list="company-list" 
-                    placeholder="보험사명 (검색 또는 직접입력)" 
+                    placeholder="보험사명 (직접입력)" 
                     value={newCompany} 
                     onChange={e => setNewCompany(e.target.value)} 
                     className="w-full text-sm rounded-lg border border-slate-300 px-3 py-2.5 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
@@ -529,22 +558,33 @@ export default function MyPage() {
                     {sortedInsuranceCompanies.map(c => <option key={c.company_name} value={c.company_name} />)}
                   </datalist>
                 </div>
-                <div className="flex-1">
+                <div className="md:col-span-3">
                   <input 
                     type="text" 
-                    placeholder="사번 / 코드 입력" 
+                    placeholder="사번(코드)" 
                     value={newCompanyCode} 
                     onChange={e => setNewCompanyCode(e.target.value)} 
                     className="w-full text-sm rounded-lg border border-slate-300 px-3 py-2.5 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-medium"
-                    onKeyDown={e => e.key === 'Enter' && handleAddCompanyCode()}
                   />
                 </div>
-                <button 
-                  onClick={handleAddCompanyCode} 
-                  className="bg-slate-800 hover:bg-slate-900 text-white rounded-lg px-4 py-2.5 text-sm font-bold flex items-center justify-center gap-1 transition-colors shrink-0"
-                >
-                  <Plus className="w-4 h-4" /> 코드 추가
-                </button>
+                <div className="md:col-span-3">
+                  <input 
+                    type="text" 
+                    placeholder="비밀번호(선택)" 
+                    value={newCompanyPassword} 
+                    onChange={e => setNewCompanyPassword(e.target.value)} 
+                    onKeyDown={e => e.key === 'Enter' && handleAddCompanyCode()}
+                    className="w-full text-sm rounded-lg border border-slate-300 px-3 py-2.5 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-medium"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <button 
+                    onClick={handleAddCompanyCode} 
+                    className="w-full h-full bg-slate-800 hover:bg-slate-900 text-white rounded-lg px-2 py-2.5 text-sm font-bold flex items-center justify-center gap-1 transition-colors"
+                  >
+                    <Plus className="w-4 h-4" /> 추가
+                  </button>
+                </div>
               </div>
             </div>
 

@@ -2,7 +2,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { X, Upload, CheckCircle, FileText, Printer, Share2, Send, Loader2, Users, Edit3, Eraser, Ban } from "lucide-react";
+// ⭐️ Copy 아이콘 추가
+import { X, Upload, CheckCircle, FileText, Printer, Share2, Send, Loader2, Users, Edit3, Eraser, Ban, Copy } from "lucide-react";
 import { supabase } from "@/lib/supabase"; 
 import { decryptRegNumber } from "@/app/actions/crypto"; 
 import imageCompression from 'browser-image-compression';
@@ -12,6 +13,20 @@ type QuickClaimModalProps = {
   onClose: () => void;
   client: any;
   insurance: any;
+};
+
+// ⭐️ [신규 추가] 주요 보험사 팩스번호 매핑 딕셔너리 (필요시 번호 수정/추가 가능)
+const FAX_NUMBERS: Record<string, string> = {
+  "메리츠화재": "0505-021-3400",
+  "현대해상": "0507-774-6060",
+  "DB손해": "0505-181-4861",
+  "삼성화재": "0505-116-1600",
+  "KB손해": "0505-136-6500",
+  "한화손해": "0505-154-2062",
+  "흥국화재": "0505-135-3344",
+  "롯데손해": "0505-134-0077",
+  "농협손해": "0505-136-4100",
+  "MG손해": "0505-081-1983",
 };
 
 export default function QuickClaimModal({ isOpen, onClose, client, insurance }: QuickClaimModalProps) {
@@ -33,6 +48,9 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
   const [focusedClientField, setFocusedClientField] = useState<'policyholder' | 'insured' | 'beneficiary' | null>(null);
   const [readyToShareFile, setReadyToShareFile] = useState<File | null>(null);
 
+  // ⭐️ [신규 상태] 팩스번호 복사 완료 애니메이션 상태
+  const [isCopied, setIsCopied] = useState(false);
+
   const insuredCanvasRef = useRef<HTMLCanvasElement>(null);
   const beneficiaryCanvasRef = useRef<HTMLCanvasElement>(null);
   const [isInsuredDrawing, setIsInsuredDrawing] = useState(false);
@@ -40,12 +58,13 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
   const [hasInsuredSignature, setHasInsuredSignature] = useState(false); 
   const [hasBeneficiarySignature, setHasBeneficiarySignature] = useState(false);
 
-  // 보험사별 제어 로직
   const companyName = insurance?.insurance_company || "";
   let needsInsuredSignature = true; 
   let needsBeneficiarySignature = true; 
-
   let supportsSavedAccount = false; 
+
+  // ⭐️ [신규 추가] 현재 선택된 보험사의 팩스번호 찾기
+  const currentFaxNumber = Object.entries(FAX_NUMBERS).find(([key]) => companyName.includes(key))?.[1] || "번호 확인 필요";
 
   if (companyName.includes("메리츠화재")) {
     needsInsuredSignature = false; 
@@ -129,7 +148,6 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
         setAccountNumber("");
       }
 
-      // 모달이 열릴 때 스위치 초기화
       setUseSavedAccount(false);
       setReadyToShareFile(null);
       clearSignature('insured');
@@ -246,8 +264,7 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
         const options = { maxSizeMB: 0.3, maxWidthOrHeight: 1000, useWebWorker: false };
         const processedFiles = await Promise.all(
           files.map(async (file) => {
-            if (
-              !file.type.startsWith('image/')) return file;
+            if (!file.type.startsWith('image/')) return file;
             try {
               return await imageCompression(file, options);
             } catch (compressError) {
@@ -311,6 +328,19 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
       
       uploadedFiles.forEach(file => formData.append("receipts", file));
 
+      let sharePromiseResolver: (data: any) => void = () => {};
+      const sharePromise = new Promise((resolve) => {
+        sharePromiseResolver = resolve;
+      });
+
+      if (type === "mobile" && typeof navigator.share === "function") {
+        navigator.share(sharePromise as any).catch((e) => {
+          if (e.name !== "AbortError" && !e.message?.includes("Canceled")) {
+            console.warn("내장 브라우저 공유 차단 확인됨");
+          }
+        });
+      }
+
       const res = await fetch("/api/generate-claim", { method: "POST", body: formData });
       
       if (!res.ok) {
@@ -324,6 +354,7 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
 
       const blob = await res.blob();
       const fileName = `${client.name}_${insurance?.insurance_company || '보험금'}_청구서.pdf`;
+
       if (type === "pdf") {
         const pdfUrl = URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -335,7 +366,16 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
         document.body.removeChild(link);
       } else if (type === "mobile") {
         const pdfFile = new File([blob], fileName, { type: "application/pdf" });
-        setReadyToShareFile(pdfFile);
+
+        if (typeof navigator.share === "function") {
+          sharePromiseResolver({
+            title: `${client.name} 고객 보험금 청구 서류`,
+            text: `다이렉트 모바일 팩스 전송용 PDF 파일입니다.`,
+            files: [pdfFile]
+          });
+        } else {
+          setReadyToShareFile(pdfFile);
+        }
       }
     } catch (error: any) {
       console.error(error);
@@ -344,7 +384,7 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
       setIsLoading(false);
     }
   };
-  // ⭐️ [신규 함수] 대기 화면에서 '바로 공유하기' 버튼을 누르면 실행되는 100% 성공 공유 함수
+
   const executeDirectShare = async () => {
     if (!readyToShareFile) return;
     try {
@@ -353,14 +393,26 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
         text: `다이렉트 모바일 팩스 전송을 위한 PDF 파일입니다.`,
         files: [readyToShareFile]
       });
-      // 공유 성공하면 닫아도 좋지만, 혹시 모르니 남겨둡니다. 닫으려면 onClose() 호출
     } catch (shareError: any) {
       if (shareError.name === "AbortError" || shareError.message?.includes("Share canceled")) {
-        return; // 유저가 닫은 경우 무시
+        return; 
       }
       alert("공유 기능이 차단된 브라우저입니다. 화면 우측 상단의 다른 브라우저로 열기를 이용해주세요.");
     }
   };
+
+  // ⭐️ [신규 함수] 팩스 번호 클립보드 복사 함수
+  const copyFaxNumber = async () => {
+    if (currentFaxNumber === "번호 확인 필요") return;
+    try {
+      await navigator.clipboard.writeText(currentFaxNumber);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000); // 2초 후 원래대로 복구
+    } catch (err) {
+      alert("복사 기능이 지원되지 않는 브라우저입니다. 팩스 번호를 직접 꾹 눌러 복사해주세요.");
+    }
+  };
+
   const renderClientSearchInput = (role: 'policyholder' | 'insured' | 'beneficiary', placeholderText: string) => {
     const currentState = role === 'policyholder' ? policyholder : role === 'insured' ? insured : beneficiary;
     const setState = role === 'policyholder' ? setPolicyholder : role === 'insured' ? setInsured : setBeneficiary;
@@ -385,14 +437,14 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
           onChange={(e) => setState({ ...currentState, name: e.target.value, id: null })}
           onFocus={() => setFocusedClientField(role)}
           onBlur={() => setTimeout(() => setFocusedClientField(null), 150)}
-          className="w-full border border-gray-200 rounded p-1.5 text-xs focus:border-blue-500 outline-none" 
+          className="w-full border border-gray-200 rounded-xl p-3 sm:p-2.5 text-[16px] sm:text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-sm" 
         />
         {focusedClientField === role && filteredClients.length > 0 && (
-          <ul className="absolute z-50 left-0 right-0 top-full mt-1 max-h-40 overflow-y-auto bg-white border border-gray-200 rounded shadow-lg py-1" onMouseDown={(e) => e.preventDefault()}>
+          <ul className="absolute z-50 left-0 right-0 top-full mt-1 max-h-52 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-xl py-1" onMouseDown={(e) => e.preventDefault()}>
             {filteredClients.map(c => (
-              <li key={c.id} onClick={() => handleSelectClient(role, c)} className="px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-blue-50 cursor-pointer transition-colors flex items-center justify-between">
+              <li key={c.id} onClick={() => handleSelectClient(role, c)} className="px-4 py-3 sm:px-3 sm:py-2 text-[15px] sm:text-sm font-medium text-gray-700 hover:bg-blue-50 cursor-pointer transition-colors flex items-center justify-between border-b border-gray-50 last:border-0">
                 <span>{c.name}</span>
-                {c.phone && <span className="text-[10px] text-gray-400 tracking-tight">{c.phone}</span>}
+                {c.phone && <span className="text-xs text-gray-400 tracking-tight">{c.phone}</span>}
               </li>
             ))}
           </ul>
@@ -402,109 +454,128 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/70 backdrop-blur-sm sm:p-4 animate-in fade-in duration-200">
       
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="relative bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-4xl h-[95vh] sm:h-auto sm:max-h-[90vh] flex flex-col overflow-hidden">
         
-        {/* 기존 로딩 화면 */}
+        {/* 진행중 레이어 */}
         {isLoading && (
-          <div className="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm rounded-2xl">
+          <div className="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm sm:rounded-2xl">
             <Loader2 className="w-12 h-12 text-blue-600 animate-spin mb-4" />
-            <h3 className="text-lg font-black text-slate-800">데이터를 처리하고 있습니다</h3>
-            <p className="text-sm font-bold text-gray-500 mt-2">잠시만 기다려주세요...</p>
+            <h3 className="text-xl font-black text-slate-800">데이터 처리 중</h3>
+            <p className="text-base font-bold text-gray-500 mt-2">잠시만 기다려주세요...</p>
           </div>
         )}
 
-        {/* ⭐️ [신규 추가] PDF 생성 완료 후 보여지는 공유 대기 화면 */}
+        {/* ⭐️ 공유 대기 화면 (팩스 번호 복사 UI 추가) */}
         {readyToShareFile && (
-          <div className="absolute inset-0 z-[110] flex flex-col items-center justify-center bg-white/95 backdrop-blur-md rounded-2xl p-6 text-center animate-in zoom-in-95 duration-200">
-            <div className="bg-green-100 p-4 rounded-full mb-4 shadow-sm border border-green-200">
-              <CheckCircle className="w-12 h-12 text-green-600" />
+          <div className="absolute inset-0 z-[110] flex flex-col items-center justify-center bg-white/95 backdrop-blur-md sm:rounded-2xl p-6 text-center animate-in zoom-in-95 duration-200">
+            <div className="bg-green-100 p-5 rounded-full mb-5 shadow-sm border border-green-200">
+              <CheckCircle className="w-14 h-14 text-green-600" />
             </div>
-            <h3 className="text-xl font-black text-slate-800 mb-2">청구서 완벽 준비 끝!</h3>
-            <p className="text-sm font-bold text-gray-600 mb-8 max-w-sm">
-              서류와 사진 병합이 완료되었습니다. 아래 버튼을 눌러 모바일 팩스 앱으로 바로 전송하세요.
+            <h3 className="text-2xl font-black text-slate-800 mb-2">청구서 준비 완료!</h3>
+            <p className="text-base font-medium text-gray-600 mb-6 max-w-sm">
+              서류 병합이 완료되었습니다. 아래 팩스번호를 복사한 뒤 앱으로 전송하세요.
             </p>
+
+            {/* ⭐️ 팩스 번호 복사 구역 */}
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 mb-8 w-full max-w-[320px] flex items-center justify-between shadow-sm">
+              <div className="text-left">
+                <p className="text-xs font-bold text-gray-500 mb-1">{companyName} 팩스 수신처</p>
+                <p className="text-xl font-black text-blue-600 tracking-wider">{currentFaxNumber}</p>
+              </div>
+              <button
+                onClick={copyFaxNumber}
+                disabled={currentFaxNumber === "번호 확인 필요"}
+                className={`px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-1.5 transition-colors ${
+                  isCopied ? "bg-green-100 text-green-700 border border-green-200" : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-100 shadow-sm"
+                }`}
+              >
+                {isCopied ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                {isCopied ? "복사완료" : "복사하기"}
+              </button>
+            </div>
             
-            <div className="flex gap-3 w-full max-w-xs">
+            <div className="flex flex-col sm:flex-row gap-3 w-full max-w-xs sm:max-w-md">
+              <button 
+                onClick={executeDirectShare} 
+                className="w-full py-4 bg-blue-600 text-white rounded-2xl text-lg font-black flex items-center justify-center gap-2 shadow-lg shadow-blue-200 hover:bg-blue-700 transition-colors"
+              >
+                <Share2 className="w-6 h-6" /> 팩스 앱 열기
+              </button>
               <button 
                 onClick={() => setReadyToShareFile(null)} 
-                className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold hover:bg-gray-200 transition-colors"
+                className="w-full sm:w-auto py-4 sm:px-6 bg-gray-100 text-gray-600 rounded-2xl text-lg font-bold hover:bg-gray-200 transition-colors"
               >
                 닫기
               </button>
-              <button 
-                onClick={executeDirectShare} 
-                className="flex-[2] py-3 bg-blue-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-blue-200 hover:bg-blue-700 transition-colors"
-              >
-                <Share2 className="w-5 h-5" /> 팩스 앱 열기
-              </button>
             </div>
           </div>
         )}
 
-        <div className="flex justify-between items-center p-5 border-b border-gray-100 bg-slate-50">
+        <div className="flex justify-between items-center p-5 sm:p-6 border-b border-gray-100 bg-slate-50 shrink-0">
           <div>
-            <h3 className="font-black text-lg text-slate-800 flex items-center gap-2">
-              <FileText className="w-5 h-5 text-blue-600" /> 보험금 청구
+            <h3 className="font-black text-xl sm:text-lg text-slate-800 flex items-center gap-2">
+              <FileText className="w-6 h-6 sm:w-5 sm:h-5 text-blue-600" /> 보험금 청구
             </h3>
-            <p className="text-xs font-bold text-gray-500 mt-1">
+            <p className="text-sm sm:text-xs font-bold text-gray-500 mt-1">
               <span className="text-blue-600">{insurance?.insurance_company}</span> - {insurance?.product_name}
             </p>
           </div>
-          <button onClick={onClose} className="cursor-pointer p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-colors">
-            <X className="w-5 h-5" />
+          <button onClick={onClose} className="cursor-pointer p-3 sm:p-2 text-slate-400 hover:text-rose-500">
+            <X className="w-6 h-6 sm:w-5 sm:h-5" />
           </button>
         </div>
         
-        <div className="flex-1 overflow-y-auto p-5 space-y-6">
-          <div className="bg-slate-50 p-4 rounded-xl border border-gray-200 space-y-4">
-            <h4 className="font-bold text-sm text-gray-800 flex items-center gap-1.5 border-b border-gray-200 pb-2">
-              <Users className="w-4 h-4 text-indigo-500" /> 계약 관계자 정보
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 sm:space-y-8">
+          
+          <div className="bg-slate-50 p-5 sm:p-5 rounded-2xl border border-gray-200 space-y-5">
+            <h4 className="font-black text-base sm:text-sm text-gray-800 flex items-center gap-1.5 border-b border-gray-200 pb-3">
+              <Users className="w-5 h-5 sm:w-4 sm:h-4 text-indigo-500" /> 계약 관계자 정보
             </h4>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2 bg-white p-3 rounded-lg border border-gray-100 shadow-sm">
-                <p className="text-xs font-black text-indigo-700">① 계약자</p>
-                {renderClientSearchInput('policyholder', '이름')}
-                <input type="text" placeholder="주민번호" value={policyholder.rrn} onChange={e => setPolicyholder({...policyholder, rrn: e.target.value})} className="w-full border border-gray-200 rounded p-1.5 text-xs focus:border-blue-500 outline-none" />
-                <input type="text" placeholder="연락처" value={policyholder.phone} onChange={e => setPolicyholder({...policyholder, phone: e.target.value})} className="w-full border border-gray-200 rounded p-1.5 text-xs focus:border-blue-500 outline-none" />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5">
+              <div className="space-y-3 sm:space-y-2 bg-white p-4 sm:p-4 rounded-xl border border-gray-100 shadow-sm">
+                <p className="text-sm sm:text-xs font-black text-indigo-700">① 계약자</p>
+                {renderClientSearchInput('policyholder', '이름 검색 또는 직접입력')}
+                <input type="text" placeholder="주민번호" value={policyholder.rrn} onChange={e => setPolicyholder({...policyholder, rrn: e.target.value})} className="w-full border border-gray-200 rounded-xl sm:rounded-lg p-3 sm:p-2.5 text-[16px] sm:text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none shadow-sm transition-all" />
+                <input type="text" placeholder="연락처" value={policyholder.phone} onChange={e => setPolicyholder({...policyholder, phone: e.target.value})} className="w-full border border-gray-200 rounded-xl sm:rounded-lg p-3 sm:p-2.5 text-[16px] sm:text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none shadow-sm transition-all" />
               </div>
-              <div className="space-y-2 bg-white p-3 rounded-lg border border-gray-100 shadow-sm">
-                <p className="text-xs font-black text-emerald-700">② 피보험자</p>
-                {renderClientSearchInput('insured', '이름')}
-                <input type="text" placeholder="주민번호" value={insured.rrn} onChange={e => setInsured({...insured, rrn: e.target.value})} className="w-full border border-gray-200 rounded p-1.5 text-xs focus:border-blue-500 outline-none" />
-                <input type="text" placeholder="연락처" value={insured.phone} onChange={e => setInsured({...insured, phone: e.target.value})} className="w-full border border-gray-200 rounded p-1.5 text-xs focus:border-blue-500 outline-none" />
+              <div className="space-y-3 sm:space-y-2 bg-white p-4 sm:p-4 rounded-xl border border-gray-100 shadow-sm">
+                <p className="text-sm sm:text-xs font-black text-emerald-700">② 피보험자</p>
+                {renderClientSearchInput('insured', '이름 검색 또는 직접입력')}
+                <input type="text" placeholder="주민번호" value={insured.rrn} onChange={e => setInsured({...insured, rrn: e.target.value})} className="w-full border border-gray-200 rounded-xl sm:rounded-lg p-3 sm:p-2.5 text-[16px] sm:text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none shadow-sm transition-all" />
+                <input type="text" placeholder="연락처" value={insured.phone} onChange={e => setInsured({...insured, phone: e.target.value})} className="w-full border border-gray-200 rounded-xl sm:rounded-lg p-3 sm:p-2.5 text-[16px] sm:text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none shadow-sm transition-all" />
               </div>
-              <div className="space-y-2 bg-white p-3 rounded-lg border border-gray-100 shadow-sm">
-                <p className="text-xs font-black text-amber-700">③ 수익자 (청구인)</p>
-                {renderClientSearchInput('beneficiary', '이름')}
-                <input type="text" placeholder="주민번호" value={beneficiary.rrn} onChange={e => setBeneficiary({...beneficiary, rrn: e.target.value})} className="w-full border border-gray-200 rounded p-1.5 text-xs focus:border-blue-500 outline-none" />
-                <input type="text" placeholder="연락처" value={beneficiary.phone} onChange={e => setBeneficiary({...beneficiary, phone: e.target.value})} className="w-full border border-gray-200 rounded p-1.5 text-xs focus:border-blue-500 outline-none" />
+              <div className="space-y-3 sm:space-y-2 bg-white p-4 sm:p-4 rounded-xl border border-gray-100 shadow-sm">
+                <p className="text-sm sm:text-xs font-black text-amber-700">③ 수익자 (청구인)</p>
+                {renderClientSearchInput('beneficiary', '이름 검색 또는 직접입력')}
+                <input type="text" placeholder="주민번호" value={beneficiary.rrn} onChange={e => setBeneficiary({...beneficiary, rrn: e.target.value})} className="w-full border border-gray-200 rounded-xl sm:rounded-lg p-3 sm:p-2.5 text-[16px] sm:text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none shadow-sm transition-all" />
+                <input type="text" placeholder="연락처" value={beneficiary.phone} onChange={e => setBeneficiary({...beneficiary, phone: e.target.value})} className="w-full border border-gray-200 rounded-xl sm:rounded-lg p-3 sm:p-2.5 text-[16px] sm:text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none shadow-sm transition-all" />
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <div className="flex justify-between items-end mb-1">
-                <label className="block text-xs font-bold text-gray-500">수익자 계좌 정보 (수령인 명의)</label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-5">
+            <div className="space-y-2">
+              <div className="flex justify-between items-end mb-2 sm:mb-1">
+                <label className="block text-sm sm:text-xs font-bold text-gray-600">수익자 계좌 정보 (수령인 명의)</label>
                 <div 
                   onClick={handleToggleSavedAccount} 
-                  className={`flex items-center gap-2 select-none ${supportsSavedAccount ? 'cursor-pointer hover:opacity-80' : 'cursor-not-allowed'}`}
+                  className={`flex items-center gap-2 py-1 select-none ${supportsSavedAccount ? 'cursor-pointer hover:opacity-80' : 'cursor-not-allowed'}`}
                 >
-                  <span className={`text-[10px] font-bold ${useSavedAccount ? 'text-blue-600' : 'text-gray-400'}`}>
+                  <span className={`text-xs sm:text-[10px] font-bold ${useSavedAccount ? 'text-blue-600' : 'text-gray-400'}`}>
                     기등록 계좌로 입금
                   </span>
                   <button
                     type="button"
                     disabled={!supportsSavedAccount}
-                    className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors pointer-events-none ${
+                    className={`relative inline-flex h-5 w-10 sm:h-4 sm:w-8 items-center rounded-full transition-colors pointer-events-none ${
                       !supportsSavedAccount ? 'bg-gray-200 opacity-50' :
                       useSavedAccount ? 'bg-blue-500' : 'bg-gray-300'
                     }`}
                   >
-                    <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform duration-200 ${
-                      useSavedAccount ? 'translate-x-4' : 'translate-x-1'
+                    <span className={`inline-block h-4 w-4 sm:h-3 sm:w-3 transform rounded-full bg-white transition-transform duration-200 ${
+                      useSavedAccount ? 'translate-x-5 sm:translate-x-4' : 'translate-x-1'
                     }`} />
                   </button>
                 </div>
@@ -512,15 +583,15 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
               
               <div className="flex gap-2 relative">
                 {useSavedAccount && (
-                  <div className="absolute inset-0 z-10 bg-white/60 backdrop-blur-[1px] rounded-lg border border-blue-200 flex items-center justify-center">
-                    <span className="text-xs font-bold text-blue-700">기등록된 계좌로 입금 처리됩니다</span>
+                  <div className="absolute inset-0 z-10 bg-white/70 backdrop-blur-[2px] rounded-xl border border-blue-200 flex items-center justify-center">
+                    <span className="text-sm font-bold text-blue-700">기등록된 계좌로 입금 처리됩니다</span>
                   </div>
                 )}
                 <select 
                   disabled={useSavedAccount}
                   value={bankName} 
                   onChange={e => setBankName(e.target.value)} 
-                  className="w-1/3 border border-gray-200 rounded-lg p-2 text-sm focus:border-blue-500 outline-none bg-white"
+                  className="w-1/3 border border-gray-200 rounded-xl sm:rounded-lg p-3 sm:p-2.5 text-[16px] sm:text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none bg-white shadow-sm"
                 >
                   <option value="">은행 선택</option>
                   {bankLists.map(b => (<option key={b.id} value={b.bank}>{b.bank}</option>))}
@@ -531,70 +602,70 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
                   placeholder="계좌번호 (숫자만)" 
                   value={accountNumber} 
                   onChange={e => setAccountNumber(e.target.value)} 
-                  className="w-2/3 border border-gray-200 rounded-lg p-2 text-sm focus:border-blue-500 outline-none" 
+                  className="w-2/3 border border-gray-200 rounded-xl sm:rounded-lg p-3 sm:p-2.5 text-[16px] sm:text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none shadow-sm" 
                 />
               </div>
             </div>
             
-            <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1">청구 사유 (진단명 및 내용)</label>
-              <input type="text" placeholder="예: 위염 통원치료 및 약제비" value={accidentDesc} onChange={e => setAccidentDesc(e.target.value)} className="w-full border border-gray-200 rounded-lg p-2 text-sm focus:border-blue-500 outline-none" />
+            <div className="space-y-2">
+              <label className="block text-sm sm:text-xs font-bold text-gray-600 mb-2 sm:mb-1">청구 사유 (진단명 및 내용)</label>
+              <input type="text" placeholder="예: 위염 통원치료 및 약제비" value={accidentDesc} onChange={e => setAccidentDesc(e.target.value)} className="w-full border border-gray-200 rounded-xl sm:rounded-lg p-3 sm:p-2.5 text-[16px] sm:text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none shadow-sm" />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className={`relative bg-emerald-50/50 p-4 rounded-xl border border-emerald-100 transition-all ${!needsInsuredSignature ? 'pointer-events-none' : ''}`}>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-5">
+            <div className={`relative bg-emerald-50/50 p-5 sm:p-4 rounded-2xl sm:rounded-xl border border-emerald-100 transition-all ${!needsInsuredSignature ? 'pointer-events-none' : ''}`}>
               {!needsInsuredSignature && (
-                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-white/70 backdrop-blur-[2px] rounded-xl border border-gray-200">
-                  <Ban className="w-6 h-6 text-gray-400 mb-1" />
-                  <span className="bg-gray-800 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm">이 보험사는 서명이 불필요합니다</span>
+                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-white/70 backdrop-blur-[2px] rounded-2xl sm:rounded-xl border border-gray-200">
+                  <Ban className="w-8 h-8 sm:w-6 sm:h-6 text-gray-400 mb-2 sm:mb-1" />
+                  <span className="bg-gray-800 text-white text-sm sm:text-xs font-bold px-4 py-2 sm:px-3 sm:py-1.5 rounded-xl shadow-sm">이 보험사는 서명이 불필요합니다</span>
                 </div>
               )}
-              <div className="flex justify-between items-end mb-2">
-                <label className="block text-xs font-bold text-emerald-800 flex items-center gap-1.5"><Edit3 className="w-4 h-4" /> 피보험자 자필 서명</label>
-                <button onClick={() => clearSignature('insured')} className="text-[10px] flex items-center gap-1 bg-white border border-gray-200 text-gray-500 px-2 py-1 rounded hover:bg-gray-50 hover:text-red-500 transition-colors"><Eraser className="w-3 h-3" /> 지우기</button>
+              <div className="flex justify-between items-end mb-3 sm:mb-2">
+                <label className="block text-sm sm:text-xs font-bold text-emerald-800 flex items-center gap-1.5"><Edit3 className="w-4 h-4" /> 피보험자 자필 서명</label>
+                <button onClick={() => clearSignature('insured')} className="text-xs sm:text-[10px] flex items-center gap-1 bg-white border border-gray-200 text-gray-500 px-3 py-1.5 sm:px-2 sm:py-1 rounded-lg hover:bg-gray-50 hover:text-red-500 transition-colors shadow-sm"><Eraser className="w-3 h-3" /> 지우기</button>
               </div>
-              <div className="relative border-2 border-dashed border-emerald-200 bg-white rounded-xl overflow-hidden touch-none h-[120px]">
-                {!hasInsuredSignature && needsInsuredSignature && <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-40"><p className="text-[11px] font-bold text-gray-400">피보험자 서명</p></div>}
+              <div className="relative border-2 border-dashed border-emerald-200 bg-white rounded-xl overflow-hidden touch-none h-[140px] sm:h-[120px]">
+                {!hasInsuredSignature && needsInsuredSignature && <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-40"><p className="text-sm sm:text-[11px] font-bold text-gray-400">피보험자 서명</p></div>}
                 <canvas ref={insuredCanvasRef} width={600} height={200} className="w-full h-full cursor-crosshair" onMouseDown={(e) => startDrawing(e, 'insured')} onMouseMove={(e) => draw(e, 'insured')} onMouseUp={() => stopDrawing('insured')} onMouseLeave={() => stopDrawing('insured')} onTouchStart={(e) => startDrawing(e, 'insured')} onTouchMove={(e) => draw(e, 'insured')} onTouchEnd={() => stopDrawing('insured')}/>
               </div>
             </div>
 
-            <div className={`relative bg-amber-50/50 p-4 rounded-xl border border-amber-100 transition-all ${!needsBeneficiarySignature ? 'pointer-events-none' : ''}`}>
+            <div className={`relative bg-amber-50/50 p-5 sm:p-4 rounded-2xl sm:rounded-xl border border-amber-100 transition-all ${!needsBeneficiarySignature ? 'pointer-events-none' : ''}`}>
               {!needsBeneficiarySignature && (
-                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-white/70 backdrop-blur-[2px] rounded-xl border border-gray-200">
-                  <Ban className="w-6 h-6 text-gray-400 mb-1" />
-                  <span className="bg-gray-800 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm">이 보험사는 서명이 불필요합니다</span>
+                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-white/70 backdrop-blur-[2px] rounded-2xl sm:rounded-xl border border-gray-200">
+                  <Ban className="w-8 h-8 sm:w-6 sm:h-6 text-gray-400 mb-2 sm:mb-1" />
+                  <span className="bg-gray-800 text-white text-sm sm:text-xs font-bold px-4 py-2 sm:px-3 sm:py-1.5 rounded-xl shadow-sm">이 보험사는 서명이 불필요합니다</span>
                 </div>
               )}
-              <div className="flex justify-between items-end mb-2">
-                <label className="block text-xs font-bold text-amber-800 flex items-center gap-1.5"><Edit3 className="w-4 h-4" /> 수익자(청구인) 자필 서명</label>
-                <button onClick={() => clearSignature('beneficiary')} className="text-[10px] flex items-center gap-1 bg-white border border-gray-200 text-gray-500 px-2 py-1 rounded hover:bg-gray-50 hover:text-red-500 transition-colors"><Eraser className="w-3 h-3" /> 지우기</button>
+              <div className="flex justify-between items-end mb-3 sm:mb-2">
+                <label className="block text-sm sm:text-xs font-bold text-amber-800 flex items-center gap-1.5"><Edit3 className="w-4 h-4" /> 수익자(청구인) 자필 서명</label>
+                <button onClick={() => clearSignature('beneficiary')} className="text-xs sm:text-[10px] flex items-center gap-1 bg-white border border-gray-200 text-gray-500 px-3 py-1.5 sm:px-2 sm:py-1 rounded-lg hover:bg-gray-50 hover:text-red-500 transition-colors shadow-sm"><Eraser className="w-3 h-3" /> 지우기</button>
               </div>
-              <div className="relative border-2 border-dashed border-amber-200 bg-white rounded-xl overflow-hidden touch-none h-[120px]">
-                {!hasBeneficiarySignature && needsBeneficiarySignature && <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-40"><p className="text-[11px] font-bold text-gray-400">수익자 서명</p></div>}
+              <div className="relative border-2 border-dashed border-amber-200 bg-white rounded-xl overflow-hidden touch-none h-[140px] sm:h-[120px]">
+                {!hasBeneficiarySignature && needsBeneficiarySignature && <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-40"><p className="text-sm sm:text-[11px] font-bold text-gray-400">수익자 서명</p></div>}
                 <canvas ref={beneficiaryCanvasRef} width={600} height={200} className="w-full h-full cursor-crosshair" onMouseDown={(e) => startDrawing(e, 'beneficiary')} onMouseMove={(e) => draw(e, 'beneficiary')} onMouseUp={() => stopDrawing('beneficiary')} onMouseLeave={() => stopDrawing('beneficiary')} onTouchStart={(e) => startDrawing(e, 'beneficiary')} onTouchMove={(e) => draw(e, 'beneficiary')} onTouchEnd={() => stopDrawing('beneficiary')} />
               </div>
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-gray-500 mb-1">진료비 영수증 첨부</label>
-            <div className="border-2 border-dashed border-gray-200 hover:border-blue-500 rounded-xl p-4 text-center relative cursor-pointer bg-slate-50/50 transition-colors">
+          <div className="space-y-2 pb-4 sm:pb-0">
+            <label className="block text-sm sm:text-xs font-bold text-gray-600 mb-2 sm:mb-1">진료비 영수증 첨부</label>
+            <div className="border-2 border-dashed border-gray-200 hover:border-blue-500 rounded-2xl sm:rounded-xl p-6 sm:p-4 text-center relative cursor-pointer bg-slate-50/50 transition-colors">
               <input type="file" multiple accept="image/*, application/pdf" onChange={handleFileChange} className="absolute inset-0 opacity-0 cursor-pointer" />
-              <Upload className="w-5 h-5 text-gray-400 mx-auto mb-1" />
-              <p className="text-xs font-bold text-gray-600">클릭하여 영수증 사진 또는 PDF 업로드</p>
+              <Upload className="w-8 h-8 sm:w-5 sm:h-5 text-gray-400 mx-auto mb-2 sm:mb-1" />
+              <p className="text-sm sm:text-xs font-bold text-gray-600">클릭하여 영수증 사진 또는 PDF 업로드</p>
             </div>
-            {uploadedFiles.length > 0 && <p className="mt-2 text-xs font-semibold text-blue-600 flex items-center gap-1"><CheckCircle className="w-3.5 h-3.5"/> {uploadedFiles.length}건 첨부됨</p>}
+            {uploadedFiles.length > 0 && <p className="mt-3 sm:mt-2 text-sm sm:text-xs font-bold text-blue-600 flex items-center gap-1.5 sm:gap-1"><CheckCircle className="w-4 h-4 sm:w-3.5 sm:h-3.5"/> {uploadedFiles.length}건 첨부됨</p>}
           </div>
         </div>
 
-        <div className="p-4 border-t border-gray-100 bg-white grid grid-cols-1 md:grid-cols-2 gap-3">
-          <button onClick={() => handleAction('pdf')} disabled={isLoading} className="cursor-pointer flex items-center justify-center gap-2 p-3 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold text-sm transition-colors">
-            <Printer className="w-4 h-4" /> PDF 인쇄
+        <div className="p-4 sm:p-5 border-t border-gray-100 bg-white grid grid-cols-1 sm:grid-cols-2 gap-3 shrink-0 pb-8 sm:pb-5">
+          <button onClick={() => handleAction('pdf')} disabled={isLoading} className="cursor-pointer flex items-center justify-center gap-2 p-4 sm:p-3.5 rounded-2xl sm:rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 font-black text-base sm:text-sm transition-colors shadow-sm">
+            <Printer className="w-5 h-5 sm:w-4 sm:h-4" /> PDF 인쇄
           </button>
-          <button onClick={() => handleAction('mobile')} disabled={isLoading} className="cursor-pointer flex items-center justify-center gap-2 p-3 rounded-xl border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold text-sm transition-colors">
-            <Share2 className="w-4 h-4" /> 모바일 팩스
+          <button onClick={() => handleAction('mobile')} disabled={isLoading} className="cursor-pointer flex items-center justify-center gap-2 p-4 sm:p-3.5 rounded-2xl sm:rounded-xl border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-700 font-black text-base sm:text-sm transition-colors shadow-sm">
+            <Share2 className="w-5 h-5 sm:w-4 sm:h-4" /> 모바일 팩스 전송
           </button>
         </div>
 

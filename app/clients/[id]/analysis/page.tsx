@@ -327,7 +327,7 @@ export default function AnalysisPage() {
         
         <div className="sticky top-0 z-50 bg-white/80 backdrop-blur-md py-4 -mt-4 flex flex-col sm:flex-row items-start sm:items-center justify-between border-b-2 border-gray-900 gap-4 print:hidden">
           <div className="flex items-center gap-3">
-            <button onClick={() => router.back()} className="p-2 hover:bg-gray-100 rounded-full transition">
+            <button onClick={() => router.back()} className="cursor-pointer p-2 hover:bg-gray-100 rounded-full transition">
               <ArrowLeft className="w-6 h-6 text-gray-600" />
             </button>
             <div>
@@ -341,14 +341,14 @@ export default function AnalysisPage() {
               <button 
                 onClick={handleSaveConsulting}
                 disabled={isSavingConsulting || saveSuccess}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all  ${
+                className={`cursor-pointer flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all  ${
                   saveSuccess ? "bg-emerald-100 text-emerald-700 border border-emerald-200" : "bg-white border border-slate-300 text-slate-700"
                 }`}
               >
               {isSavingConsulting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : saveSuccess ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Save className="w-3.5 h-3.5" />}
               {isSavingConsulting ? "저장 중..." : saveSuccess ? "저장 완료" : "내용 저장"}
             </button>
-            <button onClick={handlePrint} className="flex items-center gap-2 bg-gray-900 text-white px-5 py-2.5 rounded-lg text-sm font-bold hover:bg-gray-800 transition shadow-md">
+            <button onClick={handlePrint} className="cursor-pointer flex items-center gap-2 bg-gray-900 text-white px-5 py-2.5 rounded-lg text-sm font-bold hover:bg-gray-800 transition shadow-md">
               <Printer className="w-4 h-4" /> 제안서 출력 (PDF)
             </button>
           </div>

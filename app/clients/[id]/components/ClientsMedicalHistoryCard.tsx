@@ -263,12 +263,27 @@ export default function ClientsMedicalHistoryCard({ clientId, initialHistory }: 
       const r6_groups: Record<string, any[]> = {};
       rule6_rows.forEach(r => { if (!r6_groups[r.drugName]) r6_groups[r.drugName] = []; r6_groups[r.drugName].push(r); });
       let r6_found = false;
+      const r6_printed = new Set<string>(); // 동일한 날 여러 번 찍히는 것 방지
       for (const [drug, rows] of Object.entries(r6_groups)) {
         const totalDays = rows.reduce((sum, curr) => sum + curr.days, 0);
         if (totalDays >= 30) {
           results.q5Y30D = true;
           if (!r6_found) { memoLines.push("\n[5년 내 같은 약품으로 30일 이상 투약]"); r6_found = true; }
-          rows.forEach(r => memoLines.push(`- ${r.date} · ${r.hospital} · ${r.drugName} · ${r.days}일`));
+          rows.forEach(r => {
+            const matchedHospital = basicData.find(b => b.date === r.date && b.hospital.includes("약국"));
+            
+            let lineText = "";
+            if (matchedHospital) {
+              lineText = `- ${matchedHospital.date} · ${matchedHospital.hospital} · ${matchedHospital.kcd} · ${matchedHospital.disease} (${r.days}일 투약)`;
+            } else {
+              lineText = `- ${r.date} · ${r.hospital} · 질병코드없음 (${r.days}일 투약)`;
+            }
+            if (!r6_printed.has(lineText)) {
+              memoLines.push(lineText);
+              r6_printed.add(lineText);
+            }
+          });
+
         }
       }
 

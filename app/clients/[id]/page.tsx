@@ -231,7 +231,7 @@ export default function ClientDetailPage() {
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto pb-4 [&::-webkit-scrollbar]:hidden">
+          <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden">
             <div className="h-full *:h-full">
               {activeTab === "memo" && <ClientMemoCard clientId={id} initialNote={client.notes} />}
               {activeTab === "medical" && <ClientsMedicalHistoryCard clientId={id} initialHistory={client.medical_history} />}

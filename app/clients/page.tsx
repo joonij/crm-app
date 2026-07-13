@@ -324,7 +324,7 @@ export default function ClientsPage() {
           <button
             type="button"
             onClick={() => setIsModalOpen(true)}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-6 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-gray-800 shrink-0 shadow-sm"
+            className="cursor-pointer w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-6 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-gray-800 shrink-0 shadow-sm"
           >
             <Plus className="h-5 w-5" strokeWidth={2} />
             새 고객 등록
@@ -347,14 +347,14 @@ export default function ClientsPage() {
           <div className="flex w-full gap-2 overflow-x-auto pt-1 pb-1 lg:pt-0 lg:pb-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             <button 
               onClick={() => setStatusFilter("all")} 
-              className={`shrink-0 px-4 py-2.5 rounded-lg text-sm font-bold transition-colors ${statusFilter === "all" ? "bg-gray-900 text-white shadow-sm" : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"}`}
+              className={`cursor-pointer shrink-0 px-4 py-2.5 rounded-lg text-sm font-bold transition-colors ${statusFilter === "all" ? "bg-gray-900 text-white shadow-sm" : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"}`}
             >
               전체
             </button>
             
             <button 
               onClick={() => setStatusFilter("keyman")} 
-              className={`shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-bold transition-colors ${
+              className={`cursor-pointer shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-bold transition-colors ${
                 statusFilter === "keyman" 
                   ? "bg-amber-500 text-white shadow-sm border-amber-500" 
                   : "bg-white border border-gray-200 text-gray-600 hover:bg-amber-50"
@@ -367,7 +367,7 @@ export default function ClientsPage() {
             {/* ⭐️ 즐겨찾기 필터 버튼 */}
             <button 
               onClick={() => setStatusFilter("favorite")} 
-              className={`shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-bold transition-colors ${
+              className={`cursor-pointer shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-bold transition-colors ${
                 statusFilter === "favorite" 
                   ? "bg-yellow-400 text-white shadow-sm border-yellow-400" 
                   : "bg-white border border-gray-200 text-gray-600 hover:bg-yellow-50"
@@ -381,7 +381,7 @@ export default function ClientsPage() {
               <button 
                 key={idKey} 
                 onClick={() => setStatusFilter(idKey)}
-                className={`shrink-0 px-4 py-2.5 rounded-lg text-sm font-bold transition-colors ${statusFilter === idKey ? "bg-blue-600 text-white shadow-sm" : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"}`}
+                className={`cursor-pointer shrink-0 px-4 py-2.5 rounded-lg text-sm font-bold transition-colors ${statusFilter === idKey ? "bg-blue-600 text-white shadow-sm" : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"}`}
               >
                 {label}
               </button>
@@ -430,7 +430,7 @@ export default function ClientsPage() {
                           {/* ⭐️ 즐겨찾기 아이콘 */}
                           <button 
                             onClick={(e) => handleToggleFavorite(e, client.id, !!client.is_favorite)}
-                            className="p-1 -ml-1 rounded-full hover:bg-gray-100 transition-colors"
+                            className="cursor-pointer p-1 -ml-1 rounded-full hover:bg-gray-100 transition-colors"
                           >
                             <Star className={`w-4 h-4 transition-colors ${client.is_favorite ? "fill-yellow-400 text-yellow-400" : "text-gray-300 hover:text-yellow-400"}`} />
                           </button>
@@ -513,7 +513,7 @@ export default function ClientsPage() {
                       <td className="px-6 py-3 whitespace-nowrap text-right">
                         <button 
                           onClick={(e) => handleDeleteClient(e, client.id, client.name)}
-                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          className="cursor-pointer p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                           title="고객 완전 삭제"
                         >
                           <Trash2 className="w-4 h-4" />

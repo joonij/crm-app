@@ -265,7 +265,7 @@ export default function ClientModal({ onClose, onSuccess }: ClientModalProps) {
             <h2 className="text-xl font-black text-gray-900">새 고객 상세 등록</h2>
             <p className="mt-1 text-sm text-gray-500 hidden md:block">일정 예약과 고객 정보를 한 번에 저장합니다.</p>
           </div>
-          <button onClick={handleClose} className="p-2 -mr-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors">
+          <button onClick={handleClose} className="cursor-pointer p-2 -mr-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors">
             <X className="w-6 h-6" />
           </button>
         </div>
@@ -434,10 +434,10 @@ export default function ClientModal({ onClose, onSuccess }: ClientModalProps) {
 
             {/* 하단 버튼 */}
             <div className="sticky bottom-0  pb-6 bg-white border-t border-gray-100 pt-4 pb-safe mt-8 flex flex-col-reverse md:flex-row items-center justify-end gap-3 z-10">
-              <button type="button" onClick={handleClose} disabled={isSaving} className="w-full md:w-auto rounded-xl px-6 py-3.5 text-sm font-bold text-gray-600 bg-gray-100 transition-colors hover:bg-gray-200 disabled:opacity-50">
+              <button type="button" onClick={handleClose} disabled={isSaving} className="cursor-pointer w-full md:w-auto rounded-xl px-6 py-3.5 text-sm font-bold text-gray-600 bg-gray-100 transition-colors hover:bg-gray-200 disabled:opacity-50">
                 취소
               </button>
-              <button type="submit" disabled={isSaving} className="w-full md:w-auto rounded-xl bg-blue-600 px-6 py-3.5 text-sm font-bold text-white transition-colors hover:bg-blue-700 shadow-md disabled:opacity-50">
+              <button type="submit" disabled={isSaving} className="cursor-pointer w-full md:w-auto rounded-xl bg-blue-600 px-6 py-3.5 text-sm font-bold text-white transition-colors hover:bg-blue-700 shadow-md disabled:opacity-50">
                 {isSaving ? "저장 중..." : "고객 및 일정 등록"}
               </button>
             </div>
