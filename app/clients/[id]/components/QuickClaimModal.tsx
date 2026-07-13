@@ -242,29 +242,45 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
       try {
         const files = Array.from(e.target.files);
         
-        // ⭐️ [핵심 1] 모바일 브라우저 충돌의 주범인 Web Worker 기능 비활성화
+        // ⭐️ [해결 1] 압축 강도를 대폭 높입니다. (최대 1MB -> 0.3MB로 축소)
+        // 화면에 보이거나 인쇄하기에는 0.3MB(300KB)도 아주 충분한 화질입니다.
         const options = { 
-          maxSizeMB: 1, 
-          maxWidthOrHeight: 1200, 
-          useWebWorker: false // <- 이 부분을 false로 변경했습니다.
+          maxSizeMB: 0.3, 
+          maxWidthOrHeight: 1000, 
+          useWebWorker: false 
         };
         
         const processedFiles = await Promise.all(
           files.map(async (file) => {
-            // 이미지가 아니면(PDF 등) 압축하지 않고 원본 그대로 패스
+            // PDF 같은 문서는 압축하지 않고 통과
             if (!file.type.startsWith('image/')) return file;
             
-            // ⭐️ [핵심 2] 압축 중 에러가 나도 앱이 뻗지 않고 원본 파일로 안전하게 대체
             try {
               return await imageCompression(file, options);
             } catch (compressError) {
-              console.error("이미지 압축 실패 (원본 파일로 진행합니다):", compressError);
+              console.error("이미지 압축 실패:", compressError);
               return file; 
             }
           })
         );
         
-        setUploadedFiles((prev) => [...prev, ...processedFiles]);
+        // ⭐️ [해결 2] 4.5MB Vercel 셧다운 방어 로직 (총 용량 4MB가 넘으면 컷오프)
+        setUploadedFiles((prev) => {
+          const newFiles = [...prev, ...processedFiles];
+          
+          // 새로 추가될 파일까지 합친 총 용량 계산 (바이트 단위)
+          const totalSizeBytes = newFiles.reduce((acc, file) => acc + file.size, 0);
+          const totalSizeMB = totalSizeBytes / (1024 * 1024); // MB로 변환
+          
+          // 안전 마진을 두고 4MB가 넘으면 경고창 띄우고 추가 안 함
+          if (totalSizeMB > 4.0) {
+            alert(`첨부파일 총 용량이 서버 제한(4.5MB)을 초과합니다. (현재: ${totalSizeMB.toFixed(1)}MB)\n\n영수증 사진을 줄이거나, 서류를 나누어서 청구해 주세요.`);
+            return prev; // 용량을 초과하면 새로 선택한 파일은 무시하고 이전 파일만 유지
+          }
+          
+          return newFiles; // 4MB 이하라면 정상적으로 추가
+        });
+
       } catch (error) {
         console.error("파일 처리 전체 에러:", error);
         alert("파일을 첨부하는 중 문제가 발생했습니다.");
@@ -272,7 +288,6 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
         setIsLoading(false);
       }
     }
-    // 같은 파일을 지웠다 다시 올릴 수 있도록 input 초기화
     e.target.value = ''; 
   };
 
