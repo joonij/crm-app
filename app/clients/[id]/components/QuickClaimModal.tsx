@@ -341,35 +341,53 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
       }
 
       const blob = await res.blob();
-
+      const fileName = `${client.name}_${insurance?.insurance_company || '보험금'}_청구서.pdf`;
       if (type === "pdf") {
         const pdfUrl = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = pdfUrl;
-        link.download = `${client.name}_${insurance?.insurance_company || '보험금'}_청구서.pdf`; 
+        link.download = fileName; 
         link.target = '_blank';
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
       } else if (type === "mobile") {
-        const pdfFile = new File([blob], `${client.name}_${insurance?.insurance_company || '보험금'}_청구서.pdf`, { type: "application/pdf" });
+        const pdfFile = new File([blob], fileName, { type: "application/pdf" });
+        let shareSuccess = false;
+
+        // ⭐️ [해결 핵심] 모바일 공유 API 시도 후 에러나면 자동 우회(Fallback) 처리
         if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
-          await navigator.share({
-            title: `${client.name} 고객 ${insurance?.insurance_company || ''} 보험금 청구 서류`,
-            text: `다이렉트 모바일 팩스 전송을 위한 PDF 파일입니다.`,
-            files: [pdfFile]
-          });
-        } else {
-          alert("현재 기기(또는 카카오톡 브라우저)에서는 다이렉트 팩스 기능을 지원하지 않습니다.\n\n화면 우측 상단의 [다른 브라우저로 열기(Safari/Chrome)]를 이용하시거나 [PDF 인쇄] 버튼을 눌러주세요.");
+          try {
+            await navigator.share({
+              title: `${client.name} 고객 보험금 청구 서류`,
+              files: [pdfFile]
+            });
+            shareSuccess = true;
+          } catch (shareError: any) {
+            // 사용자가 공유 창을 닫은 경우는 제외
+            if (shareError.name === "AbortError" || shareError.message?.includes("Share canceled")) {
+              return; 
+            }
+            console.warn("모바일 공유 차단됨, 우회 다운로드 실행", shareError);
+          }
+        }
+
+        // 브라우저에서 차단했거나, 공유 기능이 아예 없는 경우 ➡️ 에러창 대신 PDF를 다운/오픈
+        if (!shareSuccess) {
+          alert("현재 기기(또는 브라우저)에서 다이렉트 공유가 차단되었습니다.\n\n안전을 위해 PDF 파일을 직접 엽니다. 파일이 열리면 화면의 '공유하기' 버튼을 눌러 팩스 앱으로 전송해 주세요.");
+          
+          const pdfUrl = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = pdfUrl;
+          link.download = fileName; 
+          link.target = '_blank';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
         }
       }
     } catch (error: any) {
-      if (error.name === "AbortError" || error.message?.includes("Share canceled")) {
-        console.log("사용자가 공유 창을 닫았습니다.");
-        return; 
-      }
       console.error(error);
-
       alert("처리 중 에러가 발생했습니다.");
     } finally {
       setIsLoading(false);
