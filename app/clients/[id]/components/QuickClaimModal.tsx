@@ -294,7 +294,6 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
       formData.append("bankName", bankName);
       formData.append("accountNumber", accountNumber);
       formData.append("accidentDesc", accidentDesc);
-
       formData.append("useSavedAccount", String(useSavedAccount));
       
       if (needsBeneficiarySignature && hasBeneficiarySignature && beneficiaryCanvasRef.current) {
@@ -305,21 +304,22 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
       }
       
       uploadedFiles.forEach(file => formData.append("receipts", file));
+
       // ⭐️ [원스텝 핵심 꼼수] 유저가 버튼을 누른 '직후'에 브라우저 비동기 공유 프로미스를 가동시켜 락을 풉니다!
       let sharePromiseResolver: (data: any) => void = () => {};
       const sharePromise = new Promise((resolve) => {
         sharePromiseResolver = resolve;
       });
 
-      if (type === "mobile" && navigator.canShare) {
-        // 백엔드 통신 전에 브라우저에게 "나 곧 공유 창 열 거야!"라고 먼저 선언해 둡니다.
+      // ⭐️ [에러 해결 1] typeof 를 사용하여 안전하게 함수 존재 여부를 체크합니다.
+      if (type === "mobile" && typeof navigator.share === "function") {
         navigator.share(sharePromise as any).catch((e) => {
-          // 사용자가 취소한 게 아니라 진짜 차단된 인앱브라우저라면 아래 예외처리로 이동
           if (e.name !== "AbortError" && !e.message?.includes("Canceled")) {
             console.warn("내장 브라우저 공유 차단 확인됨");
           }
         });
       }
+
       const res = await fetch("/api/generate-claim", { method: "POST", body: formData });
       
       if (!res.ok) {
@@ -333,6 +333,7 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
 
       const blob = await res.blob();
       const fileName = `${client.name}_${insurance?.insurance_company || '보험금'}_청구서.pdf`;
+
       if (type === "pdf") {
         const pdfUrl = URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -342,17 +343,19 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+      
       } else if (type === "mobile") {
         const pdfFile = new File([blob], fileName, { type: "application/pdf" });
-        if (navigator.canShare) {
-          // ⭐️ 미리 대기시켜둔 프로미스에 진짜 PDF 파일을 쏙 집어넣어서 완벽한 원스텝 공유 실행!
+
+        // ⭐️ [에러 해결 2] 여기서도 typeof 를 사용하여 타입스크립트 에러를 방지합니다.
+        if (typeof navigator.share === "function") {
           sharePromiseResolver({
             title: `${client.name} 고객 보험금 청구 서류`,
             text: `다이렉트 모바일 팩스 전송용 PDF 파일입니다.`,
             files: [pdfFile]
           });
         } else {
-          // 공유를 지원 안 하는 초구형 폰이나 특정 브라우저는 우회 다운로드
+          // 공유를 지원 안 하는 폰이나 특정 브라우저는 우회 다운로드
           const pdfUrl = URL.createObjectURL(blob);
           const link = document.createElement('a');
           link.href = pdfUrl;
