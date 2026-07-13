@@ -31,7 +31,6 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
   const [clientsList, setClientsList] = useState<any[]>([]);
   const [bankLists, setBankLists] = useState<{ id: number; bank: string }[]>([]);
   const [focusedClientField, setFocusedClientField] = useState<'policyholder' | 'insured' | 'beneficiary' | null>(null);
-  const [readyToShareFile, setReadyToShareFile] = useState<File | null>(null);
 
   const insuredCanvasRef = useRef<HTMLCanvasElement>(null);
   const beneficiaryCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -40,11 +39,9 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
   const [hasInsuredSignature, setHasInsuredSignature] = useState(false); 
   const [hasBeneficiarySignature, setHasBeneficiarySignature] = useState(false);
 
-  // 보험사별 제어 로직
   const companyName = insurance?.insurance_company || "";
   let needsInsuredSignature = true; 
   let needsBeneficiarySignature = true; 
-
   let supportsSavedAccount = false; 
 
   if (companyName.includes("메리츠화재")) {
@@ -129,9 +126,7 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
         setAccountNumber("");
       }
 
-      // 모달이 열릴 때 스위치 초기화
       setUseSavedAccount(false);
-      setReadyToShareFile(null);
       clearSignature('insured');
       clearSignature('beneficiary');
     };
@@ -310,7 +305,21 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
       }
       
       uploadedFiles.forEach(file => formData.append("receipts", file));
+      // ⭐️ [원스텝 핵심 꼼수] 유저가 버튼을 누른 '직후'에 브라우저 비동기 공유 프로미스를 가동시켜 락을 풉니다!
+      let sharePromiseResolver: (data: any) => void = () => {};
+      const sharePromise = new Promise((resolve) => {
+        sharePromiseResolver = resolve;
+      });
 
+      if (type === "mobile" && navigator.canShare) {
+        // 백엔드 통신 전에 브라우저에게 "나 곧 공유 창 열 거야!"라고 먼저 선언해 둡니다.
+        navigator.share(sharePromise as any).catch((e) => {
+          // 사용자가 취소한 게 아니라 진짜 차단된 인앱브라우저라면 아래 예외처리로 이동
+          if (e.name !== "AbortError" && !e.message?.includes("Canceled")) {
+            console.warn("내장 브라우저 공유 차단 확인됨");
+          }
+        });
+      }
       const res = await fetch("/api/generate-claim", { method: "POST", body: formData });
       
       if (!res.ok) {
@@ -335,30 +344,30 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
         document.body.removeChild(link);
       } else if (type === "mobile") {
         const pdfFile = new File([blob], fileName, { type: "application/pdf" });
-        setReadyToShareFile(pdfFile);
+        if (navigator.canShare) {
+          // ⭐️ 미리 대기시켜둔 프로미스에 진짜 PDF 파일을 쏙 집어넣어서 완벽한 원스텝 공유 실행!
+          sharePromiseResolver({
+            title: `${client.name} 고객 보험금 청구 서류`,
+            text: `다이렉트 모바일 팩스 전송용 PDF 파일입니다.`,
+            files: [pdfFile]
+          });
+        } else {
+          // 공유를 지원 안 하는 초구형 폰이나 특정 브라우저는 우회 다운로드
+          const pdfUrl = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = pdfUrl;
+          link.download = fileName; 
+          link.target = '_blank';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }
       }
     } catch (error: any) {
       console.error(error);
       alert("처리 중 에러가 발생했습니다.");
     } finally {
       setIsLoading(false);
-    }
-  };
-  // ⭐️ [신규 함수] 대기 화면에서 '바로 공유하기' 버튼을 누르면 실행되는 100% 성공 공유 함수
-  const executeDirectShare = async () => {
-    if (!readyToShareFile) return;
-    try {
-      await navigator.share({
-        title: `${client.name} 고객 보험금 청구 서류`,
-        text: `다이렉트 모바일 팩스 전송을 위한 PDF 파일입니다.`,
-        files: [readyToShareFile]
-      });
-      // 공유 성공하면 닫아도 좋지만, 혹시 모르니 남겨둡니다. 닫으려면 onClose() 호출
-    } catch (shareError: any) {
-      if (shareError.name === "AbortError" || shareError.message?.includes("Share canceled")) {
-        return; // 유저가 닫은 경우 무시
-      }
-      alert("공유 기능이 차단된 브라우저입니다. 화면 우측 상단의 다른 브라우저로 열기를 이용해주세요.");
     }
   };
   const renderClientSearchInput = (role: 'policyholder' | 'insured' | 'beneficiary', placeholderText: string) => {
@@ -414,35 +423,6 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
             <p className="text-sm font-bold text-gray-500 mt-2">잠시만 기다려주세요...</p>
           </div>
         )}
-
-        {/* ⭐️ [신규 추가] PDF 생성 완료 후 보여지는 공유 대기 화면 */}
-        {readyToShareFile && (
-          <div className="absolute inset-0 z-[110] flex flex-col items-center justify-center bg-white/95 backdrop-blur-md rounded-2xl p-6 text-center animate-in zoom-in-95 duration-200">
-            <div className="bg-green-100 p-4 rounded-full mb-4 shadow-sm border border-green-200">
-              <CheckCircle className="w-12 h-12 text-green-600" />
-            </div>
-            <h3 className="text-xl font-black text-slate-800 mb-2">청구서 완벽 준비 끝!</h3>
-            <p className="text-sm font-bold text-gray-600 mb-8 max-w-sm">
-              서류와 사진 병합이 완료되었습니다. 아래 버튼을 눌러 모바일 팩스 앱으로 바로 전송하세요.
-            </p>
-            
-            <div className="flex gap-3 w-full max-w-xs">
-              <button 
-                onClick={() => setReadyToShareFile(null)} 
-                className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold hover:bg-gray-200 transition-colors"
-              >
-                닫기
-              </button>
-              <button 
-                onClick={executeDirectShare} 
-                className="flex-[2] py-3 bg-blue-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-blue-200 hover:bg-blue-700 transition-colors"
-              >
-                <Share2 className="w-5 h-5" /> 팩스 앱 열기
-              </button>
-            </div>
-          </div>
-        )}
-
         <div className="flex justify-between items-center p-5 border-b border-gray-100 bg-slate-50">
           <div>
             <h3 className="font-black text-lg text-slate-800 flex items-center gap-2">
