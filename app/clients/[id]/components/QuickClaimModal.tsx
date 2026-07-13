@@ -493,7 +493,7 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
               <span className="text-blue-600">{insurance?.insurance_company}</span> - {insurance?.product_name}
             </p>
           </div>
-          <button onClick={onClose} className="cursor-pointer p-3 sm:p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-2xl sm:rounded-xl transition-colors bg-white shadow-sm border border-gray-200 sm:border-transparent sm:bg-transparent sm:shadow-none">
+          <button onClick={onClose} className="cursor-pointer p-3 sm:p-2 text-slate-400 hover:text-rose-500">
             <X className="w-6 h-6 sm:w-5 sm:h-5" />
           </button>
         </div>
