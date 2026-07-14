@@ -235,7 +235,7 @@ export default function MyPage() {
       kakao.Share.sendDefault({
         objectType: 'feed',
         content: {
-          title: `[디지털 명함] ${profile?.corporation_name}\n${profile?.name} ${profile?.rank}`,
+          title: `[디지털 명함] ${profile?.corporation_name}\n${profile?.name} ${profile?.rank}\n${profile?.phone}`,
           description: profile?.bio || "고객님의 든든한 금융 파트너가 되겠습니다.",
           imageUrl: profile?.avatar_url || defaultImageUrl,
           link: {
