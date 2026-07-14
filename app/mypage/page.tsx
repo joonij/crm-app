@@ -232,24 +232,30 @@ export default function MyPage() {
       const defaultImageUrl = "https://images.unsplash.com/photo-1560520653-9e0e4c89eb11?auto=format&fit=crop&q=80&w=800";
       const myCardUrl = `${window.location.origin}/card/${profile?.id}`;
 
-// ⭐️ 1. 텍스트 템플릿용 문구 조립 (최대 200자 내외로 가장 예쁘게 보이도록 배치)
-const titleStr = `[디지털 명함] ${profile?.corporation_name} ${profile?.branch_name}`;
-const nameStr = `${profile?.name} ${profile?.rank}`;
-const bioStr = profile?.bio || "고객님의 든든한 금융 파트너가 되겠습니다. 언제든 편하게 연락주세요.";
-const contactStr = `📞 ${profile?.phone || "연락처 미등록"}`;
-
-const fullText = `${titleStr}\n${nameStr}\n\n${bioStr}\n\n${contactStr}`;
-
-// ⭐️ 2. 피드(feed) 방식에서 텍스트(text) 방식으로 변경
-kakao.Share.sendDefault({
-  objectType: 'text',
-  text: fullText,
-  link: {
-    mobileWebUrl: myCardUrl,
-    webUrl: myCardUrl,
-  },
-  buttonTitle: '💳 모바일 명함 확인하기', // 하단에 깔끔하게 붙는 버튼
-});
+      kakao.Share.sendDefault({
+        objectType: 'feed',
+        content: {
+          title: `[디지털 명함] ${profile?.corporation_name}\n${profile?.name} ${profile?.rank}`,
+          description: profile?.bio || "고객님의 든든한 금융 파트너가 되겠습니다.",
+          imageUrl: profile?.avatar_url || defaultImageUrl,
+          link: {
+            mobileWebUrl: myCardUrl,
+            webUrl: myCardUrl,
+          },
+        },
+        itemContent: {
+          profileText: `${profile?.branch_name} ${profile?.team_number ? profile.team_number + '팀' : ''}`,
+        },
+        buttons: [
+          {
+            title: '💳 모바일 명함 열기',
+            link: {
+              mobileWebUrl: myCardUrl,
+              webUrl: myCardUrl,
+            },
+          },
+        ],
+      });
     } else {
       alert("카카오톡 시스템을 불러오는 중입니다. 잠시 후 다시 시도해주세요.");
     }
@@ -480,8 +486,9 @@ kakao.Share.sendDefault({
                 <textarea 
                   value={form.bio} 
                   onChange={e => setForm({...form, bio: e.target.value})} 
-                  rows={3} 
-                  placeholder="디지털 명함에 들어갈 소개 문구를 적어주세요. (예: 진심을 다해 올바른 보장을 설계합니다.)"
+                  rows={2} 
+                  maxLength={40}
+                  placeholder="디지털 명함에 들어갈 소개 문구를 적어주세요. (최대 40자)"
                   className={`${inputClass} resize-none leading-relaxed`} 
                 />
               </div>
