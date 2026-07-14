@@ -21,6 +21,12 @@ export default function RootLayout({children,}: Readonly<{children: React.ReactN
           {children}
         </LayoutWrapper>
         <Script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js" strategy="afterInteractive" />
+        <Script 
+        src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js" 
+        integrity="sha384-TiCmbVXZbxg/9x0a05o/0037T80S++gHl76e1FzzXk12zO03O2sXbU0xIfXN3A==" 
+        crossOrigin="anonymous" 
+        strategy="lazyOnload"
+      />
       </body>
     </html>
   );

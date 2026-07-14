@@ -220,11 +220,11 @@ export default function InsuranceModal({
   const [focusedRenewalIndex, setFocusedRenewalIndex] = useState<number | null>(null);
   const [focusedPolicyPeriod, setFocusedPolicyPeriod] = useState(false);
 
-  // ⭐️ 고객 검색 자동완성용 상태 (전화번호 포함)
+  // 고객 검색 자동완성용 상태 (전화번호 포함)
   const [clientsList, setClientsList] = useState<{ id: number; name: string; phone?: string }[]>([]);
   const [focusedClientField, setFocusedClientField] = useState<'contractor' | 'insured' | 'beneficiary' | null>(null);
 
-  // ⭐️ 담당자(본인) 여부 체크박스 상태
+  // 담당자(본인) 여부 체크박스 상태
   const [isCurrentUserAgent, setIsCurrentUserAgent] = useState(false);
   const [loggedInAgentName, setLoggedInAgentName] = useState("");
 
@@ -234,29 +234,24 @@ export default function InsuranceModal({
     setPasteText("");
 
     const fetchInitialData = async () => {
-      let currentAgentName = "";
       let currentClientName = "";
 
       // 1. 현재 로그인한 유저 정보 확인
       const { data: { user } } = await supabase.auth.getUser();
 
       if (user) {
-        // 본인(담당자) 정보 세팅 (agent의 id와 name 모두 가져오기)
         const { data: agentData } = await supabase.from("agents").select("id, name").eq("auth_id", user.id).single();
         
         if (agentData) {
-          currentAgentName = agentData.name;
           setLoggedInAgentName(agentData.name);
 
-          // ⭐️ 2. 에러의 원인 해결: 'agent_id'를 기준으로 내 고객 불러오기
-          // 만약 clients 테이블의 담당자 컬럼이 agent_id가 아니라면, 아래 "agent_id" 글자를 대표님의 DB에 맞게 바꿔주세요!
+          // 담당 고객 목록 불러오기
           const { data: myClients, error: clientsError } = await supabase
             .from("clients")
             .select("id, name, phone")
             .eq("agent_id", agentData.id) 
             .order("name");
             
-          // 에러가 났을 때 개발자 도구(F12) 콘솔에서 원인을 바로 확인할 수 있도록 가드 추가
           if (clientsError) {
              console.error("🚨 고객 목록 불러오기 실패:", clientsError.message);
           } else if (myClients) {
@@ -286,7 +281,7 @@ export default function InsuranceModal({
         insured_id: currentClientId,
         beneficiary_name: currentClientName,
         beneficiary_id: currentClientId,
-        agent_name: currentAgentName,
+        agent_name: "", 
       }));
     };
 
@@ -517,26 +512,21 @@ export default function InsuranceModal({
 
   const displayPolicyPeriods = getDisplayOptions(covForm.paymentPeriod, POLICY_PERIOD_OPTIONS);
 
-// ⭐️ [고객 검색 엔진 (이름 + 전화번호 지원 / 버그 수정 완료)]
   const renderClientSearchInput = (fieldPrefix: 'contractor' | 'insured' | 'beneficiary', label: string) => {
     const nameField = `${fieldPrefix}_name` as keyof typeof covForm;
     const idField = `${fieldPrefix}_id` as keyof typeof covForm;
     
-    // 혹시라도 값이 undefined일 경우를 대비한 안전 장치
     const currentValue = (covForm[nameField] || "") as string;
 
-    // ⭐️ 검색어 분리: 이름용(공백제거) / 전화번호용(숫자만)
     const cleanNameInput = currentValue.replace(/\s+/g, "").toLowerCase();
     const cleanPhoneInput = currentValue.replace(/[^0-9]/g, "");
 
     const filteredClients = currentValue
       ? clientsList.filter(c => {
-          // 1. 이름 매칭 (DB에 이름이 비어있지 않을 때만)
           const matchName = c.name 
             ? c.name.replace(/\s+/g, "").toLowerCase().includes(cleanNameInput)
             : false;
           
-          // 2. 전화번호 매칭 (입력창에 숫자가 하나라도 입력되었을 때만 검사!)
           const matchPhone = cleanPhoneInput && c.phone
             ? c.phone.replace(/[^0-9]/g, "").includes(cleanPhoneInput)
             : false;
@@ -574,7 +564,6 @@ export default function InsuranceModal({
                 className="px-3 py-2 text-sm font-medium text-gray-700 hover:bg-blue-50 cursor-pointer transition-colors flex items-center justify-between"
               >
                 <span>{c.name}</span>
-                {/* ⭐️ 동명이인 구분을 위한 연락처 표시 */}
                 {c.phone && <span className="text-xs text-gray-400 tracking-tight">{c.phone}</span>}
               </li>
             ))}
@@ -622,7 +611,19 @@ export default function InsuranceModal({
                 { id: "cancel", label: "해지할 보험", color: "bg-red-600 border-red-600" },
                 { id: "new", label: "새로 제안할 보험", color: "bg-green-600 border-green-600" },
               ].map((status) => (
-                <button key={status.id} onClick={() => setCovForm({ ...covForm, policy_status: status.id })} className={`cursor-pointer flex-1 py-2 text-xs md:text-sm font-bold rounded-lg border transition-colors ${covForm.policy_status === status.id ? `${status.color} text-white` : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"}`}>
+                <button 
+                  key={status.id} 
+                  onClick={() => {
+                    const isNew = status.id === "new";
+                    setIsCurrentUserAgent(isNew);
+                    setCovForm({
+                      ...covForm,
+                      policy_status: status.id,
+                      agent_name: isNew ? loggedInAgentName : ""
+                    });
+                  }} 
+                  className={`cursor-pointer flex-1 py-2 text-xs md:text-sm font-bold rounded-lg border transition-colors ${covForm.policy_status === status.id ? `${status.color} text-white` : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"}`}
+                >
                   {status.label}
                 </button>
               ))}
@@ -726,7 +727,7 @@ export default function InsuranceModal({
               {renderClientSearchInput('insured', '피보험자')}
               {renderClientSearchInput('beneficiary', '수익자')}
 
-              {/* 담당자 본인 확인 체크박스 적용 */}
+              {/* 담당자 본인 확인 체크박스 로직 적용 */}
               <div className="flex flex-col">
                 <div className="flex items-center justify-between mb-1 ml-1">
                   <label className="text-xs text-gray-500 font-semibold">담당설계사</label>
@@ -748,6 +749,7 @@ export default function InsuranceModal({
                   type="text" 
                   className={`${inputClassName} ${isCurrentUserAgent ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''}`} 
                   onChange={(e) => setCovForm({ ...covForm, agent_name: e.target.value })} 
+                  value={covForm.agent_name}
                   readOnly={isCurrentUserAgent}
                   placeholder={isCurrentUserAgent ? "본인 담당" : "다른 담당자 이름 직접 입력"}
                 />

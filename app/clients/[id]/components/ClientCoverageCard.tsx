@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Shield, Trash2, ChevronDown, ChevronUp, Plus, BarChart3, Edit2, RotateCcw, MinusCircle, TrendingDown, Undo, Check, X, PartyPopper, Banknote } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import InsuranceModal from "@/app/clients/[id]/components/InsuranceModal";
-import QuickClaimModal from "./QuickClaimModal";
+import QuickClaimModal from "@/components/QuickClaimModal";
 
 // 금액 포맷팅 유틸리티 함수
 const formatAmount = (val: string) => {
@@ -506,8 +506,8 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-xs font-bold text-blue-600">기본 정보 수정</span>
                           <div className="flex gap-1.5">
-                            <button onClick={handleSavePolicyEdit} className="text-xs bg-gray-900 text-white px-3 py-1.5 rounded-md hover:bg-gray-800 flex items-center gap-1 font-semibold"><Check className="w-3 h-3"/> 저장</button>
-                            <button onClick={() => setEditingPolicyId(null)} className="text-xs bg-gray-100 text-gray-600 px-3 py-1.5 rounded-md hover:bg-gray-200 flex items-center gap-1 font-semibold"><X className="w-3 h-3"/> 취소</button>
+                            <button onClick={handleSavePolicyEdit} className="text-xs bg-gray-900 text-white px-3 py-1.5 rounded-md hover:bg-gray-800 flex items-center gap-1 font-semibold cursor-pointer"><Check className="w-3 h-3"/> 저장</button>
+                            <button onClick={() => setEditingPolicyId(null)} className="text-xs bg-gray-100 text-gray-600 px-3 py-1.5 rounded-md hover:bg-gray-200 flex items-center gap-1 font-semibold cursor-pointer"><X className="w-3 h-3"/> 취소</button>
                           </div>
                         </div>
                         <div className="grid grid-cols-2 gap-2 text-xs">
@@ -611,10 +611,10 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                             {currentStatus === 'new' && (
                               <button 
                                 onClick={(e) => { e.stopPropagation(); handleCompletePolicy(cov.id); }}
-                                className="flex items-center gap-1 text-[10px] font-black bg-emerald-100 hover:bg-emerald-200 text-emerald-700 border border-emerald-300 px-2 py-0.5 rounded shadow-sm transition-colors animate-pulse"
+                                className="cursor-pointer flex items-center gap-1 text-[10px] font-black bg-emerald-100 hover:bg-emerald-200 text-emerald-700 border border-emerald-300 px-2 py-0.5 rounded shadow-sm transition-colors animate-pulse"
                                 title="이 제안을 체결로 확정하고 가입일을 오늘로 지정합니다."
                               >
-                                <PartyPopper className="w-3 h-3" /> 체결
+                            체결
                               </button>
                             )}
                             
@@ -690,8 +690,8 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                                   />
                                 </div>
                                 <div className="flex gap-1 w-full justify-end">
-                                  <button onClick={() => handleSavePolicyReduce(cov.id)} className="text-[10px] text-purple-600 font-bold bg-white border border-purple-200 px-2 py-1 rounded hover:bg-purple-100 flex-1">적용</button>
-                                  <button onClick={() => setReducingPolicyId(null)} className="text-[10px] text-gray-500 font-medium bg-gray-100 px-2 py-1 rounded hover:bg-gray-200 flex-1">취소</button>
+                                  <button onClick={() => handleSavePolicyReduce(cov.id)} className="text-[10px] text-purple-600 font-bold bg-white border border-purple-200 px-2 py-1 rounded hover:bg-purple-100 flex-1 cursor-pointer">적용</button>
+                                  <button onClick={() => setReducingPolicyId(null)} className="text-[10px] text-gray-500 font-medium bg-gray-100 px-2 py-1 rounded hover:bg-gray-200 flex-1 cursor-pointer">취소</button>
                                 </div>
                               </div>
                             ) : (

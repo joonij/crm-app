@@ -28,7 +28,7 @@ export default function ScheduleModal({ isOpen, onClose, onSuccess, myInfo, edit
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [dateMode, setDateMode] = useState<'single' | 'range' | 'weekly'>('single');
   
-  // ⭐️ 고객 목록 및 검색어 상태 추가
+  // ⭐️ 고객 목록 및 검색어 상태
   const [clients, setClients] = useState<{ id: number; name: string; phone: string | null }[]>([]);
   const [clientSearch, setClientSearch] = useState("");
 
@@ -38,13 +38,13 @@ export default function ScheduleModal({ isOpen, onClose, onSuccess, myInfo, edit
     time: "09:00",
     content: "",
     schedule_type: "personal" as ScheduleType,
-    client_id: "", // ⭐️ 스케줄에 연동할 고객 ID 필드 추가
+    client_id: "", 
   });
 
   const dayNamesShort = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
   const selectedDayName = form.date ? dayNamesShort[new Date(form.date).getDay()] : "";
 
-  // ⭐️ 1. 담당자의 고객 리스트 불러오기 (가나다순 정렬)
+  // 1. 담당자의 고객 리스트 불러오기 (가나다순 정렬)
   useEffect(() => {
     if (!myInfo?.id || !isOpen) return;
 
@@ -70,22 +70,35 @@ export default function ScheduleModal({ isOpen, onClose, onSuccess, myInfo, edit
     fetchClients();
   }, [myInfo?.id, isOpen, editData]);
 
-  // 수정 모드일 때 기존 데이터 폼에 세팅
+  // ⭐️ 2. 핵심 해결 로직: 모달이 열릴 때마다 상태 완벽 초기화
   useEffect(() => {
-    if (editData) {
-      setForm({
-        date: editData.date,
-        endDate: editData.date,
-        time: editData.time ? editData.time.substring(0, 5) : "09:00",
-        content: editData.content,
-        schedule_type: editData.schedule_type,
-        client_id: editData.client_id ? String(editData.client_id) : "", // 고객 연동 세팅
-      });
-      setDateMode('single'); 
-    } else {
-      setForm(prev => ({ ...prev, date: defaultDate || prev.date }));
+    if (isOpen) {
+      if (editData) {
+        // 수정 모드: 기존 데이터 세팅
+        setForm({
+          date: editData.date,
+          endDate: editData.date,
+          time: editData.time ? editData.time.substring(0, 5) : "09:00",
+          content: editData.content,
+          schedule_type: editData.schedule_type,
+          client_id: editData.client_id ? String(editData.client_id) : "",
+        });
+        setDateMode('single'); 
+      } else {
+        // 신규 작성 모드: 모달이 열릴 때마다 이전 데이터 깔끔하게 포맷
+        setForm({
+          date: defaultDate || "",
+          endDate: "",
+          time: "09:00",
+          content: "",
+          schedule_type: "personal",
+          client_id: "",
+        });
+        setDateMode('single');
+        setClientSearch(""); // 고객 검색창도 초기화
+      }
     }
-  }, [editData, defaultDate]);
+  }, [isOpen, editData, defaultDate]);
 
   if (!isOpen) return null;
 
@@ -115,7 +128,7 @@ export default function ScheduleModal({ isOpen, onClose, onSuccess, myInfo, edit
         content: form.content,
         schedule_type: form.schedule_type,
         repeat: dateMode !== 'single', 
-        client_id: form.client_id ? Number(form.client_id) : null // ⭐️ DB 저장 페이로드에 client_id 추가
+        client_id: form.client_id ? Number(form.client_id) : null 
       };
 
       if (editData) {
@@ -252,7 +265,7 @@ export default function ScheduleModal({ isOpen, onClose, onSuccess, myInfo, edit
             )}
           </div>
 
-          {/* ⭐️ 고객 연동 Datalist (개별 일정일 때만 노출) */}
+          {/* 고객 연동 Datalist (개별 일정일 때만 노출) */}
           {form.schedule_type === 'personal' && (
             <div className="bg-blue-50/50 border border-blue-100 p-3 rounded-xl animate-in fade-in zoom-in-95 duration-200">
               <label className="flex items-center gap-1.5 text-xs font-bold text-blue-700 mb-2">

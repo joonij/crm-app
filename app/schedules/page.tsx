@@ -244,7 +244,7 @@ export default function SchedulePage() {
       {/* ⭐️ 헤더/컨트롤 영역 (shrink-0 부여로 고정) */}
       <div className="shrink-0 flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 sm:p-0 bg-white sm:bg-transparent z-20 border-b sm:border-0 border-slate-100 shadow-sm sm:shadow-none">
         <div className="flex items-center gap-3 md:gap-4 justify-between w-full md:w-auto">
-          <h2 className="text-lg md:text-xl font-bold text-slate-800 flex items-center gap-2"><CalendarIcon className="w-5 h-5 text-blue-600" /> 스케줄 보드</h2>
+          <h1 className="text-2xl font-black text-slate-800 flex items-center gap-2"><CalendarIcon className="w-5 h-5 text-blue-600" /> 스케줄 보드</h1>
           
           <div className="flex items-center gap-2 sm:gap-3">
             <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">

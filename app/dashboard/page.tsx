@@ -6,7 +6,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { 
   Car, FileText, CheckCircle2, 
-  ChevronRight, Calendar, Clock, Loader2, TrendingUp, Users, Gift, Bell, Check
+  ChevronRight, Calendar, Clock, Loader2, TrendingUp, Users, Gift, Bell, Check, Presentation, Kanban, BarChart
 } from "lucide-react";
 
 // ⭐️ 강력한 날짜 계산 헬퍼 함수 (마침표, 공백이 섞여도 완벽하게 계산)
@@ -328,7 +328,8 @@ export default function DashboardPage() {
       {/* 상단 타이틀 및 알림 센터(Bell) */}
       <div className="flex justify-between items-end mb-2 relative">
         <div>
-          <h1 className="text-2xl font-black text-slate-800">영업 현황 보드</h1>
+        
+          <h1 className="text-2xl font-black text-slate-800 flex items-center gap-2"><Presentation className="w-5 h-5 text-blue-600" />영업 현황 보드</h1>
           <p className="text-sm font-semibold text-slate-500 mt-1">
             <strong className="text-blue-600">{currentAgentName}</strong> 님의 오늘 챙겨야 할 핵심 업무 현황입니다.
           </p>

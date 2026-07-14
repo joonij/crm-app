@@ -134,9 +134,10 @@ export default function NotificationsPage() {
     <div className="max-w-4xl mx-auto w-full p-4 md:p-8">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2">
-            <Bell className="w-6 h-6" /> 알림 센터
+          <h1 className="text-2xl font-black text-slate-800 flex items-center gap-2">
+            <Bell className="w-6 h-6 text-blue-600" /> 알림 센터
           </h1>
+
           <p className="text-slate-500 text-sm mt-1 font-medium">새로운 소식과 진행 상황을 확인하세요.</p>
         </div>
         {unreadCount > 0 && (

@@ -8,20 +8,21 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
-  LayoutDashboard,
+  Presentation,
   Users,
   GraduationCap,
   Lock,
   Bell,
   Settings,
   User,
+  FileBox
 } from "lucide-react";
 
 const navItems = [
-  { label: "대시보드", href: "/dashboard", icon: LayoutDashboard, requiredRole: "user" },
+  { label: "대시보드", href: "/dashboard", icon: Presentation, requiredRole: "user" },
   { label: "고객 관리", href: "/clients", icon: Users, requiredRole: "user" },
   { label: "스케줄 보드", href: "/schedules", icon: Calendar, requiredRole: "user" },
-  { label: "청구 관리", href: "/", icon: Bell, requiredRole: "admin" },
+  { label: "청구 관리", href: "/claims", icon: FileBox, requiredRole: "user" },
   { label: "알림 센터", href: "/notifications", icon: Bell, requiredRole: "user" },
   { label: "사내 교육", href: "/training", icon: GraduationCap, requiredRole: "user" },
 ] as const;
