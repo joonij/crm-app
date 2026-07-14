@@ -232,30 +232,24 @@ export default function MyPage() {
       const defaultImageUrl = "https://images.unsplash.com/photo-1560520653-9e0e4c89eb11?auto=format&fit=crop&q=80&w=800";
       const myCardUrl = `${window.location.origin}/card/${profile?.id}`;
 
-      kakao.Share.sendDefault({
-        objectType: 'feed',
-        content: {
-          title: `[디지털 명함] ${profile?.corporation_name}\n${profile?.name} ${profile?.rank}`,
-          description: profile?.bio || "고객님의 든든한 금융 파트너가 되겠습니다. 언제든 편하게 연락주세요.",
-          imageUrl: profile?.avatar_url || defaultImageUrl,
-          link: {
-            mobileWebUrl: myCardUrl,
-            webUrl: myCardUrl,
-          },
-        },
-        itemContent: {
-          profileText: `${profile?.branch_name} ${profile?.team_number ? profile.team_number + '팀' : ''}`,
-        },
-        buttons: [
-          {
-            title: '💳 모바일 명함 열기',
-            link: {
-              mobileWebUrl: myCardUrl,
-              webUrl: myCardUrl,
-            },
-          },
-        ],
-      });
+// ⭐️ 1. 텍스트 템플릿용 문구 조립 (최대 200자 내외로 가장 예쁘게 보이도록 배치)
+const titleStr = `[디지털 명함] ${profile?.corporation_name} ${profile?.branch_name}`;
+const nameStr = `${profile?.name} ${profile?.rank}`;
+const bioStr = profile?.bio || "고객님의 든든한 금융 파트너가 되겠습니다. 언제든 편하게 연락주세요.";
+const contactStr = `📞 ${profile?.phone || "연락처 미등록"}`;
+
+const fullText = `${titleStr}\n${nameStr}\n\n${bioStr}\n\n${contactStr}`;
+
+// ⭐️ 2. 피드(feed) 방식에서 텍스트(text) 방식으로 변경
+kakao.Share.sendDefault({
+  objectType: 'text',
+  text: fullText,
+  link: {
+    mobileWebUrl: myCardUrl,
+    webUrl: myCardUrl,
+  },
+  buttonTitle: '💳 모바일 명함 확인하기', // 하단에 깔끔하게 붙는 버튼
+});
     } else {
       alert("카카오톡 시스템을 불러오는 중입니다. 잠시 후 다시 시도해주세요.");
     }
@@ -681,19 +675,19 @@ export default function MyPage() {
             <div className="flex flex-col gap-2">
               <button 
                 onClick={handleKakaoShare}
-                className="w-full bg-[#FEE500] hover:bg-[#FADA0A] text-[#000000] rounded-2xl py-4 flex items-center justify-center gap-2 font-black text-[15px] shadow-lg transition-transform active:scale-95"
+                className="cursor-pointer w-full bg-[#FEE500] hover:bg-[#FADA0A] text-[#000000] rounded-2xl py-4 flex items-center justify-center gap-2 font-black text-[15px] shadow-lg transition-transform active:scale-95"
               >
                 <MessageCircle className="w-5 h-5 fill-black" />
                 카카오톡으로 명함 전송하기
               </button>
               
               <div className="flex gap-2">
-                <button className="flex-1 bg-white hover:bg-gray-50 text-gray-800 rounded-2xl py-3.5 flex items-center justify-center gap-2 font-bold text-sm shadow-md transition-colors">
+                <button className="cursor-pointer flex-1 bg-white hover:bg-gray-50 text-gray-800 rounded-2xl py-3.5 flex items-center justify-center gap-2 font-bold text-sm shadow-md transition-colors">
                   <Share2 className="w-4 h-4 text-gray-500" /> 링크 복사
                 </button>
                 <button 
                   onClick={() => setIsCardModalOpen(false)}
-                  className="flex-1 bg-gray-800 hover:bg-gray-900 text-white rounded-2xl py-3.5 flex items-center justify-center gap-2 font-bold text-sm shadow-md transition-colors"
+                  className="cursor-pointer flex-1 bg-gray-800 hover:bg-gray-900 text-white rounded-2xl py-3.5 flex items-center justify-center gap-2 font-bold text-sm shadow-md transition-colors"
                 >
                   <X className="w-4 h-4" /> 닫기
                 </button>
