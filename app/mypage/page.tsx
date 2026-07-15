@@ -2,9 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { User, Building2, Phone, Mail, LogOut, Camera, Save, Loader2, Award, QrCode, MapPin, Printer, Share2, MessageCircle, X, Quote, Briefcase, Network, Plus, Trash2, KeyRound } from "lucide-react";
+import { User, Phone, Mail, LogOut, Camera, Save, Loader2, Award, QrCode, MapPin, Printer, Share2, MessageCircle, X, Quote, Briefcase, Network, Plus, Trash2, KeyRound, TrendingUp } from "lucide-react";
 
-// ⭐️ 1. 타입을 확장하여 password 필드 추가
 type CompanyCredential = { code: string; password?: string };
 
 type AgentProfile = {
@@ -22,7 +21,9 @@ type AgentProfile = {
   team_number: string;
   avatar_url: string | null;
   agency_id: number; 
-  company_codes: Record<string, CompanyCredential>; // ⭐️ 2. 타입 변경
+  company_codes: Record<string, CompanyCredential>;
+  skills: any[];   // ⭐️ 포트폴리오(역량) 추가
+  careers: any[];  // ⭐️ 포트폴리오(약력) 추가
 };
 
 type TeamMember = {
@@ -45,8 +46,16 @@ export default function MyPage() {
   
   const [newCompany, setNewCompany] = useState("");
   const [newCompanyCode, setNewCompanyCode] = useState("");
-  const [newCompanyPassword, setNewCompanyPassword] = useState(""); // ⭐️ 3. 비밀번호 입력 상태 추가
+  const [newCompanyPassword, setNewCompanyPassword] = useState("");
   const [companyCodes, setCompanyCodes] = useState<Record<string, CompanyCredential>>({});
+
+  // ⭐️ 포트폴리오 관리용 상태 변수
+  const [skills, setSkills] = useState<{name: string, score: number}[]>([]);
+  const [careers, setCareers] = useState<{year: string, desc: string}[]>([]);
+  const [newSkillName, setNewSkillName] = useState("");
+  const [newSkillScore, setNewSkillScore] = useState(90);
+  const [newCareerYear, setNewCareerYear] = useState("");
+  const [newCareerDesc, setNewCareerDesc] = useState("");
 
   const [form, setForm] = useState({
     name: "",
@@ -65,7 +74,7 @@ export default function MyPage() {
         const { data: agentData, error } = await supabase
           .from("agents")
           .select(`
-            id, name, phone, bio, office_address, fax, rank, agent_code, avatar_url, company_codes, agency_id,
+            id, name, phone, bio, office_address, fax, rank, agent_code, avatar_url, company_codes, agency_id, skills, careers,
             agencies (corporation_name, branch_name, team_number)
           `)
           .eq("auth_id", user.id)
@@ -74,15 +83,14 @@ export default function MyPage() {
         if (agentData) {
           const agency = Array.isArray(agentData.agencies) ? agentData.agencies[0] : agentData.agencies;
           
-          // ⭐️ 4. 기존 데이터 호환성 로직 (기존 문자열을 객체로 안전하게 변환)
           const rawCodes = agentData.company_codes || {};
           const formattedCodes: Record<string, CompanyCredential> = {};
           
           for (const [key, value] of Object.entries(rawCodes)) {
             if (typeof value === 'string') {
-              formattedCodes[key] = { code: value, password: "" }; // 예전 데이터
+              formattedCodes[key] = { code: value, password: "" }; 
             } else {
-              formattedCodes[key] = value as CompanyCredential; // 최신 데이터
+              formattedCodes[key] = value as CompanyCredential; 
             }
           }
 
@@ -99,6 +107,8 @@ export default function MyPage() {
             avatar_url: agentData.avatar_url || null,
             agency_id: agentData.agency_id,
             company_codes: formattedCodes,
+            skills: agentData.skills || [],
+            careers: agentData.careers || [],
             corporation_name: agency?.corporation_name || "",
             branch_name: agency?.branch_name || "",
             team_number: agency?.team_number || "",
@@ -113,6 +123,11 @@ export default function MyPage() {
           });
 
           setCompanyCodes(formattedCodes);
+
+          // ⭐️ 포트폴리오 기본값 설정 (기존 데이터가 없으면 예시로 채워줌)
+          setSkills(agentData.skills?.length > 0 ? agentData.skills : [
+          ]);
+          setCareers(agentData.careers || []);
 
           if (agentData.agency_id) {
             const { data: membersData } = await supabase
@@ -145,16 +160,38 @@ export default function MyPage() {
         office_address: form.office_address,
         fax: form.fax,
         company_codes: companyCodes, 
+        skills: skills,   // ⭐️ 추가됨
+        careers: careers  // ⭐️ 추가됨
       })
       .eq("id", profile.id);
 
     if (error) {
       alert("프로필 저장에 실패했습니다.");
     } else {
-      alert("프로필 및 코드 정보가 성공적으로 업데이트되었습니다.");
-      setProfile({ ...profile, ...form, company_codes: companyCodes });
+      alert("프로필 및 포트폴리오 정보가 성공적으로 업데이트되었습니다.");
+      setProfile({ ...profile, ...form, company_codes: companyCodes, skills, careers });
     }
     setIsSaving(false);
+  };
+
+  // ⭐️ 포트폴리오(역량) 관리 함수
+  const handleAddSkill = () => {
+    if(!newSkillName.trim()) return alert("전문 분야 키워드를 입력해주세요.");
+    setSkills([...skills, { name: newSkillName, score: newSkillScore }]);
+    setNewSkillName(""); setNewSkillScore(90);
+  };
+  const handleRemoveSkill = (index: number) => {
+    setSkills(skills.filter((_, i) => i !== index));
+  };
+
+  // ⭐️ 포트폴리오(약력) 관리 함수
+  const handleAddCareer = () => {
+    if(!newCareerYear.trim() || !newCareerDesc.trim()) return alert("연도와 약력 내용을 모두 입력해주세요.");
+    setCareers([{ year: newCareerYear, desc: newCareerDesc }, ...careers]);
+    setNewCareerYear(""); setNewCareerDesc("");
+  };
+  const handleRemoveCareer = (index: number) => {
+    setCareers(careers.filter((_, i) => i !== index));
   };
 
   const handleAddCompanyCode = () => {
@@ -162,7 +199,6 @@ export default function MyPage() {
       return alert("보험사 이름과 사번(코드)은 필수 입력 사항입니다.");
     }
     
-    // ⭐️ 5. 객체 형태로 저장
     setCompanyCodes(prev => ({ 
       ...prev, 
       [newCompany.trim()]: {
@@ -235,8 +271,8 @@ export default function MyPage() {
       kakao.Share.sendDefault({
         objectType: 'feed',
         content: {
-          title: `${profile?.corporation_name} {profile?.branch_name}\n${profile?.name} ${profile?.rank}`,
-          description: `${profile?.phone}\n${profile?.bio}` || "고객님의 든든한 금융 파트너가 되겠습니다.",
+          title: `${profile?.corporation_name} ${profile?.branch_name}\n${profile?.name} ${profile?.rank}`,
+          description: profile?.bio || "고객님의 든든한 금융 파트너가 되겠습니다.",
           imageUrl: profile?.avatar_url || defaultImageUrl,
           link: {
             mobileWebUrl: myCardUrl,
@@ -244,7 +280,7 @@ export default function MyPage() {
           },
         },
         itemContent: {
-          profileText: `${profile?.branch_name} ${profile?.team_number ? profile.team_number + '팀' : ''}`,
+          profileText: `📞 ${profile?.phone || "연락처 미등록"}`,
         },
         buttons: [
           {
@@ -315,12 +351,12 @@ export default function MyPage() {
           <User className="w-7 h-7 text-blue-600" />
           마이페이지
         </h1>
-        <p className="mt-2 text-sm text-gray-500">내 프로필, 보험사 코드 및 소속 조직을 관리합니다.</p>
+        <p className="mt-2 text-sm text-gray-500">내 프로필, 포트폴리오, 보험사 코드 및 소속 조직을 관리합니다.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
-        {/* 좌측: 프로필 요약 카드 */}
+        {/* 좌측: 프로필 요약 카드 및 팀 조직도 */}
         <div className="lg:col-span-4 space-y-6">
           <div className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden text-center">
             <div className="h-82 bg-gradient-to-r from-blue-600 to-indigo-700">
@@ -338,7 +374,6 @@ export default function MyPage() {
             </div>
             
             <div className="px-6 pb-6 relative">
-              
               <div className="mt-14 flex flex-col items-center">
                 <div className="flex items-center gap-2 justify-center">
                   <h2 className="text-xl font-extrabold text-gray-900">{profile.name}</h2>
@@ -365,7 +400,6 @@ export default function MyPage() {
             </h3>
             
             <div className="space-y-4">
-              {/* 지점장/본부장 그룹 */}
               {managers.length > 0 && (
                 <div className="bg-blue-50/50 rounded-2xl p-3 border border-blue-100 space-y-2">
                   <span className="text-[10px] font-black text-blue-500 px-2 uppercase tracking-wider">Manager</span>
@@ -386,7 +420,6 @@ export default function MyPage() {
                 </div>
               )}
 
-              {/* 팀장 그룹 */}
               {teamLeaders.length > 0 && (
                 <div className="bg-indigo-50/50 rounded-2xl p-3 border border-indigo-100 space-y-2 relative">
                   {managers.length > 0 && <div className="absolute -top-4 left-6 w-0.5 h-4 bg-gray-200" />}
@@ -408,7 +441,6 @@ export default function MyPage() {
                 </div>
               )}
 
-              {/* 팀원 그룹 */}
               {members.length > 0 && (
                 <div className="bg-gray-50 rounded-2xl p-3 border border-gray-100 space-y-2 relative">
                   {(managers.length > 0 || teamLeaders.length > 0) && <div className="absolute -top-4 left-6 w-0.5 h-4 bg-gray-200" />}
@@ -436,7 +468,7 @@ export default function MyPage() {
           </div>
         </div>
 
-        {/* 우측: 정보 및 코드 수정 폼 */}
+        {/* 우측: 정보 및 폼 수정 영역 */}
         <div className="lg:col-span-8 space-y-6">
           
           <div className="bg-white rounded-3xl border border-gray-200 shadow-sm p-6 md:p-8">
@@ -482,17 +514,97 @@ export default function MyPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-600 mb-1.5 ml-1">고객용 프로필 한 줄 소개 / 철학</label>
+                <div className="flex items-center justify-between mb-1.5 ml-1">
+                  <label className="block text-xs font-bold text-gray-600">고객용 프로필 한 줄 소개 / 철학</label>
+                  <span className={`text-[11px] font-bold ${form.bio.length >= 40 ? 'text-red-500' : 'text-gray-400'}`}>
+                    {form.bio.length} / 40자
+                  </span>
+                </div>
                 <textarea 
                   value={form.bio} 
-                  onChange={e => setForm({...form, bio: e.target.value})} 
+                  onChange={e => setForm({...form, bio: e.target.value.slice(0, 40)})} 
                   rows={2} 
-                  maxLength={20}
-                  placeholder="디지털 명함에 들어갈 소개 문구를 적어주세요. (최대 20자)"
+                  maxLength={40}
+                  placeholder="디지털 명함에 들어갈 소개 문구를 적어주세요. (최대 40자)"
                   className={`${inputClass} resize-none leading-relaxed`} 
                 />
               </div>
             </div>
+          </div>
+
+          {/* ⭐️ 전문 포트폴리오 관리 영역 */}
+          <div className="bg-white rounded-3xl border border-gray-200 shadow-sm p-6 md:p-8 space-y-8">
+            
+            {/* 역량 키워드 */}
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-blue-600" /> 전문 컨설팅 포커스 (그래프)
+                </h3>
+              </div>
+              
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 md:p-5">
+                <div className="flex flex-col gap-3">
+                  {skills.length === 0 && <p className="text-sm text-gray-400 text-center py-2">등록된 전문 분야가 없습니다.</p>}
+                  {skills.map((skill, idx) => (
+                    <div key={idx} className="flex items-center justify-between bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
+                      <div className="flex-1 pr-4">
+                        <span className="text-sm font-bold text-gray-800">{skill.name}</span>
+                        <div className="w-full h-1.5 bg-gray-100 rounded-full mt-2 overflow-hidden">
+                          <div className="h-full bg-gradient-to-r from-blue-400 to-indigo-600 rounded-full" style={{width: `${skill.score}%`}}></div>
+                        </div>
+                      </div>
+                      <button onClick={() => handleRemoveSkill(idx)} className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                
+                <div className="flex flex-col sm:flex-row gap-2 mt-4 pt-4 border-t border-slate-200">
+                  <input type="text" placeholder="키워드 입력 (예: 은퇴설계, 변액투자)" value={newSkillName} onChange={e => setNewSkillName(e.target.value)} className={`${inputClass} flex-1`} />
+                  <div className="flex gap-2">
+                    <select value={newSkillScore} onChange={e => setNewSkillScore(Number(e.target.value))} className={`${inputClass} w-32`}>
+                      <option value="98">최상 (98%)</option>
+                      <option value="90">상 (90%)</option>
+                      <option value="80">중상 (80%)</option>
+                    </select>
+                    <button onClick={handleAddSkill} className="bg-slate-800 hover:bg-slate-900 text-white px-5 rounded-lg font-bold text-sm transition-colors whitespace-nowrap">추가</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 주요 약력 */}
+            <div>
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2 mb-4">
+                <Award className="w-5 h-5 text-blue-600" /> 주요 약력 및 증명 (타임라인)
+              </h3>
+              
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 md:p-5">
+                <div className="flex flex-col gap-2">
+                  {careers.length === 0 && <p className="text-sm text-gray-400 text-center py-2">등록된 약력이 없습니다.</p>}
+                  {careers.map((career, idx) => (
+                    <div key={idx} className="flex items-center gap-3 bg-white p-3.5 rounded-xl border border-slate-100 shadow-sm">
+                      <span className="text-sm font-black text-blue-600 w-12 text-center">{career.year}</span>
+                      <span className="text-sm font-bold text-gray-800 flex-1">{career.desc}</span>
+                      <button onClick={() => handleRemoveCareer(idx)} className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                
+                <div className="flex flex-col sm:flex-row gap-2 mt-4 pt-4 border-t border-slate-200">
+                  <input type="text" placeholder="연도 (예: 2024)" value={newCareerYear} onChange={e => setNewCareerYear(e.target.value)} className={`${inputClass} sm:w-28 text-center`} maxLength={4} />
+                  <div className="flex gap-2 flex-1">
+                    <input type="text" placeholder="약력 내용 (예: MDRT 달성)" value={newCareerDesc} onChange={e => setNewCareerDesc(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddCareer()} className={`${inputClass} flex-1`} />
+                    <button onClick={handleAddCareer} className="bg-slate-800 hover:bg-slate-900 text-white px-5 rounded-lg font-bold text-sm transition-colors whitespace-nowrap">추가</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
           </div>
 
           {/* 보험사별 사번(코드) 관리 구역 */}
@@ -506,7 +618,6 @@ export default function MyPage() {
             
             <div className="bg-slate-50/50 border border-slate-200 rounded-2xl p-4 md:p-5">
               
-              {/* ⭐️ 6. 리스트 출력 UI 수정 (비밀번호 표출) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 mb-5">
                 {sortedCompanyCodes.length === 0 ? (
                   <div className="col-span-full py-4 text-center text-sm text-gray-400 bg-white rounded-xl border border-dashed border-gray-300">
@@ -516,8 +627,8 @@ export default function MyPage() {
                   sortedCompanyCodes.map(([company, data]) => {
                     const priority = getCompanyTypePriority(company);
                     const badgeClass = priority === 1 ? "bg-blue-50 text-blue-600 border-blue-100" 
-                                     : priority === 2 ? "bg-amber-50 text-amber-600 border-amber-100" 
-                                     : "bg-gray-100 text-gray-500 border-gray-200";
+                                       : priority === 2 ? "bg-amber-50 text-amber-600 border-amber-100" 
+                                       : "bg-gray-100 text-gray-500 border-gray-200";
                     const badgeText = priority === 1 ? "생명" : priority === 2 ? "손해" : "기타";
 
                     return (
@@ -528,7 +639,6 @@ export default function MyPage() {
                             <span className="text-[11px] font-bold text-gray-500 truncate">{company}</span>
                           </div>
                           <span className="text-sm font-black text-gray-900 tracking-wide truncate mt-0.5">{data.code}</span>
-                          {/* 비밀번호 표시 공간 */}
                           {data.password && (
                             <span className="text-[10px] text-gray-400 font-medium flex items-center gap-1 mt-0.5">
                               <KeyRound className="w-2.5 h-2.5" /> {data.password}
@@ -544,7 +654,6 @@ export default function MyPage() {
                 )}
               </div>
 
-              {/* ⭐️ 7. 입력 폼 UI 수정 (비밀번호 칸 추가) */}
               <div className="grid grid-cols-1 md:grid-cols-12 gap-2 pt-4 border-t border-slate-200">
                 <div className="md:col-span-4">
                   <input 
@@ -608,7 +717,7 @@ export default function MyPage() {
       {/* 중앙 정렬된 모바일 디지털 명함 미리보기 모달 */}
       {isCardModalOpen && (
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 transition-opacity animate-in fade-in"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 transition-opacity animate-in fade-in"
           onClick={() => setIsCardModalOpen(false)}
         >
           <div 
@@ -616,8 +725,8 @@ export default function MyPage() {
             onClick={e => e.stopPropagation()}
           >
             {/* 디지털 명함 본체 */}
-            <div className="bg-white rounded-3xl overflow-hidden shadow-2xl relative text-center">
-              <div className="h-90 relative p-2">
+            <div className="bg-white rounded-3xl overflow-hidden shadow-2xl relative text-center border border-gray-100">
+              <div className="h-80 relative p-2">
                 <div className="w-full h-full bg-slate-100 rounded-xl flex items-center justify-center overflow-hidden border border-gray-200">
                   {profile.avatar_url ? (
                     <img src={profile.avatar_url} alt="Profile" className="w-full h-full object-cover" />
@@ -628,8 +737,7 @@ export default function MyPage() {
               </div>
               
               <div className="relative px-6 pb-6">
-
-                <div className="mt-14 space-y-1">
+                <div className="mt-8 space-y-1">
                   <p className="text-blue-600 font-extrabold text-xs tracking-tight">{profile.corporation_name} {profile.branch_name}</p>
                   <div className="flex items-baseline justify-center gap-2">
                     <h2 className="text-2xl font-black text-gray-900 tracking-tight">{profile.name}</h2>
@@ -647,7 +755,7 @@ export default function MyPage() {
                   </div>
                 )}
 
-                <div className="mt-6 space-y-3.5 text-left">
+                <div className="mt-6 space-y-3.5 text-left border-t border-gray-100 pt-6">
                   <div className="flex items-center gap-3 text-sm text-gray-700 font-medium">
                     <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
                       <Phone className="w-4 h-4" />

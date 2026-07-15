@@ -153,7 +153,7 @@ export default function SignUpPage() {
               </div>
 
               <div>
-                <label className={labelClass}>팩스 번호 (Fax)</label>
+                <label className={labelClass}>팩스 번호</label>
                 <div className="relative">
                   <Printer className={iconClass} />
                   {/* ⭐️ 새로 정의한 팩스 포맷터 연동 */}
