@@ -235,7 +235,7 @@ export default function MyPage() {
       kakao.Share.sendDefault({
         objectType: 'feed',
         content: {
-          title: `${profile?.corporation_name}\n${profile?.name} ${profile?.rank}`,
+          title: `${profile?.corporation_name} {profile?.branch_name}\n${profile?.name} ${profile?.rank}`,
           description: `${profile?.phone}\n${profile?.bio}` || "고객님의 든든한 금융 파트너가 되겠습니다.",
           imageUrl: profile?.avatar_url || defaultImageUrl,
           link: {
@@ -487,8 +487,8 @@ export default function MyPage() {
                   value={form.bio} 
                   onChange={e => setForm({...form, bio: e.target.value})} 
                   rows={2} 
-                  maxLength={40}
-                  placeholder="디지털 명함에 들어갈 소개 문구를 적어주세요. (최대 40자)"
+                  maxLength={20}
+                  placeholder="디지털 명함에 들어갈 소개 문구를 적어주세요. (최대 20자)"
                   className={`${inputClass} resize-none leading-relaxed`} 
                 />
               </div>
