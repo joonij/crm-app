@@ -125,7 +125,7 @@ export default function MyPage() {
           setCompanyCodes(formattedCodes);
 
           // ⭐️ 포트폴리오 기본값 설정 (기존 데이터가 없으면 예시로 채워줌)
-          setSkills(agentData.skills?.length > 0 ? agentData.skills : [
+          setSkills(agentData.skills?.length > 0 ? agentData.skills : [ 
           ]);
           setCareers(agentData.careers || []);
 
