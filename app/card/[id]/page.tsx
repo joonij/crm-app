@@ -3,7 +3,7 @@
 
 import { useEffect, useState, use } from "react";
 import { supabase } from "@/lib/supabase";
-import { User, Phone, Mail, MapPin, Printer, Quote, Award, CheckCircle2, MessageSquare, ShieldCheck, LineChart, Briefcase, Gem, Target, BadgeCheck, X, Search, BarChart3, HeartHandshake, Loader2, ChevronDown } from "lucide-react";
+import { User, Phone, Mail, MapPin, Printer, Quote, Award, CheckCircle2, MessageSquare, ShieldCheck, LineChart, Briefcase, Gem, Target, BadgeCheck, X, Search, BarChart3, HeartHandshake, Loader2, ChevronDown, Users } from "lucide-react";
 
 // 전화번호 하이픈 자동 포맷팅 함수
 const formatPhoneNumber = (value: string) => {
@@ -43,7 +43,7 @@ export default function CardPage({ params }: { params: Promise<{ id: string }> }
         const { data, error } = await supabase
           .from("agents")
           .select(`
-            id, name, phone, email, bio, office_address, fax, rank, avatar_url, skills, careers,
+            id, name, phone, email, bio, office_address, fax, rank, avatar_url, skills, careers, identity,
             agencies (corporation_name, branch_name)
           `)
           .eq("id", targetId)
@@ -130,7 +130,7 @@ export default function CardPage({ params }: { params: Promise<{ id: string }> }
   return (
     <div className="min-h-screen bg-slate-100 flex items-center justify-center">
       
-      <div className="w-full max-w-[400px] bg-white overflow-hidden shadow-2xl border border-slate-200/60 relative pb-28">
+      <div className="w-full max-w-[400px] bg-white overflow-hidden shadow-2xl border border-slate-200/60 relative">
         
         {/* 상단 프로필 배경 */}
         <div className="h-80 relative bg-gradient-to-b from-slate-100 to-slate-200">
@@ -161,7 +161,7 @@ export default function CardPage({ params }: { params: Promise<{ id: string }> }
             </div>
             <div className="mt-1">
               <span className="text-[13px] font-bold text-slate-600 border border-slate-200 bg-white shadow-sm px-3 py-1 rounded-full inline-block">
-                {profile.rank}팀장
+                {profile.identity}
               </span>
             </div>
           </div>
@@ -237,17 +237,25 @@ export default function CardPage({ params }: { params: Promise<{ id: string }> }
             <div className="relative border-l-2 border-blue-100 ml-4 space-y-7 pb-2">
               <div className="relative pl-6">
                 <div className="absolute -left-[17px] top-0.5 w-8 h-8 rounded-full bg-white border-2 border-blue-200 flex items-center justify-center shadow-sm">
+                  <Users className="w-4 h-4 text-blue-600" />
+                </div>
+                <h4 className="font-black text-slate-800 text-[14px]">STEP 1. 분야별 23명의 전문가 진단 및 분석</h4>
+                <p className="text-[12px] font-bold text-slate-500 mt-1.5 leading-relaxed break-keep">고객님의 현재 재무 상태와 기가입된 보장 내역을 객관적인 지표로 꼼꼼하게 진단합니다.</p>
+              </div>
+
+              <div className="relative pl-6">
+                <div className="absolute -left-[17px] top-0.5 w-8 h-8 rounded-full bg-white border-2 border-blue-200 flex items-center justify-center shadow-sm">
                   <Search className="w-4 h-4 text-blue-600" />
                 </div>
-                <h4 className="font-black text-slate-800 text-[14px]">STEP 1. 현황 진단 및 데이터 분석</h4>
-                <p className="text-[12px] font-bold text-slate-500 mt-1.5 leading-relaxed break-keep">고객님의 현재 재무 상태와 기가입된 보장 내역을 객관적인 지표로 꼼꼼하게 진단합니다.</p>
+                <h4 className="font-black text-slate-800 text-[14px]">STEP 2. 숨은 보험금 및 자산 검토</h4>
+                <p className="text-[12px] font-bold text-slate-500 mt-1.5 leading-relaxed break-keep">고객님께서 미처 챙기지 못한 숨은 보험금까지 꼼꼼하게 찾아내어, 잃어버렸던 정당한 권리를 돌려드립니다.</p>
               </div>
 
               <div className="relative pl-6">
                 <div className="absolute -left-[17px] top-0.5 w-8 h-8 rounded-full bg-white border-2 border-blue-200 flex items-center justify-center shadow-sm">
                   <BarChart3 className="w-4 h-4 text-blue-600" />
                 </div>
-                <h4 className="font-black text-slate-800 text-[14px]">STEP 2. 맞춤형 솔루션 기획</h4>
+                <h4 className="font-black text-slate-800 text-[14px]">STEP 3. 맞춤형 미래 솔루션 기획</h4>
                 <p className="text-[12px] font-bold text-slate-500 mt-1.5 leading-relaxed break-keep">불필요한 지출은 줄이고 샐 틈 없는 보장망을 구축하는 1:1 맞춤형 포트폴리오를 설계합니다.</p>
               </div>
 
@@ -255,7 +263,7 @@ export default function CardPage({ params }: { params: Promise<{ id: string }> }
                 <div className="absolute -left-[17px] top-0.5 w-8 h-8 rounded-full bg-white border-2 border-blue-200 flex items-center justify-center shadow-sm">
                   <HeartHandshake className="w-4 h-4 text-blue-600" />
                 </div>
-                <h4 className="font-black text-slate-800 text-[14px]">STEP 3. 실행 및 평생 사후관리</h4>
+                <h4 className="font-black text-slate-800 text-[14px]">STEP 4. 실행 및 평생 사후관리 시스템</h4>
                 <p className="text-[12px] font-bold text-slate-500 mt-1.5 leading-relaxed break-keep">솔루션 실행 후에도 지속적인 리뷰와 보험금 청구 대행 등 변함없는 관리를 약속드립니다.</p>
               </div>
             </div>
@@ -271,7 +279,7 @@ export default function CardPage({ params }: { params: Promise<{ id: string }> }
             <div className="grid grid-cols-2 gap-3">
               {[
                 { label: "보장 분석", desc: "내 보험 바로알기", icon: ShieldCheck, color: "text-indigo-600", bg: "bg-indigo-50", border: "border-indigo-100" },
-                { label: "보험료 절감", desc: "고정 지출 축소", icon: LineChart, color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-100" },
+                { label: "보험료 절감", desc: "고정 지출 축소 ", icon: LineChart, color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-100" },
                 { label: "연금/노후 준비", desc: "안정적 미래 설계", icon: Gem, color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-100" },
                 { label: "특정 상품 문의", desc: "맞춤 가입 상담", icon: CheckCircle2, color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-100" }
               ].map((item, idx) => (

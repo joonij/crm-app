@@ -9,6 +9,7 @@ type CompanyCredential = { code: string; password?: string };
 type AgentProfile = {
   id: number;
   name: string;
+  identity: string; 
   phone: string;
   email: string;
   bio: string; 
@@ -22,8 +23,8 @@ type AgentProfile = {
   avatar_url: string | null;
   agency_id: number; 
   company_codes: Record<string, CompanyCredential>;
-  skills: any[];   // ⭐️ 포트폴리오(역량) 추가
-  careers: any[];  // ⭐️ 포트폴리오(약력) 추가
+  skills: any[];   
+  careers: any[];  
 };
 
 type TeamMember = {
@@ -49,7 +50,6 @@ export default function MyPage() {
   const [newCompanyPassword, setNewCompanyPassword] = useState("");
   const [companyCodes, setCompanyCodes] = useState<Record<string, CompanyCredential>>({});
 
-  // ⭐️ 포트폴리오 관리용 상태 변수
   const [skills, setSkills] = useState<{name: string, score: number}[]>([]);
   const [careers, setCareers] = useState<{year: string, desc: string}[]>([]);
   const [newSkillName, setNewSkillName] = useState("");
@@ -59,6 +59,7 @@ export default function MyPage() {
 
   const [form, setForm] = useState({
     name: "",
+    identity: "", 
     phone: "",
     bio: "",
     office_address: "",
@@ -74,7 +75,7 @@ export default function MyPage() {
         const { data: agentData, error } = await supabase
           .from("agents")
           .select(`
-            id, name, phone, bio, office_address, fax, rank, agent_code, avatar_url, company_codes, agency_id, skills, careers,
+            id, name, identity, phone, bio, office_address, fax, rank, agent_code, avatar_url, company_codes, agency_id, skills, careers,
             agencies (corporation_name, branch_name, team_number)
           `)
           .eq("auth_id", user.id)
@@ -97,6 +98,7 @@ export default function MyPage() {
           setProfile({
             id: agentData.id,
             name: agentData.name || "",
+            identity: agentData.identity || "", 
             phone: agentData.phone || "",
             email: user.email || "",
             bio: agentData.bio || "",
@@ -116,6 +118,7 @@ export default function MyPage() {
 
           setForm({
             name: agentData.name || "",
+            identity: agentData.identity || "", 
             phone: agentData.phone || "",
             bio: agentData.bio || "",
             office_address: agentData.office_address || "",
@@ -124,9 +127,7 @@ export default function MyPage() {
 
           setCompanyCodes(formattedCodes);
 
-          // ⭐️ 포트폴리오 기본값 설정 (기존 데이터가 없으면 예시로 채워줌)
-          setSkills(agentData.skills?.length > 0 ? agentData.skills : [ 
-          ]);
+          setSkills(agentData.skills?.length > 0 ? agentData.skills : []);
           setCareers(agentData.careers || []);
 
           if (agentData.agency_id) {
@@ -155,13 +156,14 @@ export default function MyPage() {
       .from("agents")
       .update({
         name: form.name,
+        identity: form.identity, 
         phone: form.phone,
         bio: form.bio,
         office_address: form.office_address,
         fax: form.fax,
         company_codes: companyCodes, 
-        skills: skills,   // ⭐️ 추가됨
-        careers: careers  // ⭐️ 추가됨
+        skills: skills,   
+        careers: careers  
       })
       .eq("id", profile.id);
 
@@ -174,7 +176,6 @@ export default function MyPage() {
     setIsSaving(false);
   };
 
-  // ⭐️ 포트폴리오(역량) 관리 함수
   const handleAddSkill = () => {
     if(!newSkillName.trim()) return alert("전문 분야 키워드를 입력해주세요.");
     setSkills([...skills, { name: newSkillName, score: newSkillScore }]);
@@ -184,7 +185,6 @@ export default function MyPage() {
     setSkills(skills.filter((_, i) => i !== index));
   };
 
-  // ⭐️ 포트폴리오(약력) 관리 함수
   const handleAddCareer = () => {
     if(!newCareerYear.trim() || !newCareerDesc.trim()) return alert("연도와 약력 내용을 모두 입력해주세요.");
     setCareers([{ year: newCareerYear, desc: newCareerDesc }, ...careers]);
@@ -198,18 +198,10 @@ export default function MyPage() {
     if (!newCompany.trim() || !newCompanyCode.trim()) {
       return alert("보험사 이름과 사번(코드)은 필수 입력 사항입니다.");
     }
-    
     setCompanyCodes(prev => ({ 
-      ...prev, 
-      [newCompany.trim()]: {
-        code: newCompanyCode.trim(),
-        password: newCompanyPassword.trim()
-      } 
+      ...prev, [newCompany.trim()]: { code: newCompanyCode.trim(), password: newCompanyPassword.trim() } 
     }));
-    
-    setNewCompany("");
-    setNewCompanyCode("");
-    setNewCompanyPassword("");
+    setNewCompany(""); setNewCompanyCode(""); setNewCompanyPassword("");
   };
 
   const handleRemoveCompanyCode = (companyName: string) => {
@@ -234,7 +226,6 @@ export default function MyPage() {
       if (uploadError) throw uploadError;
 
       const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(filePath);
-
       const { error: updateError } = await supabase.from('agents').update({ avatar_url: publicUrl }).eq('id', profile?.id);
       if (updateError) throw updateError;
 
@@ -255,15 +246,11 @@ export default function MyPage() {
 
   const handleKakaoShare = () => {
     const globalWindow = window as any;
-
     if (typeof window !== "undefined" && globalWindow.Kakao) {
       const kakao = globalWindow.Kakao;
-      
       const KAKAO_KEY = process.env.NEXT_PUBLIC_KAKAO_JS_KEY || "ccb428fb9e389bec1c8579c12828fd97";
 
-      if (!kakao.isInitialized()) {
-        kakao.init(KAKAO_KEY);
-      }
+      if (!kakao.isInitialized()) kakao.init(KAKAO_KEY);
 
       const defaultImageUrl = "https://images.unsplash.com/photo-1560520653-9e0e4c89eb11?auto=format&fit=crop&q=80&w=800";
       const myCardUrl = `${window.location.origin}/card/${profile?.id}`;
@@ -271,39 +258,23 @@ export default function MyPage() {
       kakao.Share.sendDefault({
         objectType: 'feed',
         content: {
-          title: `${profile?.corporation_name} ${profile?.branch_name}\n${profile?.name} ${profile?.rank}`,
-          description: profile?.bio || "고객님의 든든한 금융 파트너가 되겠습니다.",
+          title: `${profile?.corporation_name} ${profile?.branch_name}\n${profile?.identity ? `[${profile.identity}] ` : ''}${profile?.name} ${profile?.rank}`,
+          description: `${profile?.identity}\n${profile?.bio}` || "고객님의 든든한 금융 파트너가 되겠습니다.",
           imageUrl: profile?.avatar_url || defaultImageUrl,
-          link: {
-            mobileWebUrl: myCardUrl,
-            webUrl: myCardUrl,
-          },
+          link: { mobileWebUrl: myCardUrl, webUrl: myCardUrl },
         },
         itemContent: {
           profileText: `📞 ${profile?.phone || "연락처 미등록"}`,
         },
-        buttons: [
-          {
-            title: '💳 모바일 명함 열기',
-            link: {
-              mobileWebUrl: myCardUrl,
-              webUrl: myCardUrl,
-            },
-          },
-        ],
+        buttons: [{ title: '💳 모바일 명함 열기', link: { mobileWebUrl: myCardUrl, webUrl: myCardUrl } }],
       });
     } else {
       alert("카카오톡 시스템을 불러오는 중입니다. 잠시 후 다시 시도해주세요.");
     }
   };
 
-  if (isLoading) {
-    return <div className="flex h-[70vh] items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-blue-600" /></div>;
-  }
-
-  if (!profile) {
-    return <div className="p-8 text-center text-gray-500">프로필 정보를 불러올 수 없습니다.</div>;
-  }
+  if (isLoading) return <div className="flex h-[70vh] items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-blue-600" /></div>;
+  if (!profile) return <div className="p-8 text-center text-gray-500">프로필 정보를 불러올 수 없습니다.</div>;
 
   const inputClass = "w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all";
 
@@ -321,7 +292,6 @@ export default function MyPage() {
   const compareEnglishKorean = (a: string, b: string) => {
     const aIsEng = /^[A-Za-z]/.test(a);
     const bIsEng = /^[A-Za-z]/.test(b);
-
     if (aIsEng && !bIsEng) return -1; 
     if (!aIsEng && bIsEng) return 1;  
     return a.localeCompare(b, "ko-KR"); 
@@ -330,7 +300,6 @@ export default function MyPage() {
   const sortedInsuranceCompanies = [...insuranceCompanies].sort((a, b) => {
     const priorityA = a.company_type === "생명보험" ? 1 : a.company_type === "손해보험" ? 2 : 3;
     const priorityB = b.company_type === "생명보험" ? 1 : b.company_type === "손해보험" ? 2 : 3;
-    
     if (priorityA !== priorityB) return priorityA - priorityB; 
     return compareEnglishKorean(a.company_name, b.company_name); 
   });
@@ -338,20 +307,32 @@ export default function MyPage() {
   const sortedCompanyCodes = Object.entries(companyCodes).sort(([companyA], [companyB]) => {
     const priorityA = getCompanyTypePriority(companyA);
     const priorityB = getCompanyTypePriority(companyB);
-    
     if (priorityA !== priorityB) return priorityA - priorityB; 
     return compareEnglishKorean(companyA, companyB); 
   });
 
   return (
-    <div className="w-full mx-auto max-w-[1200px] space-y-6 p-4 md:p-8 pb-24">
+    <div className="w-full mx-auto max-w-[1200px] p-4 md:p-8 pb-24 relative">
       
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-gray-900 flex items-center gap-2">
-          <User className="w-7 h-7 text-blue-600" />
-          마이페이지
-        </h1>
-        <p className="mt-2 text-sm text-gray-500">내 프로필, 포트폴리오, 보험사 코드 및 소속 조직을 관리합니다.</p>
+      {/* ⭐️ 헤더 영역 (스크롤 시 상단에 고정됨) */}
+      <div className="sticky top-0 z-[60] bg-white/80 backdrop-blur-md -mx-4 px-4 pt-4 pb-4 md:-mx-8 md:px-8 md:pt-6 md:pb-4 border-b border-gray-200/60 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-gray-900 flex items-center gap-2">
+            <User className="w-7 h-7 text-blue-600" />
+            마이페이지
+          </h1>
+          <p className="mt-1 md:mt-2 text-xs md:text-sm text-gray-500">내 프로필, 포트폴리오, 보험사 코드 및 소속 조직을 관리합니다.</p>
+        </div>
+
+        {/* ⭐️ 저장 버튼이 상단 헤더 우측으로 배치됨 */}
+        <button 
+          onClick={handleSaveProfile} 
+          disabled={isSaving} 
+          className="cursor-pointer w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-6 py-3.5 sm:py-3 text-sm font-black transition-all shadow-md hover:shadow-lg disabled:opacity-50 shrink-0"
+        >
+          {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} 
+          {isSaving ? "저장 중..." : "모든 변경사항 저장"}
+        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -375,6 +356,9 @@ export default function MyPage() {
             
             <div className="px-6 pb-6 relative">
               <div className="mt-14 flex flex-col items-center">
+                {profile.identity && (
+                  <span className="text-xs font-black text-amber-500 mb-1">{profile.identity}</span>
+                )}
                 <div className="flex items-center gap-2 justify-center">
                   <h2 className="text-xl font-extrabold text-gray-900">{profile.name}</h2>
                   <span className="bg-blue-50 text-blue-600 text-[10px] font-black px-2 py-0.5 rounded border border-blue-100 uppercase">{profile.rank}</span>
@@ -383,17 +367,16 @@ export default function MyPage() {
               </div>
 
               <div className="mt-6 pt-6 border-t border-gray-100 space-y-3">
-                <button onClick={() => setIsCardModalOpen(true)} className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-gray-900 to-gray-800 hover:from-gray-800 hover:to-gray-700 text-white rounded-xl py-3 text-sm font-bold transition-all shadow-md hover:shadow-lg">
+                <button onClick={() => setIsCardModalOpen(true)} className="cursor-pointer w-full flex items-center justify-center gap-2 bg-gradient-to-r from-gray-900 to-gray-800 hover:from-gray-800 hover:to-gray-700 text-white rounded-xl py-3 text-sm font-bold transition-all shadow-md hover:shadow-lg">
                   <QrCode className="w-4 h-4 text-blue-300" /> 모바일 명함 확인 및 전송
                 </button>
-                <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 rounded-xl py-3 text-sm font-bold transition-colors">
+                <button onClick={handleLogout} className="cursor-pointer w-full flex items-center justify-center gap-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 rounded-xl py-3 text-sm font-bold transition-colors">
                   <LogOut className="w-4 h-4" /> 로그아웃
                 </button>
               </div>
             </div>
           </div>
 
-          {/* 하위 조직도 (Team Directory) */}
           <div className="bg-white rounded-3xl border border-gray-200 shadow-sm p-6">
             <h3 className="text-base font-bold text-gray-900 mb-5 flex items-center gap-2">
               <Network className="w-5 h-5 text-gray-400" /> 우리 팀 조직도
@@ -483,8 +466,22 @@ export default function MyPage() {
                   <input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} className={inputClass} />
                 </div>
                 <div>
+                  <label className="block text-xs font-bold text-gray-600 mb-1.5 ml-1">나만의 타이틀 (아이덴티티/별명)</label>
+                  <input type="text" value={form.identity} onChange={e => setForm({...form, identity: e.target.value})} placeholder="예: 보험의 정석, 연금 마스터" className={inputClass} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
                   <label className="block text-xs font-bold text-gray-600 mb-1.5 ml-1">휴대폰 번호</label>
                   <input type="text" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} placeholder="010-0000-0000" className={inputClass} />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-600 mb-1.5 ml-1">계정 이메일 (로그인 ID)</label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input type="email" value={profile.email} disabled className={`${inputClass} pl-9 bg-gray-50 text-gray-500 cursor-not-allowed`} />
+                  </div>
                 </div>
               </div>
 
@@ -497,19 +494,11 @@ export default function MyPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1.5 ml-1">계정 이메일 (로그인 ID)</label>
+                  <label className="block text-xs font-bold text-gray-600 mb-1.5 ml-1">사무실 주소</label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input type="email" value={profile.email} disabled className={`${inputClass} pl-9 bg-gray-50 text-gray-500 cursor-not-allowed`} />
+                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input type="text" value={form.office_address} onChange={e => setForm({...form, office_address: e.target.value})} placeholder="사무실 주소를 입력해주세요." className={`${inputClass} pl-9`} />
                   </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-600 mb-1.5 ml-1">사무실 주소</label>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-3.5 w-4 h-4 text-gray-400" />
-                  <input type="text" value={form.office_address} onChange={e => setForm({...form, office_address: e.target.value})} placeholder="사무실 주소를 입력해주세요." className={`${inputClass} pl-9`} />
                 </div>
               </div>
 
@@ -517,29 +506,26 @@ export default function MyPage() {
                 <div className="flex items-center justify-between mb-1.5 ml-1">
                   <label className="block text-xs font-bold text-gray-600">고객용 프로필 한 줄 소개 / 철학</label>
                   <span className={`text-[11px] font-bold ${form.bio.length >= 40 ? 'text-red-500' : 'text-gray-400'}`}>
-                    {form.bio.length} / 40자
+                    {form.bio.length} / 20자
                   </span>
                 </div>
                 <textarea 
                   value={form.bio} 
-                  onChange={e => setForm({...form, bio: e.target.value.slice(0, 40)})} 
-                  rows={2} 
-                  maxLength={40}
-                  placeholder="디지털 명함에 들어갈 소개 문구를 적어주세요. (최대 40자)"
+                  onChange={e => setForm({...form, bio: e.target.value.slice(0, 20)})} 
+                  rows={1} 
+                  maxLength={20}
+                  placeholder="디지털 명함에 들어갈 소개 문구를 적어주세요. (최대 20자)"
                   className={`${inputClass} resize-none leading-relaxed`} 
                 />
               </div>
             </div>
           </div>
 
-          {/* ⭐️ 전문 포트폴리오 관리 영역 */}
           <div className="bg-white rounded-3xl border border-gray-200 shadow-sm p-6 md:p-8 space-y-8">
-            
-            {/* 역량 키워드 */}
             <div>
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5 text-blue-600" /> 전문 컨설팅 포커스 (그래프)
+                  <TrendingUp className="w-5 h-5 text-blue-600" /> 전문 컨설팅 포커스
                 </h3>
               </div>
               
@@ -554,7 +540,7 @@ export default function MyPage() {
                           <div className="h-full bg-gradient-to-r from-blue-400 to-indigo-600 rounded-full" style={{width: `${skill.score}%`}}></div>
                         </div>
                       </div>
-                      <button onClick={() => handleRemoveSkill(idx)} className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                      <button onClick={() => handleRemoveSkill(idx)} className="cursor-pointer p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
                         <Trash2 className="w-5 h-5" />
                       </button>
                     </div>
@@ -569,13 +555,12 @@ export default function MyPage() {
                       <option value="90">상 (90%)</option>
                       <option value="80">중상 (80%)</option>
                     </select>
-                    <button onClick={handleAddSkill} className="bg-slate-800 hover:bg-slate-900 text-white px-5 rounded-lg font-bold text-sm transition-colors whitespace-nowrap">추가</button>
+                    <button onClick={handleAddSkill} className="cursor-pointer bg-slate-800 hover:bg-slate-900 text-white px-5 rounded-lg font-bold text-sm transition-colors whitespace-nowrap">추가</button>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* 주요 약력 */}
             <div>
               <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2 mb-4">
                 <Award className="w-5 h-5 text-blue-600" /> 주요 약력 및 증명 (타임라인)
@@ -588,7 +573,7 @@ export default function MyPage() {
                     <div key={idx} className="flex items-center gap-3 bg-white p-3.5 rounded-xl border border-slate-100 shadow-sm">
                       <span className="text-sm font-black text-blue-600 w-12 text-center">{career.year}</span>
                       <span className="text-sm font-bold text-gray-800 flex-1">{career.desc}</span>
-                      <button onClick={() => handleRemoveCareer(idx)} className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                      <button onClick={() => handleRemoveCareer(idx)} className="cursor-pointer p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -599,15 +584,13 @@ export default function MyPage() {
                   <input type="text" placeholder="연도 (예: 2024)" value={newCareerYear} onChange={e => setNewCareerYear(e.target.value)} className={`${inputClass} sm:w-28 text-center`} maxLength={4} />
                   <div className="flex gap-2 flex-1">
                     <input type="text" placeholder="약력 내용 (예: MDRT 달성)" value={newCareerDesc} onChange={e => setNewCareerDesc(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddCareer()} className={`${inputClass} flex-1`} />
-                    <button onClick={handleAddCareer} className="bg-slate-800 hover:bg-slate-900 text-white px-5 rounded-lg font-bold text-sm transition-colors whitespace-nowrap">추가</button>
+                    <button onClick={handleAddCareer} className="cursor-pointer bg-slate-800 hover:bg-slate-900 text-white px-5 rounded-lg font-bold text-sm transition-colors whitespace-nowrap">추가</button>
                   </div>
                 </div>
               </div>
             </div>
-
           </div>
 
-          {/* 보험사별 사번(코드) 관리 구역 */}
           <div className="bg-white rounded-3xl border border-gray-200 shadow-sm p-6 md:p-8">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
               <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
@@ -645,7 +628,7 @@ export default function MyPage() {
                             </span>
                           )}
                         </div>
-                        <button onClick={() => handleRemoveCompanyCode(company)} className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors shrink-0">
+                        <button onClick={() => handleRemoveCompanyCode(company)} className="cursor-pointer p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors shrink-0">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
@@ -690,24 +673,12 @@ export default function MyPage() {
                 <div className="md:col-span-2">
                   <button 
                     onClick={handleAddCompanyCode} 
-                    className="w-full h-full bg-slate-800 hover:bg-slate-900 text-white rounded-lg px-2 py-2.5 text-sm font-bold flex items-center justify-center gap-1 transition-colors"
+                    className="cursor-pointer w-full h-full bg-slate-800 hover:bg-slate-900 text-white rounded-lg px-2 py-2.5 text-sm font-bold flex items-center justify-center gap-1 transition-colors"
                   >
                     <Plus className="w-4 h-4" /> 추가
                   </button>
                 </div>
               </div>
-            </div>
-
-            {/* 전체 정보 저장 버튼 */}
-            <div className="pt-8 flex justify-end mt-2">
-              <button 
-                onClick={handleSaveProfile}
-                disabled={isSaving}
-                className="w-full md:w-auto flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl px-8 py-3.5 text-base font-black transition-all disabled:opacity-50 shadow-lg hover:shadow-xl hover:-translate-y-0.5"
-              >
-                {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-                모든 변경사항 저장하기
-              </button>
             </div>
           </div>
 
@@ -716,29 +687,21 @@ export default function MyPage() {
 
       {/* 중앙 정렬된 모바일 디지털 명함 미리보기 모달 */}
       {isCardModalOpen && (
-        <div 
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 transition-opacity animate-in fade-in"
-          onClick={() => setIsCardModalOpen(false)}
-        >
-          <div 
-            className="w-full max-w-[360px] flex flex-col gap-4 animate-in zoom-in-95 duration-200"
-            onClick={e => e.stopPropagation()}
-          >
-            {/* 디지털 명함 본체 */}
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 transition-opacity animate-in fade-in" onClick={() => setIsCardModalOpen(false)}>
+          <div className="w-full max-w-[360px] flex flex-col gap-4 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
             <div className="bg-white rounded-3xl overflow-hidden shadow-2xl relative text-center border border-gray-100">
               <div className="h-80 relative p-2">
                 <div className="w-full h-full bg-slate-100 rounded-xl flex items-center justify-center overflow-hidden border border-gray-200">
-                  {profile.avatar_url ? (
-                    <img src={profile.avatar_url} alt="Profile" className="w-full h-full object-cover" />
-                  ) : (
-                    <User className="w-10 h-10 text-gray-400" />
-                  )}
+                  {profile.avatar_url ? <img src={profile.avatar_url} className="w-full h-full object-cover" /> : <User className="w-10 h-10 text-gray-400" />}
                 </div>
               </div>
               
               <div className="relative px-6 pb-6">
                 <div className="mt-8 space-y-1">
                   <p className="text-blue-600 font-extrabold text-xs tracking-tight">{profile.corporation_name} {profile.branch_name}</p>
+                  {profile.identity && (
+                    <p className="text-amber-500 font-black text-sm tracking-wide mb-1">{profile.identity}</p>
+                  )}
                   <div className="flex items-baseline justify-center gap-2">
                     <h2 className="text-2xl font-black text-gray-900 tracking-tight">{profile.name}</h2>
                     <span className="text-sm font-bold text-gray-500">{profile.rank}</span>

@@ -1,11 +1,13 @@
-// components/QuickClaimModal.tsx
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { X, Upload, CheckCircle, FileText, Printer, Share2, Send, Loader2, Users, Edit3, Eraser, Ban, Copy } from "lucide-react";
 import { supabase } from "@/lib/supabase"; 
 import { decryptRegNumber } from "@/app/actions/crypto"; 
 import imageCompression from 'browser-image-compression';
+import { 
+  X, Upload, CheckCircle, FileText, Printer, Share2, 
+  Loader2, Users, Edit3, Eraser, Ban, Copy 
+} from "lucide-react";
 
 type QuickClaimModalProps = {
   isOpen: boolean;
@@ -14,6 +16,7 @@ type QuickClaimModalProps = {
   insurance: any;
 };
 
+// 보험사별 팩스 번호
 const FAX_NUMBERS: Record<string, string> = {
   "메리츠화재": "0505-021-3400",
   "현대해상": "0507-774-6060",
@@ -39,13 +42,14 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
   const [accountNumber, setAccountNumber] = useState("");
   
   const [useSavedAccount, setUseSavedAccount] = useState(false);
-  
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [clientsList, setClientsList] = useState<any[]>([]);
   const [bankLists, setBankLists] = useState<{ id: number; bank: string }[]>([]);
   const [focusedClientField, setFocusedClientField] = useState<'policyholder' | 'insured' | 'beneficiary' | null>(null);
+  
   const [readyToShareFile, setReadyToShareFile] = useState<File | null>(null);
   const [isCopied, setIsCopied] = useState(false);
+  
   const insuredCanvasRef = useRef<HTMLCanvasElement>(null);
   const beneficiaryCanvasRef = useRef<HTMLCanvasElement>(null);
   const [isInsuredDrawing, setIsInsuredDrawing] = useState(false);
@@ -57,35 +61,17 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
   const companyName = insurance?.insurance_company || "";
   let needsInsuredSignature = true; 
   let needsBeneficiarySignature = true; 
-
   let supportsSavedAccount = true; 
   const currentFaxNumber = Object.entries(FAX_NUMBERS).find(([key]) => companyName.includes(key))?.[1] || "번호 확인 필요";
 
-  if (companyName.includes("메리츠화재")) {
-    needsInsuredSignature = false; // 피보험자
-    supportsSavedAccount = true; // 자동청구
-  } 
-  if (companyName.includes("현대해상")) {
-    needsInsuredSignature = false; 
-  }
-  if (companyName.includes("DB손해")) {
-  }
-  if (companyName.includes("삼성화재")) {
-    supportsSavedAccount = false;
-  }
-  if (companyName.includes("한화손해")) {
-    needsBeneficiarySignature = false;
-  }
-  if (companyName.includes("흥국생명")) {
-    needsInsuredSignature = false;
-    supportsSavedAccount = false;
-  }
+  if (companyName.includes("메리츠화재")) { needsInsuredSignature = false; supportsSavedAccount = true; } 
+  if (companyName.includes("현대해상")) { needsInsuredSignature = false; }
+  if (companyName.includes("DB손해")) { }
+  if (companyName.includes("삼성화재")) { supportsSavedAccount = false; }
+  // if (companyName.includes("한화손해")) { needsBeneficiarySignature = false; }
+  // if (companyName.includes("흥국생명")) { needsInsuredSignature = false; supportsSavedAccount = false; }
 
-  useEffect(() => {
-    if (!supportsSavedAccount) {
-      setUseSavedAccount(false);
-    }
-  }, [supportsSavedAccount]);
+  useEffect(() => { if (!supportsSavedAccount) setUseSavedAccount(false); }, [supportsSavedAccount]);
 
   useEffect(() => {
     const fetchLookups = async () => {
@@ -96,11 +82,7 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
       if (user) {
         const { data: agentData } = await supabase.from("agents").select("id").eq("auth_id", user.id).single();
         if (agentData) {
-          const { data: myClients } = await supabase
-            .from("clients")
-            .select("id, name, phone, registration_number, bank_info, bank_lists")
-            .eq("agent_id", agentData.id)
-            .order("name");
+          const { data: myClients } = await supabase.from("clients").select("id, name, phone, registration_number, bank_info, bank_lists").eq("agent_id", agentData.id).order("name");
           if (myClients) setClientsList(myClients);
         }
       }
@@ -115,6 +97,7 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
       const clientName = client.name || "";
       const clientPhone = client.phone || "";
       let clientRrn = "";
+      
       if (client.registration_number) {
         try {
           const decrypted = await decryptRegNumber(client.registration_number);
@@ -172,23 +155,15 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
 
   if (!isOpen) return null;
 
-  const handleToggleSavedAccount = () => {
-    if (!supportsSavedAccount || isLoading) return;
-    setUseSavedAccount((prev) => !prev);
-  };
+  const handleToggleSavedAccount = () => { if (!supportsSavedAccount || isLoading) return; setUseSavedAccount((prev) => !prev); };
   
   const getCoordinates = (e: React.MouseEvent | React.TouchEvent, canvas: HTMLCanvasElement) => {
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
     let clientX, clientY;
-    if ('touches' in e) {
-      clientX = e.touches[0].clientX;
-      clientY = e.touches[0].clientY;
-    } else {
-      clientX = (e as React.MouseEvent).clientX;
-      clientY = (e as React.MouseEvent).clientY;
-    }
+    if ('touches' in e) { clientX = e.touches[0].clientX; clientY = e.touches[0].clientY; } 
+    else { clientX = (e as React.MouseEvent).clientX; clientY = (e as React.MouseEvent).clientY; }
     return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
   };
 
@@ -238,9 +213,8 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
         rrn = raw.includes("-") ? raw : `${raw.slice(0, 6)}-${raw.slice(6)}`;
       }
     }
-
     const newData = { id: selectedClient.id, name: selectedClient.name, rrn, phone: selectedClient.phone || "" };
-
+    
     if (role === 'policyholder') setPolicyholder(newData);
     else if (role === 'insured') setInsured(newData);
     else if (role === 'beneficiary') {
@@ -249,8 +223,7 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
       const bankId = selectedClient.bank_lists?.id || selectedClient.bank_lists;
       if (bankId) {
         const matchedBank = bankLists.find(b => String(b.id) === String(bankId));
-        if (matchedBank) setBankName(matchedBank.bank);
-        else setBankName("");
+        if (matchedBank) setBankName(matchedBank.bank); else setBankName("");
       } else setBankName("");
     }
     setFocusedClientField(null);
@@ -265,28 +238,19 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
         const processedFiles = await Promise.all(
           files.map(async (file) => {
             if (!file.type.startsWith('image/')) return file;
-            try {
-              return await imageCompression(file, options);
-            } catch (compressError) {
-              return file; 
-            }
+            try { return await imageCompression(file, options); } catch (compressError) { return file; }
           })
         );
         setUploadedFiles((prev) => {
           const newFiles = [...prev, ...processedFiles];
-          const totalSizeBytes = newFiles.reduce((acc, file) => acc + file.size, 0);
-          const totalSizeMB = totalSizeBytes / (1024 * 1024);
+          const totalSizeMB = newFiles.reduce((acc, file) => acc + file.size, 0) / (1024 * 1024);
           if (totalSizeMB > 4.0) {
-            alert(`첨부파일 총 용량이 서버 제한(4.5MB)을 초과합니다. (현재: ${totalSizeMB.toFixed(1)}MB)\n\n영수증 사진을 줄이거나, 서류를 나누어서 청구해 주세요.`);
+            alert(`첨부파일 총 용량이 서버 제한(4MB)을 초과합니다.\n영수증 사진을 줄이거나, 서류를 나누어서 청구해 주세요.`);
             return prev;
           }
           return newFiles;
         });
-      } catch (error) {
-        alert("파일을 첨부하는 중 문제가 발생했습니다.");
-      } finally {
-        setIsLoading(false);
-      }
+      } catch (error) { alert("파일을 첨부하는 중 문제가 발생했습니다."); } finally { setIsLoading(false); }
     }
     e.target.value = ''; 
   };
@@ -316,10 +280,8 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
       formData.append("bankName", bankName);
       formData.append("accountNumber", accountNumber);
       formData.append("accidentDesc", accidentDesc);
-
       formData.append("useSavedAccount", String(useSavedAccount));
 
-      // ⭐️ [버그 수정 완료] 빈 문자열 대신 확실하게 입력된 이름을 찾아서 넘김
       const actualClientName = client?.name || insured.name || policyholder.name || "미지정고객";
       formData.append("clientName", actualClientName);
       
@@ -382,9 +344,7 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
         files: [readyToShareFile]
       });
     } catch (shareError: any) {
-      if (shareError.name === "AbortError" || shareError.message?.includes("Share canceled")) {
-        return;
-      }
+      if (shareError.name === "AbortError" || shareError.message?.includes("Share canceled")) return;
       alert("공유 기능이 차단된 브라우저입니다. 화면 우측 상단의 다른 브라우저로 열기를 이용해주세요.");
     }
   };
@@ -442,10 +402,8 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/70 backdrop-blur-sm sm:p-4 animate-in fade-in duration-200">
-      
       <div className="relative bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-4xl h-[95vh] sm:h-auto sm:max-h-[90vh] flex flex-col overflow-hidden">
         
-        {/* 진행중 레이어 */}
         {isLoading && (
           <div className="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm sm:rounded-2xl">
             <Loader2 className="w-12 h-12 text-blue-600 animate-spin mb-4" />
@@ -454,50 +412,28 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
           </div>
         )}
 
-        {/* ⭐️ 공유 대기 화면 (팩스 번호 복사 UI 추가) */}
         {readyToShareFile && (
           <div className="absolute inset-0 z-[110] flex flex-col items-center justify-center bg-white/95 backdrop-blur-md sm:rounded-2xl p-6 text-center animate-in zoom-in-95 duration-200">
             <div className="bg-green-100 p-5 rounded-full mb-5 shadow-sm border border-green-200">
               <CheckCircle className="w-14 h-14 text-green-600" />
             </div>
             <h3 className="text-2xl font-black text-slate-800 mb-2">청구서 준비 완료!</h3>
-            <p className="text-base font-medium text-gray-600 mb-6 max-w-sm">
-              서류 병합이 완료되었습니다. 아래 팩스번호를 복사한 뒤 앱으로 전송하세요.
-            </p>
+            <p className="text-base font-medium text-gray-600 mb-6 max-w-sm">서류 병합이 완료되었습니다. 아래 팩스번호를 복사한 뒤 앱으로 전송하세요.</p>
 
             <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 mb-8 w-full max-w-[320px] flex items-center justify-between shadow-sm">
               <div className="text-left">
                 <p className="text-xs font-bold text-gray-500 mb-1">{companyName} 팩스 수신처</p>
                 <p className="text-xl font-black text-blue-600 tracking-wider">{currentFaxNumber}</p>
               </div>
-              <button
-                onClick={copyFaxNumber}
-                disabled={currentFaxNumber === "번호 확인 필요"}
-                className={`px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${
-                  isCopied ? "bg-green-100 text-green-700 border border-green-200" : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-100 shadow-sm"
-                }`}
-              >
+              <button onClick={copyFaxNumber} disabled={currentFaxNumber === "번호 확인 필요"} className={`px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${isCopied ? "bg-green-100 text-green-700 border border-green-200" : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-100 shadow-sm"}`}>
                 {isCopied ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                 {isCopied ? "복사완료" : "복사하기"}
               </button>
             </div>
             
             <div className="flex flex-col sm:flex-row gap-3 w-full max-w-xs sm:max-w-md">
-              <button 
-                onClick={executeDirectShare} 
-                className="w-full py-4 bg-blue-600 text-white rounded-2xl text-lg font-black flex items-center justify-center gap-2 shadow-lg shadow-blue-200 hover:bg-blue-700 transition-colors cursor-pointer"
-              >
-                <Share2 className="w-6 h-6" /> 팩스 앱 열기
-              </button>
-              <button 
-                onClick={() => {
-                  setReadyToShareFile(null);
-                  onClose(); // 공유 창 닫을 때 모달도 같이 닫히게 처리
-                }} 
-                className="w-full sm:w-auto py-4 sm:px-6 bg-gray-100 text-gray-600 rounded-2xl text-lg font-bold hover:bg-gray-200 transition-colors cursor-pointer"
-              >
-                닫기
-              </button>
+              <button onClick={executeDirectShare} className="w-full py-4 bg-blue-600 text-white rounded-2xl text-lg font-black flex items-center justify-center gap-2 shadow-lg shadow-blue-200 hover:bg-blue-700 transition-colors cursor-pointer"><Share2 className="w-6 h-6" /> 팩스 앱 열기</button>
+              <button onClick={() => { setReadyToShareFile(null); onClose(); }} className="w-full sm:w-auto py-4 sm:px-6 bg-gray-100 text-gray-600 rounded-2xl text-lg font-bold hover:bg-gray-200 transition-colors cursor-pointer">닫기</button>
             </div>
           </div>
         )}
@@ -508,20 +444,15 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
               <FileText className="w-6 h-6 sm:w-5 sm:h-5 text-blue-600" /> 보험금 청구
             </h3>
             <p className="text-sm sm:text-xs font-bold text-gray-500 mt-1">
-              <span className="text-blue-600">{insurance?.insurance_company}</span> - {insurance?.product_name}
+              <span className="text-blue-600">{companyName}</span> - {insurance?.product_name}
             </p>
           </div>
-          <button onClick={onClose} className="cursor-pointer p-3 sm:p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-2xl sm:rounded-xl transition-colors bg-white shadow-sm border border-gray-200 sm:border-transparent sm:bg-transparent sm:shadow-none">
-            <X className="w-6 h-6 sm:w-5 sm:h-5" />
-          </button>
+          <button onClick={onClose} className="cursor-pointer p-3 sm:p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-2xl sm:rounded-xl transition-colors bg-white shadow-sm border border-gray-200 sm:border-transparent sm:bg-transparent sm:shadow-none"><X className="w-6 h-6 sm:w-5 sm:h-5" /></button>
         </div>
         
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 sm:space-y-8">
-          
           <div className="bg-slate-50 p-5 sm:p-5 rounded-2xl border border-gray-200 space-y-5">
-            <h4 className="font-black text-base sm:text-sm text-gray-800 flex items-center gap-1.5 border-b border-gray-200 pb-3">
-              <Users className="w-5 h-5 sm:w-4 sm:h-4 text-indigo-500" /> 계약 관계자 정보
-            </h4>
+            <h4 className="font-black text-base sm:text-sm text-gray-800 flex items-center gap-1.5 border-b border-gray-200 pb-3"><Users className="w-5 h-5 sm:w-4 sm:h-4 text-indigo-500" /> 계약 관계자 정보</h4>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5">
               <div className="space-y-3 sm:space-y-2 bg-white p-4 sm:p-4 rounded-xl border border-gray-100 shadow-sm">
                 <p className="text-sm sm:text-xs font-black text-indigo-700">① 계약자</p>
@@ -548,51 +479,20 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
             <div className="space-y-2">
               <div className="flex justify-between items-end mb-2 sm:mb-1">
                 <label className="block text-sm sm:text-xs font-bold text-gray-600">수익자 계좌 정보 (수령인 명의)</label>
-                <div 
-                  onClick={handleToggleSavedAccount} 
-                  className={`flex items-center gap-2 py-1 select-none ${supportsSavedAccount ? 'cursor-pointer hover:opacity-80' : 'cursor-not-allowed'}`}
-                >
-                  <span className={`text-xs sm:text-[10px] font-bold ${useSavedAccount ? 'text-blue-600' : 'text-gray-400'}`}>
-                    기등록 계좌로 입금
-                  </span>
-                  <button
-                    type="button"
-                    disabled={!supportsSavedAccount}
-                    className={`relative inline-flex h-5 w-10 sm:h-4 sm:w-8 items-center rounded-full transition-colors pointer-events-none ${
-                      !supportsSavedAccount ? 'bg-gray-200 opacity-50' :
-                      useSavedAccount ? 'bg-blue-500' : 'bg-gray-300'
-                    }`}
-                  >
-                    <span className={`inline-block h-4 w-4 sm:h-3 sm:w-3 transform rounded-full bg-white transition-transform duration-200 ${
-                      useSavedAccount ? 'translate-x-5 sm:translate-x-4' : 'translate-x-1'
-                    }`} />
+                <div onClick={handleToggleSavedAccount} className={`flex items-center gap-2 py-1 select-none ${supportsSavedAccount ? 'cursor-pointer hover:opacity-80' : 'cursor-not-allowed'}`}>
+                  <span className={`text-xs sm:text-[10px] font-bold ${useSavedAccount ? 'text-blue-600' : 'text-gray-400'}`}>기등록 계좌로 입금</span>
+                  <button type="button" disabled={!supportsSavedAccount} className={`relative inline-flex h-5 w-10 sm:h-4 sm:w-8 items-center rounded-full transition-colors pointer-events-none ${!supportsSavedAccount ? 'bg-gray-200 opacity-50' : useSavedAccount ? 'bg-blue-500' : 'bg-gray-300'}`}>
+                    <span className={`inline-block h-4 w-4 sm:h-3 sm:w-3 transform rounded-full bg-white transition-transform duration-200 ${useSavedAccount ? 'translate-x-5 sm:translate-x-4' : 'translate-x-1'}`} />
                   </button>
                 </div>
               </div>
-              
               <div className="flex gap-2 relative">
-                {useSavedAccount && (
-                  <div className="absolute inset-0 z-10 bg-white/70 backdrop-blur-[2px] rounded-xl border border-blue-200 flex items-center justify-center">
-                    <span className="text-sm font-bold text-blue-700">기등록된 계좌로 입금 처리됩니다</span>
-                  </div>
-                )}
-                <select 
-                  disabled={useSavedAccount}
-                  value={bankName} 
-                  onChange={e => setBankName(e.target.value)} 
-                  className="w-1/3 border border-gray-200 rounded-xl sm:rounded-lg p-3 sm:p-2.5 text-[16px] sm:text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none bg-white shadow-sm"
-                >
+                {useSavedAccount && <div className="absolute inset-0 z-10 bg-white/70 backdrop-blur-[2px] rounded-xl border border-blue-200 flex items-center justify-center"><span className="text-sm font-bold text-blue-700">기등록된 계좌로 입금 처리됩니다</span></div>}
+                <select disabled={useSavedAccount} value={bankName} onChange={e => setBankName(e.target.value)} className="w-1/3 border border-gray-200 rounded-xl sm:rounded-lg p-3 sm:p-2.5 text-[16px] sm:text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none bg-white shadow-sm">
                   <option value="">은행 선택</option>
                   {bankLists.map(b => (<option key={b.id} value={b.bank}>{b.bank}</option>))}
                 </select>
-                <input 
-                  disabled={useSavedAccount}
-                  type="text" 
-                  placeholder="계좌번호 (숫자만)" 
-                  value={accountNumber} 
-                  onChange={e => setAccountNumber(e.target.value)} 
-                  className="w-2/3 border border-gray-200 rounded-xl sm:rounded-lg p-3 sm:p-2.5 text-[16px] sm:text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none shadow-sm" 
-                />
+                <input disabled={useSavedAccount} type="text" placeholder="계좌번호 (숫자만)" value={accountNumber} onChange={e => setAccountNumber(e.target.value)} className="w-2/3 border border-gray-200 rounded-xl sm:rounded-lg p-3 sm:p-2.5 text-[16px] sm:text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none shadow-sm" />
               </div>
             </div>
             

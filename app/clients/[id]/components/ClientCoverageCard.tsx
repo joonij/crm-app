@@ -7,6 +7,11 @@ import { supabase } from "@/lib/supabase";
 import InsuranceModal from "@/app/clients/[id]/components/InsuranceModal";
 import QuickClaimModal from "@/components/QuickClaimModal";
 
+// ⭐️ 현재 팩스 자동화 처리가 지원되는 보험사 리스트 (검증용)
+const SUPPORTED_COMPANIES = [
+  "메리츠화재", "현대해상", "DB손해", "삼성화재"
+];
+
 // 금액 포맷팅 유틸리티 함수
 const formatAmount = (val: string) => {
   if (!val) return "";
@@ -49,7 +54,6 @@ type CoverageDetail = {
   renewal_type?: string; 
 };
 
-// ⭐️ DB 구조 변경(B안)에 맞춘 Coverage 타입 업데이트
 type Coverage = { 
   id: number; 
   insurance_company: string; 
@@ -101,7 +105,6 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
   const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
   const [selectedClaimIns, setSelectedClaimIns] = useState<Coverage | null>(null);
 
-  // ⭐️ 검색을 위한 전체 고객 리스트 상태
   const [clientsList, setClientsList] = useState<{ id: number; name: string; phone?: string }[]>([]);
   const [focusedClientField, setFocusedClientField] = useState<'contractor' | 'insured' | 'beneficiary' | null>(null);
 
@@ -137,7 +140,6 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
       if (data) setClientData(data);
     };
 
-    // ⭐️ 담당 설계사의 고객 리스트 불러오기 (모달창과 동일한 로직)
     const fetchMyClients = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
@@ -164,7 +166,17 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     setExpandedCovId(prev => (prev === id ? null : id));
   };
 
+  // ⭐️ [변경됨] 청구 모달 띄우기 전 보험사 지원 여부 검증 로직 추가
   const handleOpenClaimModal = (cov: Coverage) => {
+    const companyName = cov.insurance_company || "";
+    
+    // 지원 보험사 리스트에 해당 보험사가 포함되어 있는지 확인
+    const isSupported = SUPPORTED_COMPANIES.some(c => companyName.includes(c));
+
+    if (!isSupported) {
+      return alert("아직 작성되지 않은 청구서 양식입니다. 관리자에게 문의 남겨주세요.");
+    }
+
     setSelectedClaimIns(cov);
     setIsClaimModalOpen(true);
   };
@@ -226,7 +238,6 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     
     const cleanPremium = Number(String(editingPolicyForm.monthly_premium).replace(/,/g, ''));
 
-    // ⭐️ DB 구조 변경에 맞춘 업데이트 매핑
     const { error } = await supabase.from("subscription_insurance").update({
       insurance_company: editingPolicyForm.insurance_company,
       product_name: editingPolicyForm.product_name,
@@ -396,7 +407,6 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     setEditingDetail(null);
   };
 
-  // ⭐️ [고객 검색 렌더링 헬퍼 함수]
   const renderClientSearchInput = (fieldPrefix: 'contractor' | 'insured' | 'beneficiary', label: string) => {
     if (!editingPolicyForm) return null;
     const nameField = `${fieldPrefix}_name` as keyof Coverage;
@@ -537,7 +547,6 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
 
                           <input type="text" placeholder="상품명" value={editingPolicyForm?.product_name || ""} onChange={e => setEditingPolicyForm({...editingPolicyForm!, product_name: e.target.value})} className="border border-gray-200 rounded p-2 outline-none focus:border-blue-500" />
                           
-                          {/* ⭐️ 컴포넌트 내 함수 호출로 검색 드롭다운 적용 */}
                           {renderClientSearchInput('contractor', '계약자')}
                           {renderClientSearchInput('insured', '피보험자')}
                           {renderClientSearchInput('beneficiary', '수익자')}
@@ -614,7 +623,7 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                                 className="cursor-pointer flex items-center gap-1 text-[10px] font-black bg-emerald-100 hover:bg-emerald-200 text-emerald-700 border border-emerald-300 px-2 py-0.5 rounded shadow-sm transition-colors animate-pulse"
                                 title="이 제안을 체결로 확정하고 가입일을 오늘로 지정합니다."
                               >
-                            체결
+                              체결
                               </button>
                             )}
                             
@@ -641,6 +650,7 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                                   <Undo className="h-3.5 w-3.5" />
                                 </button>
                               )}
+                              {/* ⭐️ 변경됨: 청구 버튼 클릭 시 검증 함수 호출 */}
                               <button onClick={() => handleOpenClaimModal(cov)} className="cursor-pointer text-gray-500 hover:text-emerald-600 hover:bg-emerald-50 p-1.5 border-r border-gray-100/50" title="청구하기">
                                 <Banknote className="h-3.5 w-3.5" />
                               </button>
