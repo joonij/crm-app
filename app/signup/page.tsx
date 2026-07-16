@@ -66,7 +66,7 @@ export default function SignUpPage() {
       <div className="w-full max-w-2xl rounded-3xl border border-gray-200 bg-white p-6 md:p-10 shadow-xl">
         
         <div className="text-center mb-8">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-950 text-white shadow-md shadow-purple-500/20">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-md shadow-purple-500/20">
             <UserPlus className="h-6 w-6" />
           </div>
           <h1 className="mt-4 text-2xl font-black text-gray-900 tracking-tight">CareLink 회원가입</h1>
@@ -204,7 +204,7 @@ export default function SignUpPage() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full mt-4 rounded-xl bg-gray-950 py-4 text-sm font-bold text-white transition-colors hover:bg-purple-700 shadow-lg shadow-purple-500/30 disabled:opacity-50"
+            className="cursor-pointer w-full mt-4 rounded-xl bg-blue-600 py-4 text-sm font-bold text-white transition-colors hover:bg-blue-700 shadow-lg shadow-purple-500/30 disabled:opacity-50"
           >
             {isLoading ? "담당자 계정 생성 중..." : "회원가입 완료하기"}
           </button>

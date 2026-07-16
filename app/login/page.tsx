@@ -31,7 +31,7 @@ export default function LoginPage() {
         
         {/* 로고 및 타이틀 */}
         <div className="text-center mb-8">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-950 text-white shadow-md shadow-blue-500/20">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-md shadow-blue-500/20">
             <Users className="h-6 w-6" />
           </div>
           <h1 className="mt-4 text-2xl font-black text-gray-900 tracking-tight">CareLink</h1>
@@ -46,7 +46,7 @@ export default function LoginPage() {
         )}
 
         {/* 로그인 폼 */}
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="mb-1.5 block text-sm font-bold text-gray-700">이메일 주소</label>
             <div className="relative">
@@ -75,10 +75,17 @@ export default function LoginPage() {
             </div>
           </div>
 
+          {/* ⭐️ 아이디 / 비밀번호 찾기 링크 추가 */}
+          <div className="flex justify-end items-center gap-2.5 text-[12px] font-bold text-gray-400 pt-1 pb-2">
+            <Link href="/find-email" className="hover:text-gray-800 transition-colors">이메일 찾기</Link>
+            <span className="text-gray-200">|</span>
+            <Link href="/reset-password" className="hover:text-gray-800 transition-colors">비밀번호 찾기</Link>
+          </div>
+
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full rounded-xl bg-gray-900 py-3.5 text-sm font-bold text-white transition-colors hover:bg-gray-800 shadow-md disabled:opacity-50"
+            className="w-full rounded-xl bg-blue-600 py-3.5 text-sm font-bold text-white transition-colors hover:bg-blue-700 shadow-md disabled:opacity-50"
           >
             {isLoading ? "로그인 중..." : "로그인하기"}
           </button>
