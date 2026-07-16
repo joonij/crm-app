@@ -55,7 +55,7 @@ export default function FindEmailPage() {
         </Link>
 
         <div className="text-center mb-8 mt-2">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 mb-4">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-indigo-50 text-blue-600 mb-4">
             <Search className="h-6 w-6" />
           </div>
           <h1 className="text-2xl font-black text-gray-900 tracking-tight">이메일(아이디) 찾기</h1>
@@ -119,7 +119,7 @@ export default function FindEmailPage() {
             <button
               type="submit"
               disabled={isSubmitting || !name || !phone}
-              className="w-full mt-2 rounded-xl bg-indigo-600 py-3.5 text-sm font-bold text-white transition-colors hover:bg-indigo-700 shadow-lg shadow-indigo-600/20 disabled:opacity-50 flex items-center justify-center gap-2"
+              className="w-full mt-2 rounded-xl bg-blue-600 py-3.5 text-sm font-bold text-white transition-colors hover:bg-blue-700 shadow-lg shadow-indigo-600/20 disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : "이메일 찾기"}
             </button>
