@@ -7,8 +7,102 @@ import {
   ShieldCheck, Phone, MessageCircle, ChevronDown, TrendingDown, 
   Share2, CheckCircle2, UserPlus, X, AlertCircle, Home, Bed, 
   Bandage, HeartPulse, Brain, Heart, BriefcaseMedical, ShieldAlert, 
-  Search, Target, Loader2, Info, Gem, LineChart
+  Search, Target, Loader2, Info, Gem, LineChart,
+  ArrowRight, XCircle
 } from "lucide-react";
+
+// 비교할 질병 코드 데이터 구조화
+const codeComparisons = [
+  {
+    category: "순환계 질환 (뇌·심장·혈관)",
+    desc: "심근경색만 보장하던 좁은 범위에서 부정맥, 협심증까지 완벽하게 커버합니다.",
+    codes: [
+      { id: "I21-I23", name: "급성 심근경색", before: true, after: true },
+      { id: "I20", name: "협심증", before: false, after: true },
+      { id: "I49", name: "기타 부정맥", before: false, after: true },
+      { id: "I50", name: "심부전", before: false, after: true },
+      { id: "I60-I62", name: "뇌출혈", before: true, after: true },
+      { id: "I63", name: "뇌경색증", before: false, after: true },
+      { id: "I64-I69", name: "기타 뇌혈관 질환", before: false, after: true },
+    ]
+  },
+  {
+    category: "신생물 질환 (종양·암)",
+    desc: "일반암은 물론, 놓치기 쉬운 0기암과 경계성 종양까지 빈틈없이 방어합니다.",
+    codes: [
+      { id: "C00-C97", name: "악성 신생물 (일반암)", before: true, after: true },
+      { id: "D00-D09", name: "제자리암 (0기암)", before: false, after: true },
+      { id: "D37-D48", name: "경계성 종양", before: false, after: true },
+      { id: "C44", name: "기타 피부암", before: false, after: true },
+      { id: "C73", name: "갑상선암", before: false, after: true },
+    ]
+  }
+];
+
+export function DiseaseCodeComparison() {
+  return (
+    <section className="mt-8">
+      <h2 className="text-lg font-black text-slate-800 mb-3 px-1">질병분류코드(KCD) 커버리지 정밀 비교</h2>
+      
+      <div className="space-y-4">
+        {codeComparisons.map((item, idx) => (
+          <div key={idx} className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200">
+            <h3 className="text-base font-black text-slate-900 mb-1">{item.category}</h3>
+            <p className="text-xs text-slate-500 font-medium mb-5">{item.desc}</p>
+
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-4 items-center">
+              
+              {/* 기존 보험 보장 범위 */}
+              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+                <div className="text-center mb-3">
+                  <span className="text-xs font-bold text-slate-500 bg-slate-200 px-3 py-1 rounded-full">AS-IS 기존 보험</span>
+                </div>
+                <div className="flex flex-wrap gap-2 justify-center">
+                  {item.codes.map((code) => (
+                    code.before ? (
+                      <span key={code.id} className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-700 bg-white border border-slate-300 px-2.5 py-1.5 rounded-lg shadow-sm">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> {code.name} ({code.id})
+                      </span>
+                    ) : (
+                      <span key={code.id} className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-400 bg-slate-100/50 border border-slate-200 border-dashed px-2.5 py-1.5 rounded-lg">
+                        <XCircle className="w-3.5 h-3.5 text-slate-300" /> <span className="line-through">{code.name}</span>
+                      </span>
+                    )
+                  ))}
+                </div>
+              </div>
+
+              {/* 화살표 방향 */}
+              <div className="flex justify-center text-blue-300 rotate-90 md:rotate-0 py-2 md:py-0">
+                <ArrowRight className="w-8 h-8" />
+              </div>
+
+              {/* 맞춤 보장(리모델링) 범위 */}
+              <div className="bg-blue-50/50 rounded-2xl p-4 border border-blue-100 shadow-inner">
+                <div className="text-center mb-3">
+                  <span className="text-xs font-bold text-blue-600 bg-blue-100 px-3 py-1 rounded-full">TO-BE 맞춤 보장</span>
+                </div>
+                <div className="flex flex-wrap gap-2 justify-center">
+                  {item.codes.map((code) => (
+                    <span key={code.id} className={`inline-flex items-center gap-1 text-[11px] font-black px-2.5 py-1.5 rounded-lg shadow-sm border ${
+                      !code.before && code.after 
+                        ? 'bg-blue-600 text-white border-blue-700 animate-in zoom-in duration-500' // 새로 추가된 코드 강조
+                        : 'bg-white text-slate-800 border-slate-200'
+                    }`}>
+                      <CheckCircle2 className={`w-3.5 h-3.5 ${!code.before && code.after ? 'text-blue-200' : 'text-emerald-500'}`} /> 
+                      {code.name} ({code.id})
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 // 금액 포맷팅 헬퍼
 const formatMoney = (amount: number) => {

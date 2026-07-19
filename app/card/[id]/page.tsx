@@ -231,7 +231,7 @@ export default function CardPage({ params }: { params: Promise<{ id: string }> }
           {/* 프로세스 */}
           <div className="mt-10">
             <h3 className="text-sm font-black text-slate-900 flex items-center gap-2 mb-5 pl-1">
-              <LineChart className="w-5 h-5 text-blue-600" /> 체계적인 3단계 컨설팅 프로세스
+              <LineChart className="w-5 h-5 text-blue-600" /> 체계적인 4단계 컨설팅 프로세스
             </h3>
             
             <div className="relative border-l-2 border-blue-100 ml-4 space-y-7 pb-2">

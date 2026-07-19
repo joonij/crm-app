@@ -233,15 +233,15 @@ export default function ClientDetailModal({ client, onClose, onRefresh }: { clie
           <div className="flex items-center gap-2">
             {!isEditing ? (
               <>
-                <button onClick={() => setIsEditing(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-200 transition-colors">
+                <button onClick={() => setIsEditing(true)} className="cursor-pointer flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-200 transition-colors">
                   <Edit2 className="w-4 h-4" /> 수정
                 </button>
-                <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors p-2 hover:bg-gray-100 rounded-full">
+                <button onClick={onClose} className="cursor-pointer text-gray-400 hover:text-gray-600 transition-colors p-2 hover:bg-gray-100 rounded-full">
                   <X className="w-6 h-6" />
                 </button>
               </>
             ) : (
-              <button onClick={() => setIsEditing(false)} className="text-gray-500 hover:text-gray-700 text-sm font-bold px-3 py-1.5 bg-gray-100 rounded-lg">
+              <button onClick={() => setIsEditing(false)} className="cursor-pointer text-gray-500 hover:text-gray-700 text-sm font-bold px-3 py-1.5 bg-gray-100 rounded-lg">
                 취소
               </button>
             )}
@@ -411,7 +411,7 @@ export default function ClientDetailModal({ client, onClose, onRefresh }: { clie
             <button 
               onClick={handleSave} 
               disabled={isSaving || !formData.name}
-              className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white py-3.5 rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-lg disabled:opacity-50"
+              className="cursor-pointer w-full flex items-center justify-center gap-2 bg-blue-600 text-white py-3.5 rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-lg disabled:opacity-50"
             >
               <Save className="w-5 h-5" />
               {isSaving ? "저장 중..." : "변경 사항 저장하기"}
