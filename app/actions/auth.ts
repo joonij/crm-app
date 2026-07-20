@@ -110,13 +110,8 @@ export async function findEmailAction(name: string, phone: string) {
     return { error: "입력하신 정보와 일치하는 계정이 없습니다." };
   }
 
-  // 개인정보 보호를 위한 이메일 마스킹 처리 (예: abcdef@gmail.com -> abc***@gmail.com)
-  const [localPart, domain] = data.email.split("@");
-  const maskedLocal = localPart.length > 3 
-    ? localPart.slice(0, 3) + "***" 
-    : localPart.slice(0, 1) + "***";
-
-  return { email: `${maskedLocal}@${domain}` };
+  // ⭐️ 마스킹 처리 로직을 완전히 제거하고 원본 이메일을 그대로 반환합니다.
+  return { email: data.email };
 }
 
 // 2. 이메일 인증 없는 비밀번호 강제 변경 로직

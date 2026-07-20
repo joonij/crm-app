@@ -91,51 +91,74 @@ const compareEnglishKorean = (a: string, b: string) => {
 };
 
 // 핵심 특약 화이트리스트
-const ALLOWED_COVERAGES = [  
-  "실손의료비 상해입원", "실손의료비 질병입원", "실손의료비 상해통원", "실손의료비 질병통원", "실손의료비 상해약제", "실손의료비 질병약제",
+// ⭐️ 1. 원본 텍스트 보존 (분석표에 예쁘게 묶어서 출력하기 위함)
+const RAW_ALLOWED_COVERAGES = [  
   "일반사망 진단비", "재해사망 진단비", "상해사망 진단비", "질병사망 진단비", 
   "재해 후유장해3%↑", "상해 후유장해3%↑", "질병 후유장해3%↑", 
-  "일반암 진단비", "고액암 진단비", "유사암 진단비", "소액암 진단비", "통합암 진단비",
-  "항암방사선약물 치료비", "암다빈치로봇 수술비", 
-  "뇌산정특례대상 진단비", "뇌혈관질환 진단비", "뇌졸중 진단비", "뇌출혈 진단비",
-  "심장산정특례대상 진단비", "허혈성심장질환 진단비", "급성심근경색 진단비", "심장질환 진단비", "부정맥 진단비", "심부전 진단비", "순환계통 질환 진단비",
-  "상해수술비", "상해1종 수술비", "상해2종 수술비", "상해3종 수술비", "상해4종 수술비", "상해5종 수술비",
-  "질병수술비", "질병1종 수술비", "질병2종 수술비", "질병3종 수술비", "질병4종 수술비", "질병5종 수술비",
-  "상해 입원비", "질병 입원비",
+  "일반암 진단비", "고액암 진단비", "소액암 진단비", "유사암 진단비", "통합암 진단비",
+  "항암방사선약물 치료비", "암주요 치료비", "암통합 치료비", 
+  "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비", "뇌산정특례대상 진단비", "뇌혈관질환 진단비",
+  "심장산정특례대상 진단비", "허혈성심장질환 진단비",
+  "순환계질환통합 치료비", "순환계통합 치료비", "순환계질환 치료비", "순환계 치료비",
+  "재해 수술비", "재해1종 수술비", "재해2종 수술비", "재해3종 수술비", "재해4종 수술비", "재해5종 수술비",
+  "상해 수술비", "상해1종 수술비", "상해2종 수술비", "상해3종 수술비", "상해4종 수술비", "상해5종 수술비",
+  "질병 수술비", "질병1종 수술비", "질병2종 수술비", "질병3종 수술비", "질병4종 수술비", "질병5종 수술비",
+  "재해 입원비","상해 입원비", "질병 입원비",
   "통합상해 진단비", "골절 진단비", "화상 진단비",
   "장기요양 1~2등급 진단비", "장기요양 1~3등급 진단비", "장기요양 1~4등급 진단비", "장기요양 1~5등급 진단비", "장기요양 1~인지지원등급 진단비", 
   "장기요양 1~2등급 재가급여", "장기요양 1~3등급 재가급여", "장기요양 1~4등급 재가급여", "장기요양 1~5등급 재가급여", "장기요양 1~인지지원등급 재가급여", 
   "장기요양 1~2등급 시설급여", "장기요양 1~3등급 시설급여", "장기요양 1~4등급 시설급여", "장기요양 1~5등급 시설급여", "장기요양 1~인지지원등급 시설급여", 
   "간병인 사용비", "간병인 지원비",
-  "레진", "인레이", "크라운", "임플란트", "보존치료", "보철치료"
-].map(name => name.replace(/\s+/g, "")); 
+  "레진", "인레이", "크라운", "임플란트", "보존치료", "보철치료",
+  "실손의료비 상해입원", "실손의료비 질병입원", "실손의료비 상해통원", "실손의료비 질병통원", "실손의료비 상해약제", "실손의료비 질병약제"
+];
+
+// ⭐️ 2. 연관검색 매칭용 (띄어쓰기 제거)
+const ALLOWED_COVERAGES = RAW_ALLOWED_COVERAGES.map(name => name.replace(/\s+/g, ""));
 
 // I00 ~ I99 순환계 질환 매핑 테이블
 const CIRCULATORY_CODES = [
   {
     group: "순환계질환 (I00~I99)",
     items: [
-      { id: "I00~I02", name: "급성 류마티스열", keywords: ["순환계"] },
-      { id: "I05~I09", name: "만성 류마티스 심장질환", keywords: ["순환계", "심장산정"] },
-      { id: "I10~I15", name: "고혈압성 질환", keywords: ["순환계"] },
-      { id: "I20", name: "협심증", keywords: ["허혈성", "심장산정", "심혈관", "순환계"], highlight: true },
-      { id: "I21~I23", name: "급성 심근경색증", keywords: ["급성심근경색", "허혈성", "심장산정", "심혈관", "순환계"] },
-      { id: "I24~I25", name: "기타 허혈성 심장질환", keywords: ["허혈성", "심장산정", "심혈관", "순환계"], highlight: true },
-      { id: "I26~I28", name: "폐성 심장질환", keywords: ["심장산정", "순환계"] },
-      { id: "I30~I46", name: "기타 심장질환", keywords: ["심장산정", "순환계"] },
-      { id: "I47~I48, ", name: "부정맥", keywords: ["부정맥", "심장산정", "순환계"], highlight: true },
-      { id: "I49", name: "기타 부정맥", keywords: ["기타 부정맥", "심장산정", "순환계"], highlight: true },
-      { id: "I50", name: "심부전", keywords: ["심부전", "심장산정", "순환계"], highlight: true },
-      { id: "I51", name: "심장병의 불명확한 기록 및 합병증", keywords: ["심부전", "심장산정", "순환계"] },
-      { id: "I52", name: "달리 분류된 질환에서의 기타 심장장애", keywords: ["심부전", "심장산정", "순환계"] },
-      { id: "I60~I62", name: "지주막하출혈, 뇌내출혈 등 (뇌출혈)", keywords: ["뇌출혈", "뇌졸중", "뇌혈관", "뇌산정", "순환계"] },
-      { id: "I63", name: "뇌경색증", keywords: ["뇌졸중", "뇌혈관", "뇌산정", "순환계"] },
-      { id: "I64", name: "출혈/경색으로 명시되지 않은 뇌졸중", keywords: ["뇌혈관", "뇌산정", "순환계"], highlight: true },
-      { id: "I65~I66", name: "대뇌동맥 폐쇄 및 협착", keywords: ["뇌졸중", "뇌혈관", "뇌산정", "순환계"] },
-      { id: "I67~I69", name: "기타 뇌혈관 질환", keywords: ["뇌혈관", "뇌산정", "순환계"], highlight: true },
-      { id: "I70~I79", name: "동맥, 세동맥 및 모세혈관 질환", keywords: ["순환계"] },
-      { id: "I80~I89", name: "정맥, 림프관 및 림프절 질환", keywords: ["순환계"] },
-      { id: "I95~I99", name: "순환계통의 기타 질환", keywords: ["순환계"] },
+      { id: "I00~I02", name: "급성 류마티스열", keywords: ["순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
+      { id: "I05~I09", name: "만성 류마티스 심장질환", keywords: ["순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비", "심장산정"] },
+      { id: "I10~I15", name: "고혈압성 질환", keywords: [] },
+      { id: "I20", name: "협심증", keywords: ["허혈성심장질환 진단비", "심장산정", "심혈관질환 진단비", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"], highlight: true },
+      { id: "I21~I23", name: "급성 심근경색증", keywords: ["급성심근경색 진단비", "허혈성심장질환 진단비", "심장산정", "심혈관질환 진단비", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
+      { id: "I24~I25", name: "기타 허혈성 심장질환", keywords: ["허혈성심장질환 진단비", "심장산정", "심혈관질환 진단비", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"], highlight: true },
+      { id: "I26~I28", name: "폐성 심장질환", keywords: ["심장산정", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
+      { id: "I30~I33", name: "심장막염 및 심내막염", keywords: ["심장산정", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
+      { id: "I34~I37", name: "비류마티스성 판장애 및 폐동맥판장애", keywords: ["심장산정", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
+      { id: "I38", name: "상세불명 판막의 심내막염", keywords: ["심장산정", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
+      { id: "I39", name: "달리 분류된 질환에서의 심내막염 및 심장판막장애", keywords: ["심장산정", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
+      { id: "I40~I41", name: "심근염", keywords: ["심장산정", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
+      { id: "I42~I43", name: "심근병증", keywords: ["심장산정", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
+      { id: "I44~I45", name: "방실 및 좌각차단, 전도장애", keywords: ["심장산정", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
+      { id: "I46", name: "심장정지", keywords: ["심장산정", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
+      { id: "I47~I48, ", name: "부정맥", keywords: ["부정맥", "심장산정", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"], highlight: true },
+      { id: "I49", name: "기타 부정맥", keywords: ["기타 부정맥", "심장산정", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"], highlight: true },
+      { id: "I50", name: "심부전", keywords: ["심부전", "심장산정", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"], highlight: true },
+      { id: "I51", name: "심장병의 불명확한 기록 및 합병증", keywords: ["심부전", "심장산정", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
+      { id: "I52", name: "달리 분류된 질환에서의 기타 심장장애", keywords: ["심부전", "심장산정", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
+      { id: "I60~I62", name: "지주막하출혈, 뇌내출혈 등 (뇌출혈)", keywords: ["뇌출혈 진단비", "뇌졸중 진단비", "뇌혈관질환 진단비", "뇌산정", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
+      { id: "I63", name: "뇌경색증", keywords: ["뇌졸중 진단비", "뇌혈관질환 진단비", "뇌산정", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
+      { id: "I64", name: "출혈/경색으로 명시되지 않은 뇌졸중 진단비", keywords: ["뇌혈관질환 진단비", "뇌산정", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"], highlight: true },
+      { id: "I65~I66", name: "대뇌동맥 폐쇄 및 협착", keywords: ["뇌졸중 진단비", "뇌혈관질환 진단비", "뇌산정", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
+      { id: "I67~I69", name: "기타 뇌혈관 질환", keywords: ["뇌혈관질환 진단비", "뇌산정", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"], highlight: true },
+      { id: "I70", name: "죽상경화증", keywords: ["순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
+      { id: "I71", name: "대동맥동맥류 및 박리", keywords: ["순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
+      { id: "I72", name: "기타 동맥류 및 박리", keywords: ["순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
+      { id: "I73", name: "기타 말초혈관질환", keywords: [] },
+      { id: "I74", name: "동맥색전증 및 혈전증", keywords: ["순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
+      { id: "I77", name: "동맥 및 세동맥의 기타 장애", keywords: ["순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
+      { id: "I78~I79", name: "동맥, 세동맥 및 모세혈관 장애", keywords: [] },
+      { id: "I80", name: "정맥염 및 혈전정맥염", keywords: [] },
+      { id: "I81", name: "문맥혈전증", keywords: ["순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
+      { id: "I82~I83", name: "혈전증 및 하지정맥류", keywords: [] },
+      { id: "I85", name: "식도정맥류", keywords: ["순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
+      { id: "I86~I89", name: "림프관 및 림프절 질환", keywords: [] },
+      { id: "I95~I99", name: "순환계통의 기타 질환", keywords: [] },
     ]
   }
 ];
@@ -145,24 +168,24 @@ const CANCER_CODES = [
   {
     group: "악성 신생물 [일반암] (C00~C97)",
     items: [
-      { id: "C00~C14", name: "입술, 구강 및 인두의 악성 신생물", keywords: ["일반암", "고액암", "통합암"] },
-      { id: "C15~C26", name: "소화기관 악성 신생물 (위암, 대장암 등)", keywords: ["일반암", "고액암", "통합암"], highlight: true },
-      { id: "C30~C39", name: "호흡기 및 흉곽내기관 악성 신생물 (폐암 등)", keywords: ["일반암", "고액암", "통합암"], highlight: true },
-      { id: "C40~C41, C43", name: "뼈, 관절연골, 흑색종 등", keywords: ["일반암",  "고액암", "통합암"] },
-      { id: "C44", name: "기타 피부의 악성 신생물", keywords: ["유사암", "소액암"], highlight: true },
-      { id: "C45~C49", name: "중피성 및 연조직의 악성 신생물", keywords: ["일반암", "고액암", "통합암"] },
-      { id: "C50", name: "유방의 악성 신생물", keywords: ["일반암", "소액암", "유방암", "통합암"], highlight: true },
-      { id: "C51~C68", name: "생식기관 및 요로 악성 신생물 (자궁, 전립선 등)", keywords: ["일반암", "소액암", "고액암", "통합암"], highlight: true },
-      { id: "C69~C72", name: "눈, 뇌 및 중추신경계통의 악성 신생물", keywords: ["일반암", "소액암", "고액암", "통합암"] },
-      { id: "C73", name: "갑상선의 악성 신생물", keywords: ["유사암"], highlight: true },
-      { id: "C81~C96", name: "림프, 조혈 조직 악성 신생물 (백혈병 등)", keywords: ["일반암", "고액암", "통합암"], highlight: true },
+      { id: "C00~C14", name: "입술, 구강 및 인두의 악성 신생물", keywords: ["일반암 진단비", "고액암 진단비", "통합암 진단비"] },
+      { id: "C15~C26", name: "소화기관 악성 신생물 (위암, 대장암 등)", keywords: ["일반암 진단비", "고액암 진단비", "통합암 진단비"], highlight: true },
+      { id: "C30~C39", name: "호흡기 및 흉곽내기관 악성 신생물 (폐암 등)", keywords: ["일반암 진단비", "고액암 진단비", "통합암 진단비"], highlight: true },
+      { id: "C40~C41, C43", name: "뼈, 관절연골, 흑색종 등", keywords: ["일반암 진단비",  "고액암 진단비", "통합암 진단비"] },
+      { id: "C44", name: "기타 피부의 악성 신생물", keywords: ["유사암 진단비"], highlight: true },
+      { id: "C45~C49", name: "중피성 및 연조직의 악성 신생물", keywords: ["일반암 진단비", "고액암 진단비", "통합암 진단비"] },
+      { id: "C50", name: "유방의 악성 신생물", keywords: ["일반암 진단비", "소액암 진단비", "유방암 진단비", "통합암 진단비"], highlight: true },
+      { id: "C51~C68", name: "생식기관 및 요로 악성 신생물 (자궁, 전립선 등)", keywords: ["일반암 진단비", "소액암 진단비", "고액암 진단비", "통합암 진단비"], highlight: true },
+      { id: "C69~C72", name: "눈, 뇌 및 중추신경계통의 악성 신생물", keywords: ["일반암 진단비", "소액암 진단비", "고액암 진단비", "통합암 진단비"] },
+      { id: "C73", name: "갑상선의 악성 신생물", keywords: ["유사암 진단비"], highlight: true },
+      { id: "C81~C96", name: "림프, 조혈 조직 악성 신생물 (백혈병 등)", keywords: ["일반암 진단비", "고액암 진단비", "통합암 진단비"], highlight: true },
     ]
   },
   {
     group: "제자리암 및 경계성 종양 (D00~D09, D37~D48)",
     items: [
-      { id: "D00~D09", name: "제자리암 (0기암 전체)", keywords: ["유사암", "소액암"], highlight: true },
-      { id: "D37~D48", name: "행동양식 불명 및 미상의 신생물 (경계성 종양)", keywords: ["유사암", "소액암"], highlight: true },
+      { id: "D00~D09", name: "제자리암 (0기암 전체)", keywords: ["유사암 진단비"], highlight: true },
+      { id: "D37~D48", name: "행동양식 불명 및 미상의 신생물 (경계성 종양)", keywords: ["유사암 진단비"], highlight: true },
     ]
   }
 ];
@@ -248,28 +271,128 @@ export default function AnalysisPage() {
             const rawName = detail.name?.trim();
             if (!rawName) return;
             const normalizedName = rawName.replace(/\s+/g, "");
-            if (!ALLOWED_COVERAGES.includes(normalizedName)) return;
+
+            // ⭐️ 연관검색(부분 일치) 로직: 키워드가 포함되어 있는지 스마트 검색
+            const matchedIndex = ALLOWED_COVERAGES.findIndex(allowed => 
+              normalizedName.includes(allowed)
+            );
+
+            // 포함되는 연관 단어가 아예 없으면 버림
+            if (matchedIndex === -1) return; 
+
+            if (normalizedName.includes("암주요") && !normalizedName.includes("제외")) {
+              return; 
+            }
+
+            let standardDisplayName = RAW_ALLOWED_COVERAGES[matchedIndex];
+            let standardKey = ALLOWED_COVERAGES[matchedIndex];
+
+            if (standardDisplayName === "재해 후유장해3%↑") {
+              standardDisplayName = "상해 후유장해3%↑";
+              standardKey = "상해후유장해3%↑";
+            }
+            else if (standardDisplayName === "통합암 진단비") {
+              standardDisplayName = "일반암 진단비";
+              standardKey = "일반암진단비";
+            }
+            else if (standardDisplayName === "항암약물 치료비") {
+              standardDisplayName = "항암약물방사선 치료비";
+              standardKey = "항암약물방사선치료비";
+            }
+            else if (standardDisplayName === "항암방사선 치료비") {
+              standardDisplayName = "항암약물방사선 치료비";
+              standardKey = "항암약물방사선치료비";
+            }
+            else if (normalizedName.includes("암주요") && normalizedName.includes("제외")) {
+              standardDisplayName = "암주요 치료비";
+              standardKey = "암주요치료비";
+            }
+            else if (normalizedName.includes("암통합") && normalizedName.includes("제외")) {
+              standardDisplayName = "암통합 치료비";
+              standardKey = "암통합치료비";
+            }
+            else if (standardDisplayName === "순환계통합 진단비" || standardDisplayName === "순환계질환 진단비" || standardDisplayName === "순환계 진단비" || standardDisplayName === "순환계질환통합 진단비") {
+              standardDisplayName = "순환계질환통합 진단비";
+              standardKey = "순환계질환통합진단비";
+            }
+            else if (standardDisplayName === "재해 수술비" || standardDisplayName === "재해수술비") {
+              standardDisplayName = "상해 수술비"; 
+              standardKey = "상해수술비"; 
+            }
+            else if (standardDisplayName === "재해 수술비" || standardDisplayName === "재해수술비") {
+              standardDisplayName = "상해 수술비"; 
+              standardKey = "상해수술비"; 
+            }
+            else if (standardDisplayName === "재해1종 수술비" || standardDisplayName === "재해1종수술비") {
+              standardDisplayName = "상해1종 수술비"; 
+              standardKey = "상해1종수술비"; 
+            }
+            else if (standardDisplayName === "재해2종 수술비" || standardDisplayName === "재해2종수술비") {
+              standardDisplayName = "상해2종 수술비"; 
+              standardKey = "상해2종수술비"; 
+            }
+            else if (standardDisplayName === "재해3종 수술비" || standardDisplayName === "재해3종수술비") {
+              standardDisplayName = "상해3종 수술비"; 
+              standardKey = "상해3종수술비"; 
+            }
+            else if (standardDisplayName === "재해4종 수술비" || standardDisplayName === "재해4종수술비") {
+              standardDisplayName = "상해4종 수술비"; 
+              standardKey = "상해4종수술비"; 
+            }
+            else if (standardDisplayName === "재해5종 수술비" || standardDisplayName === "재해5종수술비") {
+              standardDisplayName = "상해5종 수술비"; 
+              standardKey = "상해5종수술비"; 
+            }
+            else if (standardDisplayName === "재해 입원비" || standardDisplayName === "재해입원비") {
+              standardDisplayName = "상해 입원비"; 
+              standardKey = "상해입원비"; 
+            }
 
             const beforeVal = extractNumber(detail.original_amount || detail.amount);
             const afterVal = detail.is_deleted ? 0 : extractNumber(detail.amount);
 
-            if (!coverageMap[normalizedName]) {
-              coverageMap[normalizedName] = { displayName: rawName, before: 0, after: 0 };
+            if (!coverageMap[standardKey]) {
+              coverageMap[standardKey] = { displayName: standardDisplayName, before: 0, after: 0 };
             }
-            if (isBefore) coverageMap[normalizedName].before += beforeVal;
-            if (isAfter) coverageMap[normalizedName].after += afterVal;
+            // 이름이 달라도 표준 이름의 통통에 금액을 누적(합산)
+            if (isBefore) coverageMap[standardKey].before += beforeVal;
+            if (isAfter) coverageMap[standardKey].after += afterVal;
+
+            if (standardKey === "일반사망진단비") {
+              if (!coverageMap["상해사망진단비"]) {
+                coverageMap["상해사망진단비"] = { displayName: "상해사망 진단비", before: 0, after: 0 };
+              }
+              if (isBefore) coverageMap["상해사망진단비"].before += beforeVal;
+              if (isAfter) coverageMap["상해사망진단비"].after += afterVal;
+
+              // 2. 질병사망 진단비 바구니에 일반사망 금액 추가
+              if (!coverageMap["질병사망진단비"]) {
+                coverageMap["질병사망진단비"] = { displayName: "질병사망 진단비", before: 0, after: 0 };
+              }
+              if (isBefore) coverageMap["질병사망진단비"].before += beforeVal;
+              if (isAfter) coverageMap["질병사망진단비"].after += afterVal;
+            }
           });
         }
       });
 
       const coveragesArray = Object.keys(coverageMap)
-        .map((key) => ({
-          name: coverageMap[key].displayName,
-          before: coverageMap[key].before,
-          after: coverageMap[key].after,
-        }))
-        .filter((item) => item.before > 0 || item.after > 0) 
-        .sort((a, b) => a.name.localeCompare(b.name, "ko-KR"));
+      .map((key) => ({
+        name: coverageMap[key].displayName,
+        before: coverageMap[key].before,
+        after: coverageMap[key].after,
+      }))
+      .filter((item) => (item.before > 0 || item.after > 0) && item.name !== "일반사망 진단비")
+      .sort((a, b) => {
+        // ⭐️ RAW_ALLOWED_COVERAGES에 정의된 '논리적 순서'를 기준으로 정렬
+        const indexA = RAW_ALLOWED_COVERAGES.indexOf(a.name);
+        const indexB = RAW_ALLOWED_COVERAGES.indexOf(b.name);
+
+        if (indexA !== -1 && indexB !== -1) return indexA - indexB; // 둘 다 목록에 있으면 지정된 순서대로
+        if (indexA !== -1) return -1; // a만 목록에 있으면 a를 위로
+        if (indexB !== -1) return 1;  // b만 목록에 있으면 b를 위로
+        return a.name.localeCompare(b.name, "ko-KR"); // 목록에 없는 기타 특약은 마지막에 가나다순
+      });
 
       setAnalysisData({
         premium: { before: premiumBefore, after: premiumAfter },
@@ -396,9 +519,21 @@ const applyKcdOverrides = async () => {
   const totalPremiumDiff = analysisData.totalPremium.after - analysisData.totalPremium.before;
 
   const calculateTotalDefenseCost = () => {
-    const cancer = analysisData.coverages.filter(c => c.name.includes("암")).reduce((acc, curr) => acc + curr.after, 0);
-    const brain = analysisData.coverages.filter(c => c.name.includes("뇌")).reduce((acc, curr) => acc + curr.after, 0);
-    const heart = analysisData.coverages.filter(c => c.name.includes("심") || c.name.includes("허혈성")).reduce((acc, curr) => acc + curr.after, 0);
+    // 암: '일반암', '고액암', '통합암' 진단비만 합산 (유사/소액암, 수술비 제외)
+    const cancer = analysisData.coverages
+    .filter(c => c.name.includes("일반암 진단비") || c.name.includes("유사암 진단비") || c.name.includes("통합암 진단비"))
+    .reduce((acc, curr) => acc + curr.after, 0);
+
+    // 뇌: '진단비' 단어가 포함된 것만 합산 (수술비 제외)
+    const brain = analysisData.coverages
+      .filter(c => c.name.includes("뇌혈관질환 진단비") || c.name.includes("뇌졸중 진단비") || c.name.includes("뇌산정") || c.name.includes("순환계통합 진단비") || c.name.includes("순환계질환 진단비") || c.name.includes("순환계 진단비"))
+      .reduce((acc, curr) => acc + curr.after, 0);
+      
+    // 심장: '진단비' 단어가 포함된 것만 합산
+    const heart = analysisData.coverages
+      .filter(c => (c.name.includes("급성심근경색 진단비") || c.name.includes("허혈성심장질환 진단비") || c.name.includes("심장산정") || c.name.includes("부정맥")) && c.name.includes("심혈관질환 진단비"))
+      .reduce((acc, curr) => acc + curr.after, 0);
+      
     return cancer + brain + heart;
   };
 
@@ -715,13 +850,17 @@ const applyKcdOverrides = async () => {
                 return (
                   <tr key={index} className="print:break-inside-avoid">
                     <td className="px-4 py-4 font-semibold text-gray-800">{item.name}</td>
-                    <td className="px-4 py-4 text-right text-gray-500">{formatMoney(item.before)}</td>
-                    <td className="px-4 py-4 text-right font-bold text-gray-900 bg-blue-50/5">{formatMoney(item.after)}</td>
+                    <td className={`px-4 py-4 text-right ${item.before === 0 ? 'text-red-400' : 'text-gray-500 font-bold'}`}>
+                      {item.before === 0 ? '-' : formatMoney(item.before)}
+                    </td>
+                    <td className={`px-4 py-4 text-right ${item.after === 0 ? 'text-gray-800' : 'text-blue-600 font-bold'}`}>
+                      {item.after === 0 ? '-' : formatMoney(item.after)}
+                    </td>
                     <td className="px-4 py-4 text-right font-bold">
                       {gap > 0 ? (
-                        <span className="text-red-600">▲ {formatMoney(gap)}</span>
+                        <span className="text-blue-600">+{formatMoney(gap)}</span>
                       ) : gap < 0 ? (
-                        <span className="text-blue-600">▼ {formatMoney(Math.abs(gap))}</span>
+                        <span className="text-red-300">-{formatMoney(Math.abs(gap))}</span>
                       ) : (
                         <span className="text-gray-300">-</span>
                       )}
@@ -733,8 +872,6 @@ const applyKcdOverrides = async () => {
           </table>
         </section>
         
-        
-        {/* ⭐️ KCD 질병코드별 누적 보장금액 정밀 분석표 (I00 ~ I99) */}
         <section className="bg-white rounded-2xl p-6 md:p-8 border-2 border-slate-400 shadow-sm print:border-slate-300 print:break-inside-avoid print:shadow-none relative overflow-hidden mt-6">
           <div className="flex items-center justify-between border-b border-slate-200 pb-4 mb-6 print:border-slate-300">
             <div>
@@ -801,11 +938,11 @@ const applyKcdOverrides = async () => {
                             </td>
 
                             <td className={`py-3.5 px-2 border-l border-slate-100 ${isZeroBefore ? 'text-red-400' : 'text-slate-600 font-bold'}`}>
-                              {isZeroBefore ? '보장불가 (0원)' : formatMoney(beforeAmt)}
+                              {isZeroBefore ? '-' : formatMoney(beforeAmt)}
                             </td>
 
                             <td className={`py-3.5 px-2 border-l border-blue-100 bg-blue-50/30 font-black ${afterAmt > 0 ? 'text-blue-700' : 'text-slate-400'}`}>
-                              {afterAmt > 0 ? formatMoney(afterAmt) : '0원'}
+                              {afterAmt > 0 ? formatMoney(afterAmt) : '-'}
                             </td>
 
                             <td className="py-3.5 px-2 border-l border-slate-100">
@@ -818,12 +955,15 @@ const applyKcdOverrides = async () => {
                                   )}
                                   <span className="text-xs font-black text-blue-600">+{formatMoney(gap)}</span>
                                 </div>
+                              ) : gap < 0 ? (
+                                <div className="flex flex-col items-center justify-center gap-1">
+                                  <span className="text-[10px] font-black text-red-400 bg-red-100 px-2 py-0.5 rounded">보장액 감액</span>
+                                  <span className="text-xs font-black text-red-300">-{formatMoney(Math.abs(gap))}</span>
+                                </div>
+                              ) : afterAmt > 0 ? (
+                                <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">동일 유지</span>
                               ) : (
-                                 afterAmt > 0 ? (
-                                   <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">동일 유지</span>
-                                 ) : (
-                                   <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-0.5 rounded border border-slate-200">해당 없음</span>
-                                 )
+                                <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-0.5 rounded border border-slate-200">해당 없음</span>
                               )}
                             </td>
                           </tr>
@@ -901,11 +1041,11 @@ const applyKcdOverrides = async () => {
                             </td>
 
                             <td className={`py-3.5 px-2 border-l border-slate-100 ${isZeroBefore ? 'text-red-400' : 'text-slate-600 font-bold'}`}>
-                              {isZeroBefore ? '보장불가 (0원)' : formatMoney(beforeAmt)}
+                              {isZeroBefore ? '-' : formatMoney(beforeAmt)}
                             </td>
 
                             <td className={`py-3.5 px-2 border-l border-blue-100 bg-blue-50/30 font-black ${afterAmt > 0 ? 'text-blue-700' : 'text-slate-400'}`}>
-                              {afterAmt > 0 ? formatMoney(afterAmt) : '0원'}
+                              {afterAmt > 0 ? formatMoney(afterAmt) : '-'}
                             </td>
 
                             <td className="py-3.5 px-2 border-l border-slate-100">
