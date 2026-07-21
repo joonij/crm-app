@@ -97,9 +97,10 @@ const RAW_ALLOWED_COVERAGES = [
   "재해 후유장해3%↑", "상해 후유장해3%↑", "질병 후유장해3%↑", 
   "일반암 진단비", "고액암 진단비", "소액암 진단비", "유사암 진단비", "통합암 진단비",
   "항암방사선약물 치료비", "암주요 치료비", "암통합 치료비", 
-  "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비", "뇌산정특례대상 진단비", "뇌혈관질환 진단비",
+  "순환계질환통합 진단비",
+  "뇌산정특례대상 진단비", "뇌혈관질환 진단비",
   "심장산정특례대상 진단비", "허혈성심장질환 진단비",
-  "순환계질환통합 치료비", "순환계통합 치료비", "순환계질환 치료비", "순환계 치료비",
+  "순환계질환통합 치료비", 
   "재해 수술비", "재해1종 수술비", "재해2종 수술비", "재해3종 수술비", "재해4종 수술비", "재해5종 수술비",
   "상해 수술비", "상해1종 수술비", "상해2종 수술비", "상해3종 수술비", "상해4종 수술비", "상해5종 수술비",
   "질병 수술비", "질병1종 수술비", "질병2종 수술비", "질병3종 수술비", "질병4종 수술비", "질병5종 수술비",
@@ -217,6 +218,7 @@ export default function AnalysisPage() {
   const [isKcdModalOpen, setIsKcdModalOpen] = useState(false);
   const [tempKcdOverrides, setTempKcdOverrides] = useState<Record<string, { before?: number; after?: number; highlight?: boolean }>>({});
 
+  const [selectedTop3, setSelectedTop3] = useState<string[]>([]);
   const [isSavingConsulting, setIsSavingConsulting] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
@@ -231,8 +233,8 @@ export default function AnalysisPage() {
       if (clientData.consulting_details) {
         if (clientData.consulting_details.briefing) setBriefingText(clientData.consulting_details.briefing);
         if (clientData.consulting_details.points) setPoints(clientData.consulting_details.points);
-        // ⭐️ 저장된 KCD 오버라이드 데이터 불러오기
         if (clientData.consulting_details.kcdOverrides) setKcdOverrides(clientData.consulting_details.kcdOverrides);
+        if (clientData.consulting_details.selectedTop3) setSelectedTop3(clientData.consulting_details.selectedTop3);
       }
     }
 
@@ -282,6 +284,24 @@ export default function AnalysisPage() {
 
             if (normalizedName.includes("암주요") && !normalizedName.includes("제외")) {
               return; 
+            }
+            if (ALLOWED_COVERAGES[matchedIndex] === "재해수술비" && (normalizedName.includes("대") || normalizedName.includes("특정") || normalizedName.includes("제외"))) {
+              return;
+            }
+            if (ALLOWED_COVERAGES[matchedIndex] === "상해수술비" && (normalizedName.includes("대") || normalizedName.includes("특정") || normalizedName.includes("제외"))) {
+              return;
+            }
+            if (ALLOWED_COVERAGES[matchedIndex] === "질병수술비" && (normalizedName.includes("대") || normalizedName.includes("특정") || normalizedName.includes("제외"))) {
+              return;
+            }
+            if (ALLOWED_COVERAGES[matchedIndex] === "재해입원비" && (normalizedName.includes("대") || normalizedName.includes("특정") || normalizedName.includes("제외"))) {
+              return;
+            }
+            if (ALLOWED_COVERAGES[matchedIndex] === "상해입원비" && (normalizedName.includes("대") || normalizedName.includes("특정") || normalizedName.includes("제외"))) {
+              return;
+            }
+            if (ALLOWED_COVERAGES[matchedIndex] === "질병입원비" && (normalizedName.includes("대") || normalizedName.includes("특정") || normalizedName.includes("제외"))) {
+              return;
             }
 
             let standardDisplayName = RAW_ALLOWED_COVERAGES[matchedIndex];
@@ -414,7 +434,8 @@ export default function AnalysisPage() {
       const payload = {
         briefing: briefingText,
         points: points,
-        kcdOverrides: kcdOverrides // ⭐️ KCD 수정 사항 DB 저장
+        kcdOverrides: kcdOverrides,
+        selectedTop3: selectedTop3 // 👈 ⭐️ 2-2. 여기에 추가!
       };
       const { error } = await supabase
         .from("clients")
@@ -470,7 +491,8 @@ const applyKcdOverrides = async () => {
     const payload = {
       briefing: briefingText,
       points: points,
-      kcdOverrides: tempKcdOverrides // 방금 조정한 최신 데이터
+      kcdOverrides: tempKcdOverrides,
+      selectedTop3: selectedTop3 // 👈 ⭐️ 2-3. 여기에도 추가!
     };
 
     const { error } = await supabase
@@ -520,21 +542,25 @@ const applyKcdOverrides = async () => {
 
   const calculateTotalDefenseCost = () => {
     // 암: '일반암', '고액암', '통합암' 진단비만 합산 (유사/소액암, 수술비 제외)
-    const cancer = analysisData.coverages
-    .filter(c => c.name.includes("일반암 진단비") || c.name.includes("유사암 진단비") || c.name.includes("통합암 진단비"))
+    const ganghwainsurance = analysisData.coverages
+    .filter(c => 
+      c.name.includes("일반암 진단비") || 
+      c.name.includes("유사암 진단비") || 
+      c.name.includes("통합암 진단비") || 
+      c.name.includes("순환계질환통합") || 
+      c.name.includes("뇌혈관질환 진단비") || 
+      c.name.includes("뇌졸중 진단비") || 
+      c.name.includes("뇌산정") || 
+      c.name.includes("급성심근경색 진단비") || 
+      c.name.includes("허혈성심장질환 진단비") || 
+      c.name.includes("심장산정") || 
+      c.name.includes("부정맥") || 
+      c.name.includes("심혈관질환 진단비") || 
+      c.name.includes("암주요") || 
+      c.name.includes("암통합")
+    )
     .reduce((acc, curr) => acc + curr.after, 0);
-
-    // 뇌: '진단비' 단어가 포함된 것만 합산 (수술비 제외)
-    const brain = analysisData.coverages
-      .filter(c => c.name.includes("뇌혈관질환 진단비") || c.name.includes("뇌졸중 진단비") || c.name.includes("뇌산정") || c.name.includes("순환계통합 진단비") || c.name.includes("순환계질환 진단비") || c.name.includes("순환계 진단비"))
-      .reduce((acc, curr) => acc + curr.after, 0);
-      
-    // 심장: '진단비' 단어가 포함된 것만 합산
-    const heart = analysisData.coverages
-      .filter(c => (c.name.includes("급성심근경색 진단비") || c.name.includes("허혈성심장질환 진단비") || c.name.includes("심장산정") || c.name.includes("부정맥")) && c.name.includes("심혈관질환 진단비"))
-      .reduce((acc, curr) => acc + curr.after, 0);
-      
-    return cancer + brain + heart;
+    return ganghwainsurance;
   };
 
   return (
@@ -735,45 +761,65 @@ const applyKcdOverrides = async () => {
                 )}
               </div>
             </div>
-
-            {premiumDiff > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2 print:grid-cols-2">
-                <div className="bg-emerald-50/60 border border-emerald-200 rounded-xl p-4 flex items-start gap-3">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-                  <div>
-                    <h5 className="text-xs font-black text-emerald-900 mb-0.5">"가짜 보장"에서 "진짜 보장"으로의 전환</h5>
-                    <p className="text-[11px] text-emerald-700 font-medium leading-relaxed">
-                    그동안 보험료는 계속 내셨지만, '뇌경색', '급성심근경색' 등 막상 큰병에 걸리면 받는 확률 10%짜리 가짜 방어막이었습니다.
-                    </p>
-                  </div>
-                </div>
-                <div className="bg-blue-50/60 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
-                  <Umbrella className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-                  <div>
-                    <h5 className="text-xs font-black text-blue-900 mb-0.5">소액암·유사암 및 수술비 공백 완전 메움</h5>
-                    <p className="text-[11px] text-blue-700 font-medium leading-relaxed">
-                      기존 포트폴리오에서 구멍 나 있던 공백을 메웠습니다. 이제 리스크가 발생해도 가계 자산이 무너지지 않는 100% 철벽 방어막이 완성되었습니다.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-            </div>
+          </div>
 
             <div className="flex-1 flex flex-col justify-center mt-2">
               <div className="mb-4">
                 <h4 className="text-lg font-black text-gray-900 flex items-center gap-2">
                   <ShieldCheck className="w-5 h-5 text-emerald-600"/> 핵심 방어막 업그레이드 TOP 3
                 </h4>
-                <p className="text-xs font-bold text-gray-500 mt-1">기존 대비 보장 금액이 <strong className="text-emerald-600">가장 많이 늘어난 3가지 핵심 담보</strong>입니다.</p>
+                <div className="flex items-center justify-between mt-1">
+                  <p className="text-xs font-bold text-gray-500">기존 대비 보장 금액이 <strong className="text-emerald-600">가장 많이 늘어난 3가지 핵심 담보</strong>입니다.</p>
+                </div>
+
+                {/* ⭐️ 수동 선택 UI (설계사 화면에만 보이고 인쇄 시에는 감쪽같이 숨겨집니다) */}
+                <div className="flex flex-wrap gap-2 mt-3 print:hidden">
+                  {[0, 1, 2].map((slotIndex) => {
+                    const upgradedCoverages = analysisData.coverages.filter(c => c.after > c.before);
+                    return (
+                      <select
+                        key={slotIndex}
+                        value={selectedTop3[slotIndex] || ""}
+                        onChange={(e) => {
+                          const newSelected = [...selectedTop3];
+                          newSelected[slotIndex] = e.target.value;
+                          setSelectedTop3(newSelected);
+                        }}
+                        className="text-[11px] font-bold border border-emerald-200 rounded-lg px-2 py-1.5 bg-emerald-50 text-emerald-700 outline-none focus:border-emerald-500 shadow-sm cursor-pointer"
+                      >
+                        <option value="">{slotIndex + 1}위 (자동 추천)</option>
+                        {upgradedCoverages.map(c => (
+                          <option key={c.name} value={c.name}>{c.name}</option>
+                        ))}
+                      </select>
+                    );
+                  })}
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 print:grid-cols-3 gap-4">
-                {analysisData.coverages
-                  .filter(item => item.after > item.before)
-                  .sort((a, b) => (b.after - b.before) - (a.after - a.before)) 
-                  .slice(0, 3)
-                  .map((item, index) => {
+                {/* ⭐️ 똑똑한 렌더링: 수동 선택과 자동 추천을 조합해서 중복 없이 보여줍니다. */}
+                {(() => {
+                  const upgradedCoverages = analysisData.coverages.filter(item => item.after > item.before);
+                  const autoTop3 = [...upgradedCoverages].sort((a, b) => (b.after - b.before) - (a.after - a.before));
+                  
+                  const displayTop3 = [];
+                  const usedNames = new Set();
+                  
+                  for (let i = 0; i < 3; i++) {
+                    const manualName = selectedTop3[i];
+                    let item = null;
+                    
+                    if (manualName) item = upgradedCoverages.find(c => c.name === manualName);
+                    if (!item) item = autoTop3.find(c => !usedNames.has(c.name)); // 수동 지정 없으면 자동 추천 중 안 쓴 것 가져옴
+                    
+                    if (item) {
+                      displayTop3.push(item);
+                      usedNames.add(item.name);
+                    }
+                  }
+
+                  return displayTop3.map((item, index) => {
                     const gap = item.after - item.before;
                     const increaseRate = item.before === 0 ? "신규 장착!" : `${Math.round((gap / item.before) * 100)}% 상승`;
                     
@@ -800,7 +846,8 @@ const applyKcdOverrides = async () => {
                         </div>
                       </div>
                     );
-                })}
+                  });
+                })()}
                 
                 {analysisData.coverages.filter(item => item.after > item.before).length === 0 && (
                   <div className="col-span-3 bg-gray-50 border border-gray-200 p-6 rounded-2xl text-center text-gray-500 font-bold text-sm">
@@ -898,7 +945,7 @@ const applyKcdOverrides = async () => {
                         <th className="py-3.5 px-3 text-left font-bold text-slate-600 w-[35%]">KCD 질환명 (분류코드)</th>
                         <th className="py-3.5 px-2 font-bold text-slate-500 w-[20%] border-l border-slate-200">기존 보장액</th>
                         <th className="py-3.5 px-2 font-black text-blue-600 w-[20%] bg-blue-50 border-l border-blue-100 shadow-inner">권장 보장액</th>
-                        <th className="py-3.5 px-2 font-bold text-slate-600 w-[25%] border-l border-slate-200">분석 결과</th>
+                        {/* <th className="py-3.5 px-2 font-bold text-slate-600 w-[25%] border-l border-slate-200">분석 결과</th> */}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -938,14 +985,25 @@ const applyKcdOverrides = async () => {
                             </td>
 
                             <td className={`py-3.5 px-2 border-l border-slate-100 ${isZeroBefore ? 'text-red-400' : 'text-slate-600 font-bold'}`}>
-                              {isZeroBefore ? '-' : formatMoney(beforeAmt)}
+                              {isZeroBefore ? <X className="w-4 h-4 mx-auto" strokeWidth={3} /> : formatMoney(beforeAmt)}
                             </td>
 
                             <td className={`py-3.5 px-2 border-l border-blue-100 bg-blue-50/30 font-black ${afterAmt > 0 ? 'text-blue-700' : 'text-slate-400'}`}>
-                              {afterAmt > 0 ? formatMoney(afterAmt) : '-'}
+                              {
+                                afterAmt > 0 ?  
+                                  <div className="flex flex-col items-center justify-center gap-1">
+                                    {isZeroBefore ? (
+                                      <span className="text-[10px] font-black text-white bg-blue-700 px-2 py-0.5 rounded shadow-sm">신규 보장</span>
+                                    ) : (
+                                      <span></span>
+                                    )}
+                                    <span className="font-black text-blue-700">{formatMoney(afterAmt)}</span>
+                                  </div>
+                                : '-'
+                               }
                             </td>
 
-                            <td className="py-3.5 px-2 border-l border-slate-100">
+                            {/* <td className="py-3.5 px-2 border-l border-slate-100">
                               {isUpgraded ? (
                                 <div className="flex flex-col items-center justify-center gap-1">
                                   {isZeroBefore ? (
@@ -965,7 +1023,7 @@ const applyKcdOverrides = async () => {
                               ) : (
                                 <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-0.5 rounded border border-slate-200">해당 없음</span>
                               )}
-                            </td>
+                            </td> */}
                           </tr>
                         );
                       })}
@@ -1003,7 +1061,7 @@ const applyKcdOverrides = async () => {
                         <th className="py-3.5 px-3 text-left font-bold text-slate-600 w-[35%]">KCD 질환명 (분류코드)</th>
                         <th className="py-3.5 px-2 font-bold text-slate-500 w-[20%] border-l border-slate-200">기존 보장액</th>
                         <th className="py-3.5 px-2 font-black text-blue-600 w-[20%] bg-blue-50 border-l border-blue-100 shadow-inner">권장 보장액</th>
-                        <th className="py-3.5 px-2 font-bold text-slate-600 w-[25%] border-l border-slate-200">분석 결과</th>
+                        {/* <th className="py-3.5 px-2 font-bold text-slate-600 w-[25%] border-l border-slate-200">분석 결과</th> */}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -1041,14 +1099,26 @@ const applyKcdOverrides = async () => {
                             </td>
 
                             <td className={`py-3.5 px-2 border-l border-slate-100 ${isZeroBefore ? 'text-red-400' : 'text-slate-600 font-bold'}`}>
-                              {isZeroBefore ? '-' : formatMoney(beforeAmt)}
+                              {isZeroBefore ? <X className="w-4 h-4 mx-auto" strokeWidth={3} /> : formatMoney(beforeAmt)}
                             </td>
 
                             <td className={`py-3.5 px-2 border-l border-blue-100 bg-blue-50/30 font-black ${afterAmt > 0 ? 'text-blue-700' : 'text-slate-400'}`}>
-                              {afterAmt > 0 ? formatMoney(afterAmt) : '-'}
+                              {
+                                afterAmt > 0 ? 
+                                <div className="flex flex-col items-center justify-center gap-1">
+                                  {isZeroBefore ? (
+                                    <span className="text-[10px] font-black text-white bg-blue-600 px-2 py-0.5 rounded shadow-sm">신규 보장</span>
+                                  ) : (
+                                    <span></span>
+                                  )}
+                                  <span className="font-black text-blue-600">{formatMoney(afterAmt)}</span>
+                                </div>
+                                 : 
+                                '-'
+                              }
                             </td>
 
-                            <td className="py-3.5 px-2 border-l border-slate-100">
+                            {/* <td className="py-3.5 px-2 border-l border-slate-100">
                               {isUpgraded ? (
                                 <div className="flex flex-col items-center justify-center gap-1">
                                   {isZeroBefore ? (
@@ -1065,7 +1135,7 @@ const applyKcdOverrides = async () => {
                                    <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-0.5 rounded border border-slate-200">해당 없음</span>
                                  )
                               )}
-                            </td>
+                            </td> */}
                           </tr>
                         );
                       })}
