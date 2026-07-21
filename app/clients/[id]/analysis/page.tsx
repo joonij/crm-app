@@ -1272,18 +1272,7 @@ const applyKcdOverrides = async () => {
                       <div className="space-y-2 mt-4 pt-4 border-t border-dashed border-slate-200">
                         {cov.details.map((d: any, i: number) => {
                           // ⭐️ 1. 객관적인 갱신 여부 판단
-                          const isRenewal = d.is_renewal || !!d.renewal_cycle || (d.name && d.name.includes("갱신"));
-                          
-                          // ⭐️ 2. 깔끔한 텍스트 조합 로직
-                          let badgeText = "";
-                          const periodText = [d.payment_period, d.coverage_period].filter(Boolean).join(" / ");
-                          
-                          if (isRenewal) {
-                            const renewalText = d.renewal_cycle ? `${d.renewal_cycle} 갱신` : "갱신형";
-                            badgeText = periodText ? `${renewalText} (${periodText})` : renewalText;
-                          } else {
-                            badgeText = periodText ? periodText : "비갱신";
-                          }
+                          const badgeText = d.renewal_type || "비갱신";
 
                           return (
                             <div key={i} className="flex justify-between text-xs text-slate-600">
@@ -1374,20 +1363,7 @@ const applyKcdOverrides = async () => {
                               const beforeDetailAmt = extractNumber(d.original_amount || d.amount);
                               const afterDetailAmt = extractNumber(d.amount);
                               const isDetailReduced = d.original_amount && afterDetailAmt < beforeDetailAmt;
-
-                              // ⭐️ 1. 객관적인 갱신 여부 판단
-                              const isRenewal = d.is_renewal || !!d.renewal_cycle || (d.name && d.name.includes("갱신"));
-                              
-                              // ⭐️ 2. 깔끔한 텍스트 조합 로직
-                              let badgeText = "";
-                              const periodText = [d.payment_period, d.coverage_period].filter(Boolean).join(" / ");
-                              
-                              if (isRenewal) {
-                                const renewalText = d.renewal_cycle ? `${d.renewal_cycle} 갱신` : "갱신형";
-                                badgeText = periodText ? `${renewalText} (${periodText})` : renewalText;
-                              } else {
-                                badgeText = periodText ? periodText : "비갱신";
-                              }
+                              const badgeText = d.renewal_type || "비갱신";
 
                               return (
                                 <div key={i} className={`flex justify-between text-xs ${isEffectivelyDeleted ? 'text-red-400/60 line-through' : 'text-slate-700'}`}>
