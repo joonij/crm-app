@@ -49,12 +49,12 @@ const COVERAGE_OPTIONS = [
   "간병인 사용비", "간병인 지원비",
   "레진", "인레이", "크라운", "임플란트", "보존치료", "보철치료",
   "실손의료비 상해입원", "실손의료비 질병입원", "실손의료비 상해통원", "실손의료비 질병통원", "실손의료비 상해약제", "실손의료비 질병약제",
+  "상해급여 의료비", "질병급여 의료비", "중증상해비급여 의료비", "중증질병비급여 의료비", "중증3대비급여 의료비", "비중증상해비급여 의료비", "비중증질병비급여 의료비", "비중증3대비급여 의료비"
 ];
 
 const POLICY_PERIOD_OPTIONS = ["전기납", "일시납", "5년납", "7년납", "10년납", "15년납", "20년납", "25년납", "30년납"];
 const RENEWAL_OPTIONS = ["전기납", "일시납", "비갱신", "1년 갱신", "3년 갱신", "5년 갱신", "10년 갱신", "15년 갱신", "20년 갱신", "30년 갱신"];
 
-// 특약명 지능형 매핑 헬퍼 함수
 const mapToStandardCoverage = (rawName: string) => {
   if (rawName.includes("기타")) return rawName;
 
@@ -270,9 +270,11 @@ export default function InsuranceModal({
         .order("company_name", { ascending: true });
       if (compData) setCompanies(compData);
 
-      // 현재 접속한 고객 정보 세팅
-      const { data: clientData } = await supabase.from("clients").select("name").eq("id", clientId).single();
-      if (clientData) currentClientName = clientData.name;
+      const { data: clientData } = await supabase.from("clients").select("*").eq("id", clientId).single();
+      if (clientData) {
+        currentClientName = clientData.name;
+      }
+      
       const currentClientId = parseInt(clientId, 10);
 
       setCovForm(prev => ({
@@ -329,7 +331,7 @@ export default function InsuranceModal({
       }
 
       const periodMatch = pasteText.match(/\((?:.*?납)?[,\s]*([0-9]+(?:년|세납|세|년납)|전기납|일시납)\)/) 
-                       || pasteText.match(/([0-9]+(?:년납|세납|년|세)|전기납|일시납)/);
+                        || pasteText.match(/([0-9]+(?:년납|세납|년|세)|전기납|일시납)/);
 
       if (periodMatch) {
         let p = periodMatch[1];
@@ -337,6 +339,24 @@ export default function InsuranceModal({
           p += "납";
         }
         extractedPaymentPeriod = p;
+      }
+
+      // ⭐️ 가입일-만기일 기간과 납입기간이 일치하는지 비교하는 정교한 로직 추가
+      let isPeriodSame = false;
+      if (extractedPaymentPeriod.includes("전기납")) {
+        isPeriodSame = true;
+      } else if (extractedSubDate && extractedMatDate && extractedPaymentPeriod) {
+        const subYear = parseInt(extractedSubDate.split("-")[0], 10);
+        const matYear = parseInt(extractedMatDate.split("-")[0], 10);
+        const payMatch = extractedPaymentPeriod.match(/([0-9]+)년/);
+        
+        if (payMatch && !isNaN(subYear) && !isNaN(matYear)) {
+          const payYears = parseInt(payMatch[1], 10);
+          // 기간 차이가 납입 기간과 정확히 일치할 때만 true
+          if (matYear - subYear === payYears) {
+            isPeriodSame = true;
+          }
+        }
       }
 
       const premiumRegex = /([0-9,]+)원\s*(?:약관조회|상품공시실)/;
@@ -363,13 +383,14 @@ export default function InsuranceModal({
       for (const line of lines) {
         if (line.includes("보장구분") || line.includes("보장명") || line.includes("실손구분")) continue;
 
-        const coverageRegex = /^(.*?)\s+((?:\d+,?)+\s*(?:억\s*(?:\d+,?)*\s*만원|억원|만원|원))\s+(?:[\d.\-~ ]+\s+)?(정상|소멸|유지|해지)$/;
+        const coverageRegex = /^(.*?)\s+((?:\d+,?)+\s*(?:억\s*(?:\d+,?)*\s*만원|억원|만원|원))(?:\s+(.*?))?\s+(정상|소멸|유지|해지)$/;
         const match = line.match(coverageRegex);
         
         if (match) {
           let rawName = match[1].trim();
           let amountStr = match[2].trim();
-          let status = match[3].trim();
+          let periodStr = match[3] ? match[3].trim() : ""; 
+          let status = match[4].trim();
 
           if (status === "소멸" || status === "해지") continue;
 
@@ -405,10 +426,26 @@ export default function InsuranceModal({
 
           const finalMappedName = mapToStandardCoverage(name);
 
+          // ⭐️ 지능형 특약 기간(갱신/비갱신) 세팅
+          let renewalType = "비갱신";
+          
+          if (periodStr.includes("갱신")) {
+            const cycleMatch = periodStr.match(/([0-9]+년)\s*갱신/);
+            if (cycleMatch) renewalType = `${cycleMatch[1]} 갱신`;
+            else renewalType = "갱신형";
+          } else if (name.includes("갱신")) {
+            const cycleMatch = name.match(/([0-9]+년)\s*갱신/);
+            if (cycleMatch) renewalType = `${cycleMatch[1]} 갱신`;
+            else renewalType = "갱신형";
+          } else {
+            // ⭐️ 기간과 납입기간이 일치할 때만 납입기간 복사, 아니면 무조건 "비갱신"
+            renewalType = isPeriodSame && extractedPaymentPeriod ? extractedPaymentPeriod : "비갱신";
+          }
+
           extractedDetails.push({
             name: finalMappedName,
             amount: formatAmountWithComma(parsedAmountNum.toString()),
-            renewal_type: name.includes("갱신형") ? "1년 갱신" : "비갱신"
+            renewal_type: renewalType
           });
         }
       }
@@ -583,7 +620,7 @@ export default function InsuranceModal({
           <h3 className="font-bold text-base md:text-lg text-gray-900 flex items-center gap-2">
             <Shield className="w-5 h-5 text-gray-600" /> 새 보장 내역 추가
           </h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors p-1">
+          <button onClick={onClose} className="cursor-pointer text-gray-400 hover:text-gray-600 transition-colors p-1">
             <X className="w-6 h-6 md:w-5 md:h-5" />
           </button>
         </div>
@@ -600,7 +637,7 @@ export default function InsuranceModal({
                 className="flex-1 rounded-lg border border-indigo-200 bg-white p-2.5 text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 resize-none h-14"
                 value={pasteText} onChange={(e) => setPasteText(e.target.value)}
               />
-              <button onClick={handleAnalyzeText} disabled={isAnalyzing} className="sm:w-28 flex items-center justify-center gap-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold transition-colors hover:bg-indigo-700 disabled:opacity-50 shadow-md">
+              <button onClick={handleAnalyzeText} disabled={isAnalyzing} className="cursor-pointer sm:w-28 flex items-center justify-center gap-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold transition-colors hover:bg-indigo-700 disabled:opacity-50 shadow-md">
                 {isAnalyzing ? <><Loader2 className="w-4 h-4 animate-spin" /> 분석중</> : <><FileText className="w-4 h-4" /> 추출하기</>}
               </button>
             </div>
@@ -619,10 +656,14 @@ export default function InsuranceModal({
                   onClick={() => {
                     const isNew = status.id === "new";
                     setIsCurrentUserAgent(isNew);
+                    
+                    const today = new Date().toISOString().split("T")[0];
+                    
                     setCovForm({
                       ...covForm,
                       policy_status: status.id,
-                      agent_name: isNew ? loggedInAgentName : ""
+                      agent_name: isNew ? loggedInAgentName : "",
+                      subscriptionDate: isNew ? today : ""
                     });
                   }} 
                   className={`cursor-pointer flex-1 py-2 text-xs md:text-sm font-bold rounded-lg border transition-colors ${covForm.policy_status === status.id ? `${status.color} text-white` : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"}`}
@@ -690,7 +731,7 @@ export default function InsuranceModal({
                 <label className="text-xs text-gray-500 mb-1 ml-1 font-semibold">보험 만기 일자</label>
                 <input type="date" max="9999-12-31" className={inputClassName} value={covForm.maturityDate} onChange={(e) => setCovForm({ ...covForm, maturityDate: e.target.value })} />
               </div>
-              
+
               <div className="flex flex-col relative">
                 <label className="text-xs text-gray-500 mb-1 ml-1 font-semibold">납입 기간</label>
                 <input
@@ -725,12 +766,10 @@ export default function InsuranceModal({
               
               <div className="flex flex-col relative"></div>
 
-              {/* 하이브리드 고객 검색창 적용 */}
               {renderClientSearchInput('contractor', '계약자')}
               {renderClientSearchInput('insured', '피보험자')}
               {renderClientSearchInput('beneficiary', '수익자')}
 
-              {/* 담당자 본인 확인 체크박스 로직 적용 */}
               <div className="flex flex-col">
                 <div className="flex items-center justify-between mb-1 ml-1">
                   <label className="text-xs text-gray-500 font-semibold">담당설계사</label>
@@ -853,17 +892,17 @@ export default function InsuranceModal({
                 );
               })}
             </div>
-            <button onClick={addCovDetail} className="w-full py-3 md:py-2.5 flex items-center justify-center gap-1 text-sm font-medium text-blue-600 border border-dashed border-blue-200 bg-blue-50/50 rounded-lg hover:bg-blue-50 transition-colors mt-4">
+            <button onClick={addCovDetail} className="cursor-pointer w-full py-3 md:py-2.5 flex items-center justify-center gap-1 text-sm font-medium text-blue-600 border border-dashed border-blue-200 bg-blue-50/50 rounded-lg hover:bg-blue-50 transition-colors mt-4">
               <Plus className="w-4 h-4" /> 빈 항목 한 줄 추가
             </button>
           </div>
         </div>
 
         <div className="p-4 md:p-5 border-t border-gray-100 bg-gray-50 md:rounded-b-xl flex justify-end gap-2 shrink-0 pb-safe">
-          <button onClick={onClose} className="flex-1 md:flex-none px-4 py-3 md:py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+          <button onClick={onClose} className="cursor-pointer flex-1 md:flex-none px-4 py-3 md:py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
             취소
           </button>
-          <button onClick={handleSaveCoverage} disabled={isSaving} className="flex-1 md:flex-none px-6 py-3 md:py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50">
+          <button onClick={handleSaveCoverage} disabled={isSaving} className="cursor-pointer flex-1 md:flex-none px-6 py-3 md:py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50">
             {isSaving ? "저장 중..." : "보장 내역 완전히 저장"}
           </button>
         </div>

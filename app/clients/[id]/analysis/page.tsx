@@ -98,8 +98,8 @@ const RAW_ALLOWED_COVERAGES = [
   "일반암 진단비", "고액암 진단비", "소액암 진단비", "유사암 진단비", "통합암 진단비",
   "항암방사선약물 치료비", "암주요 치료비", "암통합 치료비", 
   "순환계질환통합 진단비",
-  "뇌산정특례대상 진단비", "뇌혈관질환 진단비",
-  "심장산정특례대상 진단비", "허혈성심장질환 진단비",
+  "뇌산정특례대상 진단비", "뇌혈관질환 진단비", "뇌졸중 진단비", "뇌출혈 진단비",
+  "심장산정특례대상 진단비", "허혈성심장질환 진단비", "급성심근경색 진단비", "심근병증 진단비",
   "순환계질환통합 치료비", 
   "재해 수술비", "재해1종 수술비", "재해2종 수술비", "재해3종 수술비", "재해4종 수술비", "재해5종 수술비",
   "상해 수술비", "상해1종 수술비", "상해2종 수술비", "상해3종 수술비", "상해4종 수술비", "상해5종 수술비",
@@ -111,42 +111,50 @@ const RAW_ALLOWED_COVERAGES = [
   "장기요양 1~2등급 시설급여", "장기요양 1~3등급 시설급여", "장기요양 1~4등급 시설급여", "장기요양 1~5등급 시설급여", "장기요양 1~인지지원등급 시설급여", 
   "간병인 사용비", "간병인 지원비",
   "레진", "인레이", "크라운", "임플란트", "보존치료", "보철치료",
-  "실손의료비 상해입원", "실손의료비 질병입원", "실손의료비 상해통원", "실손의료비 질병통원", "실손의료비 상해약제", "실손의료비 질병약제"
+  "자동차사고 벌금", "교통사고처리 지원금", "자동차사고변호사 선임비", "자동차부상 치료비", 
+  "실손의료비 상해입원", "실손의료비 질병입원", "실손의료비 상해통원", "실손의료비 질병통원", "실손의료비 상해약제", "실손의료비 질병약제",
+  "상해급여 의료비", "질병급여 의료비", "중증상해비급여 의료비", "중증질병비급여 의료비", "중증3대비급여 의료비", "비중증상해비급여 의료비", "비중증질병비급여 의료비", "비중증3대비급여 의료비"
 ];
 
 // ⭐️ 2. 연관검색 매칭용 (띄어쓰기 제거)
 const ALLOWED_COVERAGES = RAW_ALLOWED_COVERAGES.map(name => name.replace(/\s+/g, ""));
 
+// 👇 ⭐️ 새로 추가할 부분 👇
+// 메인 요약표와 TOP 3에는 안 보이고, 밑에 상세 KCD 표에서만 몰래 계산할 하위 특약들
+const HIDDEN_IN_SUMMARY = [
+  "급성심근경색 진단비", "뇌출혈 진단비", "뇌졸중 진단비",
+  "심근병증 진단비", "뇌산정특례대상 진단비", "뇌산정특례대상 진단비"
+];
 // I00 ~ I99 순환계 질환 매핑 테이블
 const CIRCULATORY_CODES = [
   {
     group: "순환계질환 (I00~I99)",
     items: [
       { id: "I00~I02", name: "급성 류마티스열", keywords: ["순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
-      { id: "I05~I09", name: "만성 류마티스 심장질환", keywords: ["순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비", "심장산정"] },
+      { id: "I05~I09", name: "만성 류마티스 심장질환", keywords: ["순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
       { id: "I10~I15", name: "고혈압성 질환", keywords: [] },
-      { id: "I20", name: "협심증", keywords: ["허혈성심장질환 진단비", "심장산정", "심혈관질환 진단비", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"], highlight: true },
-      { id: "I21~I23", name: "급성 심근경색증", keywords: ["급성심근경색 진단비", "허혈성심장질환 진단비", "심장산정", "심혈관질환 진단비", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
-      { id: "I24~I25", name: "기타 허혈성 심장질환", keywords: ["허혈성심장질환 진단비", "심장산정", "심혈관질환 진단비", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"], highlight: true },
-      { id: "I26~I28", name: "폐성 심장질환", keywords: ["심장산정", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
-      { id: "I30~I33", name: "심장막염 및 심내막염", keywords: ["심장산정", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
-      { id: "I34~I37", name: "비류마티스성 판장애 및 폐동맥판장애", keywords: ["심장산정", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
-      { id: "I38", name: "상세불명 판막의 심내막염", keywords: ["심장산정", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
-      { id: "I39", name: "달리 분류된 질환에서의 심내막염 및 심장판막장애", keywords: ["심장산정", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
-      { id: "I40~I41", name: "심근염", keywords: ["심장산정", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
-      { id: "I42~I43", name: "심근병증", keywords: ["심장산정", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
-      { id: "I44~I45", name: "방실 및 좌각차단, 전도장애", keywords: ["심장산정", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
-      { id: "I46", name: "심장정지", keywords: ["심장산정", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
-      { id: "I47~I48, ", name: "부정맥", keywords: ["부정맥", "심장산정", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"], highlight: true },
-      { id: "I49", name: "기타 부정맥", keywords: ["기타 부정맥", "심장산정", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"], highlight: true },
-      { id: "I50", name: "심부전", keywords: ["심부전", "심장산정", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"], highlight: true },
-      { id: "I51", name: "심장병의 불명확한 기록 및 합병증", keywords: ["심부전", "심장산정", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
-      { id: "I52", name: "달리 분류된 질환에서의 기타 심장장애", keywords: ["심부전", "심장산정", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
-      { id: "I60~I62", name: "지주막하출혈, 뇌내출혈 등 (뇌출혈)", keywords: ["뇌출혈 진단비", "뇌졸중 진단비", "뇌혈관질환 진단비", "뇌산정", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
-      { id: "I63", name: "뇌경색증", keywords: ["뇌졸중 진단비", "뇌혈관질환 진단비", "뇌산정", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
-      { id: "I64", name: "출혈/경색으로 명시되지 않은 뇌졸중 진단비", keywords: ["뇌혈관질환 진단비", "뇌산정", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"], highlight: true },
-      { id: "I65~I66", name: "대뇌동맥 폐쇄 및 협착", keywords: ["뇌졸중 진단비", "뇌혈관질환 진단비", "뇌산정", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
-      { id: "I67~I69", name: "기타 뇌혈관 질환", keywords: ["뇌혈관질환 진단비", "뇌산정", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"], highlight: true },
+      { id: "I20", name: "협심증", keywords: ["허혈성심장질환 진단비", "심혈관질환 진단비", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"], highlight: true },
+      { id: "I21~I23", name: "급성 심근경색증", keywords: ["급성심근경색 진단비", "허혈성심장질환 진단비", "심혈관질환 진단비", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
+      { id: "I24~I25", name: "기타 허혈성 심장질환", keywords: ["허혈성심장질환 진단비", "심혈관질환 진단비", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"], highlight: true },
+      { id: "I26~I28", name: "폐성 심장질환", keywords: [ "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
+      { id: "I30~I33", name: "심장막염 및 심내막염", keywords: ["순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
+      { id: "I34~I37", name: "비류마티스성 판장애 및 폐동맥판장애", keywords: ["순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
+      { id: "I38", name: "상세불명 판막의 심내막염", keywords: ["순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
+      { id: "I39", name: "달리 분류된 질환에서의 심내막염 및 심장판막장애", keywords: ["순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
+      { id: "I40~I41", name: "심근염", keywords: ["순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
+      { id: "I42~I43", name: "심근병증 진단비", keywords: ["심근병증 진단비", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
+      { id: "I44~I45", name: "방실 및 좌각차단, 전도장애", keywords: ["순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
+      { id: "I46", name: "심장정지", keywords: ["순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
+      { id: "I47~I48, ", name: "부정맥", keywords: ["부정맥", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"], highlight: true },
+      { id: "I49", name: "기타 부정맥", keywords: ["기타 부정맥", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"], highlight: true },
+      { id: "I50", name: "심부전", keywords: ["심부전", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"], highlight: true },
+      { id: "I51", name: "심장병의 불명확한 기록 및 합병증", keywords: ["순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
+      { id: "I52", name: "달리 분류된 질환에서의 기타 심장장애", keywords: ["순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
+      { id: "I60~I62", name: "지주막하출혈, 뇌내출혈 등 (뇌출혈)", keywords: ["뇌출혈 진단비", "뇌졸중 진단비", "뇌혈관질환 진단비", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
+      { id: "I63", name: "뇌경색증", keywords: ["뇌졸중 진단비", "뇌혈관질환 진단비", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
+      { id: "I64", name: "출혈/경색으로 명시되지 않은 뇌졸중 진단비", keywords: ["뇌혈관질환 진단비", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"], highlight: true },
+      { id: "I65~I66", name: "대뇌동맥 폐쇄 및 협착", keywords: ["뇌졸중 진단비", "뇌혈관질환 진단비", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
+      { id: "I67~I69", name: "기타 뇌혈관 질환", keywords: ["뇌혈관질환 진단비", "순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"], highlight: true },
       { id: "I70", name: "죽상경화증", keywords: ["순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
       { id: "I71", name: "대동맥동맥류 및 박리", keywords: ["순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
       { id: "I72", name: "기타 동맥류 및 박리", keywords: ["순환계질환통합 진단비", "순환계통합 진단비", "순환계질환 진단비", "순환계 진단비"] },
@@ -169,17 +177,22 @@ const CANCER_CODES = [
   {
     group: "악성 신생물 [일반암] (C00~C97)",
     items: [
-      { id: "C00~C14", name: "입술, 구강 및 인두의 악성 신생물", keywords: ["일반암 진단비", "고액암 진단비", "통합암 진단비"] },
-      { id: "C15~C26", name: "소화기관 악성 신생물 (위암, 대장암 등)", keywords: ["일반암 진단비", "고액암 진단비", "통합암 진단비"], highlight: true },
-      { id: "C30~C39", name: "호흡기 및 흉곽내기관 악성 신생물 (폐암 등)", keywords: ["일반암 진단비", "고액암 진단비", "통합암 진단비"], highlight: true },
-      { id: "C40~C41, C43", name: "뼈, 관절연골, 흑색종 등", keywords: ["일반암 진단비",  "고액암 진단비", "통합암 진단비"] },
+      { id: "C00~C14", name: "입술, 구강 및 인두의 악성 신생물", keywords: ["일반암 진단비", "통합암 진단비"] },
+      { id: "C15", name: "식도 악성 신생물 (위암, 대장암 등)", keywords: ["일반암 진단비", "고액암 진단비", "통합암 진단비"], highlight: true },
+      { id: "C16~C22", name: "소화기관 악성 신생물 (위암, 대장암 등)", keywords: ["일반암 진단비", "통합암 진단비"], highlight: true },
+      { id: "C23~C25", name: "담낭, 담도, 췌장 악성 신생물 (위암, 대장암 등)", keywords: ["일반암 진단비", "고액암 진단비", "통합암 진단비"], highlight: true },
+      { id: "C30~C39", name: "호흡기 및 흉곽내기관 악성 신생물 (폐암 등)", keywords: ["일반암 진단비", "통합암 진단비"], highlight: true },
+      { id: "C40~C41", name: "뼈 악성 신생물", keywords: ["일반암 진단비",  "고액암 진단비", "통합암 진단비"] },
+      { id: "C43", name: "관절연골, 흑색종 등", keywords: ["일반암 진단비",  "통합암 진단비"] },
       { id: "C44", name: "기타 피부의 악성 신생물", keywords: ["유사암 진단비"], highlight: true },
-      { id: "C45~C49", name: "중피성 및 연조직의 악성 신생물", keywords: ["일반암 진단비", "고액암 진단비", "통합암 진단비"] },
+      { id: "C45~C49", name: "중피성 및 연조직의 악성 신생물", keywords: ["일반암 진단비", "통합암 진단비"] },
       { id: "C50", name: "유방의 악성 신생물", keywords: ["일반암 진단비", "소액암 진단비", "유방암 진단비", "통합암 진단비"], highlight: true },
-      { id: "C51~C68", name: "생식기관 및 요로 악성 신생물 (자궁, 전립선 등)", keywords: ["일반암 진단비", "소액암 진단비", "고액암 진단비", "통합암 진단비"], highlight: true },
-      { id: "C69~C72", name: "눈, 뇌 및 중추신경계통의 악성 신생물", keywords: ["일반암 진단비", "소액암 진단비", "고액암 진단비", "통합암 진단비"] },
+      { id: "C51~C68", name: "생식기관 및 요로 악성 신생물 (자궁, 전립선 등)", keywords: ["일반암 진단비", "소액암 진단비", "통합암 진단비"], highlight: true },
+      { id: "C69", name: "눈 악성 신생물", keywords: ["일반암 진단비", "소액암 진단비", "통합암 진단비"] },
+      { id: "C70~C72", name: "뇌 및 중추신경계통의 악성 신생물", keywords: ["일반암 진단비", "소액암 진단비", "고액암 진단비", "통합암 진단비"] },
       { id: "C73", name: "갑상선의 악성 신생물", keywords: ["유사암 진단비"], highlight: true },
-      { id: "C81~C96", name: "림프, 조혈 조직 악성 신생물 (백혈병 등)", keywords: ["일반암 진단비", "고액암 진단비", "통합암 진단비"], highlight: true },
+      { id: "C81~C90", name: "림프, 조혈 조직 악성 신생물", keywords: ["일반암 진단비", "통합암 진단비"], highlight: true },
+      { id: "C91~C96", name: "혈액 악성 신생물(백혈병)", keywords: ["일반암 진단비", "고액암 진단비", "통합암 진단비"], highlight: true },
     ]
   },
   {
@@ -208,8 +221,7 @@ export default function AnalysisPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [medicalHistory, setMedicalHistory] = useState<any>({ checklist: {}, memo: "" });
   
-  const [briefingText, setBriefingText] = useState("예시 : 유지 중이신 전체 보험 증권을 종합적으로 분석한 결과, 보장 범위가 겹치는 잉여 특약과 향후 유지비용이 급증하는 갱신형 담보들이 확인되었습니다.");
-  const [points, setPoints] = useState(["예시 : 누수되는 고정 지출 차단", "예시 : 3대 핵심 질환 보장 강화", "예시 : 절감액을 활용한 노후 자산화"]);
+  const [briefingText, setBriefingText] = useState("유지 중이신 전체 보험 증권을 종합적으로 분석한 결과, 보장 범위가 겹치는 잉여 특약과 향후 의료기술에 따른 불필요한 담보들이 확인되었습니다.");
   
   // ⭐️ KCD 정밀 조정 데이터 (DB의 consulting_details.kcdOverrides 에 저장됨)
   const [kcdOverrides, setKcdOverrides] = useState<Record<string, { before?: number; after?: number; highlight?: boolean }>>({});
@@ -232,7 +244,6 @@ export default function AnalysisPage() {
       
       if (clientData.consulting_details) {
         if (clientData.consulting_details.briefing) setBriefingText(clientData.consulting_details.briefing);
-        if (clientData.consulting_details.points) setPoints(clientData.consulting_details.points);
         if (clientData.consulting_details.kcdOverrides) setKcdOverrides(clientData.consulting_details.kcdOverrides);
         if (clientData.consulting_details.selectedTop3) setSelectedTop3(clientData.consulting_details.selectedTop3);
       }
@@ -285,25 +296,37 @@ export default function AnalysisPage() {
             if (normalizedName.includes("암주요") && !normalizedName.includes("제외")) {
               return; 
             }
-            if (ALLOWED_COVERAGES[matchedIndex] === "재해수술비" && (normalizedName.includes("대") || normalizedName.includes("특정") || normalizedName.includes("제외"))) {
+            if (ALLOWED_COVERAGES[matchedIndex] === "재해수술비" && (normalizedName.includes("대") || normalizedName.includes("특정") || normalizedName.includes("제외") || normalizedName.includes("병원"))) {
               return;
             }
-            if (ALLOWED_COVERAGES[matchedIndex] === "상해수술비" && (normalizedName.includes("대") || normalizedName.includes("특정") || normalizedName.includes("제외"))) {
+            if (ALLOWED_COVERAGES[matchedIndex] === "상해수술비" && (normalizedName.includes("대") || normalizedName.includes("특정") || normalizedName.includes("제외") || normalizedName.includes("병원"))) {
               return;
             }
-            if (ALLOWED_COVERAGES[matchedIndex] === "질병수술비" && (normalizedName.includes("대") || normalizedName.includes("특정") || normalizedName.includes("제외"))) {
+            if (ALLOWED_COVERAGES[matchedIndex] === "질병수술비" && (normalizedName.includes("대") || normalizedName.includes("특정") || normalizedName.includes("제외") || normalizedName.includes("병원"))) {
               return;
             }
-            if (ALLOWED_COVERAGES[matchedIndex] === "재해입원비" && (normalizedName.includes("대") || normalizedName.includes("특정") || normalizedName.includes("제외"))) {
+            if (ALLOWED_COVERAGES[matchedIndex] === "재해입원비" && (normalizedName.includes("대") || normalizedName.includes("특정") || normalizedName.includes("제외") || normalizedName.includes("병원"))) {
               return;
             }
-            if (ALLOWED_COVERAGES[matchedIndex] === "상해입원비" && (normalizedName.includes("대") || normalizedName.includes("특정") || normalizedName.includes("제외"))) {
+            if (ALLOWED_COVERAGES[matchedIndex] === "상해입원비" && (normalizedName.includes("대") || normalizedName.includes("특정") || normalizedName.includes("제외") || normalizedName.includes("병원"))) {
               return;
             }
-            if (ALLOWED_COVERAGES[matchedIndex] === "질병입원비" && (normalizedName.includes("대") || normalizedName.includes("특정") || normalizedName.includes("제외"))) {
+            if (ALLOWED_COVERAGES[matchedIndex] === "질병입원비" && (normalizedName.includes("대") || normalizedName.includes("특정") || normalizedName.includes("제외") || normalizedName.includes("병원"))) {
               return;
             }
-
+            if (ALLOWED_COVERAGES[matchedIndex] === "자동차사고부상치료비" && (normalizedName.includes("7급") || normalizedName.includes("4급") || normalizedName.includes("3급") || normalizedName.includes("2급"))) {
+              return;
+            }
+            if (ALLOWED_COVERAGES[matchedIndex] === "자동차부상치료비" && (normalizedName.includes("7급") || normalizedName.includes("4급") || normalizedName.includes("3급") || normalizedName.includes("2급"))) {
+              return;
+            }
+            if (ALLOWED_COVERAGES[matchedIndex] === "골절 진단비" && (normalizedName.includes("제외") || normalizedName.includes("대"))) {
+              return;
+            }
+            if (ALLOWED_COVERAGES[matchedIndex] === "골절진단비" && (normalizedName.includes("제외") || normalizedName.includes("대"))) {
+              return;
+            }
+            
             let standardDisplayName = RAW_ALLOWED_COVERAGES[matchedIndex];
             let standardKey = ALLOWED_COVERAGES[matchedIndex];
 
@@ -366,6 +389,22 @@ export default function AnalysisPage() {
             else if (standardDisplayName === "재해 입원비" || standardDisplayName === "재해입원비") {
               standardDisplayName = "상해 입원비"; 
               standardKey = "상해입원비"; 
+            }
+            else if (standardDisplayName === "자동차사고부상치료비" || standardDisplayName === "자동차사고부상 치료비" || standardDisplayName === "자동차부상치료비" || standardDisplayName === "자동차부상 치료비") {
+              standardDisplayName = "자동차부상 치료비"; 
+              standardKey = "자동차부상치료비"; 
+            }
+            else if (standardDisplayName === "자동차사고벌금" || standardDisplayName === "자동차사고 벌금") {
+              standardDisplayName = "자동차사고 벌금"; 
+              standardKey = "자동차사고벌금"; 
+            }
+            else if (standardDisplayName === "교통사고처리지원금" || standardDisplayName === "교통사고 처리지원금") {
+              standardDisplayName = "교통사고 처리지원금"; 
+              standardKey = "교통사고처리지원금"; 
+            }
+            else if (standardDisplayName === "골절 진단비" || standardDisplayName === "골절진단비") {
+              standardDisplayName = "골절 진단비"; 
+              standardKey = "골절진단비"; 
             }
 
             const beforeVal = extractNumber(detail.original_amount || detail.amount);
@@ -433,7 +472,6 @@ export default function AnalysisPage() {
     try {
       const payload = {
         briefing: briefingText,
-        points: points,
         kcdOverrides: kcdOverrides,
         selectedTop3: selectedTop3 // 👈 ⭐️ 2-2. 여기에 추가!
       };
@@ -490,7 +528,6 @@ const applyKcdOverrides = async () => {
   try {
     const payload = {
       briefing: briefingText,
-      points: points,
       kcdOverrides: tempKcdOverrides,
       selectedTop3: selectedTop3 // 👈 ⭐️ 2-3. 여기에도 추가!
     };
@@ -739,8 +776,7 @@ const applyKcdOverrides = async () => {
                       </>
                     ) : (
                       <>
-                        핵심 보장 자산 대폭 강화
-                        <span className="text-xs font-bold bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-md ml-2 text-sm">인수 심사 유리</span>
+                        3대 질환 진단 시 최대 비용
                       </>
                     )}
                   </p>
@@ -755,7 +791,6 @@ const applyKcdOverrides = async () => {
                   </>
                 ) : (
                   <>
-                    <p className="text-[11px] font-medium mb-1 text-indigo-300">3대 질환 진단 시 최대 방어 비용 (치료비+생활비)</p>
                     <p className="text-2xl font-black text-emerald-400">+ {formatMoney(calculateTotalDefenseCost())} 확보</p>
                   </>
                 )}
@@ -766,7 +801,7 @@ const applyKcdOverrides = async () => {
             <div className="flex-1 flex flex-col justify-center mt-2">
               <div className="mb-4">
                 <h4 className="text-lg font-black text-gray-900 flex items-center gap-2">
-                  <ShieldCheck className="w-5 h-5 text-emerald-600"/> 핵심 방어막 업그레이드 TOP 3
+                  <ShieldCheck className="w-5 h-5 text-emerald-600"/> 핵심 보장 TOP 3
                 </h4>
                 <div className="flex items-center justify-between mt-1">
                   <p className="text-xs font-bold text-gray-500">기존 대비 보장 금액이 <strong className="text-emerald-600">가장 많이 늘어난 3가지 핵심 담보</strong>입니다.</p>
@@ -775,7 +810,8 @@ const applyKcdOverrides = async () => {
                 {/* ⭐️ 수동 선택 UI (설계사 화면에만 보이고 인쇄 시에는 감쪽같이 숨겨집니다) */}
                 <div className="flex flex-wrap gap-2 mt-3 print:hidden">
                   {[0, 1, 2].map((slotIndex) => {
-                    const upgradedCoverages = analysisData.coverages.filter(c => c.after > c.before);
+                    // const upgradedCoverages = analysisData.coverages.filter(c => c.after > c.before);
+                    const upgradedCoverages = analysisData.coverages.filter(c => c.after > c.before && !HIDDEN_IN_SUMMARY.includes(c.name));
                     return (
                       <select
                         key={slotIndex}
@@ -800,7 +836,8 @@ const applyKcdOverrides = async () => {
               <div className="grid grid-cols-1 md:grid-cols-3 print:grid-cols-3 gap-4">
                 {/* ⭐️ 똑똑한 렌더링: 수동 선택과 자동 추천을 조합해서 중복 없이 보여줍니다. */}
                 {(() => {
-                  const upgradedCoverages = analysisData.coverages.filter(item => item.after > item.before);
+                  const upgradedCoverages = analysisData.coverages.filter(item => item.after > item.before && !HIDDEN_IN_SUMMARY.includes(item.name));
+                  // const upgradedCoverages = analysisData.coverages.filter(item => item.after > item.before);
                   const autoTop3 = [...upgradedCoverages].sort((a, b) => (b.after - b.before) - (a.after - a.before));
                   
                   const displayTop3 = [];
@@ -857,6 +894,60 @@ const applyKcdOverrides = async () => {
               </div>
             </div>
             
+            {/* <div className="mt-4 bg-gradient-to-br from-amber-50 to-orange-50/50 border border-amber-200 p-6 rounded-2xl relative overflow-hidden print:border-amber-300 print:bg-amber-50/30">
+              <div className="absolute -right-4 -top-4 w-32 h-32 bg-amber-300 rounded-full mix-blend-multiply filter blur-2xl opacity-30"></div>
+              
+              {premiumDiff <= 0 ? (
+                // 📉 케이스 1. 보험료가 줄었을 때 (절감액 활용 프레임)
+                <>
+                  <h4 className="text-lg font-black text-amber-900 flex items-center gap-2 mb-3 relative z-10">
+                    <TrendingDown className="w-5 h-5 text-amber-600" />
+                    노후 자산화 플랜 (절감액 연금 전환 제안)
+                  </h4>
+                  <p className="text-[12px] text-amber-800/90 font-semibold leading-relaxed mb-5 relative z-10">
+                    이번 리모델링을 통해 평생 납입해야 할 고정 지출에서 <strong className="text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">월 {formatPremium(Math.abs(premiumDiff))}</strong>을 세이브했습니다.<br/>
+                    이 누수되던 비용을 단순히 소비하지 않고 <strong>비과세 복리 연금</strong>에 투자하신다면, 보장(질병)과 노후(생존)라는 두 마리 토끼를 추가 비용 없이 모두 잡을 수 있습니다.
+                  </p>
+                  <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-amber-100 flex flex-col md:flex-row md:items-center justify-between shadow-sm relative z-10 gap-3 print:bg-white print:border-amber-200">
+                    <div className="flex items-center gap-2">
+                      <span className="flex items-center justify-center w-6 h-6 rounded-full bg-amber-100 text-amber-600 text-xs font-black">!</span>
+                      <span className="text-xs font-bold text-slate-600">월 절감액 연금 전환 시 예상 원금 (20년 납입 가정)</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-xl font-black text-amber-600">
+                        확정 원금 {formatMoney(Math.round((Math.abs(premiumDiff) * 12 * 20) / 10000))} 
+                      </span>
+                      <span className="text-sm font-bold text-amber-500 ml-1">+ α (비과세 복리)</span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                // 📈 케이스 2. 보험료가 올랐을 때 (생존/장수 리스크 방어 프레임)
+                <>
+                  <h4 className="text-lg font-black text-amber-900 flex items-center gap-2 mb-3 relative z-10">
+                    <ShieldCheck className="w-5 h-5 text-amber-600" />
+                    생존 리스크 방어 플랜 (100세 시대 포트폴리오 완성)
+                  </h4>
+                  <p className="text-[12px] text-amber-800/90 font-semibold leading-relaxed mb-5 relative z-10">
+                    핵심 보장이 튼튼해졌다는 것은, 중증 질병 발생 시에도 최고의 치료를 받고 <strong>건강하게 생존할 확률이 월등히 높아졌음</strong>을 의미합니다.<br/>
+                    질병 리스크가 완벽히 방어된 지금, 남은 가장 치명적인 위험은 <strong className="text-red-600 bg-red-50 px-1 rounded">소득 없는 긴 노후(장수 리스크)</strong>입니다. 건강 보장의 진정한 완성은 든든한 연금 자산 확보에 있습니다.
+                  </p>
+                  <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-amber-100 flex flex-col md:flex-row md:items-center justify-between shadow-sm relative z-10 gap-3 print:bg-white print:border-amber-200">
+                    <div className="flex items-center gap-2">
+                      <span className="flex items-center justify-center w-6 h-6 rounded-full bg-amber-100 text-amber-600 text-xs font-black">!</span>
+                      <span className="text-xs font-bold text-slate-600">의료비 방어 이후의 '생활비'를 위한 비과세 복리 연금 제안</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-xl font-black text-amber-600">
+                        치료비는 보험으로,
+                      </span>
+                      <span className="text-sm font-bold text-amber-700 ml-1">생활비는 연금으로</span>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div> */}
+            
             <div className="bg-slate-50 border border-slate-200 p-5 rounded-2xl print:bg-slate-50/80 shrink-0 mt-2">
               <div className="flex items-start gap-3">
                 <Info className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
@@ -892,18 +983,24 @@ const applyKcdOverrides = async () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {analysisData.coverages.map((item, index) => {
+              {/* 👇 filter 로직을 끼워넣어 줍니다 👇 */}
+              {analysisData.coverages
+                .filter(item => !HIDDEN_IN_SUMMARY.includes(item.name)) 
+                .map((item, index) => {
                 const gap = item.after - item.before;
                 return (
+              // {analysisData.coverages.map((item, index) => {
+                // const gap = item.after - item.before;
+                // return (
                   <tr key={index} className="print:break-inside-avoid">
-                    <td className="px-4 py-4 font-semibold text-gray-800">{item.name}</td>
-                    <td className={`px-4 py-4 text-right ${item.before === 0 ? 'text-red-400' : 'text-gray-500 font-bold'}`}>
+                    <td className="px-4 py-2 font-semibold text-gray-800">{item.name}</td>
+                    <td className={`px-4 py-2 text-right ${item.before === 0 ? 'text-red-400' : 'text-gray-500 font-bold'}`}>
                       {item.before === 0 ? '-' : formatMoney(item.before)}
                     </td>
-                    <td className={`px-4 py-4 text-right ${item.after === 0 ? 'text-gray-800' : 'text-blue-600 font-bold'}`}>
+                    <td className={`px-4 py-2 text-right ${item.after === 0 ? 'text-gray-800' : 'text-blue-600 font-bold'}`}>
                       {item.after === 0 ? '-' : formatMoney(item.after)}
                     </td>
-                    <td className="px-4 py-4 text-right font-bold">
+                    <td className="px-4 py-2 text-right font-bold">
                       {gap > 0 ? (
                         <span className="text-blue-600">+{formatMoney(gap)}</span>
                       ) : gap < 0 ? (
@@ -926,18 +1023,12 @@ const applyKcdOverrides = async () => {
                 <Stethoscope className="w-5 h-5 text-blue-600" />
                 I00 ~ I99 (순환계 질환) 상세 코드별 보장금액 진단
               </h2>
-              <p className="text-xs text-slate-500 mt-1 font-medium">고객님이 보유하신 특약을 바탕으로 각 질병 발생 시 실제 수령 가능한 진단비를 합산하여 계산합니다.</p>
             </div>
           </div>
 
           <div className="space-y-8">
             {CIRCULATORY_CODES.map((group, groupIdx) => (
               <div key={groupIdx} className="bg-slate-50/50 rounded-2xl p-1 print:p-0 print:bg-transparent">
-                <h3 className="text-base font-black text-slate-900 mb-3 px-2 flex items-center gap-2">
-                  <span className="w-1.5 h-4 bg-blue-500 rounded-full"></span>
-                  {group.group}
-                </h3>
-
                 <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
                   <table className="w-full text-sm text-center border-collapse">
                     <thead className="bg-slate-100 border-b border-slate-200">
@@ -962,7 +1053,7 @@ const applyKcdOverrides = async () => {
 
                         return (
                           <tr key={itemIdx} className={isUpgraded ? 'bg-blue-50/10 hover:bg-blue-50/30 transition-colors' : 'hover:bg-slate-50/50'}>
-                            <td className="py-3.5 px-3 text-left">
+                            <td className="py-1 px-3 text-left">
                               <div className="flex flex-col gap-0.5">
                                 <span className={`font-bold text-[13px] ${isUpgraded ? 'text-blue-900' : 'text-slate-800'}`}>
                                   {item.name}
@@ -976,19 +1067,15 @@ const applyKcdOverrides = async () => {
                                       ★ 핵심질환
                                     </span>
                                   )}
-                                  {/* 수동 조정 표시 뱃지 (선택 사항) */}
-                                  {(override.before !== undefined || override.after !== undefined) && (
-                                    <span className="bg-slate-800 text-white text-[9px] font-bold px-1.5 py-0.5 rounded opacity-50" title="수동으로 조정된 금액입니다">조정됨</span>
-                                  )}
                                 </div>
                               </div>
                             </td>
 
-                            <td className={`py-3.5 px-2 border-l border-slate-100 ${isZeroBefore ? 'text-red-400' : 'text-slate-600 font-bold'}`}>
+                            <td className={`py-1 px-2 border-l border-slate-100 ${isZeroBefore ? 'text-red-400' : 'text-slate-600 font-bold'}`}>
                               {isZeroBefore ? <X className="w-4 h-4 mx-auto" strokeWidth={3} /> : formatMoney(beforeAmt)}
                             </td>
 
-                            <td className={`py-3.5 px-2 border-l border-blue-100 bg-blue-50/30 font-black ${afterAmt > 0 ? 'text-blue-700' : 'text-slate-400'}`}>
+                            <td className={`py-1 px-2 border-l border-blue-100 bg-blue-50/30 font-black ${afterAmt > 0 ? 'text-blue-700' : 'text-slate-400'}`}>
                               {
                                 afterAmt > 0 ?  
                                   <div className="flex flex-col items-center justify-center gap-1">
@@ -1049,11 +1136,6 @@ const applyKcdOverrides = async () => {
           <div className="space-y-8">
             {CANCER_CODES.map((group, groupIdx) => (
               <div key={groupIdx} className="bg-slate-50/50 rounded-2xl p-1 print:p-0 print:bg-transparent">
-                <h3 className="text-base font-black text-slate-900 mb-3 px-2 flex items-center gap-2">
-                  <span className="w-1.5 h-4 bg-blue-500 rounded-full"></span>
-                  {group.group}
-                </h3>
-
                 <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
                   <table className="w-full text-sm text-center border-collapse">
                     <thead className="bg-slate-100 border-b border-slate-200">
@@ -1077,7 +1159,7 @@ const applyKcdOverrides = async () => {
 
                         return (
                           <tr key={itemIdx} className={isUpgraded ? 'bg-blue-50/10 hover:bg-blue-50/30 transition-colors' : 'hover:bg-slate-50/50'}>
-                            <td className="py-3.5 px-3 text-left">
+                            <td className="py-1 px-3 text-left">
                               <div className="flex flex-col gap-0.5">
                                 <span className={`font-bold text-[13px] ${isUpgraded ? 'text-blue-900' : 'text-slate-800'}`}>
                                   {item.name}
@@ -1091,18 +1173,15 @@ const applyKcdOverrides = async () => {
                                       ★ 핵심질환
                                     </span>
                                   )}
-                                  {(override.before !== undefined || override.after !== undefined) && (
-                                    <span className="bg-slate-800 text-white text-[9px] font-bold px-1.5 py-0.5 rounded opacity-50" title="수동으로 조정된 금액입니다">조정됨</span>
-                                  )}
                                 </div>
                               </div>
                             </td>
 
-                            <td className={`py-3.5 px-2 border-l border-slate-100 ${isZeroBefore ? 'text-red-400' : 'text-slate-600 font-bold'}`}>
+                            <td className={`py-1 px-2 border-l border-slate-100 ${isZeroBefore ? 'text-red-400' : 'text-slate-600 font-bold'}`}>
                               {isZeroBefore ? <X className="w-4 h-4 mx-auto" strokeWidth={3} /> : formatMoney(beforeAmt)}
                             </td>
 
-                            <td className={`py-3.5 px-2 border-l border-blue-100 bg-blue-50/30 font-black ${afterAmt > 0 ? 'text-blue-700' : 'text-slate-400'}`}>
+                            <td className={`py-1 px-2 border-l border-blue-100 bg-blue-50/30 font-black ${afterAmt > 0 ? 'text-blue-700' : 'text-slate-400'}`}>
                               {
                                 afterAmt > 0 ? 
                                 <div className="flex flex-col items-center justify-center gap-1">
@@ -1177,18 +1256,52 @@ const applyKcdOverrides = async () => {
                          {cov.payment_period && <p className="text-xs text-slate-400 mb-0.5">{cov.payment_period}</p>}
                          <p className="font-black text-slate-700 text-base">{formatPremium(cov.remodeled_amount || cov.monthly_premium)}</p>
                       </div>
+                    </div>{/* ⭐️ 추가 1: 보험 계약 정보 (계약자, 피보험자, 가입/보장기간) */}
+                    <div className="bg-slate-50 border border-slate-100 rounded-lg p-2.5 mb-2 text-[11px] grid grid-cols-1 sm:grid-cols-2 gap-2">
+                       <div className="flex items-center gap-1.5">
+                         <span className="text-slate-400 font-medium">계약/피보험</span>
+                         <span className="text-slate-700 font-bold">{cov.contractor_name || '-'} / {cov.insured_name || client?.name || '-'}</span>
+                       </div>
+                       <div className="flex items-center gap-1.5">
+                         <span className="text-slate-400 font-medium">가입/만기</span>
+                         <span className="text-slate-700 font-bold">{cov.subscription_date || '-'} ~<br/>{cov.maturity_date || '-'}</span>
+                       </div>
                     </div>
                     
                     {cov.details && (
                       <div className="space-y-2 mt-4 pt-4 border-t border-dashed border-slate-200">
-                        {cov.details.map((d: any, i: number) => (
-                          <div key={i} className="flex justify-between text-xs text-slate-600">
-                            <span className="truncate pr-2 leading-relaxed">{d.name}</span>
-                            <span className="font-bold shrink-0 text-slate-700">
-                              {formatDetailAmount(d.original_amount || d.amount)}만원
-                            </span>
-                          </div>
-                        ))}
+                        {cov.details.map((d: any, i: number) => {
+                          // ⭐️ 1. 객관적인 갱신 여부 판단
+                          const isRenewal = d.is_renewal || !!d.renewal_cycle || (d.name && d.name.includes("갱신"));
+                          
+                          // ⭐️ 2. 깔끔한 텍스트 조합 로직
+                          let badgeText = "";
+                          const periodText = [d.payment_period, d.coverage_period].filter(Boolean).join(" / ");
+                          
+                          if (isRenewal) {
+                            const renewalText = d.renewal_cycle ? `${d.renewal_cycle} 갱신` : "갱신형";
+                            badgeText = periodText ? `${renewalText} (${periodText})` : renewalText;
+                          } else {
+                            badgeText = periodText ? periodText : "비갱신";
+                          }
+
+                          return (
+                            <div key={i} className="flex justify-between text-xs text-slate-600">
+                              <span className="truncate pr-2 flex items-center gap-1.5 leading-relaxed">
+                                {/* 🛡️ 단정하고 객관적인 정보 뱃지 */}
+                                {badgeText && (
+                                  <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200 shrink-0 font-medium">
+                                    {badgeText}
+                                  </span>
+                                )}
+                                {d.name}
+                              </span>
+                              <span className="font-bold shrink-0 text-slate-700">
+                                {formatDetailAmount(d.original_amount || d.amount)}만원
+                              </span>
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -1242,6 +1355,16 @@ const applyKcdOverrides = async () => {
                               </p>
                             )}
                           </div>
+                        </div>{/* ⭐️ 추가 1: 보험 계약 정보 (권장 내역용 색상 처리) */}
+                        <div className={`rounded-lg p-2.5 mb-2 text-[11px] grid grid-cols-1 sm:grid-cols-2 gap-2 ${isCanceled ? 'bg-red-50/50 border border-red-100' : 'bg-slate-50 border border-slate-100'}`}>
+                           <div className="flex items-center gap-1.5">
+                             <span className={`${isCanceled ? 'text-red-400' : 'text-slate-400'} font-medium`}>계약/피보험</span>
+                             <span className={`${isCanceled ? 'text-red-700' : 'text-slate-700'} font-bold`}>{cov.contractor_name || '-'} / {cov.insured_name || client?.name || '-'}</span>
+                           </div>
+                           <div className="flex items-center gap-1.5">
+                             <span className={`${isCanceled ? 'text-red-400' : 'text-slate-400'} font-medium`}>가입/만기</span>
+                             <span className={`${isCanceled ? 'text-red-700' : 'text-slate-700'} font-bold`}>{cov.subscription_date || '-'} ~<br/>{cov.maturity_date || '-'}</span>
+                           </div>
                         </div>
                         
                         {cov.details && (
@@ -1252,9 +1375,28 @@ const applyKcdOverrides = async () => {
                               const afterDetailAmt = extractNumber(d.amount);
                               const isDetailReduced = d.original_amount && afterDetailAmt < beforeDetailAmt;
 
+                              // ⭐️ 1. 객관적인 갱신 여부 판단
+                              const isRenewal = d.is_renewal || !!d.renewal_cycle || (d.name && d.name.includes("갱신"));
+                              
+                              // ⭐️ 2. 깔끔한 텍스트 조합 로직
+                              let badgeText = "";
+                              const periodText = [d.payment_period, d.coverage_period].filter(Boolean).join(" / ");
+                              
+                              if (isRenewal) {
+                                const renewalText = d.renewal_cycle ? `${d.renewal_cycle} 갱신` : "갱신형";
+                                badgeText = periodText ? `${renewalText} (${periodText})` : renewalText;
+                              } else {
+                                badgeText = periodText ? periodText : "비갱신";
+                              }
+
                               return (
                                 <div key={i} className={`flex justify-between text-xs ${isEffectivelyDeleted ? 'text-red-400/60 line-through' : 'text-slate-700'}`}>
-                                  <span className="truncate pr-2 flex items-center gap-1 leading-relaxed">
+                                  <span className="truncate pr-2 flex items-center gap-1.5 leading-relaxed">
+                                    {badgeText && (
+                                      <span className={`text-[9px] px-1.5 py-0.5 rounded border shrink-0 font-medium ${isEffectivelyDeleted ? 'bg-red-50 text-red-400 border-red-100' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
+                                        {badgeText}
+                                      </span>
+                                    )}
                                     {d.name}
                                   </span>
                                   <span className={`font-bold shrink-0 ${isEffectivelyDeleted ? '' : (isDetailReduced ? 'text-red-600' : (d.original_amount ? 'text-blue-600' : 'text-slate-800'))}`}>
