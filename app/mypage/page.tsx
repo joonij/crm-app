@@ -234,7 +234,7 @@ export default function MyPage() {
         objectType: 'feed',
         content: {
           title: `${profile?.corporation_name} ${profile?.branch_name}\n${profile?.identity ? `[${profile.identity}] ` : ''}${profile?.name} ${profile?.rank}`,
-          description: `${profile?.identity}\n${profile?.bio}` || "고객님의 든든한 금융 파트너가 되겠습니다.",
+          description: `${profile?.bio}` || "고객님의 든든한 금융 파트너가 되겠습니다.",
           imageUrl: profile?.avatar_url || "https://images.unsplash.com/photo-1560520653-9e0e4c89eb11?auto=format&fit=crop&q=80&w=800",
           link: { mobileWebUrl: myCardUrl, webUrl: myCardUrl },
         },

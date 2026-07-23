@@ -204,7 +204,19 @@ export default function ClientsMedicalHistoryCard({ clientId, initialHistory }: 
       if (rule1.length > 0) {
         results.q3M = true;
         memoLines.push("\n[3개월 내 다녀온 병원 및 약국 이력]");
-        rule1.forEach(r => memoLines.push(`- ${r.date} · ${r.hospital} · ${r.kcd} · ${r.disease}`));
+        const r1_printed = new Set<string>();
+        rule1.forEach(r => {
+          // ⭐️ 지능형 약국 숨김: 같은 날짜에 다녀온 병원이 있으면, 약국은 굳이 출력하지 않음!
+          if (r.hospital.includes("약국")) {
+            const hasHospital = rule1.some(b => b.date === r.date && !b.hospital.includes("약국"));
+            if (hasHospital) return; 
+          }
+          const lineText = `- ${r.date} · ${r.hospital} · ${r.kcd} · ${r.disease}`;
+          if (!r1_printed.has(lineText)) {
+            memoLines.push(lineText);
+            r1_printed.add(lineText);
+          }
+        });
       }
 
       // ② 1년 내 같은 질병(코드) 병원 이력 (약국 제외)
@@ -270,14 +282,29 @@ export default function ClientsMedicalHistoryCard({ clientId, initialHistory }: 
           results.q5Y30D = true;
           if (!r6_found) { memoLines.push("\n[5년 내 같은 약품으로 30일 이상 투약]"); r6_found = true; }
           rows.forEach(r => {
-            const matchedHospital = basicData.find(b => b.date === r.date && b.hospital.includes("약국"));
+            
+            // ⭐️ 지능형 매칭: 이름이 달라도(약국/병원) 같은 날짜에 KCD 코드가 있는 '병원(약국 제외)' 내역을 무조건 빌려옴
+            // 1순위: 병원 이름이 겹치고 + KCD 코드가 있음 + 병원/의원임
+            let matchedHospital = basicData.find(b => b.date === r.date && (r.hospital.includes(b.hospital) || b.hospital.includes(r.hospital)) && b.kcd !== "코드없음" && !b.hospital.includes("약국"));
+            
+            // 2순위: 병원 이름이 달라도(약국에서 약을 타도) + 해당 날짜에 진료 본 병원(KCD 있음) 내역을 찾아냄!
+            if (!matchedHospital) {
+              matchedHospital = basicData.find(b => b.date === r.date && b.kcd !== "코드없음" && !b.hospital.includes("약국"));
+            }
+            
+            // 3순위: 병원 기록 자체가 아예 없으면 어쩔 수 없이 약국이라도 가져옴
+            if (!matchedHospital) {
+              matchedHospital = basicData.find(b => b.date === r.date && b.kcd !== "코드없음");
+            }
             
             let lineText = "";
             if (matchedHospital) {
-              lineText = `- ${matchedHospital.date} · ${matchedHospital.hospital} · ${matchedHospital.kcd} · ${matchedHospital.disease} (${r.days}일 투약)`;
+              // ⭐️ 약국 이름(r.hospital) 대신 진료받은 병원 이름(matchedHospital.hospital)으로 덮어씀 -> 동일 날짜 약국/병원 중복 출력 제거 완료
+              lineText = `- ${r.date} · ${matchedHospital.hospital} · ${matchedHospital.kcd} · ${matchedHospital.disease} (${r.days}일 투약)`;
             } else {
               lineText = `- ${r.date} · ${r.hospital} · 질병코드없음 (${r.days}일 투약)`;
             }
+
             if (!r6_printed.has(lineText)) {
               memoLines.push(lineText);
               r6_printed.add(lineText);
@@ -346,7 +373,7 @@ export default function ClientsMedicalHistoryCard({ clientId, initialHistory }: 
         
         <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 shrink-0">
           <div className="flex justify-between items-center mb-3">
-            <p className="text-xs font-bold text-slate-700">심평원 진료내역 자동 분석</p>
+            <p className="text-xs font-bold text-slate-700">심평원 진료내역 자동 분석<br/><span className="text-blue-600"> (요약ㆍ기본ㆍ세부ㆍ처방)</span></p>
             
             {files.length > 0 && !isAnalyzed && (
               isAnalyzing ? (

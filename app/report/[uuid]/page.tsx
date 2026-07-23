@@ -144,7 +144,7 @@ export default function ClientReportPage() {
   const [data, setData] = useState<any>(null);
   
   // 탭 상태 (공백진단 vs 보장내역)
-  const [activeTab, setActiveTab] = useState<'gaps' | 'insurances'>('gaps');
+  const [activeTab, setActiveTab] = useState<'insurances' | 'insurances'>('insurances');
   
   // 검색 및 아코디언 상태
   const [insuranceSearchTerm, setInsuranceSearchTerm] = useState("");
@@ -427,16 +427,16 @@ export default function ClientReportPage() {
         <section className="pt-2">
           <div className="flex bg-white rounded-2xl p-1 shadow-sm border border-slate-200 mb-6">
             <button
-              onClick={() => setActiveTab('gaps')}
-              className={`flex-1 py-3.5 text-sm sm:text-base font-black rounded-xl transition-all ${activeTab === 'gaps' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
-            >
-              보장 공백 진단
-            </button>
-            <button
               onClick={() => setActiveTab('insurances')}
               className={`flex-1 py-3.5 text-sm sm:text-base font-black rounded-xl transition-all ${activeTab === 'insurances' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
             >
               상세 보장 내역
+            </button>
+            <button
+              onClick={() => setActiveTab('gaps')}
+              className={`flex-1 py-3.5 text-sm sm:text-base font-black rounded-xl transition-all ${activeTab === 'gaps' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
+            >
+              보장 공백 진단
             </button>
           </div>
 

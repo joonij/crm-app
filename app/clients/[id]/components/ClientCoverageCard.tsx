@@ -1,18 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
-import { Shield, Trash2, ChevronDown, ChevronUp, Plus, BarChart3, Edit2, RotateCcw, MinusCircle, TrendingDown, Undo, Check, X, PartyPopper, Banknote } from "lucide-react";
+import { Shield, Trash2, ChevronDown, ChevronUp, Plus, BarChart3, Edit2, RotateCcw, MinusCircle, TrendingDown, Undo, Check, X, Banknote, Search, AlertCircle, ShieldCheck, Save, Loader2, CheckCircle2, PenTool } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import InsuranceModal from "@/app/clients/[id]/components/InsuranceModal";
 import QuickClaimModal from "@/components/QuickClaimModal";
 
-// ⭐️ 현재 팩스 자동화 처리가 지원되는 보험사 리스트 (검증용)
-const SUPPORTED_COMPANIES = [
-  "메리츠화재", "현대해상", "DB손해", "삼성화재"
-];
+const SUPPORTED_COMPANIES = ["메리츠화재", "현대해상", "DB손해", "삼성화재"];
 
-// 금액 포맷팅 유틸리티 함수
 const formatAmount = (val: string) => {
   if (!val) return "";
   const raw = val.replace(/,/g, ""); 
@@ -22,6 +18,30 @@ const formatAmount = (val: string) => {
     return raw.replace(numericPart[0], formattedNum);
   }
   return raw;
+};
+
+const extractNumber = (str: string | undefined | null) => {
+  if (!str) return 0;
+  let raw = String(str).replace(/\s+/g, ""); 
+  let total = 0;
+  if (raw.includes("억")) {
+    const parts = raw.split("억");
+    const eok = parseInt(parts[0].replace(/[^0-9]/g, ""), 10) || 0;
+    total += eok * 10000;
+    let remainder = parts[1];
+    if (remainder && remainder.includes("천")) {
+        const chun = parseInt(remainder.split("천")[0].replace(/[^0-9]/g, ""), 10) || 0;
+        total += chun * 1000;
+    } else if (remainder) {
+        total += parseInt(remainder.replace(/[^0-9]/g, ""), 10) || 0;
+    }
+  } else if (raw.includes("천") && parseInt(raw.replace(/[^0-9]/g, ""), 10) < 100) {
+    const chun = parseInt(raw.split("천")[0].replace(/[^0-9]/g, ""), 10) || 0;
+    total += chun * 1000;
+  } else {
+    total = parseInt(raw.replace(/[^0-9]/g, ""), 10) || 0;
+  }
+  return total;
 };
 
 const COVERAGE_OPTIONS = [
@@ -97,12 +117,22 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
   const [isCovModalOpen, setIsCovModalOpen] = useState(false);
   const [companies, setCompanies] = useState<InsuranceCompany[]>([]);
 
+  // ⭐️ 1. 보장 공백 진단 컨트롤을 위한 상태 추가
+  const [selectedGaps, setSelectedGaps] = useState<string[]>([]);
+  const [customGaps, setCustomGaps] = useState<{id: string, title: string, desc: string, action: string}[]>([]);
+  const [isAddingCustomGap, setIsAddingCustomGap] = useState(false);
+  const [newCustomGap, setNewCustomGap] = useState({ title: "", desc: "", action: "" });
+  
+  const [isSavingGaps, setIsSavingGaps] = useState(false);
+  const [gapSaveSuccess, setGapSaveSuccess] = useState(false);
+  const [hasInitializedGaps, setHasInitializedGaps] = useState(false);
+
+  const [insuranceSearchTerm, setInsuranceSearchTerm] = useState("");
+
   const [editingPolicyId, setEditingPolicyId] = useState<number | null>(null);
   const [editingPolicyForm, setEditingPolicyForm] = useState<Partial<Coverage> | null>(null);
-
   const [reducingPolicyId, setReducingPolicyId] = useState<number | null>(null);
   const [reducingPremium, setReducingPremium] = useState<string>("");
-
   const [editingDetail, setEditingDetail] = useState<{ covId: number, idx: number, tempName: string, tempAmount: string, tempRenewalType: string, mode: 'edit' | 'reduce' | 'new' } | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
@@ -131,11 +161,7 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
 
   useEffect(() => { 
     const fetchCompanies = async () => {
-      const { data } = await supabase
-        .from("insurance_companies")
-        .select("company_type, company_name")
-        .order("company_type", { ascending: true })
-        .order("company_name", { ascending: true });
+      const { data } = await supabase.from("insurance_companies").select("company_type, company_name").order("company_type", { ascending: true }).order("company_name", { ascending: true });
       if (data) setCompanies(data);
     };
 
@@ -149,11 +175,7 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
       if (user) {
         const { data: agentData } = await supabase.from("agents").select("id").eq("auth_id", user.id).single();
         if (agentData) {
-          const { data: myClients } = await supabase
-            .from("clients")
-            .select("id, name, phone")
-            .eq("agent_id", agentData.id) 
-            .order("name");
+          const { data: myClients } = await supabase.from("clients").select("id, name, phone").eq("agent_id", agentData.id).order("name");
           if (myClients) setClientsList(myClients);
         }
       }
@@ -165,22 +187,138 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     void fetchMyClients();
   }, [clientId]);
 
+  // 보장 공백 자동 검출 로직
+  const gapItems = useMemo(() => {
+    const s = {
+      cancer: { after: 0 }, brain: { after: 0 }, heart: { after: 0 },
+      surgery: { after: 0 }, hasJongSurgery: false, homeCare: { after: 0 },
+      hospitalization: { after: 0 }, injury: { after: 0 }, hasDriver: false, hasDental: false
+    };
+
+    coverages.forEach(ins => {
+      const isAfter = ins.policy_status === "maintain" || ins.policy_status === "new";
+      if (!isAfter) return;
+
+      const prodName = ins.product_name || "";
+      if (prodName.includes("운전자")) s.hasDriver = true;
+      if (prodName.includes("치아") || prodName.includes("덴탈") || prodName.includes("치과")) s.hasDental = true;
+
+      if (ins.details) {
+        ins.details.forEach((d: any) => {
+          const afterVal = d.is_deleted ? 0 : extractNumber(d.original_amount || d.amount);
+          const name = d.name || "";
+
+          if (name.includes("암") && !name.includes("유사") && !name.includes("고액")) s.cancer.after += afterVal;
+          if (name.includes("뇌")) s.brain.after += afterVal;
+          if (name.includes("허혈") || name.includes("심장") || name.includes("급성심근")) s.heart.after += afterVal;
+          if (name.includes("수술")) {
+            s.surgery.after += afterVal;
+            if (name.includes("종") || name.includes("1-5종") || name.includes("1-6종") || name.includes("1-9종")) s.hasJongSurgery = true;
+          }
+          if (name.includes("재가") || name.includes("치매")) s.homeCare.after += afterVal;
+          if (name.includes("입원") && !name.includes("진단") && !name.includes("제외") && !name.includes("실손") && !name.includes("의료비")) s.hospitalization.after += afterVal;
+          if (name.includes("통합상해") || (name.includes("상해") && name.includes("진단"))) s.injury.after += afterVal;
+          if (name.includes("교통사고처리") || name.includes("변호사선임") || name.includes("자동차부상")) s.hasDriver = true;
+          if (name.includes("임플란트") || name.includes("크라운") || name.includes("보철")) s.hasDental = true;
+        });
+      }
+    });
+
+    return [
+      { condition: s.cancer.after < 5000, title: "암 보장 공백 발견", action: "일반암 진단비 증액 권장" },
+      { condition: s.brain.after < 2000, title: "뇌혈관 보장 공백 발견", action: "뇌혈관 진단/수술비 보완 요망" },
+      { condition: s.heart.after < 2000, title: "심장 보장 공백 발견", action: "심혈관 특정진단비 보완 권장" },
+      { condition: s.surgery.after === 0 || !s.hasJongSurgery, title: "질병/종수술비 보장 부재", action: "질병 및 1-5종 수술비 장착" },
+      { condition: s.homeCare.after === 0, title: "치매 리스크 노출", action: "장기요양 재가급여 특약 추가" },
+      { condition: s.injury.after === 0, title: "통합상해진단비 공백", action: "통합상해진단비 보완 권장" },
+      { condition: s.hospitalization.after === 0, title: "일당 입원비 보장 부재", action: "간병인/입원일당 확보 고려" },
+      { condition: !s.hasDriver, title: "운전자 핵심 비용 부재", action: "형사합의금 지원 플랜 마련" },
+      { condition: !s.hasDental, title: "치아 보장 자산 부재", action: "치과 전문 덴탈 케어 안내" }
+    ];
+  }, [coverages]);
+
+  // DB에서 선택된 값 및 커스텀 카드 불러오기
+  useEffect(() => {
+    if (!hasInitializedGaps && clientData && gapItems.length > 0) {
+      if (clientData.consulting_details) {
+        if (Array.isArray(clientData.consulting_details.selectedGaps)) {
+          setSelectedGaps(clientData.consulting_details.selectedGaps);
+        } else {
+          setSelectedGaps(gapItems.filter(g => g.condition).map(g => g.title));
+        }
+
+        if (Array.isArray(clientData.consulting_details.customGaps)) {
+          setCustomGaps(clientData.consulting_details.customGaps);
+        }
+      } else {
+        setSelectedGaps(gapItems.filter(g => g.condition).map(g => g.title));
+      }
+      setHasInitializedGaps(true);
+    }
+  }, [clientData, gapItems, hasInitializedGaps]);
+
+  // ⭐️ 커스텀 갭 추가 저장 로직
+  const handleAddCustomGap = () => {
+    if (!newCustomGap.title || !newCustomGap.desc || !newCustomGap.action) {
+      return alert("제목, 설명, 제안 내용을 모두 입력해주세요.");
+    }
+    const newGap = {
+      id: Date.now().toString(),
+      ...newCustomGap
+    };
+    setCustomGaps([...customGaps, newGap]);
+    // 커스텀 갭을 추가하면 자동으로 활성화 처리
+    setSelectedGaps([...selectedGaps, newGap.title]);
+    setIsAddingCustomGap(false);
+    setNewCustomGap({ title: "", desc: "", action: "" });
+  };
+
+  const handleRemoveCustomGap = (id: string, title: string) => {
+    setCustomGaps(customGaps.filter(g => g.id !== id));
+    setSelectedGaps(selectedGaps.filter(t => t !== title));
+  };
+
+  // 체크박스 선택값 및 커스텀 카드 DB에 저장
+  const handleSaveGaps = async () => {
+    setIsSavingGaps(true);
+    try {
+      const updatedConsulting = {
+        ...(clientData.consulting_details || {}),
+        selectedGaps: selectedGaps,
+        customGaps: customGaps
+      };
+      const { error } = await supabase.from("clients").update({ consulting_details: updatedConsulting }).eq("id", clientId);
+      if (error) throw error;
+      setGapSaveSuccess(true);
+      setTimeout(() => setGapSaveSuccess(false), 2000);
+    } catch (err) {
+      alert("설정 저장에 실패했습니다.");
+    } finally {
+      setIsSavingGaps(false);
+    }
+  };
+
+  const filteredInsurances = coverages.filter((ins: any) => {
+    if (!insuranceSearchTerm) return true;
+    const term = insuranceSearchTerm.toLowerCase();
+    const matchCompany = ins.insurance_company?.toLowerCase().includes(term);
+    const matchProduct = ins.product_name?.toLowerCase().includes(term);
+    const matchDetails = ins.details?.some((d: any) => !d.is_deleted && d.name?.toLowerCase().includes(term));
+    return matchCompany || matchProduct || matchDetails;
+  });
+
   const toggleCoverage = (id: number) => {
     if (editingPolicyId === id || reducingPolicyId === id) return;
     setExpandedCovId(prev => (prev === id ? null : id));
   };
 
-  // ⭐️ [변경됨] 청구 모달 띄우기 전 보험사 지원 여부 검증 로직 추가
   const handleOpenClaimModal = (cov: Coverage) => {
     const companyName = cov.insurance_company || "";
-    
-    // 지원 보험사 리스트에 해당 보험사가 포함되어 있는지 확인
     const isSupported = SUPPORTED_COMPANIES.some(c => companyName.includes(c));
 
     if (!isSupported) {
       return alert("아직 작성되지 않은 청구서 양식입니다. 관리자에게 문의 남겨주세요.");
     }
-
     setSelectedClaimIns(cov);
     setIsClaimModalOpen(true);
   };
@@ -209,11 +347,7 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     }
 
     const original = cov.remodeled_amount ? cov.remodeled_amount : cov.monthly_premium;
-
-    const { error } = await supabase.from("subscription_insurance").update({
-      monthly_premium: cleanPremium,
-      remodeled_amount: original
-    }).eq("id", covId);
+    const { error } = await supabase.from("subscription_insurance").update({ monthly_premium: cleanPremium, remodeled_amount: original }).eq("id", covId);
 
     if (!error) {
       setCoverages(prev => prev.map(c => c.id === covId ? { ...c, monthly_premium: cleanPremium, remodeled_amount: original } : c));
@@ -227,11 +361,7 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     const cov = coverages.find(c => c.id === covId);
     if (!cov || !cov.remodeled_amount) return;
 
-    const { error } = await supabase.from("subscription_insurance").update({
-      monthly_premium: cov.remodeled_amount,
-      remodeled_amount: null
-    }).eq("id", covId);
-
+    const { error } = await supabase.from("subscription_insurance").update({ monthly_premium: cov.remodeled_amount, remodeled_amount: null }).eq("id", covId);
     if (!error) {
       setCoverages(prev => prev.map(c => c.id === covId ? { ...c, monthly_premium: cov.remodeled_amount!, remodeled_amount: null } : c));
     }
@@ -472,7 +602,7 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
 
   return (
     <>
-      <div className="w-full h-full flex flex-col rounded-2xl border border-gray-200 bg-white p-5 md:p-6 shadow-sm min-h-0 relative">
+      <div className="w-full h-full flex flex-col rounded-2xl border border-gray-200 bg-white p-5 md:p-6 shadow-sm min-h-0 relative overflow-x-hidden">
         
         {/* 상단 헤더 영역 */}
         <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0 border-b border-gray-100 pb-4">
@@ -488,7 +618,7 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
           
           <div className="flex w-full sm:w-auto gap-2 shrink-0">
             <Link href={`/clients/${clientId}/analysis`} className="flex flex-1 sm:flex-none items-center justify-center gap-1.5 rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-gray-800">
-              <BarChart3 className="w-4 h-4" /> 분석표 비교
+              <BarChart3 className="w-4 h-4" /> 분석표 보기
             </Link>
             <button onClick={() => setIsCovModalOpen(true)} className="cursor-pointer flex flex-1 sm:flex-none items-center justify-center gap-1.5 rounded-lg bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-600 transition-colors hover:bg-blue-100">
               <Plus className="w-4 h-4" /> 보험 추가
@@ -496,20 +626,139 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
           </div>
         </div>
         
-        {/* 보험 리스트 출력 영역 */}
         <div className="flex-1 overflow-y-auto pr-2 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-thumb]:rounded-full">
+          
+          {/* ⭐️ 고객 리포트용 보장 공백 컨트롤 패널 (커스텀 작성 가능) */}
+          <div className="mb-6 bg-white border-2 border-indigo-100 rounded-2xl p-4 sm:p-5 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4 border-b border-indigo-50 pb-3">
+              <div>
+                <h3 className="text-sm font-black text-indigo-900 flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-indigo-600"/> 고객 리포트 노출 설정 (보장 공백)
+                </h3>
+                <p className="text-xs text-slate-500 mt-1 break-keep leading-relaxed">고객 모바일 리포트 화면에 띄울 보장 공백 카드를 선택하세요.<br className="sm:hidden"/>자동으로 발견된 항목과 직접 작성한 항목 모두 연동됩니다.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => setIsAddingCustomGap(!isAddingCustomGap)}
+                  className="text-xs font-bold px-3 py-2 sm:py-1.5 rounded-xl flex items-center justify-center gap-1 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors cursor-pointer"
+                >
+                  <PenTool className="w-3.5 h-3.5"/> 직접 작성하기
+                </button>
+                <button 
+                  onClick={handleSaveGaps} 
+                  disabled={isSavingGaps || gapSaveSuccess} 
+                  className={`text-xs font-bold px-4 py-2 sm:py-1.5 rounded-xl flex items-center justify-center gap-1.5 transition-colors shadow-sm cursor-pointer disabled:opacity-70 ${gapSaveSuccess ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+                >
+                  {isSavingGaps ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : gapSaveSuccess ? <CheckCircle2 className="w-3.5 h-3.5"/> : <Save className="w-3.5 h-3.5"/>}
+                  {gapSaveSuccess ? "저장 완료" : "설정 저장"}
+                </button>
+              </div>
+            </div>
+
+            {/* 커스텀 카드 작성 폼 */}
+            {isAddingCustomGap && (
+              <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 mb-4 animate-in fade-in slide-in-from-top-2">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-bold text-indigo-800">커스텀 공백 카드 추가</span>
+                  <button onClick={() => setIsAddingCustomGap(false)} className="text-slate-400 hover:text-red-500 cursor-pointer"><X className="w-4 h-4"/></button>
+                </div>
+                <div className="space-y-2.5">
+                  <input type="text" placeholder="제목 (예: 가족력 대비 가족암 보완 필요)" value={newCustomGap.title} onChange={e => setNewCustomGap({...newCustomGap, title: e.target.value})} className="w-full text-xs p-2 rounded-lg border border-slate-200 outline-none focus:border-indigo-400 font-bold text-slate-800" />
+                  <textarea placeholder="설명 (예: 어머니의 암 이력이 있으시므로 일반암 진단비를 현재 3천만원에서 5천만원 수준으로 보완을 권장합니다.)" value={newCustomGap.desc} onChange={e => setNewCustomGap({...newCustomGap, desc: e.target.value})} className="w-full text-xs p-2 rounded-lg border border-slate-200 outline-none focus:border-indigo-400 text-slate-700 resize-none h-16 leading-relaxed" />
+                  <div className="flex gap-2">
+                    <input type="text" placeholder="제안 버튼명 (예: 일반암 진단비 증액 권장)" value={newCustomGap.action} onChange={e => setNewCustomGap({...newCustomGap, action: e.target.value})} className="flex-1 text-xs p-2 rounded-lg border border-slate-200 outline-none focus:border-indigo-400 text-indigo-700 font-bold" />
+                    <button onClick={handleAddCustomGap} className="px-4 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer">추가</button>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5">
+              {/* 1. 자동 검출된 카드 */}
+              {gapItems.map(gap => {
+                const isSelected = selectedGaps.includes(gap.title);
+                const isDetected = gap.condition;
+
+                return (
+                  <button
+                    key={gap.title}
+                    onClick={() => {
+                      setSelectedGaps(prev => prev.includes(gap.title) ? prev.filter(t => t !== gap.title) : [...prev, gap.title]);
+                    }}
+                    className={`text-left p-2.5 sm:p-3 rounded-xl border transition-all ${!isDetected ? 'opacity-40 grayscale cursor-not-allowed border-slate-200 bg-slate-50' : isSelected ? 'border-indigo-400 bg-indigo-50/50 ring-1 ring-indigo-400 shadow-sm cursor-pointer' : 'border-slate-200 bg-white hover:border-indigo-200 cursor-pointer'}`}
+                    disabled={!isDetected}
+                  >
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <div className={`w-4 h-4 rounded flex items-center justify-center border transition-colors shrink-0 ${isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 bg-white'}`}>
+                        {isSelected && <Check className="w-3 h-3" strokeWidth={3} />}
+                      </div>
+                      <span className={`text-[12px] sm:text-[13px] font-bold ${isSelected ? 'text-indigo-900' : 'text-slate-700'} truncate`}>{gap.title}</span>
+                    </div>
+                    <p className="text-[10px] font-medium text-slate-500 truncate pl-6">{gap.action}</p>
+                  </button>
+                )
+              })}
+
+              {/* 2. 직접 작성한 커스텀 카드 */}
+              {customGaps.map((custom) => {
+                const isSelected = selectedGaps.includes(custom.title);
+                
+                return (
+                  <div key={custom.id} className={`relative flex flex-col text-left p-2.5 sm:p-3 rounded-xl border transition-all ${isSelected ? 'border-indigo-400 bg-indigo-50/50 ring-1 ring-indigo-400 shadow-sm' : 'border-slate-200 bg-white'}`}>
+                    <button 
+                      onClick={() => setSelectedGaps(prev => prev.includes(custom.title) ? prev.filter(t => t !== custom.title) : [...prev, custom.title])}
+                      className="flex-1 cursor-pointer text-left w-full"
+                    >
+                      <div className="flex items-center gap-2 mb-1.5 pr-6">
+                        <div className={`w-4 h-4 rounded flex items-center justify-center border transition-colors shrink-0 ${isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 bg-white'}`}>
+                          {isSelected && <Check className="w-3 h-3" strokeWidth={3} />}
+                        </div>
+                        <span className={`text-[12px] sm:text-[13px] font-bold ${isSelected ? 'text-indigo-900' : 'text-slate-700'} truncate`}>
+                          <span className="text-orange-500 mr-1">★</span>{custom.title}
+                        </span>
+                      </div>
+                      <p className="text-[10px] font-medium text-slate-500 truncate pl-6 pr-4">{custom.action}</p>
+                    </button>
+                    
+                    <button 
+                      onClick={() => handleRemoveCustomGap(custom.id, custom.title)} 
+                      className="absolute top-2.5 right-2.5 p-1 text-slate-300 hover:text-red-500 bg-white rounded-md transition-colors cursor-pointer"
+                      title="커스텀 카드 삭제"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* 기존 검색바 */}
+          <div className="mb-4 relative">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder="특약명 또는 보험사 이름으로 직접 검색..."
+              value={insuranceSearchTerm}
+              onChange={(e) => setInsuranceSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+            />
+          </div>
+
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 content-start pb-4">
-            {coverages.length === 0 ? (
+            {filteredInsurances.length === 0 ? (
               <div className="col-span-full rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-12 text-center text-sm text-gray-400">
-                등록된 보장 내역이 없습니다. 우측 상단의 추가 버튼을 눌러주세요.
+                등록되거나 검색된 보장 내역이 없습니다.
               </div>
             ) : (
-              coverages.map((cov) => {
+              filteredInsurances.map((cov) => {
                 const currentStatus = cov.policy_status || "maintain";
                 const theme = statusTheme[currentStatus];
                 const isPolicyEditing = editingPolicyId === cov.id;
                 const isPolicyReducing = reducingPolicyId === cov.id;
                 const isCustomCompany = editingPolicyForm?.insurance_company && !companies.some(c => c.company_name === editingPolicyForm.insurance_company);
+                
+                const isExpanded = expandedCovId === cov.id || (insuranceSearchTerm.length > 0);
                 
                 return (
                   <div key={cov.id} className={`relative group rounded-lg border text-sm overflow-hidden flex flex-col transition-colors h-fit ${theme.bg} ${theme.border}`}>
@@ -654,7 +903,6 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                                   <Undo className="h-3.5 w-3.5" />
                                 </button>
                               )}
-                              {/* ⭐️ 변경됨: 청구 버튼 클릭 시 검증 함수 호출 */}
                               <button onClick={() => handleOpenClaimModal(cov)} className="cursor-pointer text-gray-500 hover:text-emerald-600 hover:bg-emerald-50 p-1.5 border-r border-gray-100/50" title="청구하기">
                                 <Banknote className="h-3.5 w-3.5" />
                               </button>
@@ -725,13 +973,13 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                         </div>
 
                         <div className="flex justify-center -mb-2 mt-1 opacity-40 group-hover:opacity-100 transition-opacity">
-                          {expandedCovId === cov.id ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
+                          {isExpanded ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
                         </div>
                       </div>
                     )}
 
                     {/* 확장된 특약 및 상세 정보 패널 */}
-                    {expandedCovId === cov.id && !isPolicyEditing && (
+                    {isExpanded && !isPolicyEditing && (
                       <div className="border-t border-black/10 bg-white/60 p-4 space-y-3">
                         
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-gray-50/80 p-2.5 rounded-lg border border-gray-200/60 mb-2">
@@ -756,6 +1004,8 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                         {cov.details && cov.details.map((detail, idx) => {
                           const isDeleted = detail.is_deleted;
                           const isEditing = editingDetail?.covId === cov.id && editingDetail?.idx === idx;
+                          
+                          const isMatched = insuranceSearchTerm && detail.name.toLowerCase().includes(insuranceSearchTerm.toLowerCase());
                           
                           const filteredOptions = isEditing && editingDetail.tempName.trim()
                             ? COVERAGE_OPTIONS.filter((opt) => opt.includes(editingDetail.tempName) && opt !== editingDetail.tempName)
@@ -854,7 +1104,12 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                                   )
                                 ) : (
                                   <>
-                                    <span className={`text-gray-700 truncate flex-1 ${isDeleted ? 'line-through' : 'font-medium'}`}>{detail.name || "-"}</span>
+                                    <div className={`flex flex-col flex-1 truncate ${isMatched ? 'bg-blue-50 p-1.5 rounded -ml-1' : ''}`}>
+                                      <span className={`text-gray-700 truncate ${isDeleted ? 'line-through' : 'font-medium'} ${isMatched ? 'font-bold text-blue-800' : ''}`}>
+                                        {detail.name || "-"}
+                                      </span>
+                                    </div>
+                                    
                                     <div className="flex flex-col items-end shrink-0 leading-tight">
                                       {detail.original_amount && detail.original_amount !== detail.amount && !isDeleted && <span className="text-red-400 line-through text-[10px] font-medium">{detail.original_amount}</span>}
                                       
@@ -868,7 +1123,9 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                                             비갱신
                                           </span>
                                         )}
-                                        <span className={`font-bold ${isDeleted ? 'text-gray-400 line-through' : 'text-gray-900'}`}>{detail.amount || "-"}만원</span>
+                                        <span className={`font-bold ${isDeleted ? 'text-gray-400 line-through' : (isMatched ? 'text-blue-700' : 'text-gray-900')}`}>
+                                          {detail.amount || "-"}만원
+                                        </span>
                                       </div>
                                     </div>
                                   </>
