@@ -327,6 +327,15 @@ export default function ClientReportPage() {
     );
   };
 
+  const handleGapInquiry = (title: string) => {
+    if (!selectedGaps.includes(title)) {
+      setSelectedGaps([...selectedGaps, title]);
+    }
+    setSelectedNeed("보장 공백 보완 상담 요청");
+    setSpecificProduct(Array.from(new Set([...selectedGaps, title])).join(", "));
+    setIsModalOpen(true);
+  };
+
   const handleSelectedGapsInquiry = () => {
     setSelectedNeed("보장 공백 보완 상담 요청");
     setSpecificProduct(selectedGaps.join(", ")); 
@@ -370,7 +379,7 @@ export default function ClientReportPage() {
   }
   highlightCards.push(...coverageItems);
 
-  // ⭐️ 1. 기본 시스템 공백 진단
+  // 1. 기본 시스템 공백 진단
   const baseGapItems = [
     { condition: scores.cancer.after < 5000, title: "암 보장 공백 발견", desc: `현재 암 보장금액이 ${formatMoney(scores.cancer.after)}으로 안정권보다 부족한 상태입니다.`, action: "일반암 진단비 증액 권장" },
     { condition: scores.brain.after < 2000, title: "뇌혈관 보장 공백 발견", desc: `현재 뇌혈관 보장금액이 ${formatMoney(scores.brain.after)}으로 권장 기준보다 부족한 상태입니다.`, action: "뇌혈관 진단/수술비 보완 요망" },
@@ -383,12 +392,12 @@ export default function ClientReportPage() {
     { condition: !scores.hasDental, title: "치아 보장 자산 부재", desc: "큰 비용이 드는 임플란트, 크라운에 대한 전문 치과 치료비 보장이 없습니다.", action: "치과 전문 덴탈 케어 안내" }
   ];
 
-  // ⭐️ 2. 기존 자동 검출 카드 필터링 + 커스텀 작성 카드 병합 로직
+  // ⭐️ 2. 기존 자동 검출 카드 필터링 + 커스텀 작성 카드 병합 로직 (고객 페이지)
   const displayGaps = (() => {
-    // ① 자동 검출 카드 중, 설계사가 켜둔(체크한) 것들만 추려냄
+    // ① 자동 검출 카드 중, 설계사가 켜둔(체크한) 것들만 추려냄 (수학적 조건 무시)
     const filteredAutoGaps = baseGapItems.filter(item => {
       if (!client?.consulting_details?.selectedGaps) return item.condition;
-      return client.consulting_details.selectedGaps.includes(item.title) && item.condition;
+      return client.consulting_details.selectedGaps.includes(item.title);
     });
 
     // ② 설계사가 직접 작성한 커스텀 카드 목록
@@ -512,12 +521,12 @@ export default function ClientReportPage() {
                             {item.action}
                           </span>
                           <button
-                            onClick={(e) => { e.stopPropagation(); toggleGapSelection(item.title); }}
+                            onClick={(e) => { e.stopPropagation(); handleGapInquiry(item.title); }}
                             className={`shrink-0 text-xs font-black px-4 py-2 rounded-xl transition-colors shadow-sm cursor-pointer ${
                               isSelected ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-slate-900 text-white hover:bg-slate-800'
                             }`}
                           >
-                            {isSelected ? <span className="flex items-center gap-1"><Check className="w-3.5 h-3.5"/> 선택됨</span> : "선택하기"}
+                            {isSelected ? <span className="flex items-center gap-1"><Check className="w-3.5 h-3.5"/> 선택됨</span> : "문의하기"}
                           </button>
                         </div>
                       </div>
@@ -641,22 +650,13 @@ export default function ClientReportPage() {
                   <item.icon className={`w-5 h-5 ${item.color}`} />
                 </div>
                 <div>
-                  <span className="block text-[13px] font-black text-slate-800 leading-tight break-keep">{item.label}</span>
-                  <span className="block text-[10px] font-bold text-slate-400 mt-1">{item.desc}</span>
+                  <span className="block text-1sm font-black text-slate-800 leading-tight break-keep">{item.label}</span>
+                  <span className="block text-sm font-bold text-slate-400 mt-1">{item.desc}</span>
                 </div>
               </button>
             ))}
           </div>
         </section>
-
-        {/* 5. 전문가 소견 (Consulting Briefing) */}
-        {client.consulting_details?.briefing && (
-          <section className="bg-blue-600 text-white p-7 rounded-3xl shadow-md relative overflow-hidden mt-8">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
-            <h2 className="text-base font-black mb-4 opacity-90 flex items-center gap-2"><AlertCircle className="w-5 h-5"/> 전문가 종합 코멘트</h2>
-            <p className="text-sm sm:text-base leading-relaxed font-medium whitespace-pre-wrap relative z-10">{client.consulting_details.briefing}</p>
-          </section>
-        )}
 
         {/* 6. 지인 소개 유도 컴포넌트 */}
         <section className="pt-6 pb-6">

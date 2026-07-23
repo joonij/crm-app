@@ -113,11 +113,13 @@ const statusTheme: Record<string, { bg: string; border: string; text: string }> 
 export default function ClientCoverageCard({ clientId }: { clientId: string }) {
   const [clientData, setClientData] = useState<any>(null); 
   const [coverages, setCoverages] = useState<Coverage[]>([]);
+  const [isCoveragesLoaded, setIsCoveragesLoaded] = useState(false); // ⭐️ 보험 데이터 로딩 완료 상태
+
   const [expandedCovId, setExpandedCovId] = useState<number | null>(null);
   const [isCovModalOpen, setIsCovModalOpen] = useState(false);
   const [companies, setCompanies] = useState<InsuranceCompany[]>([]);
 
-  // ⭐️ 1. 보장 공백 진단 컨트롤을 위한 상태 추가
+  // 보장 공백 진단 컨트롤을 위한 상태
   const [selectedGaps, setSelectedGaps] = useState<string[]>([]);
   const [customGaps, setCustomGaps] = useState<{id: string, title: string, desc: string, action: string}[]>([]);
   const [isAddingCustomGap, setIsAddingCustomGap] = useState(false);
@@ -157,6 +159,7 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
       }));
       setCoverages(processedData);
     }
+    setIsCoveragesLoaded(true); // ⭐️ 보험 데이터 세팅이 완전히 끝나면 true로 변경
   };
 
   useEffect(() => { 
@@ -237,13 +240,14 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     ];
   }, [coverages]);
 
-  // DB에서 선택된 값 및 커스텀 카드 불러오기
+  // ⭐️ 2. DB 데이터 불러오기 (보험 데이터가 완료된 후에만 세팅하도록 조건 강화)
   useEffect(() => {
-    if (!hasInitializedGaps && clientData && gapItems.length > 0) {
+    if (!hasInitializedGaps && clientData && isCoveragesLoaded) {
       if (clientData.consulting_details) {
         if (Array.isArray(clientData.consulting_details.selectedGaps)) {
           setSelectedGaps(clientData.consulting_details.selectedGaps);
         } else {
+          // DB에 내용이 없으면 조건이 일치하는 것만 기본 선택
           setSelectedGaps(gapItems.filter(g => g.condition).map(g => g.title));
         }
 
@@ -255,9 +259,8 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
       }
       setHasInitializedGaps(true);
     }
-  }, [clientData, gapItems, hasInitializedGaps]);
+  }, [clientData, gapItems, hasInitializedGaps, isCoveragesLoaded]);
 
-  // ⭐️ 커스텀 갭 추가 저장 로직
   const handleAddCustomGap = () => {
     if (!newCustomGap.title || !newCustomGap.desc || !newCustomGap.action) {
       return alert("제목, 설명, 제안 내용을 모두 입력해주세요.");
@@ -278,7 +281,7 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     setSelectedGaps(selectedGaps.filter(t => t !== title));
   };
 
-  // 체크박스 선택값 및 커스텀 카드 DB에 저장
+  // ⭐️ 3. 체크박스 선택값 저장 시 로컬 clientData도 함께 갱신
   const handleSaveGaps = async () => {
     setIsSavingGaps(true);
     try {
@@ -289,6 +292,10 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
       };
       const { error } = await supabase.from("clients").update({ consulting_details: updatedConsulting }).eq("id", clientId);
       if (error) throw error;
+      
+      // 로컬 데이터 최신화 (다음 저장 시 과거 데이터로 덮어쓰는 것 방지)
+      setClientData((prev: any) => ({ ...prev, consulting_details: updatedConsulting }));
+      
       setGapSaveSuccess(true);
       setTimeout(() => setGapSaveSuccess(false), 2000);
     } catch (err) {
@@ -628,21 +635,20 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
         
         <div className="flex-1 overflow-y-auto pr-2 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-thumb]:rounded-full">
           
-          {/* ⭐️ 고객 리포트용 보장 공백 컨트롤 패널 (커스텀 작성 가능) */}
-          <div className="mb-6 bg-white border-2 border-indigo-100 rounded-2xl p-4 sm:p-5 shadow-sm">
+          {/* 고객 리포트용 보장 공백 컨트롤 패널 (커스텀 작성 가능) */}
+          <div className="mb-4 bg-white border-2 border-indigo-100 rounded-2xl p-4 sm:p-5 shadow-sm">
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4 border-b border-indigo-50 pb-3">
               <div>
                 <h3 className="text-sm font-black text-indigo-900 flex items-center gap-1.5">
-                  <ShieldCheck className="w-4 h-4 text-indigo-600"/> 고객 리포트 노출 설정 (보장 공백)
+                  <ShieldCheck className="w-4 h-4 text-indigo-600"/> 고객페이지 '보장 공백 카드' 노출 설정
                 </h3>
-                <p className="text-xs text-slate-500 mt-1 break-keep leading-relaxed">고객 모바일 리포트 화면에 띄울 보장 공백 카드를 선택하세요.<br className="sm:hidden"/>자동으로 발견된 항목과 직접 작성한 항목 모두 연동됩니다.</p>
               </div>
               <div className="flex items-center gap-2">
                 <button 
                   onClick={() => setIsAddingCustomGap(!isAddingCustomGap)}
                   className="text-xs font-bold px-3 py-2 sm:py-1.5 rounded-xl flex items-center justify-center gap-1 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors cursor-pointer"
                 >
-                  <PenTool className="w-3.5 h-3.5"/> 직접 작성하기
+                  <PenTool className="w-3.5 h-3.5"/> 직접 카드 생성
                 </button>
                 <button 
                   onClick={handleSaveGaps} 
@@ -659,7 +665,7 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
             {isAddingCustomGap && (
               <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 mb-4 animate-in fade-in slide-in-from-top-2">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-bold text-indigo-800">커스텀 공백 카드 추가</span>
+                  <span className="text-xs font-bold text-indigo-800">카드 추가</span>
                   <button onClick={() => setIsAddingCustomGap(false)} className="text-slate-400 hover:text-red-500 cursor-pointer"><X className="w-4 h-4"/></button>
                 </div>
                 <div className="space-y-2.5">
@@ -674,10 +680,10 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
             )}
             
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5">
-{/* 1. 자동 검출된 카드 (모두 클릭 가능하게 변경됨) */}
+              {/* 1. 자동 검출된 카드 */}
               {gapItems.map(gap => {
                 const isSelected = selectedGaps.includes(gap.title);
-                const isDetected = gap.condition; // 실제 데이터 상 공백인지 여부
+                const isDetected = gap.condition;
 
                 return (
                   <button
@@ -685,7 +691,6 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                     onClick={() => {
                       setSelectedGaps(prev => prev.includes(gap.title) ? prev.filter(t => t !== gap.title) : [...prev, gap.title]);
                     }}
-                    // ⭐️ disabled 제거 및 투명도(opacity) 조정으로 UI 개선
                     className={`text-left p-2.5 sm:p-3 rounded-xl border transition-all cursor-pointer ${
                       isSelected 
                         ? 'border-indigo-400 bg-indigo-50/50 ring-1 ring-indigo-400 shadow-sm' 
@@ -694,17 +699,14 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                           : 'opacity-50 hover:opacity-100 border-slate-200 bg-slate-50 hover:border-indigo-200 hover:bg-white'
                     }`}
                   >
-                    <div className="flex items-center gap-2 mb-1.5 pr-2">
+                    <div className="flex items-center gap-2">
                       <div className={`w-4 h-4 rounded flex items-center justify-center border transition-colors shrink-0 ${isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 bg-white'}`}>
                         {isSelected && <Check className="w-3 h-3" strokeWidth={3} />}
                       </div>
-                      <span className={`text-[12px] sm:text-[13px] font-bold truncate ${isSelected ? 'text-indigo-900' : 'text-slate-700'}`}>
+                      <span className={`text-[12px]  font-bold truncate ${isSelected ? 'text-indigo-900' : 'text-slate-700'}`}>
                         {gap.title}
                       </span>
                     </div>
-                    <p className="text-[10px] font-medium text-slate-500 truncate pl-6 pr-2">
-                      {isDetected ? gap.action : "전략적 어필 가능"}
-                    </p>
                   </button>
                 )
               })}
@@ -744,7 +746,7 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
           </div>
 
           {/* 기존 검색바 */}
-          <div className="mb-4 relative">
+          <div className="mb-2 relative">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               type="text"
