@@ -8,7 +8,7 @@ import {
   Share2, CheckCircle2, UserPlus, X, AlertCircle, Home, Bed, 
   Bandage, HeartPulse, Brain, Heart, BriefcaseMedical, ShieldAlert, 
   Search, Target, Loader2, Info, Gem, LineChart,
-  ArrowRight, XCircle
+  ArrowRight, XCircle, Check
 } from "lucide-react";
 
 // 비교할 질병 코드 데이터 구조화
@@ -120,7 +120,7 @@ const extractNumber = (str: string | undefined | null) => {
   return parseInt(str.replace(/[^0-9]/g, ""), 10) || 0;
 };
 
-// 전화번호 포맷팅 (오타 수정 완료)
+// 전화번호 포맷팅
 const formatPhoneNumber = (value: string) => {
   const num = value.replace(/[^0-9]/g, "");
   if (!num) return "";
@@ -143,12 +143,15 @@ export default function ClientReportPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [data, setData] = useState<any>(null);
   
-  // 탭 상태 (공백진단 vs 보장내역)
-  const [activeTab, setActiveTab] = useState<'gaps' | 'insurances'>('gaps');
+  // 탭 상태
+  const [activeTab, setActiveTab] = useState<'insurances' | 'gaps'>('insurances');
   
   // 검색 및 아코디언 상태
   const [insuranceSearchTerm, setInsuranceSearchTerm] = useState("");
   const [expandedCovId, setExpandedCovId] = useState<number | null>(null);
+
+  // 보장 공백 선택(장바구니) 상태
+  const [selectedGaps, setSelectedGaps] = useState<string[]>([]);
 
   // 지인 소개 모달 상태
   const [isRefModalOpen, setIsRefModalOpen] = useState(false);
@@ -249,7 +252,6 @@ export default function ClientReportPage() {
     fetchReportData();
   }, [reportUuid]);
 
-  // 카카오톡 공유 로직
   const handleShareReferral = async () => {
     const { client, agent } = data;
     const shareText = `[무료 보장분석]\n\n제가 이번에 ${agent.name} ${agent.rank}님께 보장분석을 받았는데, 불필요하게 새는 보험료도 줄이고 보장도 훨씬 좋아졌어요!\n\n제 지인들에게만 특별히 '무료 정밀 분석'을 해주신다고 하니, 보험료 낭비하고 계신 건 없는지 아래 번호로 꼭 연락해서 점검 받아보세요.\n\n👨‍💼 담당자: ${agent.name} ${agent.rank}\n📞 연락처: ${agent.phone || "번호 미등록"}\n🏢 소속: ${Array.isArray(agent.agencies) ? agent.agencies[0]?.corporation_name : agent.agencies?.corporation_name}`;
@@ -262,7 +264,6 @@ export default function ClientReportPage() {
     }
   };
 
-  // ⭐️ 지인 소개 제출 로직 (지인은 새로운 사람이므로 새 고객으로 Insert 유지)
   const handleSubmitReferral = async () => {
     if (!refForm.name || !refForm.phone) return alert("지인분의 성함과 연락처를 입력해주세요.");
     setIsSubmittingRef(true);
@@ -288,39 +289,47 @@ export default function ClientReportPage() {
     finally { setIsSubmittingRef(false); }
   };
 
-  // ⭐️ 본인 예약(문의) 제출 및 알림 전송 로직 (중복 등록 방지 로직 적용)
   const handleReservationSubmit = async () => {
     if (!customerName.trim() || !customerPhone.trim()) return alert("성함과 연락처를 입력해주세요.");
     if (selectedNeed === "특정 상품 문의 요청" && !specificProduct) return alert("문의 상품 종류를 선택해주세요.");
 
     setIsSubmitting(true);
     try {
-      const isSpecific = selectedNeed === "특정 상품 문의 요청";
-      const finalNeedLabel = isSpecific ? `특정 상품 문의 요청 (${specificProduct})` : selectedNeed;
+      let finalNeedLabel = selectedNeed;
+      if (selectedNeed === "특정 상품 문의 요청") {
+        finalNeedLabel = `특정 상품 문의 요청 (${specificProduct})`;
+      } else if (selectedNeed === "보장 공백 보완 상담 요청") {
+        finalNeedLabel = `보장 공백 보완 상담 (${specificProduct})`;
+      }
       
-      // 이미 존재하는 고객이므로 새 고객 Insert 로직 제거
-      // 바로 알림센터(notifications)에 등록된 고객 ID와 함께 알림 발송
       const { error: notiError } = await supabase.from('notifications').insert({
         agent_id: data.client.agent_id, 
         title: "모바일 리포트 상담 문의 접수 🎉",
         message: `[${finalNeedLabel}] ${customerName} 고객님이 리포트를 보다가 상담 예약을 남겼습니다. (연락처: ${customerPhone})`, 
         type: "inquiry", 
-        link_url: `/clients/${data.client.id}` // ⭐️ 기존 등록된 고객 페이지로 바로 연결
+        link_url: `/clients/${data.client.id}`
       });
 
       if (notiError) throw notiError;
 
-      alert(`[${finalNeedLabel}] 예약이 성공적으로 접수되었습니다!\n담당 전문가가 확인 후 신속하게 연락드리겠습니다.`);
+      alert(`예약이 성공적으로 접수되었습니다!\n담당 전문가가 확인 후 신속하게 연락드리겠습니다.`);
       setIsModalOpen(false);
       setSpecificProduct("");
+      setSelectedGaps([]);
     } catch (error: any) { alert("신청 중 오류가 발생했습니다: " + error.message); } 
     finally { setIsSubmitting(false); }
   };
 
-  // 공백 아이템 문의 버튼 핸들러
-  const handleGapInquiry = (gapTitle: string) => {
-    setSelectedNeed("특정 상품 문의 요청");
-    setSpecificProduct("종합/건강보험"); 
+  // 장바구니 토글
+  const toggleGapSelection = (title: string) => {
+    setSelectedGaps(prev =>
+      prev.includes(title) ? prev.filter(t => t !== title) : [...prev, title]
+    );
+  };
+
+  const handleSelectedGapsInquiry = () => {
+    setSelectedNeed("보장 공백 보완 상담 요청");
+    setSpecificProduct(selectedGaps.join(", ")); 
     setIsModalOpen(true);
   };
 
@@ -335,7 +344,6 @@ export default function ClientReportPage() {
   const agentCorp = Array.isArray(agent?.agencies) ? agent.agencies[0]?.corporation_name : agent?.agencies?.corporation_name;
   const activeInsurances = insurances.filter((ins:any) => ins.policy_status === "maintain" || ins.policy_status === "new");
 
-  // 특약 검색 필터링
   const filteredInsurances = activeInsurances.filter((ins: any) => {
     if (!insuranceSearchTerm) return true;
     const term = insuranceSearchTerm.toLowerCase();
@@ -362,7 +370,8 @@ export default function ClientReportPage() {
   }
   highlightCards.push(...coverageItems);
 
-  const gapItems = [
+  // ⭐️ 1. 기본 시스템 공백 진단
+  const baseGapItems = [
     { condition: scores.cancer.after < 5000, title: "암 보장 공백 발견", desc: `현재 암 보장금액이 ${formatMoney(scores.cancer.after)}으로 안정권보다 부족한 상태입니다.`, action: "일반암 진단비 증액 권장" },
     { condition: scores.brain.after < 2000, title: "뇌혈관 보장 공백 발견", desc: `현재 뇌혈관 보장금액이 ${formatMoney(scores.brain.after)}으로 권장 기준보다 부족한 상태입니다.`, action: "뇌혈관 진단/수술비 보완 요망" },
     { condition: scores.heart.after < 2000, title: "심장 보장 공백 발견", desc: `현재 허혈성/심장 보장금액이 ${formatMoney(scores.heart.after)}으로 권장 기준보다 부족합니다.`, action: "심혈관 특정진단비 보완 권장" },
@@ -372,12 +381,34 @@ export default function ClientReportPage() {
     { condition: scores.hospitalization.after === 0, title: "일당 입원비 보장 부재", desc: "첫날부터 보장받는 입원일당 특약이 없어 장기 입원 시 자부담 리스크가 있습니다.", action: "간병인/입원일당 확보 고려" },
     { condition: !scores.hasDriver, title: "운전자 핵심 비용 부재", desc: "민사/형사상 책임을 방어하는 교통사고처리지원금, 변호사선임비 등의 방어막이 없습니다.", action: "형사합의금 지원 플랜 마련" },
     { condition: !scores.hasDental, title: "치아 보장 자산 부재", desc: "큰 비용이 드는 임플란트, 크라운에 대한 전문 치과 치료비 보장이 없습니다.", action: "치과 전문 덴탈 케어 안내" }
-  ].filter(item => item.condition);
+  ];
+
+  // ⭐️ 2. 기존 자동 검출 카드 필터링 + 커스텀 작성 카드 병합 로직
+  const displayGaps = (() => {
+    // ① 자동 검출 카드 중, 설계사가 켜둔(체크한) 것들만 추려냄
+    const filteredAutoGaps = baseGapItems.filter(item => {
+      if (!client?.consulting_details?.selectedGaps) return item.condition;
+      return client.consulting_details.selectedGaps.includes(item.title) && item.condition;
+    });
+
+    // ② 설계사가 직접 작성한 커스텀 카드 목록
+    const customGapsFromDB = client?.consulting_details?.customGaps || [];
+    
+    // ③ 커스텀 카드 중에서 현재 켜져있는(체크된) 것들만 추려냄
+    const filteredCustomGaps = customGapsFromDB.filter((custom: any) => {
+      if (!client?.consulting_details?.selectedGaps) return true;
+      return client.consulting_details.selectedGaps.includes(custom.title);
+    }).map((custom: any) => ({
+      ...custom,
+      isCustom: true // 커스텀 카드 식별용 플래그
+    }));
+
+    return [...filteredAutoGaps, ...filteredCustomGaps];
+  })();
 
   return (
-    <div className="min-h-screen bg-slate-100 pb-28 text-slate-800 font-sans selection:bg-blue-200">
+    <div className="min-h-screen bg-slate-100 pb-36 text-slate-800 font-sans selection:bg-blue-200">
       
-      {/* 1. 커버 헤더 */}
       <header className="bg-white px-5 sm:px-6 pt-12 pb-8 rounded-b-[2.5rem] shadow-sm relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-blue-50 rounded-full mix-blend-multiply filter blur-3xl opacity-70 translate-x-1/3 -translate-y-1/3"></div>
         <div className="relative z-10 max-w-lg mx-auto">
@@ -395,7 +426,6 @@ export default function ClientReportPage() {
 
       <main className="px-4 sm:px-5 mt-6 space-y-6 max-w-lg mx-auto">
         
-        {/* 2. 핵심 보장 업그레이드 */}
         {highlightCards.length > 0 && (
           <section>
             <h2 className="text-lg font-black text-slate-800 mb-3 px-1">핵심 보장 분석</h2>
@@ -423,20 +453,19 @@ export default function ClientReportPage() {
           </section>
         )}
 
-        {/* 3. 탭(Tab) 메뉴 UI 분리 */}
         <section className="pt-2">
           <div className="flex bg-white rounded-2xl p-1 shadow-sm border border-slate-200 mb-6">
-            <button
-              onClick={() => setActiveTab('gaps')}
-              className={`flex-1 py-3.5 text-sm sm:text-base font-black rounded-xl transition-all ${activeTab === 'gaps' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
-            >
-              보장 공백 진단
-            </button>
             <button
               onClick={() => setActiveTab('insurances')}
               className={`flex-1 py-3.5 text-sm sm:text-base font-black rounded-xl transition-all ${activeTab === 'insurances' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
             >
               상세 보장 내역
+            </button>
+            <button
+              onClick={() => setActiveTab('gaps')}
+              className={`flex-1 py-3.5 text-sm sm:text-base font-black rounded-xl transition-all ${activeTab === 'gaps' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
+            >
+              보장 공백 진단
             </button>
           </div>
 
@@ -445,38 +474,55 @@ export default function ClientReportPage() {
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
               <div className="flex justify-between items-end mb-4 px-1">
                 <h2 className="text-lg font-black text-slate-800">보장 공백 진단리포트</h2>
-                <span className={`text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1 ${gapItems.length > 0 ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'}`}>
-                  {gapItems.length > 0 ? `미흡 보장 ${gapItems.length}건 발견` : "완벽 철벽 방어"}
+                <span className={`text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1 ${displayGaps.length > 0 ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                  {displayGaps.length > 0 ? `미흡 보장 ${displayGaps.length}건 발견` : "완벽 철벽 방어"}
                 </span>
               </div>
 
-              {gapItems.length > 0 ? (
+              {displayGaps.length > 0 ? (
                 <div className="space-y-4">
-                  {gapItems.map((item, index) => (
-                    <div key={index} className="bg-white p-5 rounded-2xl shadow-sm border border-red-100 flex flex-col relative overflow-hidden">
-                      <div className="flex items-start gap-4">
-                        <div className="bg-red-50 p-3 rounded-xl shrink-0 text-red-500">
-                          <ShieldAlert className="w-6 h-6" />
+                  {displayGaps.map((item, index) => {
+                    const isSelected = selectedGaps.includes(item.title);
+
+                    return (
+                      <div 
+                        key={index} 
+                        onClick={() => toggleGapSelection(item.title)}
+                        className={`bg-white p-5 rounded-2xl shadow-sm border flex flex-col relative overflow-hidden transition-all cursor-pointer ${
+                          isSelected 
+                            ? 'border-indigo-400 ring-2 ring-indigo-100 bg-indigo-50/30' 
+                            : 'border-red-100 hover:border-red-200'
+                        }`}
+                      >
+                        <div className="flex items-start gap-4">
+                          <div className={`p-3 rounded-xl shrink-0 transition-colors ${isSelected ? 'bg-indigo-100 text-indigo-600' : 'bg-red-50 text-red-500'}`}>
+                            {isSelected ? <CheckCircle2 className="w-6 h-6" /> : <ShieldAlert className="w-6 h-6" />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className={`text-base font-black mb-1.5 truncate ${isSelected ? 'text-indigo-900' : 'text-slate-900'}`}>
+                              {item.isCustom && <span className="text-orange-500 mr-1">★</span>}
+                              {item.title}
+                            </h4>
+                            <p className="text-sm text-slate-600 leading-relaxed mb-4 break-keep">{item.desc}</p>
+                          </div>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <h4 className="text-base font-black text-slate-900 mb-1.5 truncate">{item.title}</h4>
-                          <p className="text-sm text-slate-600 leading-relaxed mb-4 break-keep">{item.desc}</p>
+                        
+                        <div className="flex items-center justify-between border-t border-slate-100 pt-4">
+                          <span className={`text-xs font-black px-3 py-1.5 rounded-lg truncate max-w-[70%] transition-colors ${isSelected ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'}`}>
+                            {item.action}
+                          </span>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); toggleGapSelection(item.title); }}
+                            className={`shrink-0 text-xs font-black px-4 py-2 rounded-xl transition-colors shadow-sm cursor-pointer ${
+                              isSelected ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-slate-900 text-white hover:bg-slate-800'
+                            }`}
+                          >
+                            {isSelected ? <span className="flex items-center gap-1"><Check className="w-3.5 h-3.5"/> 선택됨</span> : "선택하기"}
+                          </button>
                         </div>
                       </div>
-                      
-                      <div className="flex items-center justify-between border-t border-slate-100 pt-4">
-                        <span className="text-xs font-black text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg truncate max-w-[70%]">
-                          {item.action}
-                        </span>
-                        <button
-                          onClick={() => handleGapInquiry(item.title)}
-                          className="shrink-0 bg-slate-900 text-white text-xs font-black px-4 py-2 rounded-xl hover:bg-slate-800 transition-colors shadow-sm cursor-pointer"
-                        >
-                          문의하기
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white p-8 rounded-2xl shadow-sm text-center">
@@ -528,7 +574,7 @@ export default function ClientReportPage() {
                       <div key={ins.id} className="p-1">
                         <button 
                           onClick={() => setExpandedCovId(expandedCovId === ins.id ? null : ins.id)} 
-                          className="w-full text-left p-5 flex justify-between items-center transition-colors hover:bg-slate-50 rounded-2xl"
+                          className="w-full text-left p-5 flex justify-between items-center transition-colors hover:bg-slate-50 rounded-2xl cursor-pointer"
                         >
                           <div className="flex-1 pr-4 min-w-0">
                             <div className="flex items-center gap-2 mb-1.5 flex-wrap">
@@ -629,14 +675,14 @@ export default function ClientReportPage() {
               <div className="flex flex-col gap-3">
                 <button 
                   onClick={() => setIsRefModalOpen(true)}
-                  className="w-full bg-white text-indigo-900 font-black py-4 text-base rounded-2xl shadow-[0_0_20px_rgba(255,255,255,0.3)] hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                  className="w-full bg-white text-indigo-900 font-black py-4 text-base rounded-2xl shadow-[0_0_20px_rgba(255,255,255,0.3)] hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <UserPlus className="w-6 h-6" /> 지인 무료 분석 신청하기
                 </button>
                 
                 <button 
                   onClick={handleShareReferral}
-                  className="w-full bg-indigo-800/50 border border-indigo-400/30 text-indigo-100 font-bold py-4 text-base rounded-2xl hover:bg-indigo-800/70 transition-all flex items-center justify-center gap-2"
+                  className="w-full bg-indigo-800/50 border border-indigo-400/30 text-indigo-100 font-bold py-4 text-base rounded-2xl hover:bg-indigo-800/70 transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <Share2 className="w-5 h-5" /> 카카오톡으로 초대장 보내기
                 </button>
@@ -647,28 +693,48 @@ export default function ClientReportPage() {
 
       </main>
 
-      {/* 플로팅 담당자 연락 바 */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 p-3 sm:p-4 pb-safe shadow-[0_-10px_20px_rgba(0,0,0,0.05)] z-40">
-        <div className="max-w-lg mx-auto flex items-center justify-between gap-3">
-          <div className="flex flex-col min-w-0 flex-1 pl-1">
-            <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 truncate">{agentCorp}</span>
-            <span className="text-sm sm:text-base font-black text-slate-800 truncate">{agent?.name} <span className="font-medium text-slate-500 text-xs sm:text-sm ml-0.5">{agent?.rank}</span></span>
+      {/* ⭐️ 플로팅 바 영역 (장바구니 팝업 + 기본 담당자 연락 바) */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 flex flex-col">
+        
+        {/* 장바구니 팝업 */}
+        {selectedGaps.length > 0 && (
+          <div 
+            onClick={handleSelectedGapsInquiry}
+            className="bg-indigo-600 px-4 py-3 sm:px-6 shadow-[0_-10px_20px_rgba(79,70,229,0.2)] animate-in slide-in-from-bottom-4 flex justify-between items-center cursor-pointer mx-auto w-full max-w-lg rounded-t-3xl md:rounded-t-none md:max-w-full transition-all hover:bg-indigo-700"
+          >
+            <span className="text-white font-black text-sm flex items-center gap-2">
+              <CheckCircle2 className="w-5 h-5 text-indigo-200" />
+              {selectedGaps.length}개 보장 공백 선택됨
+            </span>
+            <span className="text-indigo-50 font-bold text-xs bg-indigo-800/60 px-3 py-1.5 rounded-lg flex items-center gap-1">
+              한번에 상담 예약 <ArrowRight className="w-4 h-4" />
+            </span>
           </div>
-          <div className="flex gap-2 shrink-0">
-            {agent?.phone && (
-              <a href={`tel:${agent.phone}`} className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-700 active:bg-slate-200 transition-colors shadow-sm border border-slate-200">
-                <Phone className="w-4 h-4 sm:w-5 sm:h-5" />
-              </a>
-            )}
-            <button 
-              onClick={() => {
-                setSelectedNeed("종합 상담 예약 요청"); 
-                setIsModalOpen(true);
-              }}
-              className="h-11 sm:h-12 px-5 sm:px-6 rounded-full bg-blue-600 flex items-center justify-center gap-1.5 text-white font-black text-xs sm:text-sm active:bg-blue-700 transition-colors shadow-md shadow-blue-600/20"
-            >
-              <MessageCircle className="w-4 h-4" /> 상담 예약
-            </button>
+        )}
+
+        {/* 기본 플로팅 담당자 바 */}
+        <div className="bg-white/95 backdrop-blur-md border-t border-slate-200 p-3 sm:p-4 pb-safe shadow-[0_-10px_20px_rgba(0,0,0,0.05)]">
+          <div className="max-w-lg mx-auto flex items-center justify-between gap-3">
+            <div className="flex flex-col min-w-0 flex-1 pl-1">
+              <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 truncate">{agentCorp}</span>
+              <span className="text-sm sm:text-base font-black text-slate-800 truncate">{agent?.name} <span className="font-medium text-slate-500 text-xs sm:text-sm ml-0.5">{agent?.rank}</span></span>
+            </div>
+            <div className="flex gap-2 shrink-0">
+              {agent?.phone && (
+                <a href={`tel:${agent.phone}`} className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-700 active:bg-slate-200 transition-colors shadow-sm border border-slate-200 cursor-pointer">
+                  <Phone className="w-4 h-4 sm:w-5 sm:h-5" />
+                </a>
+              )}
+              <button 
+                onClick={() => {
+                  setSelectedNeed("종합 상담 예약 요청"); 
+                  setIsModalOpen(true);
+                }}
+                className="h-11 sm:h-12 px-5 sm:px-6 rounded-full bg-blue-600 flex items-center justify-center gap-1.5 text-white font-black text-xs sm:text-sm active:bg-blue-700 transition-colors shadow-md shadow-blue-600/20 cursor-pointer"
+              >
+                <MessageCircle className="w-4 h-4" /> 상담 예약
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -677,7 +743,7 @@ export default function ClientReportPage() {
       {isRefModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white rounded-[2rem] w-full max-w-sm p-7 relative shadow-2xl animate-in zoom-in-95 duration-200">
-            <button onClick={() => setIsRefModalOpen(false)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 bg-slate-100 rounded-full p-1.5 transition-colors">
+            <button onClick={() => setIsRefModalOpen(false)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 bg-slate-100 rounded-full p-1.5 transition-colors cursor-pointer">
               <X className="w-5 h-5"/>
             </button>
             
@@ -706,14 +772,14 @@ export default function ClientReportPage() {
               </div>
             </div>
 
-            <button disabled={isSubmittingRef} onClick={handleSubmitReferral} className="w-full mt-8 bg-indigo-600 text-white text-base font-black py-4 rounded-xl shadow-lg shadow-indigo-600/30 hover:bg-indigo-700 disabled:opacity-50 transition-all">
+            <button disabled={isSubmittingRef} onClick={handleSubmitReferral} className="w-full mt-8 bg-indigo-600 text-white text-base font-black py-4 rounded-xl shadow-lg shadow-indigo-600/30 hover:bg-indigo-700 disabled:opacity-50 transition-all cursor-pointer">
               {isSubmittingRef ? "신청 등록 중..." : "우선 배정으로 신청하기"}
             </button>
           </div>
         </div>
       )}
 
-      {/* 상담 예약 및 특정 상품 문의 모달 */}
+      {/* 상담 예약 및 특정 상품 문의 모달 (장바구니 모드 포함) */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
           <div className="w-full max-w-[360px] bg-white rounded-[2rem] p-7 shadow-2xl animate-in zoom-in-95">
@@ -732,6 +798,7 @@ export default function ClientReportPage() {
                 </div>
               </div>
 
+              {/* 일반 상품 문의용 Select */}
               {selectedNeed === "특정 상품 문의 요청" && (
                 <div className="animate-in fade-in slide-in-from-top-2">
                   <label className="block text-xs font-bold text-slate-500 mb-2">문의 상품 종류 <span className="text-red-500">*</span></label>
@@ -752,6 +819,20 @@ export default function ClientReportPage() {
                       <option value="화재/배상/기타">화재/배상/기타</option>
                     </select>
                     <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
+                  </div>
+                </div>
+              )}
+              
+              {/* 장바구니로 선택한 공백 목록 표시 UI */}
+              {selectedNeed === "보장 공백 보완 상담 요청" && (
+                <div className="animate-in fade-in slide-in-from-top-2">
+                  <label className="block text-xs font-bold text-slate-500 mb-2">선택한 보완 항목 <span className="text-red-500">*</span></label>
+                  <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3.5 text-sm font-bold text-indigo-700 flex flex-col gap-2 shadow-inner">
+                    {specificProduct.split(", ").map((gap, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-indigo-400 shrink-0" /> <span className="truncate">{gap}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
