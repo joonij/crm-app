@@ -8,7 +8,7 @@ export function SlideIntro() {
   return (
     <div className="flex flex-col items-center justify-center h-full text-center space-y-10 relative overflow-hidden">
       <div className="px-10 py-4 bg-blue-50 text-blue-700 rounded-full font-bold text-xl tracking-widest z-10">
-        사내 마스터 교육 과정 (바른금융파트너스)
+        마스터 교육 과정 (바른금융파트너스)
       </div>
       <h1 className="text-7xl font-black text-gray-900 leading-tight mb-8 z-10 tracking-tight">
         저축성 상품 교육<br />

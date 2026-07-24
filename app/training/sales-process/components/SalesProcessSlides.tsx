@@ -18,7 +18,7 @@ export function Slide1() {
   return (
     <div className="flex flex-col items-center justify-center h-full text-center space-y-10 relative overflow-hidden">
       <div className="px-6 py-2 bg-blue-50 text-blue-700 rounded-full font-bold tracking-widest text-xl z-10">
-        사내 마스터 교육 과정 (바른금융파트너스)
+        마스터 교육 과정 (바른금융파트너스)
       </div>
       <h1 className="text-7xl font-black text-gray-900 leading-tight tracking-tight">
         7단계 영업 프로세스
