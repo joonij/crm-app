@@ -44,7 +44,6 @@ export default function MyPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [isCardModalOpen, setIsCardModalOpen] = useState(false); 
 
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [insuranceCompanies, setInsuranceCompanies] = useState<{company_type: string, company_name: string}[]>([]);
@@ -424,7 +423,7 @@ export default function MyPage() {
             </div>
             
             <div className="px-6 pb-6 relative">
-              <div className="mt-14 flex flex-col items-center">
+              <div className="mt-6 flex flex-col items-center">
                 {profile.identity && (
                   <span className="text-xs font-black text-amber-500 mb-1">{profile.identity}</span>
                 )}
@@ -435,10 +434,15 @@ export default function MyPage() {
                 <p className="text-sm text-gray-500 mt-1.5 font-medium">{profile.corporation_name} / {profile.branch_name}</p>
               </div>
 
-              <div className="mt-6 pt-6 border-t border-gray-100 space-y-3">
-                <button onClick={() => setIsCardModalOpen(true)} className="cursor-pointer w-full flex items-center justify-center gap-2 bg-gradient-to-r from-gray-900 to-gray-800 hover:from-gray-800 hover:to-gray-700 text-white rounded-xl py-3 text-sm font-bold transition-all shadow-md hover:shadow-lg">
-                  <QrCode className="w-4 h-4 text-blue-300" /> 모바일 명함 확인 및 전송
-                </button>
+              <div className="mt-4 pt-4 border-t border-gray-100 space-y-3">
+                <div className="flex gap-2">
+                  <button onClick={handleKakaoShare} className="cursor-pointer bg-[#FEE500] hover:bg-[#FADA0A] text-[#000000] rounded-2xl py-4 flex-1 flex items-center justify-center gap-2 font-bold text-sm shadow-lg transition-transform active:scale-95">
+                    <MessageCircle className="w-5 h-5 fill-black" /> 명함 전송하기
+                  </button>
+                  <button onClick={() => window.open(`/card/${profile?.id}`, '_blank')} className="cursor-pointer flex-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-2xl py-3.5 flex items-center justify-center gap-2 font-bold text-sm shadow-md transition-colors">
+                    <ExternalLink className="w-4 h-4" /> 명함 미리보기
+                  </button>
+                </div>
                 <button onClick={handleLogout} className="cursor-pointer w-full flex items-center justify-center gap-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 rounded-xl py-3 text-sm font-bold transition-colors">
                   <LogOut className="w-4 h-4" /> 로그아웃
                 </button>
@@ -744,70 +748,6 @@ export default function MyPage() {
           </div>
         </div>
       </div>
-
-      {/* 중앙 정렬된 모바일 디지털 명함 미리보기 모달 */}
-      {isCardModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 transition-opacity animate-in fade-in" onClick={() => setIsCardModalOpen(false)}>
-          {/* (명함 모달 기존 코드 동일 유지) */}
-          <div className="w-full max-w-[360px] flex flex-col gap-4 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
-            <div className="bg-white rounded-3xl overflow-hidden shadow-2xl relative text-center border border-gray-100">
-              <div className="h-80 relative p-2">
-                <div className="w-full h-full bg-slate-100 rounded-xl flex items-center justify-center overflow-hidden border border-gray-200">
-                  {profile.avatar_url ? <img src={profile.avatar_url} className="w-full h-full object-cover" /> : <User className="w-10 h-10 text-gray-400" />}
-                </div>
-              </div>
-              <div className="relative px-6 pb-6">
-                <div className="mt-8 space-y-1">
-                  <p className="text-blue-600 font-extrabold text-xs tracking-tight">{profile.corporation_name} {profile.branch_name}</p>
-                  {profile.identity && ( <p className="text-amber-500 font-black text-sm tracking-wide mb-1">{profile.identity}</p> )}
-                  <div className="flex items-baseline justify-center gap-2">
-                    <h2 className="text-2xl font-black text-gray-900 tracking-tight">{profile.name}</h2>
-                    <span className="text-sm font-bold text-gray-500">{profile.rank}</span>
-                  </div>
-                </div>
-                {profile.bio && (
-                  <div className="mt-5 bg-gray-50/80 rounded-2xl p-4 border border-gray-100 relative">
-                    <Quote className="absolute top-2 left-2 w-4 h-4 text-blue-200 rotate-180" />
-                    <p className="text-sm font-medium text-gray-700 leading-relaxed text-center px-4">"{profile.bio}"</p>
-                    <Quote className="absolute bottom-2 right-2 w-4 h-4 text-blue-200" />
-                  </div>
-                )}
-                <div className="mt-6 space-y-3.5 text-left border-t border-gray-100 pt-6">
-                  <div className="flex items-center gap-3 text-sm text-gray-700 font-medium">
-                    <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 shrink-0"><Phone className="w-4 h-4" /></div>
-                    <span className="tracking-wide">{profile.phone || "연락처 미등록"}</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-sm text-gray-700 font-medium">
-                    <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 shrink-0"><Printer className="w-4 h-4" /></div>
-                    <span className="tracking-wide">{profile.fax || "팩스 미등록"}</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-sm text-gray-700 font-medium">
-                    <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 shrink-0"><Mail className="w-4 h-4" /></div>
-                    <span className="truncate">{profile.email}</span>
-                  </div>
-                  <div className="flex items-start gap-3 text-sm text-gray-700 font-medium">
-                    <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 shrink-0 mt-0.5"><MapPin className="w-4 h-4" /></div>
-                    <span className="leading-snug">{profile.office_address || "주소 미등록"}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="flex flex-col gap-2">
-              <button onClick={handleKakaoShare} className="cursor-pointer w-full bg-[#FEE500] hover:bg-[#FADA0A] text-[#000000] rounded-2xl py-4 flex items-center justify-center gap-2 font-black text-[15px] shadow-lg transition-transform active:scale-95">
-                <MessageCircle className="w-5 h-5 fill-black" /> 카카오톡으로 명함 전송하기
-              </button>
-              <div className="flex gap-2">
-                <button onClick={() => window.open(`/card/${profile?.id}`, '_blank')} className="cursor-pointer flex-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-2xl py-3.5 flex items-center justify-center gap-2 font-bold text-sm shadow-md transition-colors">
-                  <ExternalLink className="w-4 h-4" /> 미리보기
-                </button>
-                <button onClick={() => setIsCardModalOpen(false)} className="cursor-pointer flex-1 bg-gray-800 hover:bg-gray-900 text-white rounded-2xl py-3.5 flex items-center justify-center gap-2 font-bold text-sm shadow-md transition-colors">
-                  <X className="w-4 h-4" /> 닫기
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ⭐️ 확장된 팀원 전체 정보 수정 모달 (크기를 키우고 스크롤 가능하게 처리) */}
       {editingMember && (

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Building2, TrendingUp, ShieldCheck, Landmark, Quote, Snowflake, Droplet, Coins, ReceiptText, Timer, TrendingDown, ShieldPlus, LineChart, Lock } from "lucide-react";
+import { Building2, TrendingUp, ShieldCheck, Landmark, Quote, Snowflake, Droplet, Coins, ReceiptText, Timer, TrendingDown, ShieldPlus, LineChart, Lock, ChevronRight, AlertCircle } from "lucide-react";
 
 // SLIDE 1: 대문
 export function SlideIntro() {
@@ -139,7 +139,6 @@ export function SlideCh2() {
 
 // SLIDE 4: 단리 vs 복리
 export function SlideCh3_1() {
-  // step 0: 단리 강조, step 1: 복리 강조
   const [step, setStep] = useState(0);
 
   useEffect(() => {
@@ -221,16 +220,14 @@ export function SlideCh3_1() {
 
 // SLIDE 5: 은행 적금 5% 착시
 export function SlideCh3_2() {
-  // 내부 애니메이션 단계를 관리하는 상태 (0, 1, 2)
   const [step, setStep] = useState(0);
 
-  // ⭐️ 핵심 로직: 부모 슬라이드 이동을 가로채서 내부 애니메이션 먼저 실행
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "ArrowRight" || e.key === " ") {
         if (step < 2) {
-          e.stopPropagation(); // 부모 슬라이드로 이벤트가 넘어가는 것을 차단
-          e.preventDefault();  // 스크롤 방지
+          e.stopPropagation(); 
+          e.preventDefault();  
           setStep((prev) => prev + 1);
         }
       } else if (e.key === "ArrowLeft") {
@@ -242,7 +239,6 @@ export function SlideCh3_2() {
       }
     };
 
-    // 캡처 페이즈(true)에서 이벤트를 가로채어 최우선으로 실행되게 함
     window.addEventListener("keydown", handleKeyDown, true);
     return () => window.removeEventListener("keydown", handleKeyDown, true);
   }, [step]);
@@ -273,12 +269,10 @@ export function SlideCh3_2() {
             <div className="text-center pt-4">
               <p className="text-sm text-gray-500 mb-1">고객이 기대한 이자 (1,200만 x 5%)</p>
               
-              {/* ⭐️ Step 2: 빨간색 취소선 애니메이션 */}
               <div className="relative inline-block">
                 <p className={`text-4xl font-black transition-colors duration-500 ${step >= 2 ? 'text-gray-400' : 'text-red-600'}`}>
                   600,000원
                 </p>
-                {/* 가상의 선을 만들어서 width를 0에서 100%로 늘려 애니메이션 효과를 줌 */}
                 <div 
                   className="absolute top-1/2 left-0 h-1.5 bg-red-600 transition-all duration-700 ease-out transform -translate-y-1/2 rotate-[-2deg]"
                   style={{ width: step >= 2 ? '100%' : '0%' }}
@@ -545,9 +539,6 @@ export function SlideCh3_6() {
     </p>
     <div className="grid grid-cols-2 gap-4 flex-1 min-h-0">
       <div className="bg-white border-2 border-red-200 rounded-2xl p-5 flex flex-col relative shadow-sm h-full overflow-hidden">
-        <div className="absolute top-3 right-3 bg-red-100 text-red-500 w-8 h-8 rounded-full flex items-center justify-center font-black text-lg shrink-0">
-          ✂️
-        </div>
         <h4 className="font-black text-gray-800 mb-1 shrink-0 text-2xl">과세</h4>
         <p className="text-xl text-gray-500 mb-4 shrink-0">수익이 날 때마다 15.4% 강제 징수</p>
         
@@ -563,9 +554,6 @@ export function SlideCh3_6() {
 
       {/* 2. 비과세 (완벽한 방패) */}
       <div className={`bg-emerald-50 border-2 border-emerald-300 rounded-2xl p-5 flex flex-col relative shadow-md transform h-full overflow-hidden z-10 transition-all duration-400 ${step >= 1 ? 'scale-[1.03]' : 'scale-[1.00]'}`}>
-        <div className="absolute top-3 right-3 bg-emerald-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-black text-lg shadow-lg shrink-0">
-          🛡️
-        </div>
         <h4 className="text-2xl font-black text-emerald-900 mb-1 shrink-0">비과세</h4>
         <p className="text-xl text-emerald-700 mb-4 shrink-0">10년 유지 시 세금 0원 (합법적 절세)</p>
         
@@ -601,15 +589,42 @@ export function SlideCh3_6() {
 
 // SLIDE 10: 비과세 중요성
 export function SlideCh3_7() {
+  const [step, setStep] = useState(0);
+
+  // ⭐️ 방향키/스페이스바 이벤트 가로채기 (버튼 없이 키보드로 조작)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "ArrowRight" || e.key === " ") {
+        if (step < 1) {
+          e.stopPropagation(); // 부모 슬라이드 이동 차단
+          e.preventDefault();  // 스크롤 방지
+          setStep((prev) => prev + 1);
+        }
+      } else if (e.key === "ArrowLeft") {
+        if (step > 0) {
+          e.stopPropagation();
+          e.preventDefault();
+          setStep((prev) => prev - 1);
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
+  }, [step]);
+
   return (
-    <div className="h-full flex flex-col justify-center gap-8">
-      <div className="flex bg-white p-16 rounded-[3rem] border border-emerald-100 shadow-xl items-center gap-16">
-        <div className="bg-emerald-500 p-12 rounded-full shadow-lg shrink-0">
+    <div className="h-full flex flex-col justify-center gap-8 relative">
+      <div className="flex bg-white items-center gap-16 transition-all duration-500 overflow-hidden relative px-8">
+        
+        <div className="bg-emerald-500 p-6 rounded-full shadow-lg shrink-0">
           <ReceiptText className="w-32 h-32 text-white" />
         </div>
-        <div className="space-y-8">
-          <h3 className="text-4xl font-black text-emerald-900">부자들이 10년짜리 보험에 돈을 묶는 이유</h3>
-          <div className="text-gray-700 leading-relaxed bg-emerald-50 px-4 py-6 rounded-3xl font-medium">
+        
+        <div className="w-full relative">
+          <h3 className="text-4xl font-black text-emerald-900 mb-4">부자들이 10년짜리 보험에 돈을 묶는 이유</h3>
+          
+          <div className={`text-gray-700 bg-emerald-50 px-6 py-6 rounded-3xl font-medium transition-all duration-700 ease-in-out ${step >= 1 ? 'opacity-30 grayscale blur-[3px]' : 'opacity-100'}`}>
             <p className="font-bold">소득세법 제16조(이자소득) 1항</p>
             <p className="text-gray-400">
             9. 대통령령으로 정하는 저축성보험의 보험차익. <strong className="text-black">다만, 다음 각 목의 어느 하나에 해당하는 보험의 보험차익은 제외</strong>한다.<br/>
@@ -627,6 +642,29 @@ export function SlideCh3_7() {
             다. 2017년 4월 1일부터 체결하는 보험계약 경우: 계약자 1명당 매월 납입하는 보험료 합계액이 <strong className="text-2xl text-emerald-600">150만원 이하</strong>일 것<br/>
             </p>
           </div>
+
+          {/* ⭐️ 스티커(딱지) 효과 경고 박스 */}
+          <div 
+            className={`absolute top-1/2 left-1/2 w-[105%] bg-blue-50 border-[5px] border-blue-400 p-8 rounded-3xl transition-all duration-500 ease-[cubic-bezier(0.175,0.885,0.32,1.275)] ${
+              step >= 1 
+                ? 'opacity-100 transform -translate-x-1/2 -translate-y-1/2 scale-100 rotate-[-2deg]' 
+                : 'opacity-0 transform -translate-x-1/2 -translate-y-1/2 scale-[1.6] rotate-[10deg] pointer-events-none'
+            }`}
+          >
+            <div className="absolute -top-6 -right-6 bg-blue-500 text-white w-16 h-16 rounded-full flex items-center justify-center font-black text-4xl shadow-lg border-4 border-white transform rotate-12">
+              !
+            </div>
+            <div className="flex items-center gap-6">
+              <AlertCircle className="w-20 h-20 text-blue-500 shrink-0" strokeWidth={2.5} />
+              <div>
+                <p className="text-[22px] font-bold text-blue-900 leading-relaxed tracking-tight">
+                  종신보험은 '저축성상품'이 아닌 <span className="bg-blue-200 px-2.5 py-0.5 rounded shadow-sm inline-block transform -rotate-1">보장성상품</span>이므로<br/>
+                  위 비과세 한도(1억 / 월 150만) 요건에서 완전히 제외됩니다.
+                </p>
+              </div>
+            </div>
+          </div>
+          
         </div>
       </div>
     </div>
@@ -635,7 +673,6 @@ export function SlideCh3_7() {
 
 // SLIDE 11: 금융상품 혜택 총정리 (표)
 export function SlideCh4() {
-  // step 0: 전체 표 표시, step 1: 은행/증권 경감 및 보험 강조
   const [step, setStep] = useState(0);
 
   useEffect(() => {

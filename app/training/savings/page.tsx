@@ -1,3 +1,4 @@
+//savings/page.tsx
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -121,11 +122,36 @@ export default function SavingsTrainingPage() {
     setCurrentSlide((prev) => (prev === 0 ? prev : prev - 1));
   }, []);
 
-// ⭐️ 키보드 네비게이션 제어 (스페이스바 토글 기능 적용)
+  // ⭐️ 하단 버튼을 클릭했을 때 마치 '방향키'를 누른 것처럼 가상 이벤트를 발생시킵니다.
+  // 💡 수정됨: window가 아닌 document에 이벤트를 발생시켜야 슬라이드 내부의 이벤트 가로채기(Capture)가 정상 작동합니다.
+  const triggerNext = () => {
+    document.dispatchEvent(new KeyboardEvent("keydown", { 
+      key: "ArrowRight", 
+      code: "ArrowRight",
+      keyCode: 39,
+      which: 39,
+      bubbles: true, 
+      cancelable: true 
+    }));
+  };
+
+  const triggerPrev = () => {
+    document.dispatchEvent(new KeyboardEvent("keydown", { 
+      key: "ArrowLeft", 
+      code: "ArrowLeft",
+      keyCode: 37,
+      which: 37,
+      bubbles: true, 
+      cancelable: true 
+    }));
+  };
+
+  // ⭐️ 키보드 네비게이션 제어 (스페이스바 토글 기능 적용)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // 1. 스페이스바: 펜 모드 ↔ 마우스 모드 즉시 전환
       if (e.key === " ") {
+        if (!e.isTrusted) return; // 가짜 이벤트 방어 코드
         e.preventDefault(); // 화면 스크롤 방지
         setIsPenMode((prev) => {
           if (!prev) setPenWidth(4); // 펜 모드가 켜질 때 굵기 초기화
@@ -135,7 +161,8 @@ export default function SavingsTrainingPage() {
       }
 
       // 2. 펜 모드 상태일 때는 오작동 방지를 위해 방향키 비활성화
-      if (isPenMode) return;
+      // 💡 단, 하단 버튼 클릭(triggerNext 등)으로 발생한 인위적 가짜 이벤트(isTrusted === false)는 통과시킵니다.
+      if (isPenMode && e.isTrusted) return;
 
       // 3. 마우스 모드일 때만 방향키로 슬라이드 이동
       if (e.key === "ArrowRight") nextSlide();
@@ -184,7 +211,7 @@ export default function SavingsTrainingPage() {
             <button onClick={() => { setPenColor("#3b82f6"); setPenWidth(4); }} className={`w-6 h-6 rounded-full bg-blue-500 border-2 ${penColor === "#3b82f6" ? 'border-gray-900 scale-125' : 'border-transparent'}`} title="파란색" />
             <button onClick={() => { setPenColor("#fde047"); setPenWidth(20); }} className={`w-6 h-6 rounded-full bg-yellow-300 border-2 ${penColor === "#fde047" ? 'border-gray-900 scale-125' : 'border-transparent'}`} title="형광펜" />
             
-            <button onClick={clearCanvas} className="mt-2 p-2 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="모두 지우기">
+            <button onClick={clearCanvas} className="mt-2 p-2 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer" title="모두 지우기">
               <Trash2 className="w-5 h-5" />
             </button>
           </div>
@@ -230,17 +257,17 @@ export default function SavingsTrainingPage() {
         {/* 하단 네비게이션 */}
         <div className="px-12 py-6 border-t border-gray-100 flex justify-between items-center bg-gray-50/80 backdrop-blur-sm shrink-0 relative z-50">
           <button 
-            onClick={prevSlide}
+            onClick={triggerPrev}
             disabled={currentSlide === 0}
-            className="flex items-center px-6 py-3 text-base font-black text-gray-700 bg-white border-2 border-gray-300 rounded-xl hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
+            className="flex items-center px-6 py-3 text-base font-black text-gray-700 bg-white border-2 border-gray-300 rounded-xl hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm cursor-pointer"
           >
             <ChevronLeft className="w-5 h-5 mr-2" /> 이전 슬라이드
           </button>
           
           <button 
-            onClick={nextSlide}
+            onClick={triggerNext}
             disabled={currentSlide === slides.length - 1}
-            className="flex items-center px-6 py-3 text-base font-black text-white bg-gray-900 rounded-xl hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-md"
+            className="flex items-center px-6 py-3 text-base font-black text-white bg-gray-900 rounded-xl hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-md cursor-pointer"
           >
             다음 슬라이드 <ChevronRight className="w-5 h-5 ml-2" />
           </button>
