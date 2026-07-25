@@ -4,14 +4,15 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, ArrowLeft, PenTool, MousePointer2, Trash2 } from "lucide-react";
 
+// 분리해 둔 슬라이드 컴포넌트들을 모두 불러옵니다.
 import { 
-  SlideIntro, SlideCh1, SlideCh2, SlideCh3, 
-  SlideCh4, SlideCh5, SlideCh6, SlideCh7, SlideClosing 
-} from "./components/SilbiSlides"; // 경로를 폴더 구조에 맞게 수정해주세요
+  SlideIntro, SlideCh1, SlideCh2, SlideCh3, SlideCh4,
+  SlideCh5, SlideCh6, SlideCh7
+} from "./components/HiraSlides";
 
-export default function SilbiTrainingPage() {
+export default function BasicsTrainingPage() {
   const [currentSlide, setCurrentSlide] = useState(0);
-
+  
   const [isPenMode, setIsPenMode] = useState(false);
   const [penColor, setPenColor] = useState("#ef4444"); // 기본색: 빨강
   const [penWidth, setPenWidth] = useState(4);
@@ -19,17 +20,17 @@ export default function SilbiTrainingPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const isDrawing = useRef(false);
+
   // 컴포넌트로 분리한 슬라이드 배열 매핑
   const slides = [
     { id: "intro", title: "", content: <SlideIntro /> },
-    { id: "ch1", title: "Chapter 1. 실손의료보험 탄생 배경과 역사", content: <SlideCh1 /> },
-    { id: "ch2", title: "Chapter 2. 실손의료보험 세대별 변천사", content: <SlideCh2 /> },
-    { id: "ch3", title: "Chapter 3. 실비의 딜레마와 시스템의 붕괴", content: <SlideCh3 /> },
-    { id: "ch4", title: "Chapter 4. 보상의 사각지대와 도수치료의 최후", content: <SlideCh4 /> },
-    { id: "ch5", title: "Chapter 5. 거대 리스크의 등장과 정액보장의 당위성", content: <SlideCh5 /> },
-    { id: "ch6", title: "Chapter 6. 실손보장 축소와 정액보장 포트폴리오 리빌딩 전략", content: <SlideCh6 /> },
-    { id: "ch7", title: "Chapter 7. 해외사례 / 노후·간편 실손 기본", content: <SlideCh7 /> },
-    { id: "ch8", title: "", content: <SlideClosing /> }
+    { id: "ch1", title: "Chapter 1. 보험심사평가원(HIRA)이란", content: <SlideCh1 /> },
+    { id: "ch2", title: "Chapter 1. 보험심사평가원(HIRA)이란", content: <SlideCh2 /> },
+    { id: "ch3", title: "Chapter 2. 병력사항 체크 프로세스", content: <SlideCh3 /> },
+    { id: "ch4", title: "Chapter 3. 어디를 봐야 할까?", content: <SlideCh4 /> },
+    { id: "ch5", title: "Chapter 4. 선(先) 리모델링, 후(後) 청구", content: <SlideCh5 /> },
+    { id: "ch6", title: "Chapter 5. 발급서류 및 거절처리", content: <SlideCh6 /> },
+    { id: "ch7", title: "Chapter 6. 심사평가원 4원칙", content: <SlideCh7 /> }
   ];
 
    // ⭐️ 캔버스 사이즈 초기화 함수
