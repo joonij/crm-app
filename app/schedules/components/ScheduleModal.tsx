@@ -1,7 +1,8 @@
+//app/schedules/components/ScheduleModal.tsx
 "use client";
 
 import { useState, useEffect } from "react";
-import { Calendar as CalendarIcon, X, Loader2, Save, Edit2, Search } from "lucide-react";
+import { Calendar as CalendarIcon, X, Loader2, Save, Edit2, Search, ChevronDown } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 type ScheduleType = 'company' | 'agency' | 'team' | 'personal';
@@ -36,6 +37,7 @@ export default function ScheduleModal({ isOpen, onClose, onSuccess, myInfo, edit
     date: defaultDate || "",
     endDate: "", 
     time: "09:00",
+    category: "", // ⭐️ 카테고리 상태 추가
     content: "",
     schedule_type: "personal" as ScheduleType,
     client_id: "", 
@@ -79,6 +81,7 @@ export default function ScheduleModal({ isOpen, onClose, onSuccess, myInfo, edit
           date: editData.date,
           endDate: editData.date,
           time: editData.time ? editData.time.substring(0, 5) : "09:00",
+          category: editData.category || "", // ⭐️ 수정 데이터 반영
           content: editData.content,
           schedule_type: editData.schedule_type,
           client_id: editData.client_id ? String(editData.client_id) : "",
@@ -90,6 +93,7 @@ export default function ScheduleModal({ isOpen, onClose, onSuccess, myInfo, edit
           date: defaultDate || "",
           endDate: "",
           time: "09:00",
+          category: "", // ⭐️ 초기화 반영
           content: "",
           schedule_type: "personal",
           client_id: "",
@@ -115,17 +119,19 @@ export default function ScheduleModal({ isOpen, onClose, onSuccess, myInfo, edit
   };
 
   const handleSave = async () => {
-    if (!form.date || !form.time || !form.content) return alert("필수 항목(날짜, 시간, 내용)을 입력해주세요.");
+    if (!form.date || !form.time) return alert("필수 항목(날짜, 시간)을 입력해주세요.");
     if (dateMode !== 'single' && !form.endDate) return alert("종료일을 선택해주세요.");
     if (!myInfo) return alert("사용자 정보 오류");
 
     setIsSubmitting(true);
     try {
+      // ⭐️ basePayload에 category 항목 포함
       const basePayload = {
         agent_id: myInfo.id,
         agency_id: myInfo.agency_id,
         time: form.time + ":00",
-        content: form.content,
+        category: form.category || null, 
+        content: form.content || null,
         schedule_type: form.schedule_type,
         repeat: dateMode !== 'single', 
         client_id: form.client_id ? Number(form.client_id) : null 
@@ -289,11 +295,34 @@ export default function ScheduleModal({ isOpen, onClose, onSuccess, myInfo, edit
               </datalist>
             </div>
           )}
+
+          {/* ⭐️ 카테고리 선택 (새로 추가된 영역) */}
+          <div>
+            <label className="block text-xs font-bold text-slate-600 mb-1.5">카테고리</label>
+            <div className="relative">
+              <select
+                value={form.category}
+                onChange={(e) => setForm({ ...form, category: e.target.value })}
+                className="w-full text-sm p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none appearance-none bg-white cursor-pointer"
+              >
+                <option value="AP">AP</option>
+                <option value="상담">상담</option>
+                <option value="계약">계약</option>
+                <option value="청구">청구</option>
+                <option value="교육">교육</option>
+                <option value="회의">회의</option>
+                <option value="미팅">미팅</option>
+                <option value="기타">기타</option>
+              </select>
+              <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+          </div>
+
           {/* 내용 입력 */}
           <div>
             <label className="block text-xs font-bold text-slate-600 mb-1.5">상세 내용</label>
             <textarea 
-              placeholder="일정 내용을 입력하세요"
+              placeholder="세부 일정 내용"
               value={form.content}
               onChange={e => setForm({...form, content: e.target.value})}
               rows={4}

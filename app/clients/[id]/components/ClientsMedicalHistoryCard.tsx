@@ -393,7 +393,7 @@ export default function ClientsMedicalHistoryCard({ clientId, initialHistory }: 
           </div>
 
           <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-slate-300 border-dashed rounded-lg cursor-pointer bg-white hover:bg-slate-50 transition-colors">
-            <div className="flex flex-col items-center justify-center pt-5 pb-6">
+            <div className="flex flex-col items-center justify-center pt-4 pb-4">
               <UploadCloud className="w-6 h-6 text-slate-400 mb-2" />
               <p className="text-xs text-slate-500"><span className="font-semibold text-blue-600">클릭하여 파일 첨부</span> (심평원 PDF 다중 선택 가능)</p>
             </div>
@@ -416,7 +416,6 @@ export default function ClientsMedicalHistoryCard({ clientId, initialHistory }: 
         </div>
 
         <div className="space-y-2 shrink-0">
-          <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest ml-1">상세 고지 의무</p>
           {[
             { id: "q3Month_hospital", label: "3개월 내 다녀온 병원 및 약국 이력" },
             { id: "q1Year_same_disease", label: "1년 내 같은 질병(코드) 병원 이력" },
@@ -441,7 +440,7 @@ export default function ClientsMedicalHistoryCard({ clientId, initialHistory }: 
         <div className="flex flex-col gap-1.5 flex-1 min-h-[160px]">
           <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest ml-1 shrink-0">병력 상세 메모</p>
           <textarea
-            className={`w-full flex-1 rounded-lg border p-3 text-xs text-gray-800 leading-relaxed resize-none focus:outline-none transition-colors ${isAnalyzed && medicalMemo.includes("알릴 의무 대상") ? 'border-red-300 bg-red-50/20 focus:ring-1 focus:ring-red-500' : 'border-gray-200 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500'}`}
+            className={`w-full min-h-[400px] flex-1 rounded-lg border p-3 text-xs text-gray-800 leading-relaxed resize-none focus:outline-none transition-colors ${isAnalyzed && medicalMemo.includes("알릴 의무 대상") ? 'border-red-300 bg-red-50/20 focus:ring-1 focus:ring-red-500' : 'border-gray-200 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500'}`}
             placeholder="상세 병력 사항이나 고지 의무 특이사항을 기록하세요..."
             value={medicalMemo}
             onChange={(e) => setMedicalMemo(e.target.value)}

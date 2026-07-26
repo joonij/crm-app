@@ -158,17 +158,37 @@ export function SlideCh4() {
         {/* 세부진료사항 */}
         <div className="bg-blue-50 border-2 border-blue-200 rounded-3xl p-10 shadow-sm flex flex-col">
           <div className="flex items-center gap-4 mb-6 border-b border-blue-200 pb-4">
-            <Syringe className="w-10 h-10 text-blue-600" />
-            <h4 className="text-3xl font-black text-blue-900">'세부' 진료사항</h4>
+            <Syringe className="w-10 h-10 text-blue-600 shrink-0" />
+            <h4 className="text-2xl font-black"><span className="text-3xl text-blue-900">'세부'</span> 진료사항 및 <span className="text-3xl text-blue-900">'케어링크'</span></h4>
           </div>
           <p className="text-xl text-blue-800 font-bold mb-4">처치/수술/시술 청구 누락을 찾아내는 보물창고</p>
-          <div className="bg-white p-6 rounded-2xl border border-blue-100 shadow-inner flex-1">
-            <p className="text-xl font-bold text-gray-800 mb-4">아래 키워드가 보이면 무조건 체크!</p>
-            <div className="flex gap-4">
-              <span className="bg-blue-600 text-white px-6 py-3 rounded-xl text-2xl font-black">~ 처치</span>
-              <span className="bg-blue-600 text-white px-6 py-3 rounded-xl text-2xl font-black">~ 술</span>
+          
+          <div className="bg-white p-4 rounded-2xl border border-blue-100 shadow-inner flex-1 flex flex-col justify-between">
+            <div className="items-center gap-3">
+              <p className="text-indigo-900 px-3.5 py-1.5 rounded-lg text-base font-black shrink-0">
+                '세부' 진료사항
+              </p>
+              <div className="flex gap-2">
+                <span className="bg-blue-600 text-white px-4 py-2 rounded-xl text-lg font-black whitespace-nowrap">
+                  ~ 처치
+                </span>
+                <span className="bg-blue-600 text-white px-4 py-2 rounded-xl text-lg font-black whitespace-nowrap">
+                  ~ 술
+                </span>
+              </div>
             </div>
-            <p className="text-gray-500 mt-4 text-lg font-medium">고객은 단순 치료라 생각해서 실비만 받고<br/>수술비는 청구하지 않은 경우가 대다수입니다.</p>
+            <div className=" items-center gap-3">
+              <p className="text-indigo-900 px-3.5 py-1.5 rounded-lg text-base font-black shrink-0">
+                케어링크
+              </p>
+              <span className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-base md:text-lg font-black whitespace-nowrap">
+                5년 내 수술 의심 (처치/수술 & 5만원↑)
+              </span>
+            </div>
+            <p className="text-gray-600 mt-6 text-lg font-medium leading-relaxed border-t border-gray-100 pt-4">
+              고객은 단순 치료라 생각해서 실비만 받고<br />
+              <strong className="text-blue-600 font-black">수술비는 청구하지 않은 경우가 대다수입니다.</strong>
+            </p>
           </div>
         </div>
         
@@ -176,7 +196,7 @@ export function SlideCh4() {
         <div className="bg-red-50 border-2 border-red-200 rounded-3xl p-10 shadow-sm flex flex-col">
           <div className="flex items-center gap-4 mb-6 border-b border-red-200 pb-4">
             <Stethoscope className="w-10 h-10 text-red-600" />
-            <h4 className="text-3xl font-black text-red-900">'기본' 진료사항</h4>
+            <h4 className="text-2xl font-black"><span className="text-3xl text-red-900">'기본'</span> 진료사항</h4>
           </div>
           <p className="text-lg text-gray-600 font-bold">아래 질병 분류 기호(알파벳)를 주목</p>
           <p className="text-2xl text-red-800 font-bold mb-6">보험 가입이 어렵거나 유병자 상품으로 설계</p>
@@ -216,19 +236,19 @@ export function SlideCh5() {
         </p>
 
         <div className="flex gap-6 mt-4">
-          <div className="flex-1 bg-white p-8 rounded-2xl border-2 border-gray-200">
-            <h4 className="text-2xl font-black text-gray-400 mb-4">청구를 먼저 할 경우</h4>
-            <p className="text-xl font-bold text-gray-700 leading-relaxed">
-              보험사에 병력 기록이 즉시 공유되어,<br/>
-              <strong className="text-red-600 text-2xl">신규 보험 가입(리모델링)이 거절되거나<br/>심각한 제한</strong>을 받게 됩니다.
-            </p>
-          </div>
           <div className="flex-1 bg-white p-8 rounded-2xl border-2 border-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.3)] transform scale-105">
             <h4 className="text-2xl font-black text-emerald-600 mb-4">올바른 순서</h4>
             <p className="text-xl font-bold text-gray-800 leading-relaxed">
               1. 심사평가원 자료를 토대로 아쉬운 보장 안내<br/>
               2. 부족한 보장 <strong>리모델링</strong><br/>
               <strong className="text-emerald-600 text-2xl">3. 숨은 보험금 일괄 청구</strong>
+            </p>
+          </div>
+          <div className="flex-1 bg-white p-8 rounded-2xl border-2 border-gray-200">
+            <h4 className="text-2xl font-black text-gray-400 mb-4">청구를 먼저 할 경우</h4>
+            <p className="text-xl font-bold text-gray-700 leading-relaxed">
+              보험사에 병력 기록이 즉시 공유되어,<br/>
+              <strong className="text-red-600 text-2xl">신규 보험 가입(리모델링)이 거절되거나<br/>심각한 제한</strong>을 받게 됩니다.
             </p>
           </div>
         </div>
@@ -245,8 +265,8 @@ export function SlideCh5() {
         <div className="flex-1 bg-indigo-50 border border-indigo-200 rounded-2xl p-6 shadow-md flex items-center gap-4">
           <Landmark className="w-12 h-12 text-indigo-500 shrink-0" />
           <div>
-            <h5 className="text-xl font-black mb-1 text-indigo-800">(선택) 현대해상 '고등 및 심사' 시스템</h5>
-            <p className="text-indigo-700 font-medium">고등을 통해 병력사항을 문의하면 과거 실비 청구 여부를 쉽게 더블체크 할 수 있습니다</p>
+            <h5 className="text-xl font-black mb-1 text-indigo-800">(선택) 현대해상 '고객등록 및 심사' 시스템</h5>
+            <p className="text-indigo-700 font-medium">고객등록을 통해 병력사항을 문의하면 과거 실비 청구 여부를 쉽게 더블체크 할 수 있습니다</p>
           </div>
         </div>
       </div>
@@ -257,27 +277,31 @@ export function SlideCh5() {
 // SLIDE 6: 서류 발급 및 청구/방어 전략
 export function SlideCh6() {
   return (
-    <div className="h-full flex flex-col justify-center gap-8">
+    <div className="h-full flex flex-col justify-center">
 
       <div className="grid grid-cols-2 gap-8 mt-4">
         {/* 서류 발급 */}
-        <div className="bg-white border-2 border-emerald-200 rounded-3xl p-10 flex flex-col shadow-sm">
-          <h4 className="text-2xl font-black text-emerald-800 mb-6 border-b border-emerald-100 pb-4">1. 서류 재발급 발품 팔기</h4>
-          <p className="text-lg text-gray-700 font-medium leading-relaxed mb-6">
-            심평원 자료를 바탕으로 <strong>최근 3년 이내</strong> 방문한 병원 및 약국을 직접 찾아가 아래 서류를 재발급 받습니다.
+        <div className="bg-white border-2 border-emerald-200 rounded-3xl p-6 flex flex-col shadow-sm">
+          <h4 className="text-2xl font-black text-emerald-800 mb-4 border-b border-emerald-100 pb-2">1. 서류 재발급 발품 팔기</h4>
+          <p className="text-lg text-gray-700 font-medium leading-relaxed mb-2">
+            심평원 자료를 바탕으로 <strong>최근 5년 이내</strong> 방문한 병원 및 약국을 직접 찾아가 아래 서류를 재발급 받습니다.
           </p>
-          <ul className="space-y-3 bg-emerald-50 p-6 rounded-2xl border border-emerald-100 font-bold text-emerald-900 text-xl">
+          <ul className="space-y-1 bg-emerald-50 p-6 rounded-2xl border border-emerald-100 font-bold text-emerald-900 text-xl">
+            <li className="flex items-center gap-2"><CheckCircle2 className="w-6 h-6 text-emerald-500"/> 초진 차트</li>
+            <li className="flex items-center gap-2"><CheckCircle2 className="w-6 h-6 text-emerald-500"/> 진료 기록부</li>
             <li className="flex items-center gap-2"><CheckCircle2 className="w-6 h-6 text-emerald-500"/> 진료비 영수증</li>
             <li className="flex items-center gap-2"><CheckCircle2 className="w-6 h-6 text-emerald-500"/> 진료비 세부내역서</li>
-            <li className="flex items-center gap-2"><CheckCircle2 className="w-6 h-6 text-emerald-500"/> 약국 영수증</li>
+            <li className="flex items-center gap-2"><CheckCircle2 className="w-6 h-6 text-emerald-500"/> 진단서</li>
             <li className="flex items-center gap-2"><CheckCircle2 className="w-6 h-6 text-emerald-500"/> 수술 확인서</li>
-            <li className="flex items-center gap-2"><CheckCircle2 className="w-6 h-6 text-emerald-500"/> 입원 확인서</li>
-          </ul>
+            <li className="flex items-center gap-2"><CheckCircle2 className="w-6 h-6 text-emerald-500"/> 입퇴원 확인서</li>
+            <li className="flex items-center gap-2"><CheckCircle2 className="w-6 h-6 text-emerald-500"/> 약국처방전</li>
+            <li className="flex items-center gap-2"><CheckCircle2 className="w-6 h-6 text-emerald-500"/> 약제비 영수증(약국)</li>
+            </ul>
         </div>
 
         {/* 더블 청구 및 방어화법 */}
-        <div className="bg-white border-2 border-orange-200 rounded-3xl p-10 flex flex-col shadow-sm">
-          <h4 className="text-2xl font-black text-orange-800 mb-6 border-b border-orange-100 pb-4">2. 더블 청구와 거절처리</h4>
+        <div className="bg-white border-2 border-orange-200 rounded-3xl p-6 flex flex-col shadow-sm">
+          <h4 className="text-2xl font-black text-orange-800 mb-4 border-b border-orange-100 pb-2">2. 더블 청구와 거절처리</h4>
           
           <div className="space-y-6">
             <div>
@@ -304,21 +328,21 @@ export function SlideCh6() {
 export function SlideCh7() {
   return (
     <div className="h-full flex flex-col justify-center">
-
-      <div className="grid grid-cols-2 gap-8 mt-6">
-        <div className="bg-white border-2 border-teal-200 rounded-3xl p-10 shadow-sm flex flex-col gap-4">
+      <div className="grid grid-cols-2 gap-8">
+        <div className="bg-white border-2 border-teal-200 rounded-3xl p-6 shadow-sm flex flex-col">
            <div className="text-5xl font-black text-blue-600 mb-2">1</div>
            <p className="text-2xl font-bold text-gray-800 leading-relaxed"><strong className="text-blue-700">본인인증과 4대 서류 추출</strong>은 보장분석의 신뢰를 100배 높인다.</p>
         </div>
-        <div className="bg-white border-2 border-teal-200 rounded-3xl p-10 shadow-sm flex flex-col gap-4">
+        <div className="bg-white border-2 border-teal-200 rounded-3xl p-6 shadow-sm flex flex-col">
            <div className="text-5xl font-black text-blue-600 mb-2">2</div>
-           <p className="text-2xl font-bold text-gray-800 leading-relaxed">세부진료사항의 <strong className="text-blue-700">'~처치, ~술'</strong>은 수술비 누락을 찾는 마법의 키워드다.</p>
+           <p className="text-2xl font-bold text-gray-800 leading-relaxed">케어링크의 <strong className="text-blue-700">'5년 내 수술 의심'</strong>항목과 세부진료사항의 <strong className="text-blue-700">'~처치, ~술'</strong>은 수술비 누락을 찾는 마법의 키워드다.</p>
         </div>
-        <div className="bg-white border-2 border-red-200 rounded-3xl p-10 shadow-[0_0_20px_rgba(239,68,68,0.2)] flex flex-col gap-4 transform scale-105 z-10">
+        <div className="bg-white border-2 border-red-200 rounded-3xl p-6 shadow-[0_0_20px_rgba(239,68,68,0.2)] flex flex-col transform scale-105 z-10">
            <div className="text-5xl font-black text-red-600 mb-2">3</div>
-           <p className="text-2xl font-bold text-gray-800 leading-relaxed"><strong className="text-red-600 text-3xl">선(先) 리모델링, 후(後) 청구!</strong><br/>순서가 바뀌면 가입이 거절될수있다.</p>
-        </div>
-        <div className="bg-white border-2 border-teal-200 rounded-3xl p-10 shadow-sm flex flex-col gap-4">
+           <p className="text-2xl font-bold text-gray-800 leading-relaxed"><strong className="text-red-600 text-3xl">선(先) 리모델링, 후(後) 청구!</strong></p>
+           <p className="text-2xl font-bold text-gray-800 leading-relaxed">타 설계사와는 다르게 못받은(숨은)보험금까지 도와드리고 계약을 좀더 내것으로 이끌어 낼 수 있다.</p>
+           </div>
+        <div className="bg-white border-2 border-teal-200 rounded-3xl p-6 shadow-sm flex flex-col">
            <div className="text-5xl font-black text-blue-600 mb-2">4</div>
            <p className="text-2xl font-bold text-gray-800 leading-relaxed">못 받더라도 보험사를 탓하며 <strong className="text-blue-700">기존 설계사에 대한 신뢰를 </strong>를 깨며 나를 어필한다.</p>
         </div>

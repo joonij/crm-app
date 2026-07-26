@@ -279,8 +279,8 @@ export default function ClientModal({ onClose, onSuccess }: ClientModalProps) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-6">
               
               {/* --- 0. 필수 상담 일정 (최상단) --- */}
-              <div className="md:col-span-2 pb-2 mb-1 border-b border-amber-100">
-                <h3 className="text-sm font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full inline-flex items-center gap-1.5">1. 첫 상담 일정 예약 (필수)</h3>
+              {/* <div className="md:col-span-2 pb-2 mb-1 border-b border-amber-100">
+                <h3 className="text-sm font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full inline-flex items-center gap-1.5">첫 상담 일정 예약 (필수)</h3>
               </div>
 
               <div>
@@ -306,11 +306,11 @@ export default function ClientModal({ onClose, onSuccess }: ClientModalProps) {
                     className={`${inputClassName} pl-11 resize-none py-3.5`}
                   />
                 </div>
-              </div>
+              </div> */}
 
               {/* --- 1. 기본 정보 --- */}
               <div className="md:col-span-2 pb-2 mb-1 mt-4 border-b border-gray-100">
-                <h3 className="text-sm font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full inline-block">2. 기본 정보</h3>
+                <h3 className="text-sm font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full inline-block">기본 정보</h3>
               </div>
 
               <div>
@@ -344,7 +344,7 @@ export default function ClientModal({ onClose, onSuccess }: ClientModalProps) {
 
               {/* --- 2. 관리 정보 --- */}
               <div className="md:col-span-2 pb-2 mb-2 mt-4 border-b border-gray-100">
-                <h3 className="text-sm font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full inline-block">3. 계약 및 유입 경로</h3>
+                <h3 className="text-sm font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full inline-block">계약 및 유입 경로</h3>
               </div>
 
               <div>
@@ -389,7 +389,7 @@ export default function ClientModal({ onClose, onSuccess }: ClientModalProps) {
 
               {/* --- 3. 상세 부가 정보 --- */}
               <div className="md:col-span-2 pb-2 mb-2 mt-4 border-b border-gray-100">
-                <h3 className="text-sm font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full inline-block">4. 상세 부가 정보</h3>
+                <h3 className="text-sm font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full inline-block">상세 부가 정보</h3>
               </div>
 
               <div>
