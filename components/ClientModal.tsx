@@ -154,7 +154,7 @@ export default function ClientModal({ onClose, onSuccess }: ClientModalProps) {
     onClose();
   };
 
-  const handleSave = async () => {
+const handleSave = async () => {
     if (!form.name.trim()) {
       alert("고객 이름을 입력해 주세요.");
       return;
@@ -202,7 +202,7 @@ export default function ClientModal({ onClose, onSuccess }: ClientModalProps) {
           address: form.address.trim() || null,
           notes: form.notes.trim() || null,
           bank_info: form.bank_info.trim() || null,
-          card_withdrawal_date: form.card_withdrawal_date || null,
+          card_withdrawal_date: form.card_withdrawal_date || null, // ⭐️ 빈 문자열이면 null로 처리되어 안전함
           client_source: parseInt(form.client_source, 10),
           contract_status: parseInt(form.contract_status, 10),
           introduce_client: parseId(form.introduce_client),
@@ -215,20 +215,24 @@ export default function ClientModal({ onClose, onSuccess }: ClientModalProps) {
 
       if (insertError) throw insertError;
 
-      const { error: scheduleError } = await supabase
-        .from("schedules")
-        .insert({
-          agent_id: agent.id,
-          agency_id: agent.agency_id,
-          client_id: newClient.id,
-          date: form.scheduleDate,
-          time: form.scheduleTime,
-          content: form.scheduleContent.trim() || `${form.name} 고객 신규 등록 상담`,
-          schedule_type: 'personal',
-          repeat: false
-        });
+      // ⭐️ 수정된 부분: scheduleDate(상담 날짜)가 입력되어 있을 때만 일정 등록을 실행합니다.
+      // (입력창을 주석 처리했더라도 고객 등록은 정상적으로 완료됩니다.)
+      if (form.scheduleDate) {
+        const { error: scheduleError } = await supabase
+          .from("schedules")
+          .insert({
+            agent_id: agent.id,
+            agency_id: agent.agency_id,
+            client_id: newClient.id,
+            date: form.scheduleDate || null,
+            time: form.scheduleTime || null, // 시간이 비어있으면 null로 처리
+            content: form.scheduleContent.trim() || null,
+            schedule_type: 'personal',
+            repeat: false
+          });
 
-      if (scheduleError) throw scheduleError;
+        if (scheduleError) throw scheduleError;
+      }
 
       setForm(initialFormState);
       onSuccess();
