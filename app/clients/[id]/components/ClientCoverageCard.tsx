@@ -209,6 +209,7 @@ const gapItems = useMemo(() => {
     hasDriver: false, 
     hasDental: false
   };
+  
 
   coverages.forEach(ins => {
     const isAfter = ins.policy_status === "maintain" || ins.policy_status === "new";
