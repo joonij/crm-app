@@ -178,9 +178,17 @@ export default function ClientReportPage() {
       let premiumAfter = 0;
       
       const scores = {
-        cancer: { before: 0, after: 0 }, brain: { before: 0, after: 0 }, heart: { before: 0, after: 0 },
-        surgery: { before: 0, after: 0 }, hasJongSurgery: false, homeCare: { before: 0, after: 0 },
-        hospitalization: { before: 0, after: 0 }, injury: { before: 0, after: 0 }, hasDriver: false, hasDental: false
+        cancer: { before: 0, after: 0 }, 
+        similarCancer: { before: 0, after: 0 }, // ⭐️ 추가
+        brain: { before: 0, after: 0 }, 
+        heart: { before: 0, after: 0 },
+        circulatory: { before: 0, after: 0 },   // ⭐️ 추가
+        death: { before: 0, after: 0 },         // ⭐️ 추가
+        pension: { before: 0, after: 0 },       // ⭐️ 추가
+        surgery: { before: 0, after: 0 }, hasJongSurgery: false, 
+        homeCare: { before: 0, after: 0 },
+        hospitalization: { before: 0, after: 0 }, 
+        injury: { before: 0, after: 0 }, hasDriver: false, hasDental: false
       };
 
       if (insurances) {
@@ -207,6 +215,11 @@ export default function ClientReportPage() {
                 if (isBefore) scores.cancer.before += beforeVal;
                 if (isAfter) scores.cancer.after += afterVal;
               }
+              // ⭐️ 추가
+              if (name.includes("유사암") || name.includes("소액암")) {
+                if (isBefore) scores.similarCancer.before += beforeVal;
+                if (isAfter) scores.similarCancer.after += afterVal;
+              }
               if (name.includes("뇌")) {
                 if (isBefore) scores.brain.before += beforeVal;
                 if (isAfter) scores.brain.after += afterVal;
@@ -215,6 +228,22 @@ export default function ClientReportPage() {
                 if (isBefore) scores.heart.before += beforeVal;
                 if (isAfter) scores.heart.after += afterVal;
               }
+              // ⭐️ 추가
+              if (name.includes("순환계")) {
+                if (isBefore) scores.circulatory.before += beforeVal;
+                if (isAfter) scores.circulatory.after += afterVal;
+              }
+              // ⭐️ 추가
+              if (name.includes("사망")) {
+                if (isBefore) scores.death.before += beforeVal;
+                if (isAfter) scores.death.after += afterVal;
+              }
+              // ⭐️ 추가
+              if (name.includes("연금")) {
+                if (isBefore) scores.pension.before += beforeVal;
+                if (isAfter) scores.pension.after += afterVal;
+              }
+
               if (name.includes("수술")) {
                 if (isBefore) scores.surgery.before += beforeVal;
                 if (isAfter) scores.surgery.after += afterVal;
