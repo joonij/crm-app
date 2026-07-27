@@ -155,10 +155,6 @@ export default function ClientModal({ onClose, onSuccess }: ClientModalProps) {
   };
 
   const handleSave = async () => {
-    if (!form.scheduleDate || !form.scheduleTime) {
-      alert("첫 상담 일정을 반드시 입력해 주세요.");
-      return;
-    }
     if (!form.name.trim()) {
       alert("고객 이름을 입력해 주세요.");
       return;
