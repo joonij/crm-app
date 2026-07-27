@@ -868,7 +868,7 @@ export default function SchedulePage() {
 
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2">
                 <span className="font-bold text-slate-500 text-xs block">{detailModalEvent.contractStatus ? "가입 상품 내역" : "상세 내용"}</span>
-                <p className="text-slate-800 font-medium whitespace-pre-wrap leading-relaxed">{detailModalEvent.content}</p>
+                <p className="text-slate-800 font-medium whitespace-pre-wrap leading-relaxed overflow-y-auto">{detailModalEvent.content}</p>
               </div>
             </div>
 
