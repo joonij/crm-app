@@ -36,6 +36,7 @@ export default function ClientScheduleCard({ clientId, agentId }: { clientId: st
     if (category === "AP") return "bg-purple-100 text-purple-700 border-purple-200";
     if (category === "상담") return "bg-blue-100 text-blue-700 border-blue-200";
     if (category === "계약") return "bg-red-100 text-red-700 border-red-200";
+    if (category === "리쿠") return "bg-rose-100 text-rose-700 border-rose-200";
     if (category === "청구") return "bg-orange-100 text-orange-700 border-orange-200";
     if (category === "교육") return "bg-emerald-100 text-emerald-700 border-emerald-200";
     if (category === "회의") return "bg-teal-100 text-teal-700 border-teal-200";
@@ -161,10 +162,10 @@ export default function ClientScheduleCard({ clientId, agentId }: { clientId: st
               onChange={(e) => setScheduleForm({ ...scheduleForm, category: e.target.value })}
               className={`${inputClass} w-full appearance-none pr-8 cursor-pointer text-gray-700`}
             >
-              <option value="">카테고리</option>
               <option value="AP">AP</option>
               <option value="상담">상담</option>
               <option value="계약">계약</option>
+              <option value="리쿠">리쿠</option>
               <option value="청구">청구</option>
               <option value="교육">교육</option>
               <option value="회의">회의</option>

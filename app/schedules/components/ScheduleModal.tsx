@@ -308,6 +308,7 @@ export default function ScheduleModal({ isOpen, onClose, onSuccess, myInfo, edit
                 <option value="AP">AP</option>
                 <option value="상담">상담</option>
                 <option value="계약">계약</option>
+                <option value="리쿠">리쿠</option>
                 <option value="청구">청구</option>
                 <option value="교육">교육</option>
                 <option value="회의">회의</option>

@@ -126,6 +126,7 @@ export default function SchedulePage() {
     if (category === "AP") return "bg-purple-100 text-purple-700 border border-purple-200";
     if (category === "상담") return "bg-blue-100 text-blue-700 border border-blue-200";
     if (category === "계약") return "bg-red-100 text-red-700 border border-red-200";
+    if (category === "리쿠") return "bg-rose-100 text-rose-700 border-rose-200";
     if (category === "청구") return "bg-orange-100 text-orange-700 border border-orange-200";
     if (category === "교육") return "bg-emerald-100 text-emerald-700 border border-emerald-200";
     if (category === "회의") return "bg-teal-100 text-teal-700 border border-teal-200";
