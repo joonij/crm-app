@@ -191,54 +191,75 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
   }, [clientId]);
 
   // 보장 공백 자동 검출 로직
-  const gapItems = useMemo(() => {
-    const s = {
-      cancer: { after: 0 }, brain: { after: 0 }, heart: { after: 0 },
-      surgery: { after: 0 }, hasJongSurgery: false, homeCare: { after: 0 },
-      hospitalization: { after: 0 }, injury: { after: 0 }, hasDriver: false, hasDental: false
-    };
+// 보장 공백 자동 검출 로직
+const gapItems = useMemo(() => {
+  const s = {
+    cancer: { after: 0 }, 
+    similarCancer: { after: 0 }, // ⭐️ 추가
+    brain: { after: 0 }, 
+    heart: { after: 0 },
+    circulatory: { after: 0 },  // ⭐️ 추가
+    death: { after: 0 },        // ⭐️ 추가
+    pension: { after: 0 },      // ⭐️ 추가
+    surgery: { after: 0 }, 
+    hasJongSurgery: false, 
+    homeCare: { after: 0 },
+    hospitalization: { after: 0 }, 
+    injury: { after: 0 }, 
+    hasDriver: false, 
+    hasDental: false
+  };
 
-    coverages.forEach(ins => {
-      const isAfter = ins.policy_status === "maintain" || ins.policy_status === "new";
-      if (!isAfter) return;
+  coverages.forEach(ins => {
+    const isAfter = ins.policy_status === "maintain" || ins.policy_status === "new";
+    if (!isAfter) return;
 
-      const prodName = ins.product_name || "";
-      if (prodName.includes("운전자")) s.hasDriver = true;
-      if (prodName.includes("치아") || prodName.includes("덴탈") || prodName.includes("치과")) s.hasDental = true;
+    const prodName = ins.product_name || "";
+    if (prodName.includes("운전자")) s.hasDriver = true;
+    if (prodName.includes("치아") || prodName.includes("덴탈") || prodName.includes("치과")) s.hasDental = true;
 
-      if (ins.details) {
-        ins.details.forEach((d: any) => {
-          const afterVal = d.is_deleted ? 0 : extractNumber(d.original_amount || d.amount);
-          const name = d.name || "";
+    if (ins.details) {
+      ins.details.forEach((d: any) => {
+        const afterVal = d.is_deleted ? 0 : extractNumber(d.original_amount || d.amount);
+        const name = d.name || "";
 
-          if (name.includes("암") && !name.includes("유사") && !name.includes("고액")) s.cancer.after += afterVal;
-          if (name.includes("뇌")) s.brain.after += afterVal;
-          if (name.includes("허혈") || name.includes("심장") || name.includes("급성심근")) s.heart.after += afterVal;
-          if (name.includes("수술")) {
-            s.surgery.after += afterVal;
-            if (name.includes("종") || name.includes("1-5종") || name.includes("1-6종") || name.includes("1-9종")) s.hasJongSurgery = true;
-          }
-          if (name.includes("재가") || name.includes("치매")) s.homeCare.after += afterVal;
-          if (name.includes("입원") && !name.includes("진단") && !name.includes("제외") && !name.includes("실손") && !name.includes("의료비")) s.hospitalization.after += afterVal;
-          if (name.includes("통합상해") || (name.includes("상해") && name.includes("진단"))) s.injury.after += afterVal;
-          if (name.includes("교통사고처리") || name.includes("변호사선임") || name.includes("자동차부상")) s.hasDriver = true;
-          if (name.includes("임플란트") || name.includes("크라운") || name.includes("보철")) s.hasDental = true;
-        });
-      }
-    });
+        if (name.includes("암") && !name.includes("유사") && !name.includes("고액")) s.cancer.after += afterVal;
+        if (name.includes("유사암") || name.includes("소액암")) s.similarCancer.after += afterVal; // ⭐️ 추가
+        if (name.includes("뇌")) s.brain.after += afterVal;
+        if (name.includes("허혈") || name.includes("심장") || name.includes("급성심근")) s.heart.after += afterVal;
+        if (name.includes("순환계")) s.circulatory.after += afterVal; // ⭐️ 추가
+        if (name.includes("사망")) s.death.after += afterVal;         // ⭐️ 추가
+        if (name.includes("연금")) s.pension.after += afterVal;       // ⭐️ 추가
 
-    return [
-      { condition: s.cancer.after < 5000, title: "암 보장 공백 발견", action: "일반암 진단비 증액 권장" },
-      { condition: s.brain.after < 2000, title: "뇌혈관 보장 공백 발견", action: "뇌혈관 진단/수술비 보완 요망" },
-      { condition: s.heart.after < 2000, title: "심장 보장 공백 발견", action: "심혈관 특정진단비 보완 권장" },
-      { condition: s.surgery.after === 0 || !s.hasJongSurgery, title: "질병/종수술비 보장 부재", action: "질병 및 1-5종 수술비 장착" },
-      { condition: s.homeCare.after === 0, title: "치매 리스크 노출", action: "장기요양 재가급여 특약 추가" },
-      { condition: s.injury.after === 0, title: "통합상해진단비 공백", action: "통합상해진단비 보완 권장" },
-      { condition: s.hospitalization.after === 0, title: "일당 입원비 보장 부재", action: "간병인/입원일당 확보 고려" },
-      { condition: !s.hasDriver, title: "운전자 핵심 비용 부재", action: "형사합의금 지원 플랜 마련" },
-      { condition: !s.hasDental, title: "치아 보장 자산 부재", action: "치과 전문 덴탈 케어 안내" }
-    ];
-  }, [coverages]);
+        if (name.includes("수술")) {
+          s.surgery.after += afterVal;
+          if (name.includes("종") || name.includes("1-5종") || name.includes("1-6종") || name.includes("1-9종")) s.hasJongSurgery = true;
+        }
+        if (name.includes("재가") || name.includes("치매")) s.homeCare.after += afterVal;
+        if (name.includes("입원") && !name.includes("진단") && !name.includes("제외") && !name.includes("실손") && !name.includes("의료비")) s.hospitalization.after += afterVal;
+        if (name.includes("통합상해") || (name.includes("상해") && name.includes("진단"))) s.injury.after += afterVal;
+        if (name.includes("교통사고처리") || name.includes("변호사선임") || name.includes("자동차부상")) s.hasDriver = true;
+        if (name.includes("임플란트") || name.includes("크라운") || name.includes("보철")) s.hasDental = true;
+      });
+    }
+  });
+
+  return [
+    { condition: s.cancer.after < 5000, title: "암 보장 공백 발견", action: "일반암 진단비 증액 권장" },
+    { condition: s.similarCancer.after < 1000, title: "유사암 보장 공백", action: "유사암 진단비 보완 권장" }, // ⭐️ 추가
+    { condition: s.brain.after < 2000, title: "뇌혈관 보장 공백 발견", action: "뇌혈관 진단/수술비 보완 요망" },
+    { condition: s.heart.after < 2000, title: "심장 보장 공백 발견", action: "심혈관 특정진단비 보완 권장" },
+    { condition: s.circulatory.after < 2000, title: "순환계질환 보장 공백", action: "순환계질환 진단비 보완 요망" }, // ⭐️ 추가
+    { condition: s.death.after < 3000, title: "사망보장 자산 부족", action: "정기/종신 사망보험금 확보" }, // ⭐️ 추가
+    { condition: s.pension.after === 0, title: "노후 연금 자산 부재", action: "노후 대비 연금저축/보험 가입" }, // ⭐️ 추가
+    { condition: s.surgery.after === 0 || !s.hasJongSurgery, title: "질병/종수술비 보장 부재", action: "질병 및 1-5종 수술비 장착" },
+    { condition: s.homeCare.after === 0, title: "치매 리스크 노출", action: "장기요양 재가급여 특약 추가" },
+    { condition: s.injury.after === 0, title: "통합상해진단비 공백", action: "통합상해진단비 보완 권장" },
+    { condition: s.hospitalization.after === 0, title: "일당 입원비 보장 부재", action: "간병인/입원일당 확보 고려" },
+    { condition: !s.hasDriver, title: "운전자 핵심 비용 부재", action: "형사합의금 지원 플랜 마련" },
+    { condition: !s.hasDental, title: "치아 보장 자산 부재", action: "치과 전문 덴탈 케어 안내" }
+  ];
+}, [coverages]);
 
   // ⭐️ 2. DB 데이터 불러오기 (보험 데이터가 완료된 후에만 세팅하도록 조건 강화)
   useEffect(() => {
