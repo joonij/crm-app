@@ -335,7 +335,7 @@ export default function AnalysisPage() {
               if (isBefore) scores.similarCancer.before += beforeVal;
               if (isAfter) scores.similarCancer.after += afterVal;
             }
-            if (name.includes("뇌")) {
+            if (name.includes("뇌혈")) {
               if (isBefore) scores.brain.before += beforeVal;
               if (isAfter) scores.brain.after += afterVal;
             }
@@ -764,20 +764,21 @@ export default function AnalysisPage() {
   });
 
   const baseGapItems = [
-    { condition: scores.cancer.after < 5000, title: "암 보장 공백 발견", desc: `현재 암 보장금액이 ${formatMoney(scores.cancer.after)}으로 안정권보다 부족한 상태입니다.`, action: "일반암 진단비 증액 권장" },
-    { condition: scores.similarCancer.after < 1000, title: "유사암 보장 공백", desc: `현재 유사암 보장금액이 ${formatMoney(scores.similarCancer.after)}으로 권장 기준보다 부족합니다.`, action: "유사암 진단비 보완 권장" }, 
-    { condition: scores.brain.after < 2000, title: "뇌혈관 보장 공백 발견", desc: `현재 뇌혈관 보장금액이 ${formatMoney(scores.brain.after)}으로 권장 기준보다 부족한 상태입니다.`, action: "뇌혈관 진단/수술비 보완 요망" },
-    { condition: scores.heart.after < 2000, title: "심장 보장 공백 발견", desc: `현재 허혈성/심장 보장금액이 ${formatMoney(scores.heart.after)}으로 권장 기준보다 부족합니다.`, action: "심혈관 특정진단비 보완 권장" },
-    { condition: scores.circulatory.after < 2000, title: "순환계질환 보장 공백", desc: `현재 순환계질환 보장금액이 ${formatMoney(scores.circulatory.after)}으로 부족합니다. (뇌/심장 광범위 커버 필요)`, action: "순환계질환 진단비 보완 요망" }, 
-    { condition: scores.death.after < 3000, title: "사망보장 자산 부족", desc: `현재 사망 보장 자산이 ${formatMoney(scores.death.after)}으로 가족을 위한 최소 대비가 부족합니다.`, action: "정기/종신 사망보험금 확보" }, 
-    { condition: scores.pension.after === 0, title: "노후 연금 자산 부재", desc: "은퇴 후를 대비할 수 있는 연금 관련 보장 자산이 전혀 없습니다.", action: "노후 대비 연금저축/보험 가입" }, 
-    { condition: scores.surgery.after === 0 || !scores.hasJongSurgery, title: "질병/종수술비 보장 부재", desc: scores.surgery.after === 0 ? "포트폴리오에 수술비 특약이 전혀 확인되지 않습니다." : "질병 강도에 비례해 지급되는 '종수술비'가 빠져있습니다.", action: "질병 및 1-5종 수술비 장착" },
-    { condition: scores.homeCare.after === 0, title: "치매 리스크 노출", desc: "장기요양등급 판정 시 매월 생활비를 받는 재가급여 자산이 비어있습니다.", action: "장기요양 재가급여 특약 추가" },
-    { condition: scores.injury.after === 0, title: "통합상해진단비 공백", desc: "일상생활 중 발생하는 골절, 화상 등 각종 외상성 상해 진단비 자산이 없습니다.", action: "통합상해진단비 보완 권장" },
-    { condition: scores.hospitalization.after === 0, title: "일당 입원비 보장 부재", desc: "첫날부터 보장받는 입원일당 특약이 없어 장기 입원 시 자부담 리스크가 있습니다.", action: "간병인/입원일당 확보 고려" },
+    { condition: scores.cancer.before < 5000, title: "암 보장 공백 발견", desc: `현재 암 보장금액이 ${formatMoney(scores.cancer.before)}으로 안정권보다 부족한 상태입니다.`, action: "일반암 진단비 증액 권장" },
+    { condition: scores.similarCancer.before < 1000, title: "유사암 보장 공백", desc: `현재 유사암 보장금액이 ${formatMoney(scores.similarCancer.before)}으로 권장 기준보다 부족합니다.`, action: "유사암 진단비 보완 권장" }, 
+    { condition: scores.brain.before < 2000, title: "뇌혈관 보장 공백 발견", desc: `현재 뇌혈관 보장금액이 ${formatMoney(scores.brain.before)}으로 권장 기준보다 부족한 상태입니다.`, action: "뇌혈관 진단/수술비 보완 요망" },
+    { condition: scores.heart.before < 2000, title: "심장 보장 공백 발견", desc: `현재 허혈성/심장 보장금액이 ${formatMoney(scores.heart.before)}으로 권장 기준보다 부족합니다.`, action: "심혈관 특정진단비 보완 권장" },
+    { condition: scores.circulatory.before < 2000, title: "순환계질환 보장 공백", desc: `현재 순환계질환 보장금액이 ${formatMoney(scores.circulatory.before)}으로 부족합니다. (뇌/심장 광범위 커버 필요)`, action: "순환계질환 진단비 보완 요망" }, 
+    { condition: scores.death.before < 3000, title: "사망보장 자산 부족", desc: `현재 사망 보장 자산이 ${formatMoney(scores.death.before)}으로 가족을 위한 최소 대비가 부족합니다.`, action: "정기/종신 사망보험금 확보" }, 
+    { condition: scores.pension.before === 0, title: "노후 연금 자산 부재", desc: "은퇴 후를 대비할 수 있는 연금 관련 보장 자산이 전혀 없습니다.", action: "노후 대비 연금저축/보험 가입" }, 
+    { condition: scores.surgery.before === 0 || !scores.hasJongSurgery, title: "질병/종수술비 보장 부재", desc: scores.surgery.before === 0 ? "포트폴리오에 수술비 특약이 전혀 확인되지 않습니다." : "질병 강도에 비례해 지급되는 '종수술비'가 빠져있습니다.", action: "질병 및 1-5종 수술비 장착" },
+    { condition: scores.homeCare.before === 0, title: "치매 리스크 노출", desc: "장기요양등급 판정 시 매월 생활비를 받는 재가급여 자산이 비어있습니다.", action: "장기요양 재가급여 특약 추가" },
+    { condition: scores.injury.before === 0, title: "통합상해진단비 공백", desc: "일상생활 중 발생하는 골절, 화상 등 각종 외상성 상해 진단비 자산이 없습니다.", action: "통합상해진단비 보완 권장" },
+    { condition: scores.hospitalization.before === 0, title: "일당 입원비 보장 부재", desc: "첫날부터 보장받는 입원일당 특약이 없어 장기 입원 시 자부담 리스크가 있습니다.", action: "간병인/입원일당 확보 고려" },
     { condition: !scores.hasDriver, title: "운전자 핵심 비용 부재", desc: "민사/형사상 책임을 방어하는 교통사고처리지원금, 변호사선임비 등의 방어막이 없습니다.", action: "형사합의금 지원 플랜 마련" },
     { condition: !scores.hasDental, title: "치아 보장 자산 부재", desc: "큰 비용이 드는 임플란트, 크라운에 대한 전문 치과 치료비 보장이 없습니다.", action: "치과 전문 덴탈 케어 안내" }
   ];
+  console.log(scores);
 
   const displayGaps = (() => {
     const filteredAutoGaps = baseGapItems.filter(item => {
@@ -1001,6 +1002,59 @@ export default function AnalysisPage() {
               return (
                 <div className="flex flex-col gap-8 mt-8 pt-8 border-t border-slate-200 border-dashed print:border-slate-300 print:mt-6 print:pt-6">
                   
+                  {/* 2. 보장 공백 진단 리포트 (TOP 3 바로 아래에 렌더링) */}
+                  <div className="flex flex-col justify-center">
+                    <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <h4 className="text-lg font-black text-gray-900 flex items-center gap-2">
+                        {displayGaps.length > 0 ? <AlertCircle className="w-5 h-5 text-red-500"/> : <ShieldCheck className="w-5 h-5 text-emerald-600"/>} 
+                        기존 보장 공백 진단 결과
+                      </h4>
+                      {displayGaps.length > 0 && (
+                        <span className="text-xs font-bold px-3 py-1 rounded-full bg-red-100 text-red-600 w-fit">
+                          미흡 보장 {displayGaps.length}건 발견
+                        </span>
+                      )}
+                    </div>
+
+                    {displayGaps.length > 0 ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-4 min-h-[370px]">
+                        {displayGaps.map((item, index) => {
+                          const isSelected = selectedGaps.includes(item.title);
+                          return (
+                            <div key={index} className="bg-red-50/40 border border-red-100 p-4 rounded-2xl shadow-sm print:border-red-200 flex flex-col">
+                              <div className="flex items-start gap-3 mb-3">
+                                <div className="p-2.5 bg-red-100 text-red-600 rounded-xl shrink-0">
+                                  <ShieldAlert className="w-5 h-5" />
+                                </div>
+                                <div className="flex-1 mt-0.5">
+                                  <h5 className="font-black text-slate-800 text-sm mb-1.5 flex items-center gap-1">
+                                    {item.isCustom && <span className="text-orange-500">★</span>}
+                                    {item.title}
+                                  </h5>
+                                  <p className="text-[12px] text-slate-600 leading-relaxed break-keep">
+                                    {item.desc}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white p-6 rounded-2xl shadow-sm flex items-center gap-4 print:border print:border-emerald-300 print:bg-none print:text-slate-800">
+                        <div className="p-3 bg-white/20 rounded-full shrink-0 print:bg-emerald-100">
+                          <CheckCircle2 className="w-8 h-8 text-yellow-300 print:text-emerald-600" />
+                        </div>
+                        <div>
+                          <h5 className="text-base font-black mb-1">완벽한 철벽 방어막 확보!</h5>
+                          <p className="text-xs font-medium text-emerald-50 leading-relaxed print:text-slate-600">
+                            분석 결과 주요 보장에 어떠한 공백도 발견되지 않았습니다.<br/>
+                            매우 이상적이고 든든한 최고 수준의 포트폴리오입니다.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                   {/* 1. 핵심 보장 TOP 3 (화면에는 항상 표시, 데이터가 없으면 인쇄 시에만 숨김) */}
                   <div className={`flex flex-col justify-center ${upgradedCoverages.length === 0 ? 'print:hidden' : ''}`}>
                     <div className="mb-4">
@@ -1092,59 +1146,6 @@ export default function AnalysisPage() {
                     </div>
                   </div>
 
-                  {/* 2. 보장 공백 진단 리포트 (TOP 3 바로 아래에 렌더링) */}
-                  <div className="flex flex-col justify-center">
-                    <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <h4 className="text-lg font-black text-gray-900 flex items-center gap-2">
-                        {displayGaps.length > 0 ? <AlertCircle className="w-5 h-5 text-red-500"/> : <ShieldCheck className="w-5 h-5 text-emerald-600"/>} 
-                        보장 공백 진단 결과
-                      </h4>
-                      {displayGaps.length > 0 && (
-                        <span className="text-xs font-bold px-3 py-1 rounded-full bg-red-100 text-red-600 w-fit">
-                          미흡 보장 {displayGaps.length}건 발견
-                        </span>
-                      )}
-                    </div>
-
-                    {displayGaps.length > 0 ? (
-                      <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-4">
-                        {displayGaps.map((item, index) => {
-                          const isSelected = selectedGaps.includes(item.title);
-                          return (
-                            <div key={index} className="bg-red-50/40 border border-red-100 p-4 rounded-2xl shadow-sm print:border-red-200 flex flex-col">
-                              <div className="flex items-start gap-3 mb-3">
-                                <div className="p-2.5 bg-red-100 text-red-600 rounded-xl shrink-0">
-                                  <ShieldAlert className="w-5 h-5" />
-                                </div>
-                                <div className="flex-1 mt-0.5">
-                                  <h5 className="font-black text-slate-800 text-sm mb-1.5 flex items-center gap-1">
-                                    {item.isCustom && <span className="text-orange-500">★</span>}
-                                    {item.title}
-                                  </h5>
-                                  <p className="text-[12px] text-slate-600 leading-relaxed break-keep">
-                                    {item.desc}
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <div className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white p-6 rounded-2xl shadow-sm flex items-center gap-4 print:border print:border-emerald-300 print:bg-none print:text-slate-800">
-                        <div className="p-3 bg-white/20 rounded-full shrink-0 print:bg-emerald-100">
-                          <CheckCircle2 className="w-8 h-8 text-yellow-300 print:text-emerald-600" />
-                        </div>
-                        <div>
-                          <h5 className="text-base font-black mb-1">완벽한 철벽 방어막 확보!</h5>
-                          <p className="text-xs font-medium text-emerald-50 leading-relaxed print:text-slate-600">
-                            분석 결과 주요 보장에 어떠한 공백도 발견되지 않았습니다.<br/>
-                            매우 이상적이고 든든한 최고 수준의 포트폴리오입니다.
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
 
                 </div>
               );
