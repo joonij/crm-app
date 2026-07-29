@@ -625,94 +625,6 @@ export default function AnalysisPage() {
     });
   };
 
-  const handleShareReferral = async () => {
-    const shareText = `[무료 보장분석]\n\n제가 이번에 ${agentInfo?.name} ${agentInfo?.rank}님께 보장분석을 받았는데, 불필요하게 새는 보험료도 줄이고 보장도 훨씬 좋아졌어요!\n\n제 지인들에게만 특별히 '무료 정밀 분석'을 해주신다고 하니, 보험료 낭비하고 계신 건 없는지 아래 번호로 꼭 연락해서 점검 받아보세요.\n\n👨‍💼 담당자: ${agentInfo?.name} ${agentInfo?.rank}\n📞 연락처: ${agentInfo?.phone || "번호 미등록"}\n🏢 소속: ${Array.isArray(agentInfo?.agencies) ? agentInfo?.agencies[0]?.corporation_name : agentInfo?.agencies?.corporation_name}`;
-
-    if (navigator.share) {
-      try { await navigator.share({ title: '스마트 보장분석 초대장', text: shareText }); } catch (err) {}
-    } else {
-      await navigator.clipboard.writeText(shareText);
-      alert("추천 메시지가 복사되었습니다! 카카오톡에 붙여넣기 하여 지인에게 보내주세요.");
-    }
-  };
-
-  const handleSubmitReferral = async () => {
-    if (!refForm.name || !refForm.phone) return alert("지인분의 성함과 연락처를 입력해주세요.");
-    setIsSubmittingRef(true);
-    try {
-      const { data: newClient, error: clientError } = await supabase.from('clients').insert({
-        name: refForm.name, phone: refForm.phone, agent_id: client.agent_id,
-        introduce_client: client.id, contract_status: 3, client_source: 3, 
-        notes: `모바일 리포트를 통해 직접 소개된 고객입니다. (관계: ${refForm.relation || "미기재"})`
-      }).select('id').single();
-
-      if (clientError) throw clientError;
-      
-      if (newClient) {
-        await supabase.from('notifications').insert({
-          agent_id: client.agent_id, title: "신규 지인 소개 접수 🎉",
-          message: `${client.name} 고객님이 [${refForm.name}]님을 소개하셨습니다.`, type: "referral", link_url: `/clients/${newClient.id}`
-        });
-      }
-      alert("소개 신청이 완료되었습니다. 담당 전문가가 곧 연락드리겠습니다!");
-      setIsRefModalOpen(false);
-      setRefForm({ name: "", phone: "", relation: "" });
-    } catch (error: any) { alert("신청 중 오류가 발생했습니다: " + error.message); } 
-    finally { setIsSubmittingRef(false); }
-  };
-
-  const handleReservationSubmit = async () => {
-    if (!customerName.trim() || !customerPhone.trim()) return alert("성함과 연락처를 입력해주세요.");
-    if (selectedNeed === "특정 상품 문의 요청" && !specificProduct) return alert("문의 상품 종류를 선택해주세요.");
-
-    setIsSubmitting(true);
-    try {
-      let finalNeedLabel = selectedNeed;
-      if (selectedNeed === "특정 상품 문의 요청") {
-        finalNeedLabel = `특정 상품 문의 요청 (${specificProduct})`;
-      } else if (selectedNeed === "보장 공백 보완 상담 요청") {
-        finalNeedLabel = `보장 공백 보완 상담 (${specificProduct})`;
-      }
-      
-      const { error: notiError } = await supabase.from('notifications').insert({
-        agent_id: client.agent_id, 
-        title: "모바일 리포트 상담 문의 접수 🎉",
-        message: `[${finalNeedLabel}] ${customerName} 고객님이 리포트를 보다가 상담 예약을 남겼습니다. (연락처: ${customerPhone})`, 
-        type: "inquiry", 
-        link_url: `/clients/${client.id}`
-      });
-
-      if (notiError) throw notiError;
-
-      alert(`예약이 성공적으로 접수되었습니다!\n담당 전문가가 확인 후 신속하게 연락드리겠습니다.`);
-      setIsModalOpen(false);
-      setSpecificProduct("");
-      setSelectedGaps([]);
-    } catch (error: any) { alert("신청 중 오류가 발생했습니다: " + error.message); } 
-    finally { setIsSubmitting(false); }
-  };
-
-  const toggleGapSelection = (title: string) => {
-    setSelectedGaps(prev =>
-      prev.includes(title) ? prev.filter(t => t !== title) : [...prev, title]
-    );
-  };
-
-  const handleGapInquiry = (title: string) => {
-    if (!selectedGaps.includes(title)) {
-      setSelectedGaps([...selectedGaps, title]);
-    }
-    setSelectedNeed("보장 공백 보완 상담 요청");
-    setSpecificProduct(Array.from(new Set([...selectedGaps, title])).join(", "));
-    setIsModalOpen(true);
-  };
-
-  const handleSelectedGapsInquiry = () => {
-    setSelectedNeed("보장 공백 보완 상담 요청");
-    setSpecificProduct(selectedGaps.join(", ")); 
-    setIsModalOpen(true);
-  };
-
   if (isLoading || !client) {
     return <div className="flex h-screen items-center justify-center text-gray-500 bg-slate-50"><Loader2 className="w-10 h-10 animate-spin text-blue-600" /></div>;
   }
@@ -817,11 +729,26 @@ export default function AnalysisPage() {
           header, nav, aside, [role="navigation"], .fixed, .sticky, [class*="sidebar"], [class*="header"] {
             display: none !important;
           }
-          @page { margin: 10mm; }
+          @page { margin: 0.8cm; }
           .cover-page {
-            height: 270mm !important;
+            height: calc(100vh - 1.6cm) !important;
+            min-height: 270mm !important;
             margin-bottom: 0 !important;
             border-radius: 20px !important;
+            page-break-after: always !important;
+            break-after: page !important;
+          }
+          
+          /* 내용 잘림 방지 필수 속성 */
+            section, table, tbody, tr, .print-card {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+          
+          h2, h3, h4 {
+            page-break-after: avoid !important;
+            break-after: avoid !important;
+
           }
           textarea, input {
             border: none !important;
@@ -909,98 +836,17 @@ export default function AnalysisPage() {
         </section>
 
         {/* 요약 리포트 페이지 */}
-        <section className="bg-white rounded-2xl p-6 md:p-8 border border-gray-400 shadow-sm print:border-slate-300 print:break-inside-avoid print:shadow-none relative overflow-hidden print:min-h-[250mm] flex flex-col gap-6">
+        <section className="bg-white rounded-2xl p-6 md:p-8 border border-gray-400 shadow-sm print:p-0 print:border-none print:break-inside-avoid print:shadow-none relative overflow-hidden print:min-h-[250mm] flex flex-col gap-6">
           <div className="flex items-center justify-between border-b border-slate-200 pb-4 shrink-0 print:border-slate-300">
             <h2 className="text-xl font-black text-slate-800 flex items-center gap-2 uppercase tracking-widest">
               <ShieldCheck className="w-6 h-6 text-blue-600" /> 보장 리포트
             </h2>
           </div>
           
-          <div className="flex flex-col gap-4 shrink-0">
-            <div className="flex flex-col md:flex-row gap-4 print:flex print:flex-col print:flex-row">
-              <div className="flex-1 bg-slate-50 border border-slate-200 p-6 rounded-2xl print:border-slate-300 flex flex-col justify-between print:flex-1 print:justify-between">
-                 <p className="text-sm font-bold text-slate-500 mb-6 flex items-center gap-1.5">
-                   <AlertCircle className="w-4 h-4"/> 기존 유지안
-                 </p>
-                 <div className="space-y-4">
-                   <div>
-                     <p className="text-xs font-bold text-slate-400 mb-1">월 납입 보험료</p>
-                     <p className="text-2xl font-black text-slate-700">{formatPremium(analysisData.premium.before)}</p>
-                   </div>
-                   <div className="border-t border-slate-200 pt-4 print:border-slate-300">
-                     <p className="text-xs font-bold text-slate-400 mb-1">총 납입원금</p>
-                     <p className={`text-xl font-black text-slate-500 ${totalPremiumDiff < 0 ? 'line-through decoration-slate-400' : ''}`}>
-                       {formatMoney(Math.round(analysisData.totalPremium.before / 10000))}
-                     </p>
-                   </div>
-                 </div>
-              </div>
-
-              <div className="flex-1 bg-blue-50/50 border border-blue-200 p-6 rounded-2xl print:bg-blue-50 print:border-blue-300 flex flex-col justify-between  print:flex-1 print:justify-between">
-                 <p className="text-sm font-bold text-blue-600 mb-6 flex items-center gap-1.5">
-                   <CheckCircle2 className="w-4 h-4"/> 최적화 제안
-                 </p>
-                 <div className="space-y-4">
-                   <div>
-                     <p className="text-xs font-bold text-blue-400 mb-1">월 납입 보험료</p>
-                     <p className="text-2xl font-black text-gray-900">{formatPremium(afterPremium)}</p>
-                   </div>
-                   <div className="border-t border-blue-100 pt-4 print:border-blue-200">
-                     <p className="text-xs font-bold text-blue-400 mb-1">총 납입원금</p>
-                     <p className="text-xl font-black text-gray-900">
-                       {formatMoney(Math.round(analysisData.totalPremium.after / 10000))}
-                     </p>
-                   </div>
-                 </div>
-              </div>
-            </div>
-            
-            <div className={`w-full p-5 md:p-6 rounded-2xl text-white shadow-md flex flex-col md:flex-row justify-between items-center gap-5 border print:shadow-none ${
-              premiumDiff <= 0 ? 'bg-gradient-to-r from-blue-700 to-blue-600 border-blue-800' : 'bg-gradient-to-r from-slate-900 to-indigo-950 border-slate-800'
-            }`}>
-              <div className="flex items-center gap-4 w-full md:w-auto">
-                <div className={`p-3 rounded-full shrink-0 border ${premiumDiff <= 0 ? 'bg-white/10 border-white/20' : 'bg-indigo-500/20 border-indigo-500/30'}`}>
-                  {premiumDiff <= 0 ? <TrendingDown className="w-8 h-8 text-yellow-300"/> : <ShieldCheck className="w-8 h-8 text-emerald-400 animate-pulse"/>}
-                </div>
-                <div>
-                  <p className={`text-sm font-bold tracking-wide mb-1 ${premiumDiff <= 0 ? 'text-white/80' : 'text-indigo-300'}`}>
-                    {premiumDiff <= 0 ? '💡 평생 고정 지출 절감 완료' : '🛡️ 가성비 중심 핵심 보장 자산 극대화'}
-                  </p>
-                  <p className="text-3xl font-black flex items-center gap-1.5 text-white">
-                    {premiumDiff <= 0 ? (
-                      <>
-                        {formatPremium(Math.abs(premiumDiff))} 절감
-                        <span className="text-xs font-medium text-white/60 ml-1">/ 월</span>
-                      </>
-                    ) : (
-                      <>
-                        3대 질환 진단 시 최대 비용
-                      </>
-                    )}
-                  </p>
-                </div>
-              </div>
-
-              <div className="bg-white/5 rounded-xl p-4 border border-white/10 w-full md:w-auto text-left md:text-right shadow-inner backdrop-blur-sm">
-                {totalPremiumDiff <= 0 ? (
-                  <>
-                    <p className="text-[11px] font-medium mb-1 text-white/70">총 납입원금 기준 최종 세이브 자산</p>
-                    <p className="text-2xl font-black text-yellow-300">{formatMoney(Math.round(Math.abs(totalPremiumDiff) / 10000))}</p>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-2xl font-black text-emerald-400">+ {formatMoney(calculateTotalDefenseCost())} 확보</p>
-                  </>
-                )}
-              </div>
-            </div>
-
             {/* ⭐️ TOP 3 및 보장 공백 진단 결과 통합 렌더링 블록 */}
             {(() => {
-              const upgradedCoverages = analysisData.coverages.filter(item => item.after > item.before && !HIDDEN_IN_SUMMARY.includes(item.name));
-              
               return (
-                <div className="flex flex-col gap-8 mt-8 pt-8 border-t border-slate-200 border-dashed print:border-slate-300 print:mt-6 print:pt-6">
+                <div className="flex flex-col gap-8 print:border-slate-300">
                   
                   {/* 2. 보장 공백 진단 리포트 (TOP 3 바로 아래에 렌더링) */}
                   <div className="flex flex-col justify-center">
@@ -1055,6 +901,95 @@ export default function AnalysisPage() {
                       </div>
                     )}
                   </div>
+                </div>
+              );
+            })()}
+
+          <div className="flex flex-col gap-4 shrink-0">
+            <div className="flex flex-col md:flex-row gap-4 print:flex print:flex-col print:flex-row">
+              <div className="flex-1 bg-slate-50 border border-slate-200 p-6 rounded-2xl print:border-slate-300 flex flex-col justify-between print:flex-1 print:justify-between">
+                 <p className="text-sm font-bold text-slate-500 mb-6 flex items-center gap-1.5">
+                   <AlertCircle className="w-4 h-4"/> 기존 유지안
+                 </p>
+                 <div className="space-y-4">
+                   <div>
+                     <p className="text-xs font-bold text-slate-400 mb-1">월 납입 보험료</p>
+                     <p className="text-2xl font-black text-slate-700">{formatPremium(analysisData.premium.before)}</p>
+                   </div>
+                   <div className="border-t border-slate-200 pt-4 print:border-slate-300">
+                     <p className="text-xs font-bold text-slate-400 mb-1">총 납입원금</p>
+                     <p className={`text-xl font-black text-slate-500 ${totalPremiumDiff < 0 ? 'line-through decoration-slate-400' : ''}`}>
+                       {formatMoney(Math.round(analysisData.totalPremium.before / 10000))}
+                     </p>
+                   </div>
+                 </div>
+              </div>
+
+              <div className="flex-1 bg-blue-50/50 border border-blue-200 p-6 rounded-2xl print:bg-blue-50 print:border-blue-300 flex flex-col justify-between  print:flex-1 print:justify-between">
+                 <p className="text-sm font-bold text-blue-600 mb-6 flex items-center gap-1.5">
+                   <CheckCircle2 className="w-4 h-4"/> 최적화 제안
+                 </p>
+                 <div className="space-y-4">
+                   <div>
+                     <p className="text-xs font-bold text-blue-400 mb-1">월 납입 보험료</p>
+                     <p className="text-2xl font-black text-gray-900">{formatPremium(afterPremium)}</p>
+                   </div>
+                   <div className="border-t border-blue-100 pt-4 print:border-blue-200">
+                     <p className="text-xs font-bold text-blue-400 mb-1">총 납입원금</p>
+                     <p className="text-xl font-black text-gray-900">
+                       {formatMoney(Math.round(analysisData.totalPremium.after / 10000))}
+                     </p>
+                   </div>
+                 </div>
+              </div>
+            </div>
+            
+            <div className={`print-card w-full p-5 md:p-6 rounded-2xl text-white shadow-md flex flex-col md:flex-row justify-between items-center gap-5 border print:shadow-none ${
+              premiumDiff <= 0 ? 'bg-gradient-to-r from-blue-700 to-blue-600 border-blue-800' : 'bg-gradient-to-r from-slate-900 to-indigo-950 border-slate-800'
+            }`}>
+              <div className="flex items-center gap-4 w-full md:w-auto">
+                <div className={`p-3 rounded-full shrink-0 border ${premiumDiff <= 0 ? 'bg-white/10 border-white/20' : 'bg-indigo-500/20 border-indigo-500/30'}`}>
+                  {premiumDiff <= 0 ? <TrendingDown className="w-8 h-8 text-yellow-300"/> : <ShieldCheck className="w-8 h-8 text-emerald-400 animate-pulse"/>}
+                </div>
+                <div>
+                  <p className={`text-sm font-bold tracking-wide mb-1 ${premiumDiff <= 0 ? 'text-white/80' : 'text-indigo-300'}`}>
+                    {premiumDiff <= 0 ? '💡 평생 고정 지출 절감 완료' : '🛡️ 가성비 중심 핵심 보장 자산 극대화'}
+                  </p>
+                  <p className="text-3xl font-black flex items-center gap-1.5 text-white">
+                    {premiumDiff <= 0 ? (
+                      <>
+                        {formatPremium(Math.abs(premiumDiff))} 절감
+                        <span className="text-xs font-medium text-white/60 ml-1">/ 월</span>
+                      </>
+                    ) : (
+                      <>
+                        3대 질환 진단 시 최대 비용
+                      </>
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-white/5 rounded-xl p-4 border border-white/10 w-full md:w-auto text-left md:text-right shadow-inner backdrop-blur-sm">
+                {totalPremiumDiff <= 0 ? (
+                  <>
+                    <p className="text-[11px] font-medium mb-1 text-white/70">총 납입원금 기준 최종 세이브 자산</p>
+                    <p className="text-2xl font-black text-yellow-300">{formatMoney(Math.round(Math.abs(totalPremiumDiff) / 10000))}</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-2xl font-black text-emerald-400">+ {formatMoney(calculateTotalDefenseCost())} 확보</p>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* ⭐️ TOP 3 및 보장 공백 진단 결과 통합 렌더링 블록 */}
+            {(() => {
+              const upgradedCoverages = analysisData.coverages.filter(item => item.after > item.before && !HIDDEN_IN_SUMMARY.includes(item.name));
+              
+              return (
+                <div className="flex flex-col gap-8 mt-8 pt-8 border-t border-slate-200 border-dashed print:border-slate-300 print:mt-6 print:pt-6">
                   {/* 1. 핵심 보장 TOP 3 (화면에는 항상 표시, 데이터가 없으면 인쇄 시에만 숨김) */}
                   <div className={`flex flex-col justify-center ${upgradedCoverages.length === 0 ? 'print:hidden' : ''}`}>
                     <div className="mb-4">
@@ -1170,7 +1105,7 @@ export default function AnalysisPage() {
         </section>
 
         {/* 보장 금액 합산 페이지 */}
-        <section className="bg-white rounded-2xl p-6 md:p-8 border border-slate-400 shadow-sm print:border-slate-300 print:break-inside-avoid print:shadow-none relative overflow-hidden">
+        <section className="bg-white rounded-2xl p-6 md:p-8 border border-slate-400 shadow-sm print:p-0 print:border-none print:break-inside-avoid print:shadow-none relative overflow-hidden">
           <div className="flex items-center justify-between border-b border-slate-200 pb-4 mb-6 print:border-slate-300">
             <h2 className="text-lg font-black text-slate-800 flex items-center gap-2 uppercase tracking-widest">
             <AlertCircle className="w-5 h-5 text-blue-600" />
@@ -1218,7 +1153,7 @@ export default function AnalysisPage() {
         </section>
 
         {/* C00 ~ D09 신생물 질환 상세 코드별 보장금액 진단 */}
-        <section className="bg-white rounded-2xl p-6 md:p-8 border-2 border-slate-400 shadow-sm print:border-slate-300 print:break-inside-avoid print:shadow-none relative overflow-hidden mt-6">
+        <section className="bg-white rounded-2xl p-6 md:p-8 border-2 border-slate-400 shadow-sm print:p-0 print:border-none print:break-inside-avoid print:shadow-none relative overflow-hidden mt-6">
           <div className="flex items-center justify-between border-b border-slate-200 pb-4 mb-6 print:border-slate-300">
             <div>
               <h2 className="text-lg font-black text-slate-800 flex items-center gap-2 uppercase tracking-widest">
@@ -1277,11 +1212,6 @@ export default function AnalysisPage() {
                               {
                                 afterAmt > 0 ? 
                                 <div className="flex flex-col items-center justify-center gap-1">
-                                  {isZeroBefore ? (
-                                    <span className="text-[10px] font-black text-white bg-blue-600 px-2 py-0.5 rounded shadow-sm">신규 보장</span>
-                                  ) : (
-                                    <span></span>
-                                  )}
                                   <span className="font-black text-blue-600">{formatMoney(afterAmt)}</span>
                                 </div>
                                  : 
@@ -1300,7 +1230,7 @@ export default function AnalysisPage() {
         </section>
 
         {/* I00 ~ I99 순환계 질환 상세 코드별 보장금액 진단 */}
-        <section className="bg-white rounded-2xl p-6 md:p-8 border-2 border-slate-400 shadow-sm print:border-slate-300 print:break-inside-avoid print:shadow-none relative overflow-hidden mt-6">
+        <section className="bg-white rounded-2xl p-6 md:p-8 border-2 border-slate-400 shadow-sm print:p-0 print:border-none print:break-inside-avoid print:shadow-none relative overflow-hidden mt-6">
           <div className="flex items-center justify-between border-b border-slate-200 pb-4 mb-6 print:border-slate-300">
             <div>
               <h2 className="text-lg font-black text-slate-800 flex items-center gap-2 uppercase tracking-widest">
@@ -1359,11 +1289,6 @@ export default function AnalysisPage() {
                               {
                                 afterAmt > 0 ?  
                                   <div className="flex flex-col items-center justify-center gap-1">
-                                    {isZeroBefore ? (
-                                      <span className="text-[10px] font-black text-white bg-blue-700 px-2 py-0.5 rounded shadow-sm">신규 보장</span>
-                                    ) : (
-                                      <span></span>
-                                    )}
                                     <span className="font-black text-blue-700">{formatMoney(afterAmt)}</span>
                                   </div>
                                 : '-'
@@ -1381,7 +1306,7 @@ export default function AnalysisPage() {
         </section>
         
         {/* 리모델링 상세 내역 */}
-        <section className="bg-white rounded-2xl p-6 md:p-8 border-2 border-slate-400 shadow-sm print:border-slate-300 print:break-inside-avoid print:shadow-none relative overflow-hidden mt-6">
+        <section className="bg-white rounded-2xl p-6 md:p-8 border-2 border-slate-400 shadow-sm print:p-0 print:border-none print:break-inside-avoid print:shadow-none relative overflow-hidden mt-6">
           <div className="flex items-center justify-between border-b border-slate-200 pb-4 mb-6 print:border-slate-300">
             <h2 className="text-lg font-black text-slate-800 flex items-center gap-2 uppercase tracking-widest">
             <AlertCircle className="w-5 h-5 text-blue-600" />
@@ -1392,7 +1317,7 @@ export default function AnalysisPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-200 print:grid-cols-2 print:divide-y-0 print:divide-x">
             
             {/* 왼쪽: 리모델링 전 */}
-            <div className="p-4 md:p-6 border-0">
+            <div className="p-4 md:p-6 border-0 print:pl-0 print:pt-0">
               <h3 className="font-bold text-slate-700 mb-5 flex items-center gap-2 border-b border-slate-200 pb-3 text-lg">
                 기존 보험내역
               </h3>
@@ -1412,14 +1337,14 @@ export default function AnalysisPage() {
                          <p className="font-black text-slate-700 text-base">{formatPremium(cov.remodeled_amount || cov.monthly_premium)}</p>
                       </div>
                     </div>
-                    <div className="bg-slate-50 border border-slate-100 rounded-lg p-2.5 mb-2 text-[11px] grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div className="bg-slate-50 border border-slate-100 rounded-lg p-2.5 mb-2 text-[11px] gap-2">
                        <div className="flex items-center gap-1.5">
-                         <span className="text-slate-400 font-medium">계약/피보험</span>
+                         <span className="text-slate-400 font-medium">계약자/피보험자</span>
                          <span className="text-slate-700 font-bold">{cov.contractor_name || '-'} / {cov.insured_name || client?.name || '-'}</span>
                        </div>
                        <div className="flex items-center gap-1.5">
-                         <span className="text-slate-400 font-medium">가입/만기</span>
-                         <span className="text-slate-700 font-bold">{cov.subscription_date || '-'} ~<br/>{cov.maturity_date || '-'}</span>
+                         <span className="text-slate-400 font-medium">가입일 / 만기일</span>
+                         <span className="text-slate-700 font-bold">{cov.subscription_date || '-'} ~{cov.maturity_date || '-'}</span>
                        </div>
                     </div>
                     
@@ -1431,8 +1356,12 @@ export default function AnalysisPage() {
                           return (
                             <div key={i} className="flex justify-between text-xs text-slate-600">
                               <span className="truncate pr-2 flex items-center gap-1.5 leading-relaxed">
-                                {badgeText && (
+                                {badgeText === "비갱신" ? (
                                   <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200 shrink-0 font-medium">
+                                    {badgeText}
+                                  </span>
+                                ) : (
+                                  <span className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded border border-amber-200 shrink-0 font-medium">
                                     {badgeText}
                                   </span>
                                 )}
@@ -1455,7 +1384,7 @@ export default function AnalysisPage() {
             </div>
 
             {/* 오른쪽: 리모델링 후 */}
-            <div className="p-4 md:p-6 border-0">
+            <div className="p-4 md:p-6 border-0 print:pr-0 print:pt-0">
               <h3 className="font-bold text-blue-700 mb-5 flex items-center gap-2 border-b border-blue-200 pb-3 text-lg">
                 권장 보험내역
               </h3>
@@ -1498,14 +1427,14 @@ export default function AnalysisPage() {
                             )}
                           </div>
                         </div>
-                        <div className={`rounded-lg p-2.5 mb-2 text-[11px] grid grid-cols-1 sm:grid-cols-2 gap-2 ${isCanceled ? 'bg-red-50/50 border border-red-100' : 'bg-slate-50 border border-slate-100'}`}>
+                        <div className={`rounded-lg p-2.5 mb-2 text-[11px] gap-2 ${isCanceled ? 'bg-red-50/50 border border-red-100' : 'bg-slate-50 border border-slate-100'}`}>
                            <div className="flex items-center gap-1.5">
-                             <span className={`${isCanceled ? 'text-red-400' : 'text-slate-400'} font-medium`}>계약/피보험</span>
+                             <span className={`${isCanceled ? 'text-red-400' : 'text-slate-400'} font-medium`}>계약자/피보험자</span>
                              <span className={`${isCanceled ? 'text-red-700' : 'text-slate-700'} font-bold`}>{cov.contractor_name || '-'} / {cov.insured_name || client?.name || '-'}</span>
                            </div>
                            <div className="flex items-center gap-1.5">
-                             <span className={`${isCanceled ? 'text-red-400' : 'text-slate-400'} font-medium`}>가입/만기</span>
-                             <span className={`${isCanceled ? 'text-red-700' : 'text-slate-700'} font-bold`}>{cov.subscription_date || '-'} ~<br/>{cov.maturity_date || '-'}</span>
+                             <span className={`${isCanceled ? 'text-red-400' : 'text-slate-400'} font-medium`}>가입일 / 만기일</span>
+                             <span className={`${isCanceled ? 'text-red-700' : 'text-slate-700'} font-bold`}>{cov.subscription_date || '-'} ~ {cov.maturity_date || '-'}</span>
                            </div>
                         </div>
                         
@@ -1521,11 +1450,15 @@ export default function AnalysisPage() {
                               return (
                                 <div key={i} className={`flex justify-between text-xs ${isEffectivelyDeleted ? 'text-red-400/60 line-through' : 'text-slate-700'}`}>
                                   <span className="truncate pr-2 flex items-center gap-1.5 leading-relaxed">
-                                    {badgeText && (
+                                    {badgeText === "비갱신" ? (
                                       <span className={`text-[9px] px-1.5 py-0.5 rounded border shrink-0 font-medium ${isEffectivelyDeleted ? 'bg-red-50 text-red-400 border-red-100' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
                                         {badgeText}
                                       </span>
-                                    )}
+                                      ) : (
+                                        <span className={`text-[9px] px-1.5 py-0.5 rounded border shrink-0 font-medium ${isEffectivelyDeleted ? 'bg-red-50 text-red-400 border-red-100' : 'bg-amber-100 text-amber-700 border-amber-200'}`}>
+                                          {badgeText}
+                                        </span>
+                                      )}
                                     {d.name}
                                   </span>
                                   <span className={`font-bold shrink-0 ${isEffectivelyDeleted ? '' : (isDetailReduced ? 'text-red-600' : (d.original_amount ? 'text-blue-600' : 'text-slate-800'))}`}>
@@ -1549,7 +1482,7 @@ export default function AnalysisPage() {
         </section>
 
         {/* 건강 분석 페이지 */}
-        <section className="bg-white rounded-2xl p-6 md:p-8 border border-slate-400 shadow-sm print:border-slate-300 print:break-inside-avoid print:shadow-none relative">
+        <section className="bg-white rounded-2xl p-6 md:p-8 border border-slate-400 shadow-sm print:p-0 print:border-none print:break-inside-avoid print:shadow-none relative overflow-hidden">
             <div className="flex items-center justify-between border-b border-slate-200 pb-4 mb-6 print:border-slate-300">
               <h2 className="text-lg font-black text-slate-800 flex items-center gap-2 uppercase tracking-widest">
                 <Stethoscope className="w-6 h-6 text-blue-600" />
@@ -1603,18 +1536,13 @@ export default function AnalysisPage() {
               })}
             </div>
 
-            <div className="bg-blue-50/30 border border-blue-100 rounded-xl p-5 print:bg-blue-50/50">
+            <div className="bg-blue-50/30 border border-blue-100 rounded-xl p-5 print:bg-blue-50/50 print:overflow-hidden overflow-hidden">
               <p className="text-[11px] font-bold text-blue-500 uppercase tracking-widest mb-3 flex items-center gap-1.5">
                 <FileText className="w-3.5 h-3.5" /> 상세 병력 및 분석 코멘트
               </p>
-              <textarea
-                value={medicalHistory.memo || ""}
-                onChange={(e) => setMedicalHistory({ ...medicalHistory, memo: e.target.value })}
-                className="w-full bg-transparent text-sm font-semibold text-slate-700 outline-none resize-none leading-relaxed min-h-[300px] focus:border-b focus:border-blue-300 transition-colors print:border-none "
-                rows={medicalHistory.memo ? medicalHistory.memo.split('\n').length + 1 : 4}
-                placeholder="상세 병력 내용이 없습니다."
-                disabled
-              />
+              <div className="print:block w-full text-sm font-semibold text-slate-700 leading-relaxed whitespace-pre-wrap break-words">
+                {medicalHistory.memo || "상세 병력 내용이 없습니다."}
+              </div>
             </div>
 
             <p className="text-[10px] font-semibold text-slate-400 mt-5 flex items-center gap-1.5">
