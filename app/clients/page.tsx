@@ -100,7 +100,7 @@ export default function ClientsPage() {
   // ⭐️ SM/지점장 모드 전용 상태 변수들
   const [isManager, setIsManager] = useState(false);
   const [currentAgentId, setCurrentAgentId] = useState<number | null>(null);
-  const [teamMembers, setTeamMembers] = useState<{ id: number; name: string }[]>([]);
+  const [teamMembers, setTeamMembers] = useState<{ id: number; name: string; rank: string; }[]>([]);
   const [selectedAgentFilter, setSelectedAgentFilter] = useState<string>("me"); // "me", "all", 또는 "특정id"
 
   const [page, setPage] = useState(1);
