@@ -392,7 +392,7 @@ export default function ClientsMedicalHistoryCard({ clientId, initialHistory }: 
             {isAnalyzed && <span className="text-xs font-bold text-green-600 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> 분석 완료</span>}
           </div>
 
-          <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-slate-300 border-dashed rounded-lg cursor-pointer bg-white hover:bg-slate-50 transition-colors">
+          <label className="flex flex-col items-center justify-center w-full h-20 border-2 border-slate-300 border-dashed rounded-lg cursor-pointer bg-white hover:bg-slate-50 transition-colors">
             <div className="flex flex-col items-center justify-center pt-4 pb-4">
               <UploadCloud className="w-6 h-6 text-slate-400 mb-2" />
               <p className="text-xs text-slate-500"><span className="font-semibold text-blue-600">클릭하여 파일 첨부</span> (심평원 PDF 다중 선택 가능)</p>
@@ -440,7 +440,7 @@ export default function ClientsMedicalHistoryCard({ clientId, initialHistory }: 
         <div className="flex flex-col gap-1.5 flex-1 min-h-[160px]">
           <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest ml-1 shrink-0">병력 상세 메모</p>
           <textarea
-            className={`w-full min-h-[400px] flex-1 rounded-lg border p-3 text-xs text-gray-800 leading-relaxed resize-none focus:outline-none transition-colors ${isAnalyzed && medicalMemo.includes("알릴 의무 대상") ? 'border-red-300 bg-red-50/20 focus:ring-1 focus:ring-red-500' : 'border-gray-200 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500'}`}
+            className={`w-full min-h-[500px] flex-1 rounded-lg border p-3 text-xs text-gray-800 leading-relaxed resize-none focus:outline-none transition-colors ${isAnalyzed && medicalMemo.includes("알릴 의무 대상") ? 'border-red-300 bg-red-50/20 focus:ring-1 focus:ring-red-500' : 'border-gray-200 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500'}`}
             placeholder="상세 병력 사항이나 고지 의무 특이사항을 기록하세요..."
             value={medicalMemo}
             onChange={(e) => setMedicalMemo(e.target.value)}

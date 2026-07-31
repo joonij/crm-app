@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, useMemo, useRef } from "react";
-import { Plus, Users, X, CheckSquare, Square, BarChart3, Phone, Search, Crown, UserPlus, Star, Trash2 } from "lucide-react";
+import { Plus, Users, X, CheckSquare, Square, BarChart3, Phone, Search, Crown, UserPlus, Star, Trash2, ChevronDown } from "lucide-react";
 import ClientModal from "@/components/ClientModal";
 import { supabase } from "@/lib/supabase";
 import Link from 'next/link';
@@ -15,7 +15,9 @@ type Client = {
   contract_status: string | number | null;
   introduce_client: number | null;
   isKeyman?: boolean;
-  is_favorite?: boolean; // ⭐️ 즐겨찾기 상태 추가
+  is_favorite?: boolean;
+  agent_id?: number;
+  agents?: { name: string }; // ⭐️ 담당자 이름 조인용 필드 추가
 };
 
 const contractStatusMap: Record<string, string> = {
@@ -95,11 +97,18 @@ export default function ClientsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
+  // ⭐️ SM/지점장 모드 전용 상태 변수들
+  const [isManager, setIsManager] = useState(false);
+  const [currentAgentId, setCurrentAgentId] = useState<number | null>(null);
+  const [teamMembers, setTeamMembers] = useState<{ id: number; name: string }[]>([]);
+  const [selectedAgentFilter, setSelectedAgentFilter] = useState<string>("me"); // "me", "all", 또는 "특정id"
+
   const [page, setPage] = useState(1);
   const ITEMS_PER_PAGE = 20;
 
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
+  // ⭐️ 담당자 필터(selectedAgentFilter)가 바뀔 때마다 데이터를 새로 가져오도록 의존성 배열에 추가
   const fetchClients = useCallback(async () => {
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     
@@ -108,9 +117,10 @@ export default function ClientsPage() {
       return;
     }
 
+    // 로그인한 유저의 직급(rank)과 소속(agency_id) 가져오기
     const { data: agent, error: agentError } = await supabase
       .from("agents")
-      .select("id")
+      .select("id, rank, agency_id")
       .eq("auth_id", user.id)
       .single();
 
@@ -119,10 +129,39 @@ export default function ClientsPage() {
       return;
     }
 
-    const { data, error } = await supabase
-      .from("clients")
-      .select("*")
-      .eq("agent_id", agent.id);
+    setCurrentAgentId(agent.id);
+
+    // 직급이 SM이거나 지점장인 경우 관리자 모드 활성화
+    const managerAuth = agent.rank === "SM" || agent.rank === "지점장";
+    setIsManager(managerAuth);
+
+    // clients 테이블에서 데이터를 가져올 때 agents 테이블과 Join해서 이름(name)을 함께 가져옴
+    let query = supabase.from("clients").select("*, agents(name)");
+
+    if (managerAuth) {
+      // 1. 소속 팀원(같은 agency_id) 목록 세팅
+      const { data: members } = await supabase
+        .from("agents")
+        .select("id, name, rank")
+        .eq("agency_id", agent.agency_id);
+      
+      if (members) setTeamMembers(members);
+
+      // 2. 선택된 필터에 따라 쿼리 변경
+      if (selectedAgentFilter === "me") {
+        query = query.eq("agent_id", agent.id);
+      } else if (selectedAgentFilter === "all" && members) {
+        const memberIds = members.map(m => m.id);
+        query = query.in("agent_id", memberIds);
+      } else {
+        query = query.eq("agent_id", parseInt(selectedAgentFilter));
+      }
+    } else {
+      // 일반 팀원은 무조건 자신의 고객만
+      query = query.eq("agent_id", agent.id);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       setClients([]);
@@ -138,14 +177,12 @@ export default function ClientsPage() {
       return acc;
     }, {} as Record<number, number>);
 
-    // ⭐️ 즐겨찾기 상태를 DB값 그대로 가져옴 (없으면 false)
     const clientsWithKeyman = fetchedData.map(client => ({
       ...client,
       isKeyman: (introCounts[client.id] || 0) >= 3,
       is_favorite: !!client.is_favorite
     }));
 
-    // 정렬 1순위: 즐겨찾기, 2순위: 가나다순
     clientsWithKeyman.sort((a, b) => {
       if (a.is_favorite && !b.is_favorite) return -1;
       if (!a.is_favorite && b.is_favorite) return 1;
@@ -153,7 +190,7 @@ export default function ClientsPage() {
     });
 
     setClients(clientsWithKeyman);
-  }, []);
+  }, [selectedAgentFilter]); // 필터가 바뀔 때마다 재실행
 
   useEffect(() => {
     void fetchClients();
@@ -161,7 +198,7 @@ export default function ClientsPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [searchTerm, statusFilter]);
+  }, [searchTerm, statusFilter, selectedAgentFilter]);
 
   const filteredClients = useMemo(() => {
     if (!clients) return [];
@@ -179,7 +216,7 @@ export default function ClientsPage() {
         matchesStatus = true;
       } else if (statusFilter === "keyman") {
         matchesStatus = !!client.isKeyman; 
-      } else if (statusFilter === "favorite") { // ⭐️ 즐겨찾기 필터 분기 추가
+      } else if (statusFilter === "favorite") { 
         matchesStatus = !!client.is_favorite;
       } else {
         const clientStatusId = client.contract_status !== null ? String(client.contract_status) : "";
@@ -223,14 +260,12 @@ export default function ClientsPage() {
     }
   };
 
-  // ⭐️ 1. 즐겨찾기 토글 함수
   const handleToggleFavorite = async (e: React.MouseEvent, clientId: number, currentStatus: boolean) => {
     e.preventDefault();
     e.stopPropagation();
     
     const newStatus = !currentStatus;
     
-    // UI 즉각 반영 (Optimistic UI)
     setClients((prev) => 
       prev ? prev.map((c) => (c.id === clientId ? { ...c, is_favorite: newStatus } : c)) : null
     );
@@ -239,25 +274,23 @@ export default function ClientsPage() {
     
     if (error) {
       alert(`즐겨찾기 변경 실패!\n원인: ${error.message}`);
-      void fetchClients(); // 롤백
+      void fetchClients(); 
     }
   };
 
-  // ⭐️ 2. 고객 완전 삭제 함수
   const handleDeleteClient = async (e: React.MouseEvent, clientId: number, clientName: string) => {
     e.preventDefault();
     e.stopPropagation();
     
     if (!window.confirm(`⚠️ 정말 [${clientName}] 고객님을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없으며, 관련된 보장 분석 및 일정도 모두 삭제될 수 있습니다.`)) return;
 
-    // UI에서 먼저 제거
     setClients((prev) => prev ? prev.filter((c) => c.id !== clientId) : null);
 
     const { error } = await supabase.from("clients").delete().eq("id", clientId);
     
     if (error) {
       alert(`고객 삭제 실패!\n원인: ${error.message}`);
-      void fetchClients(); // 롤백
+      void fetchClients(); 
     }
   };
 
@@ -334,6 +367,28 @@ export default function ClientsPage() {
 
         <div className="flex flex-col lg:flex-row gap-3 items-start lg:items-center bg-gray-50/70 p-2 md:p-3 rounded-xl border border-gray-100">
           
+          {/* ⭐️ SM(관리자) 전용 팀원 필터 드롭다운 */}
+          {isManager && (
+            <div className="relative w-full lg:w-[160px] shrink-0">
+              <select
+                value={selectedAgentFilter}
+                onChange={(e) => setSelectedAgentFilter(e.target.value)}
+                className="w-full pl-3 pr-8 py-2.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 font-bold text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 appearance-none shadow-sm cursor-pointer"
+              >
+                <option value="me">내 고객 목록</option>
+                <option value="all">팀 전체 고객</option>
+                <optgroup label="팀원 목록">
+                  {teamMembers
+                    .filter(m => m.id !== currentAgentId) // 나 자신 제외
+                    .map(member => (
+                    <option key={member.id} value={member.id}>{member.name} {member.rank}</option>
+                  ))}
+                </optgroup>
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-500 pointer-events-none" />
+            </div>
+          )}
+          
           <div className="relative w-full lg:w-[320px] shrink-0">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
@@ -344,6 +399,7 @@ export default function ClientsPage() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
+
 
           <div className="flex w-full gap-2 overflow-x-auto pt-1 pb-1 lg:pt-0 lg:pb-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             <button 
@@ -365,7 +421,6 @@ export default function ClientsPage() {
               키맨
             </button>
 
-            {/* ⭐️ 즐겨찾기 필터 버튼 */}
             <button 
               onClick={() => setStatusFilter("favorite")} 
               className={`cursor-pointer shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-bold transition-colors ${
@@ -428,7 +483,6 @@ export default function ClientsPage() {
                     <tr key={client.id} className="hover:bg-blue-50/20 transition-colors group">
                       <td className="px-6 py-3 whitespace-nowrap">
                         <div className="flex items-center gap-2">
-                          {/* ⭐️ 즐겨찾기 아이콘 */}
                           <button 
                             onClick={(e) => handleToggleFavorite(e, client.id, !!client.is_favorite)}
                             className="cursor-pointer p-1 -ml-1 rounded-full hover:bg-gray-100 transition-colors"
@@ -436,9 +490,17 @@ export default function ClientsPage() {
                             <Star className={`w-4 h-4 transition-colors ${client.is_favorite ? "fill-yellow-400 text-yellow-400" : "text-gray-300 hover:text-yellow-400"}`} />
                           </button>
                           
-                          <Link href={`/clients/${client.id}`} className="block text-base font-bold text-gray-900 group-hover:text-blue-600 transition-colors py-1.5">
-                            {client.name}
-                          </Link>
+                          <div className="flex items-center gap-1.5">
+                            <Link href={`/clients/${client.id}`} className="block text-base font-bold text-gray-900 group-hover:text-blue-600 transition-colors py-1.5">
+                              {client.name}
+                            </Link>
+                            {/* ⭐️ 담당자 표시 (SM이 타 팀원 고객을 볼 때) */}
+                            {isManager && selectedAgentFilter !== "me" && client.agents?.name && (
+                              <span className="text-[10px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded border border-indigo-100 font-bold whitespace-nowrap ml-1">
+                                {client.agents.name}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </td>
                       <td className="px-6 py-3 whitespace-nowrap">
@@ -510,7 +572,6 @@ export default function ClientsPage() {
                       <td className="whitespace-nowrap px-6 py-3 text-sm text-gray-500">
                         <div className="flex items-center h-8">{client.phone ?? "-"}</div>
                       </td>
-                      {/* ⭐️ 데스크탑 고객 삭제 버튼 */}
                       <td className="px-6 py-3 whitespace-nowrap text-right">
                         <button 
                           onClick={(e) => handleDeleteClient(e, client.id, client.name)}
@@ -547,7 +608,6 @@ export default function ClientsPage() {
               return (
                 <div key={client.id} className="relative p-4 flex flex-col gap-4 bg-white hover:bg-gray-50 transition-colors">
                   
-                  {/* ⭐️ 모바일 고객 삭제 버튼 (우측 상단 절대 배치) */}
                   <button 
                     onClick={(e) => handleDeleteClient(e, client.id, client.name)}
                     className="absolute top-4 right-4 p-1.5 text-gray-300 hover:text-red-500 bg-white hover:bg-red-50 rounded-md transition-colors"
@@ -557,7 +617,6 @@ export default function ClientsPage() {
 
                   <div className="flex justify-between items-center pr-10">
                     <div className="flex items-center gap-2">
-                      {/* ⭐️ 즐겨찾기 아이콘 */}
                       <button 
                         onClick={(e) => handleToggleFavorite(e, client.id, !!client.is_favorite)}
                         className="p-1 -ml-1 rounded-full hover:bg-gray-100 transition-colors"
@@ -565,14 +624,22 @@ export default function ClientsPage() {
                         <Star className={`w-5 h-5 transition-colors ${client.is_favorite ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`} />
                       </button>
 
-                      <Link href={`/clients/${client.id}`} className="text-lg font-extrabold text-gray-900 hover:text-blue-600">
-                        {client.name}
-                      </Link>
-                      {client.isKeyman && (
-                        <span className="flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 border-blue-200/80 text-[10px] font-black rounded border shadow-sm">
-                          <Crown className="w-3 h-3 text-amber-500" /> 키맨
-                        </span>
-                      )}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <Link href={`/clients/${client.id}`} className="text-lg font-extrabold text-gray-900 hover:text-blue-600">
+                          {client.name}
+                        </Link>
+                        {/* ⭐️ 담당자 표시 (모바일) */}
+                        {isManager && selectedAgentFilter !== "me" && client.agents?.name && (
+                          <span className="text-[10px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded border border-indigo-100 font-bold whitespace-nowrap">
+                            {client.agents.name}
+                          </span>
+                        )}
+                        {client.isKeyman && (
+                          <span className="flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 border-blue-200/80 text-[10px] font-black rounded border shadow-sm">
+                            <Crown className="w-3 h-3 text-amber-500" /> 키맨
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   
@@ -674,7 +741,7 @@ export default function ClientsPage() {
               </div>
               <button 
                 onClick={() => setProgressModalClient(null)}
-                className="text-gray-400 hover:text-gray-600 transition-colors p-2 hover:bg-gray-200 rounded-full"
+                className="text-gray-400 hover:text-gray-600 transition-colors p-2 hover:bg-gray-200 rounded-full cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -737,7 +804,7 @@ export default function ClientsPage() {
               </div>
               <button 
                 onClick={() => setRecruitingModalClient(null)}
-                className="text-gray-400 hover:text-gray-600 transition-colors p-2 hover:bg-purple-200/50 rounded-full"
+                className="text-gray-400 hover:text-gray-600 transition-colors p-2 hover:bg-purple-200/50 rounded-full cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>

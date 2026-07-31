@@ -363,9 +363,15 @@ export default function SchedulePage() {
             </span>
           </div>
           <div className="flex flex-col gap-1 min-w-0">
-            <span className="font-bold text-yellow-900 block truncate w-full" title={evt.content}>{evt.content}</span>
+            <span className="font-bold text-yellow-900 block truncate w-full" title={evt.content}>
+              <span className="font-black text-sm text-red-600 tracking-tight">{evt.premium?.toLocaleString()}원</span><br/>
+              {evt.content}
+            </span>
             <div className="flex justify-between items-end pt-1">
-              <span className="font-black text-sm text-red-600 tracking-tight">{evt.premium?.toLocaleString()}원</span>
+              
+              <span className="text-[10px] opacity-70 truncate">
+                {isSM && evt.ownerName}
+              </span>
               <button onClick={(e) => { e.stopPropagation(); setDetailModalEvent(evt); }} className="text-yellow-800 hover:text-yellow-900 font-bold text-[11px] bg-white/60 px-2 py-0.5 rounded border border-yellow-300 shadow-xs shrink-0 cursor-pointer">상세</button>
             </div>
           </div>
@@ -386,9 +392,14 @@ export default function SchedulePage() {
             </span>
           </div>
           <div className="flex flex-col gap-1 min-w-0">
-            <span className="font-bold text-orange-900 block truncate w-full" title={evt.content}>{evt.content}</span>
+            <span className="font-bold text-orange-900 block truncate w-full" title={evt.content}>
+              <span className="font-black text-sm text-orange-600 tracking-tight">{evt.premium?.toLocaleString()}원</span><br/>
+              {evt.content}
+            </span>
             <div className="flex justify-between items-end pt-1">
-              <span className="font-black text-sm text-orange-600 tracking-tight">{evt.premium?.toLocaleString()}원</span>
+              <span className="text-[10px] opacity-70 truncate">
+                {isSM && evt.ownerName}
+              </span>
               <button onClick={(e) => { e.stopPropagation(); setDetailModalEvent(evt); }} className="text-orange-800 hover:text-orange-900 font-bold text-[11px] bg-white/60 px-2 py-0.5 rounded border border-orange-300 shadow-xs shrink-0 cursor-pointer">상세</button>
             </div>
           </div>
@@ -412,7 +423,9 @@ export default function SchedulePage() {
           <span className="font-medium block truncate w-full" title={evt.content}>{evt.content}</span>
         </div>
         <div className="flex justify-between items-center pt-1">
-          {isSM && <span className="text-[10px] opacity-70 truncate">{evt.ownerName}</span>}
+          <span className="text-[10px] opacity-70 truncate">
+            {isSM && evt.ownerName}
+          </span>
           <button onClick={(e) => { e.stopPropagation(); setDetailModalEvent(evt); }} className="text-blue-600 hover:text-blue-800 font-bold text-[11px] bg-white/80 px-2 py-0.5 rounded border border-blue-200/50 shadow-xs shrink-0 cursor-pointer">더보기</button>
         </div>
       </div>

@@ -158,8 +158,7 @@ export default function ClientDetailPage() {
 
       <section className="w-full rounded-2xl border border-gray-200 bg-white p-5 md:p-6 shadow-sm shrink-0 flex flex-col md:flex-row justify-between items-start gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">고객 프로필</p>
-          <div className="flex items-center gap-3 mt-2">
+          <div className="flex items-center gap-3">
             <h1 
               className="text-3xl font-bold tracking-tight text-gray-900 cursor-pointer hover:text-blue-600 transition-colors"
               onClick={() => setIsDetailModalOpen(true)}
@@ -173,6 +172,7 @@ export default function ClientDetailPage() {
                 키맨
               </span>
             )}
+            <p className="text-base text-gray-600 font-medium">{client.phone ?? "연락처 미등록"}</p>
 
             {client.contract_status?.status && (
               <span className={`px-2.5 py-1 h-7 inline-flex items-center justify-center rounded-md border text-xs font-bold transition-all shadow-sm ${contractStatusStyleMap[client.contract_status.status] || "bg-gray-50 text-gray-400 border-gray-200 border-dashed"}`}>                              
@@ -180,7 +180,6 @@ export default function ClientDetailPage() {
               </span>
             )}
           </div>
-          <p className="mt-2 text-base text-gray-600 font-medium">{client.phone ?? "연락처 미등록"}</p>
         </div>
         
         {/* ⭐️ 버튼 영역 분리 및 링크 복사 버튼 추가 */}
