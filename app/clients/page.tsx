@@ -47,9 +47,10 @@ const SALES_STEPS = [
   { id: "step10", label: "추가 미팅 픽스" },
   { id: "step11", label: "추가 미팅 진행" },
   { id: "step12", label: "청약 진행" },
-  { id: "step13", label: "모니터링 처리" },
-  { id: "step14", label: "소개 요청" },
-  { id: "step15", label: "증권 전달" },
+  { id: "step13", label: "비교안내확인서 진행" },
+  { id: "step14", label: "모니터링 처리" },
+  { id: "step15", label: "소개 요청" },
+  { id: "step16", label: "증권 전달" },
 ];
 
 const RECRUITING_STEPS = [

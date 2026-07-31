@@ -48,7 +48,7 @@ export default function ClientScheduleCard({ clientId, agentId }: { clientId: st
   const handleEditClick = (schedule: Schedule) => {
     setEditingId(schedule.id);
     setScheduleForm({
-      content: schedule.content,
+      content: schedule.content || "",
       date: schedule.date,
       time: schedule.time || "",
       repeat: schedule.repeat || false,
@@ -227,7 +227,7 @@ export default function ClientScheduleCard({ clientId, agentId }: { clientId: st
         ) : (
           schedules.map((s) => {
             const isExpanded = expandedIds.includes(s.id);
-            const needsExpandButton = s.content.length > 40 || (s.content.match(/\n/g) || []).length >= 2;
+            const needsExpandButton = s.content || "";
             const isCurrentlyEditing = editingId === s.id;
 
             return (

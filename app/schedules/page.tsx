@@ -355,16 +355,18 @@ export default function SchedulePage() {
       return (
         <div key={evt.id} className={`p-2 rounded-xl sm:rounded-md border text-sm sm:text-xs flex flex-col gap-1.5 transition-all ${evt.color}`}>
           <div className="flex items-center justify-between border-b border-yellow-200/50 pb-1.5 sm:pb-1">
-            <span className="font-extrabold flex items-center gap-1.5 sm:gap-1 text-[13px] sm:text-xs text-yellow-900 whitespace-nowrap shrink-0">
-              <Trophy className="w-3.5 h-3.5 sm:w-3 sm:h-3 text-yellow-600 shrink-0" /> 🎉 체결
+            <span className="flex items-center">
+            🎉{evt.clients?.name && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/60 text-yellow-800 whitespace-nowrap overflow-hidden text-ellipsis max-w-[60px]">{evt.clients.name}</span>}
             </span>
-            {evt.clients?.name && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/60 text-yellow-800 whitespace-nowrap overflow-hidden text-ellipsis max-w-[60px]">{evt.clients.name}</span>}
+            <span className="font-extrabold text-[10px] text-yellow-900  px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 border border-yellow-200">
+              계약체결
+            </span>
           </div>
           <div className="flex flex-col gap-1 min-w-0">
             <span className="font-bold text-yellow-900 block truncate w-full" title={evt.content}>{evt.content}</span>
             <div className="flex justify-between items-end pt-1">
               <span className="font-black text-sm text-red-600 tracking-tight">{evt.premium?.toLocaleString()}원</span>
-              <button onClick={(e) => { e.stopPropagation(); setDetailModalEvent(evt); }} className="text-yellow-800 hover:text-yellow-900 font-bold text-[10px] bg-white/60 px-2 py-0.5 rounded border border-yellow-300 shadow-xs shrink-0 cursor-pointer">상세</button>
+              <button onClick={(e) => { e.stopPropagation(); setDetailModalEvent(evt); }} className="text-yellow-800 hover:text-yellow-900 font-bold text-[11px] bg-white/60 px-2 py-0.5 rounded border border-yellow-300 shadow-xs shrink-0 cursor-pointer">상세</button>
             </div>
           </div>
         </div>
@@ -375,16 +377,19 @@ export default function SchedulePage() {
       return (
         <div key={evt.id} className={`p-2 rounded-xl sm:rounded-md border text-sm sm:text-xs flex flex-col gap-1.5 transition-all ${evt.color}`}>
           <div className="flex items-center justify-between border-b border-orange-200/50 pb-1.5 sm:pb-1">
-            <span className="font-extrabold flex items-center gap-1.5 sm:gap-1 text-[13px] sm:text-xs text-orange-900 whitespace-nowrap shrink-0">
-              <AlertCircle className="w-3.5 h-3.5 sm:w-3 sm:h-3 text-orange-600 shrink-0" /> ⏳ 예정
+            <span className="flex items-center">
+              <AlertCircle className="w-3.5 h-3.5 sm:w-3 sm:h-3 text-orange-600 shrink-0" />
+              {evt.clients?.name && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/60 text-orange-800 whitespace-nowrap overflow-hidden text-ellipsis max-w-[60px]">{evt.clients.name}</span>}
             </span>
-            {evt.clients?.name && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/60 text-orange-800 whitespace-nowrap overflow-hidden text-ellipsis max-w-[60px]">{evt.clients.name}</span>}
+            <span className="font-extrabold text-[10px] text-orange-900  px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 border border-orange-200">
+              계약예정
+            </span>
           </div>
           <div className="flex flex-col gap-1 min-w-0">
             <span className="font-bold text-orange-900 block truncate w-full" title={evt.content}>{evt.content}</span>
             <div className="flex justify-between items-end pt-1">
               <span className="font-black text-sm text-orange-600 tracking-tight">{evt.premium?.toLocaleString()}원</span>
-              <button onClick={(e) => { e.stopPropagation(); setDetailModalEvent(evt); }} className="text-orange-800 hover:text-orange-900 font-bold text-[10px] bg-white/60 px-2 py-0.5 rounded border border-orange-300 shadow-xs shrink-0 cursor-pointer">상세</button>
+              <button onClick={(e) => { e.stopPropagation(); setDetailModalEvent(evt); }} className="text-orange-800 hover:text-orange-900 font-bold text-[11px] bg-white/60 px-2 py-0.5 rounded border border-orange-300 shadow-xs shrink-0 cursor-pointer">상세</button>
             </div>
           </div>
         </div>
@@ -394,26 +399,22 @@ export default function SchedulePage() {
     const catColor = getCategoryColor(evt.category);
     return (
       <div key={evt.id} className={`p-3 sm:p-2 rounded-xl sm:rounded-md border text-sm sm:text-xs flex flex-col gap-1.5 shadow-sm transition-all ${evt.color}`}>
-        <div className="flex items-center justify-between border-b border-black/10 pb-1.5 sm:pb-1 w-full">
-          <span className="font-black sm:font-extrabold flex items-center gap-1.5 sm:gap-1 text-[13px] sm:text-xs whitespace-nowrap shrink-0">
+        <div className="items-center border-b border-black/10 pb-1.5 sm:pb-1 w-full">
+          <span className="justify-between font-black sm:font-extrabold flex items-center gap-1.5 sm:gap-1 text-[13px] sm:text-xs whitespace-nowrap shrink-0">
             {evt.time}
-            {evt.clients?.name && (<span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 border border-slate-300 truncate max-w-[60px]">{evt.clients.name}</span>)}
-            {showOwner && evt.ownerName && <span className="text-[10px] opacity-70 truncate">| {evt.ownerName}</span>}
+            {evt.clients?.name && (<span className="text-[10px] font-bold px-1.5 py-0.5 text-slate-700 truncate max-w-[60px]">{evt.clients.name}</span>)}
+            {evt.category && <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${catColor}`}>{evt.category}</span>}
             </span>
         </div>
         
         
         <div className="flex items-center mt-0.5">
-        {(evt.category) && (
-          <span className="flex items-center mt-0.5 flex-wrap min-w-[34px]">
-            {evt.category && <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${catColor}`}>{evt.category}</span>}
-          </span>
-        )}
           <span className="font-medium block truncate w-full" title={evt.content}>{evt.content}</span>
         </div>
-        <div className="flex justify-end pt-1">
-            <button onClick={(e) => { e.stopPropagation(); setDetailModalEvent(evt); }} className="text-blue-600 hover:text-blue-800 font-bold text-[11px] bg-white/80 px-2 py-0.5 rounded border border-blue-200/50 shadow-xs shrink-0 cursor-pointer">더보기</button>
-          </div>
+        <div className="flex justify-between items-center pt-1">
+          {isSM && <span className="text-[10px] opacity-70 truncate">{evt.ownerName}</span>}
+          <button onClick={(e) => { e.stopPropagation(); setDetailModalEvent(evt); }} className="text-blue-600 hover:text-blue-800 font-bold text-[11px] bg-white/80 px-2 py-0.5 rounded border border-blue-200/50 shadow-xs shrink-0 cursor-pointer">더보기</button>
+        </div>
       </div>
     );
   };
@@ -525,8 +526,8 @@ export default function SchedulePage() {
                   <div key={member.id} className="bg-white px-3.5 py-2.5 rounded-xl border border-slate-200 flex flex-col min-w-[130px] shrink-0 hover:border-blue-300 hover:shadow-sm transition cursor-pointer">
                     <span className="font-bold text-slate-800 text-xs mb-1.5 truncate">{member.name}</span>
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-[10px] text-slate-500 flex justify-between">예정 <strong className="text-orange-500">{member.stats.monthNewAmt.toLocaleString()}</strong></span>
-                      <span className="text-[10px] text-slate-500 flex justify-between">체결 <strong className="text-blue-600">{member.stats.monthMaintainAmt.toLocaleString()}</strong></span>
+                      <span className="text-[12px] text-slate-500 flex justify-between">예정 <strong className="text-orange-500">{member.stats.monthNewAmt.toLocaleString()}</strong></span>
+                      <span className="text-[12px] text-slate-500 flex justify-between">체결 <strong className="text-blue-600">{member.stats.monthMaintainAmt.toLocaleString()}</strong></span>
                     </div>
                     
                   </div>
@@ -658,13 +659,13 @@ export default function SchedulePage() {
                               <div key={stat.id} className="bg-white rounded-lg p-2.5 border border-slate-200 shadow-sm flex flex-col gap-1">
                                 <span className="text-[12px] font-extrabold text-slate-800 border-b border-slate-100 pb-1 mb-0.5 truncate">{stat.name}</span>
                                 {(stat.nCnt > 0) && (
-                                  <div className="flex justify-between items-center text-[10px]">
+                                  <div className="flex justify-between items-center text-[12px]">
                                     <span className="text-orange-600 font-bold">예: {stat.nCnt}건</span>
                                     <span className="font-black text-slate-700">{stat.nAmt.toLocaleString()}원</span>
                                   </div>
                                 )}
                                 {(stat.mCnt > 0) && (
-                                  <div className="flex justify-between items-center text-[10px]">
+                                  <div className="flex justify-between items-center text-[12px]">
                                     <span className="text-blue-600 font-bold">체: {stat.mCnt}건</span>
                                     <span className="font-black text-slate-700">{stat.mAmt.toLocaleString()}원</span>
                                   </div>
