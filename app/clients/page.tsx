@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, useMemo, useRef } from "react";
-import { Plus, Users, X, CheckSquare, Square, BarChart3, Phone, Search, Crown, UserPlus, Star, Trash2, ChevronDown } from "lucide-react";
+import { Plus, Users, X, CheckSquare, Square, BarChart3, Phone, Search, Crown, UserPlus, Star, Trash2, ChevronDown, MessageCircle, Send, Copy } from "lucide-react";
 import ClientModal from "@/components/ClientModal";
 import { supabase } from "@/lib/supabase";
 import Link from 'next/link';
@@ -17,7 +17,13 @@ type Client = {
   isKeyman?: boolean;
   is_favorite?: boolean;
   agent_id?: number;
-  agents?: { name: string }; // ⭐️ 담당자 이름 조인용 필드 추가
+  agents?: { name: string };
+  // ⭐️ 설계 요청 시 필요한 추가 필드들 (DB에 있는 경우)
+  telecom?: string;
+  address?: string;
+  job?: string;
+  driving_status?: string;
+  medical_history?: any;
 };
 
 const contractStatusMap: Record<string, string> = {
@@ -94,21 +100,22 @@ export default function ClientsPage() {
   const [progressModalClient, setProgressModalClient] = useState<Client | null>(null);
   const [recruitingModalClient, setRecruitingModalClient] = useState<Client | null>(null);
   
+  // ⭐️ 카카오톡 설계 요청 모달 상태 관리
+  const [kakaoRequestData, setKakaoRequestData] = useState<{isOpen: boolean, text: string, clientName: string}>({isOpen: false, text: "", clientName: ""});
+
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
-  // ⭐️ SM/지점장 모드 전용 상태 변수들
   const [isManager, setIsManager] = useState(false);
   const [currentAgentId, setCurrentAgentId] = useState<number | null>(null);
   const [teamMembers, setTeamMembers] = useState<{ id: number; name: string; rank: string; }[]>([]);
-  const [selectedAgentFilter, setSelectedAgentFilter] = useState<string>("me"); // "me", "all", 또는 "특정id"
+  const [selectedAgentFilter, setSelectedAgentFilter] = useState<string>("me");
 
   const [page, setPage] = useState(1);
   const ITEMS_PER_PAGE = 20;
 
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
-  // ⭐️ 담당자 필터(selectedAgentFilter)가 바뀔 때마다 데이터를 새로 가져오도록 의존성 배열에 추가
   const fetchClients = useCallback(async () => {
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     
@@ -117,7 +124,6 @@ export default function ClientsPage() {
       return;
     }
 
-    // 로그인한 유저의 직급(rank)과 소속(agency_id) 가져오기
     const { data: agent, error: agentError } = await supabase
       .from("agents")
       .select("id, rank, agency_id")
@@ -131,15 +137,12 @@ export default function ClientsPage() {
 
     setCurrentAgentId(agent.id);
 
-    // 직급이 SM이거나 지점장인 경우 관리자 모드 활성화
     const managerAuth = agent.rank === "SM" || agent.rank === "지점장";
     setIsManager(managerAuth);
 
-    // clients 테이블에서 데이터를 가져올 때 agents 테이블과 Join해서 이름(name)을 함께 가져옴
     let query = supabase.from("clients").select("*, agents(name)");
 
     if (managerAuth) {
-      // 1. 소속 팀원(같은 agency_id) 목록 세팅
       const { data: members } = await supabase
         .from("agents")
         .select("id, name, rank")
@@ -147,7 +150,6 @@ export default function ClientsPage() {
       
       if (members) setTeamMembers(members);
 
-      // 2. 선택된 필터에 따라 쿼리 변경
       if (selectedAgentFilter === "me") {
         query = query.eq("agent_id", agent.id);
       } else if (selectedAgentFilter === "all" && members) {
@@ -157,7 +159,6 @@ export default function ClientsPage() {
         query = query.eq("agent_id", parseInt(selectedAgentFilter));
       }
     } else {
-      // 일반 팀원은 무조건 자신의 고객만
       query = query.eq("agent_id", agent.id);
     }
 
@@ -190,7 +191,7 @@ export default function ClientsPage() {
     });
 
     setClients(clientsWithKeyman);
-  }, [selectedAgentFilter]); // 필터가 바뀔 때마다 재실행
+  }, [selectedAgentFilter]);
 
   useEffect(() => {
     void fetchClients();
@@ -332,6 +333,63 @@ export default function ClientsPage() {
     }
   };
 
+  // ⭐️ 1. 카카오톡 전송 템플릿 생성 및 모달 열기 함수
+  const openKakaoRequestModal = (client: Client) => {
+    let medicalMemo = "특이사항 없음";
+    
+    // DB의 JSONB 객체 파싱 및 메모 추출
+    if (client.medical_history) {
+      try {
+        const history = typeof client.medical_history === 'string' ? JSON.parse(client.medical_history) : client.medical_history;
+        if (history && history.memo) {
+          medicalMemo = history.memo;
+        }
+      } catch(e) {
+        console.error("의료 기록 파싱 오류", e);
+      }
+    }
+
+    const template = `[고객 등록 및 설계 요청]
+
+이름: ${client.name}
+주민등록번호: [주민번호 13자리 입력]
+연락처: ${client.phone || '미입력'}
+통신사: ${client.telecom || '미입력'}
+주소: ${client.address || '미입력'}
+직업: ${client.job || '미입력'}
+운전여부: ${client.driving_status || '미입력'}
+
+[병력사항 메모 요약]
+${medicalMemo}
+
+고객등록 및 설계 요청드립니다.`;
+
+    setKakaoRequestData({ isOpen: true, text: template, clientName: client.name });
+  };
+
+  // ⭐️ 2. 카카오톡 전송 또는 클립보드 복사 함수
+  const handleSendKakaoRequest = async () => {
+    const { text } = kakaoRequestData;
+    
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch(e) {
+      console.error("클립보드 복사 실패", e);
+    }
+
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    
+    if (isMobile) {
+      // 모바일 기기: 카카오톡 앱 바로 실행
+      window.location.href = `kakaotalk://send?text=${encodeURIComponent(text)}`;
+    } else {
+      // PC: 복사 완료 안내 알림
+      alert("✅ 내용이 클립보드에 복사되었습니다!\nPC 카카오톡 대화창에 바로 붙여넣기(Ctrl+V) 해주세요.");
+    }
+    
+    setKakaoRequestData({ isOpen: false, text: "", clientName: "" });
+  };
+
   if (clients === null) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
@@ -367,7 +425,6 @@ export default function ClientsPage() {
 
         <div className="flex flex-col lg:flex-row gap-3 items-start lg:items-center bg-gray-50/70 p-2 md:p-3 rounded-xl border border-gray-100">
           
-          {/* ⭐️ SM(관리자) 전용 팀원 필터 드롭다운 */}
           {isManager && (
             <div className="relative w-full lg:w-[160px] shrink-0">
               <select
@@ -379,7 +436,7 @@ export default function ClientsPage() {
                 <option value="all">팀 전체 고객</option>
                 <optgroup label="팀원 목록">
                   {teamMembers
-                    .filter(m => m.id !== currentAgentId) // 나 자신 제외
+                    .filter(m => m.id !== currentAgentId)
                     .map(member => (
                     <option key={member.id} value={member.id}>{member.name} {member.rank}</option>
                   ))}
@@ -490,11 +547,20 @@ export default function ClientsPage() {
                             <Star className={`w-4 h-4 transition-colors ${client.is_favorite ? "fill-yellow-400 text-yellow-400" : "text-gray-300 hover:text-yellow-400"}`} />
                           </button>
                           
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-2">
                             <Link href={`/clients/${client.id}`} className="block text-base font-bold text-gray-900 group-hover:text-blue-600 transition-colors py-1.5">
                               {client.name}
                             </Link>
-                            {/* ⭐️ 담당자 표시 (SM이 타 팀원 고객을 볼 때) */}
+                            
+                            {/* ⭐️ 카카오톡 설계 요청 버튼 (데스크탑) */}
+                            <button 
+                              onClick={() => openKakaoRequestModal(client)}
+                              className="bg-[#FEE500] text-amber-900 hover:bg-[#FADA0A] px-2.5 py-1 rounded-md text-[11px] font-black transition-colors shadow-sm whitespace-nowrap"
+                              title="고객등록/설계 요청"
+                            >
+                              고객등록
+                            </button>
+
                             {isManager && selectedAgentFilter !== "me" && client.agents?.name && (
                               <span className="text-[10px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded border border-indigo-100 font-bold whitespace-nowrap ml-1">
                                 {client.agents.name}
@@ -628,7 +694,15 @@ export default function ClientsPage() {
                         <Link href={`/clients/${client.id}`} className="text-lg font-extrabold text-gray-900 hover:text-blue-600">
                           {client.name}
                         </Link>
-                        {/* ⭐️ 담당자 표시 (모바일) */}
+                        
+                        {/* ⭐️ 카카오톡 설계 요청 버튼 (모바일) */}
+                        <button 
+                          onClick={() => openKakaoRequestModal(client)}
+                          className="bg-[#FEE500] text-amber-900 hover:bg-[#FADA0A] px-2 py-1 rounded-md text-[10px] font-black transition-colors shadow-sm ml-1 whitespace-nowrap"
+                        >
+                          고객등록
+                        </button>
+
                         {isManager && selectedAgentFilter !== "me" && client.agents?.name && (
                           <span className="text-[10px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded border border-indigo-100 font-bold whitespace-nowrap">
                             {client.agents.name}
@@ -719,6 +793,54 @@ export default function ClientsPage() {
         <ClientModal onClose={() => setIsModalOpen(false)} onSuccess={() => void fetchClients()} />
       )}
 
+      {/* 🟢 카카오톡 양식 전송 미리보기 모달 */}
+      {kakaoRequestData.isOpen && (
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in"
+          onClick={() => setKakaoRequestData({ ...kakaoRequestData, isOpen: false })}
+        >
+          <div 
+            className="bg-white w-full max-w-[400px] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-[#FEE500] px-5 py-4 flex justify-between items-center border-b border-[#FADA0A]">
+              <div className="flex items-center gap-2 text-amber-900">
+                <MessageCircle className="w-5 h-5 fill-current" />
+                <h3 className="font-extrabold text-base">카카오톡 설계 요청</h3>
+              </div>
+              <button 
+                onClick={() => setKakaoRequestData({ ...kakaoRequestData, isOpen: false })}
+                className="text-amber-700 hover:text-amber-900 hover:bg-[#FADA0A] p-1 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-5 flex flex-col gap-3">
+              <div className="bg-amber-50 text-amber-800 text-xs font-bold p-3 rounded-lg flex gap-2">
+                <Info className="w-4 h-4 shrink-0" />
+                <p>전송 전 내용을 자유롭게 수정할 수 있습니다.<br/><span className="text-red-600">※ 보안 상 주민등록번호는 직접 입력해주세요.</span></p>
+              </div>
+              
+              <textarea
+                value={kakaoRequestData.text}
+                onChange={(e) => setKakaoRequestData({ ...kakaoRequestData, text: e.target.value })}
+                className="w-full h-[320px] p-4 text-sm bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 resize-none font-medium text-gray-700 leading-relaxed"
+              />
+              
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={handleSendKakaoRequest}
+                  className="flex-1 bg-[#FEE500] hover:bg-[#FADA0A] text-amber-900 font-black py-3.5 rounded-xl shadow-sm transition-colors flex items-center justify-center gap-2"
+                >
+                  <Send className="w-4 h-4" /> 카카오톡 전송 (복사)
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 🔵 영업 진행 상황 모달 */}
       {progressModalClient && (
         <div 
@@ -741,7 +863,7 @@ export default function ClientsPage() {
               </div>
               <button 
                 onClick={() => setProgressModalClient(null)}
-                className="text-gray-400 hover:text-gray-600 transition-colors p-2 hover:bg-gray-200 rounded-full cursor-pointer"
+                className="text-gray-400 hover:text-gray-600 transition-colors p-2 hover:bg-gray-200 rounded-full"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -804,7 +926,7 @@ export default function ClientsPage() {
               </div>
               <button 
                 onClick={() => setRecruitingModalClient(null)}
-                className="text-gray-400 hover:text-gray-600 transition-colors p-2 hover:bg-purple-200/50 rounded-full cursor-pointer"
+                className="text-gray-400 hover:text-gray-600 transition-colors p-2 hover:bg-purple-200/50 rounded-full"
               >
                 <X className="w-5 h-5" />
               </button>
