@@ -329,8 +329,8 @@ export default function ClientsPage() {
     }
   };
 
-  // ⭐️ 원클릭 카카오톡 다이렉트 전송 함수 (모달 없음)
-  const handleDirectKakaoSend = async (client: Client) => {
+  // ⭐️ 카카오톡 다이렉트 전송 (명함 방식)
+  const handleSendKakaoRequest = (client: Client) => {
     let medicalMemo = "특이사항 없음";
     
     if (client.medical_history) {
@@ -344,8 +344,7 @@ export default function ClientsPage() {
       }
     }
 
-    // 양식 텍스트 생성
-    const template = `[고객 등록 및 설계 요청]
+    const text = `[고객 등록 및 설계 요청]
 
 이름: ${client.name}
 주민등록번호: [주민번호 13자리 입력]
@@ -360,22 +359,27 @@ ${medicalMemo}
 
 고객등록 및 설계 요청드립니다.`;
 
-    // 1. 공통 로직: 내용을 클립보드에 우선 복사
-    try {
-      await navigator.clipboard.writeText(template);
-    } catch(e) {
-      console.error("클립보드 복사 실패", e);
-    }
-
-    // 2. 기기 판별 후 분기 처리
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const globalWindow = window as any;
     
-    if (isMobile) {
-      // 모바일: 카카오톡 앱 호출하여 채팅방 선택 화면으로 이동
-      window.location.href = `kakaotalk://send?text=${encodeURIComponent(template)}`;
+    if (typeof window !== "undefined" && globalWindow.Kakao) {
+      const kakao = globalWindow.Kakao;
+      const KAKAO_KEY = process.env.NEXT_PUBLIC_KAKAO_JS_KEY || "ccb428fb9e389bec1c8579c12828fd97";
+      
+      if (!kakao.isInitialized()) {
+        kakao.init(KAKAO_KEY);
+      }
+      
+      kakao.Share.sendDefault({
+        objectType: 'text',
+        text: text,
+        link: {
+          mobileWebUrl: window.location.origin,
+          webUrl: window.location.origin,
+        },
+        buttonTitle: 'CRM 시스템 열기',
+      });
     } else {
-      // PC: 복사되었음을 알림
-      alert(`✅ [${client.name}] 고객 정보가 복사되었습니다!\nPC 카카오톡 담당자 채팅창에 붙여넣기(Ctrl+V) 해주세요.\n\n※ 보안 상 주민등록번호는 직접 입력해주세요.`);
+      alert("카카오톡 시스템을 불러오는 중입니다. 화면을 새로고침 하거나 잠시 후 다시 시도해주세요.");
     }
   };
 
@@ -540,11 +544,11 @@ ${medicalMemo}
                               {client.name}
                             </Link>
                             
-                            {/* ⭐️ 변경된 부분: 카카오톡 고객등록 텍스트 버튼 (데스크탑) */}
+                            {/* ⭐️ 변경된 부분: 카카오톡 원클릭 고객등록 버튼 (데스크탑) */}
                             <button 
-                              onClick={() => handleDirectKakaoSend(client)}
+                              onClick={() => handleSendKakaoRequest(client)}
                               className="bg-[#FEE500] text-amber-900 hover:bg-[#FADA0A] px-2.5 py-1.5 rounded-md text-[11px] font-black transition-colors shadow-sm whitespace-nowrap cursor-pointer flex items-center gap-1"
-                              title="클릭 시 즉시 복사/전송"
+                              title="클릭 시 즉시 카카오톡 전송"
                             >
                               <MessageCircle className="w-3.5 h-3.5 fill-current" /> 고객등록
                             </button>
@@ -683,9 +687,9 @@ ${medicalMemo}
                           {client.name}
                         </Link>
                         
-                        {/* ⭐️ 변경된 부분: 카카오톡 고객등록 텍스트 버튼 (모바일) */}
+                        {/* ⭐️ 변경된 부분: 카카오톡 원클릭 고객등록 버튼 (모바일) */}
                         <button 
-                          onClick={() => handleDirectKakaoSend(client)}
+                          onClick={() => handleSendKakaoRequest(client)}
                           className="bg-[#FEE500] text-amber-900 hover:bg-[#FADA0A] px-2 py-1.5 rounded-md text-[10px] font-black transition-colors shadow-sm ml-1 whitespace-nowrap cursor-pointer flex items-center gap-1"
                         >
                           <MessageCircle className="w-3 h-3 fill-current" /> 고객등록
