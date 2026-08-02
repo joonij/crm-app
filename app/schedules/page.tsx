@@ -1,4 +1,3 @@
-// app/schedules/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -69,8 +68,10 @@ export default function SchedulePage() {
   const [myMonthlyStats, setMyMonthlyStats] = useState({ newAmt: 0, newCnt: 0, maintainAmt: 0, maintainCnt: 0 });
   const [teamMonthlyStats, setTeamMonthlyStats] = useState({ newAmt: 0, newCnt: 0, maintainAmt: 0, maintainCnt: 0 });
 
-  // ⭐️ 목표 금액 상태 (기본값 200만원)
   const [monthlyTarget, setMonthlyTarget] = useState(2000000);
+
+  // ⭐️ 추가: 모바일 실적 보드 접기/펴기 상태 관리
+  const [isScoreboardOpen, setIsScoreboardOpen] = useState(true);
 
   const formatDateStr = (date: Date) => {
     const y = date.getFullYear();
@@ -161,7 +162,6 @@ export default function SchedulePage() {
         
         if (!info || !info.agencies) return;
         
-        // ⭐️ DB에서 불러온 목표액을 상태에 세팅 (값이 없으면 기본 200만원)
         setMonthlyTarget(info.monthly_target || 2000000);
         
         const agencyData = Array.isArray(info.agencies) ? info.agencies[0] : info.agencies;
@@ -323,27 +323,15 @@ export default function SchedulePage() {
     } catch (error: any) { alert("삭제 실패: " + error.message); }
   };
 
-  // ⭐️ 목표 금액 변경 핸들러
   const handleTargetChange = async () => {
     if (!myInfo?.id) return;
-    
     const input = prompt("이번 달 목표액(월납)을 숫자로만 입력해주세요.", String(monthlyTarget));
-    
     if (input && !isNaN(Number(input))) {
       const newTarget = Number(input);
-      
       try {
-        // 1. 데이터베이스 업데이트
-        const { error } = await supabase
-          .from('agents')
-          .update({ monthly_target: newTarget })
-          .eq('id', myInfo.id);
-          
+        const { error } = await supabase.from('agents').update({ monthly_target: newTarget }).eq('id', myInfo.id);
         if (error) throw error;
-        
-        // 2. 성공 시 화면(상태) 업데이트
         setMonthlyTarget(newTarget);
-        
       } catch (error: any) {
         alert("업데이트 실패: " + error.message);
       }
@@ -439,10 +427,7 @@ export default function SchedulePage() {
     monthlyWeeks.push(monthDays.slice(i, i + 7));
   }
 
-  // ⭐️ 에러를 해결하기 위해 배열을 먼저 정의합니다.
   const allEventsForMonth = [...companyNotices, ...agencyNotices, ...teamNotices, ...teamSchedules.flatMap(m => m.events)];
-  
-  // ⭐️ 목표 달성률(퍼센트) 계산
   const progressPercent = Math.min(Math.round((myMonthlyStats.maintainAmt / monthlyTarget) * 100) || 0, 100);
 
   const currentMonthOnlyDays = monthDays.filter(d => d.isCurrentMonth);
@@ -465,96 +450,114 @@ export default function SchedulePage() {
   };
 
   return (
-    <div className="flex flex-col p-0 sm:p-4 md:p-6 max-w-[1500px] mx-auto space-y-0 sm:space-y-4 md:space-y-6 relative pb-0 sm:pb-0 overflow-hidden h-full md:h-auto md:pb-20">
+    <div className="flex flex-col p-0 sm:p-4 md:p-6 max-w-[1500px] mx-auto space-y-0 sm:space-y-4 md:space-y-6 relative min-h-screen pb-0 sm:pb-0 md:pb-20 bg-slate-50 sm:bg-transparent">
       
-      {/* ⭐️ 상단 스마트 스코어보드 패널 (White & Blue 디자인 반영) */}
-      <div className="shrink-0 bg-white p-4 sm:p-6 sm:rounded-3xl shadow-sm relative overflow-hidden flex flex-col gap-5 border border-blue-100">
+      {/* ⭐️ 수정 2: 모바일 실적 보드 패널에 접기/펴기 로직 적용 */}
+      <div className="shrink-0 bg-white p-4 sm:p-6 sm:rounded-3xl shadow-sm relative flex flex-col gap-4 sm:gap-5 border-b sm:border border-blue-100 z-20 transition-all duration-300">
         <div className="absolute right-0 top-0 w-64 h-64 bg-blue-100 rounded-full filter blur-[80px] opacity-60 pointer-events-none"></div>
         <div className="absolute left-0 bottom-0 w-48 h-48 bg-teal-50 rounded-full filter blur-[80px] opacity-60 pointer-events-none"></div>
 
-        <div className="relative z-10 flex flex-col md:flex-row gap-6 md:items-center justify-between">
-          
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center border border-blue-100 shadow-inner">
-              <Trophy className="w-6 h-6 text-blue-600" />
-            </div>
-            <div>
-              <p className="text-slate-500 text-xs font-bold mb-1">나의 이번 달 실적 ({currentDate.getMonth() + 1}월)</p>
-              <div className="flex gap-4 sm:gap-6 items-center">
-                <div className="flex flex-col">
-                  <span className="text-orange-500 text-xs font-bold mb-0.5">계약 예정 ({myMonthlyStats.newCnt}건)</span>
-                  <span className="text-xl sm:text-2xl font-black text-slate-800">{myMonthlyStats.newAmt.toLocaleString()}<span className="text-sm font-normal text-slate-500 ml-0.5">원</span></span>
-                </div>
-                <div className="w-px h-8 bg-slate-200"></div>
-                <div className="flex flex-col">
-                  <span className="text-blue-600 text-xs font-bold mb-0.5">체결 완료 ({myMonthlyStats.maintainCnt}건)</span>
-                  <span className="text-xl sm:text-2xl font-black text-blue-900">{myMonthlyStats.maintainAmt.toLocaleString()}<span className="text-sm font-normal text-slate-500 ml-0.5">원</span></span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* ⭐️ 목표액 & 달성률 프로그레스 바 */}
-          <div className="flex flex-col w-full md:w-[40%] gap-2 relative z-10">
-            <div className="flex justify-between items-end">
-              <span className="text-xs font-bold text-slate-500 flex items-center gap-1">
-                <Target className="w-3.5 h-3.5 text-blue-500"/> 월간 목표: 
-                <button onClick={handleTargetChange} className="underline underline-offset-2 text-blue-600 hover:text-blue-800 cursor-pointer">
-                  {monthlyTarget.toLocaleString()}원
-                </button>
-              </span>
-              <span className="text-sm font-black text-blue-600 flex items-center gap-1">
-                {progressPercent}% 달성 <TrendingUp className="w-4 h-4"/>
-              </span>
-            </div>
-            <div className="w-full bg-slate-100 rounded-full h-3.5 border border-slate-200 overflow-hidden shadow-inner">
-              <div 
-                className="bg-gradient-to-r from-blue-400 to-blue-600 h-3.5 rounded-full transition-all duration-1000 relative" 
-                style={{ width: `${progressPercent}%` }}
-              >
-                <div className="absolute inset-0 bg-white/20 w-full animate-[shimmer_2s_infinite]"></div>
-              </div>
-            </div>
-          </div>
+        {/* 모바일 전용 접기/펴기 토글 버튼 */}
+        <div className="flex justify-between items-center md:hidden relative z-20">
+          <span className="text-xs font-bold text-slate-500 flex items-center gap-1.5"><Trophy className="w-3.5 h-3.5" /> 이번 달 실적 요약</span>
+          <button
+            onClick={() => setIsScoreboardOpen(!isScoreboardOpen)}
+            className="text-blue-600 font-bold text-[11px] bg-blue-50 px-2.5 py-1.5 rounded-lg flex items-center gap-1 active:scale-95 transition-transform"
+          >
+            {isScoreboardOpen ? '접어두기 ▲' : '펼쳐보기 ▼'}
+          </button>
         </div>
 
-        {/* 팀장(SM) 전용 확장 대시보드 */}
-        {isSM && (
-          <div className="relative z-10 pt-4 border-t border-slate-100 flex flex-col gap-3">
-            <div className="flex flex-col md:flex-row gap-4 md:gap-6 items-start md:items-center">
-              <div className="flex gap-4 bg-blue-50 px-5 py-3 rounded-2xl border border-blue-100 shadow-sm shrink-0">
-                <div className="flex flex-col">
-                  <span className="text-orange-500 text-xs font-bold">팀 총 예정 ({teamMonthlyStats.newCnt}건)</span>
-                  <span className="text-lg font-black text-slate-800">{teamMonthlyStats.newAmt.toLocaleString()}원</span>
-                </div>
-                <div className="w-px bg-blue-200"></div>
-                <div className="flex flex-col">
-                  <span className="text-blue-600 text-xs font-bold">팀 총 체결 ({teamMonthlyStats.maintainCnt}건)</span>
-                  <span className="text-lg font-black text-blue-900">{teamMonthlyStats.maintainAmt.toLocaleString()}원</span>
+        {/* ⭐️ 접었을 때 간단히 보여줄 1줄 요약 바 */}
+        {!isScoreboardOpen && (
+          <div className="md:hidden flex justify-between items-center px-3 py-2.5 bg-slate-50 rounded-xl border border-slate-100 animate-in fade-in relative z-20">
+            <span className="text-[11px] font-bold text-slate-600">나의 체결금액</span>
+            <span className="text-sm font-black text-blue-600">{myMonthlyStats.maintainAmt.toLocaleString()}원</span>
+          </div>
+        )}
+
+        {/* 상태에 따라 내용물 숨김 (데스크탑에서는 항상 보임) */}
+        <div className={`${isScoreboardOpen ? 'flex' : 'hidden'} md:flex flex-col gap-5 relative overflow-hidden transition-all`}>
+          <div className="relative z-10 flex flex-col md:flex-row gap-6 md:items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center border border-blue-100 shadow-inner">
+                <Trophy className="w-6 h-6 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-slate-500 text-xs font-bold mb-1">나의 이번 달 실적 ({currentDate.getMonth() + 1}월)</p>
+                <div className="flex gap-4 sm:gap-6 items-center">
+                  <div className="flex flex-col">
+                    <span className="text-orange-500 text-xs font-bold mb-0.5">계약 예정 ({myMonthlyStats.newCnt}건)</span>
+                    <span className="text-xl sm:text-2xl font-black text-slate-800">{myMonthlyStats.newAmt.toLocaleString()}<span className="text-sm font-normal text-slate-500 ml-0.5">원</span></span>
+                  </div>
+                  <div className="w-px h-8 bg-slate-200"></div>
+                  <div className="flex flex-col">
+                    <span className="text-blue-600 text-xs font-bold mb-0.5">체결 완료 ({myMonthlyStats.maintainCnt}건)</span>
+                    <span className="text-xl sm:text-2xl font-black text-blue-900">{myMonthlyStats.maintainAmt.toLocaleString()}<span className="text-sm font-normal text-slate-500 ml-0.5">원</span></span>
+                  </div>
                 </div>
               </div>
-              
-              <div className="flex gap-2.5 overflow-x-auto pb-2 md:pb-0 w-full [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden mask-edge">
-                {teamSchedules.filter(m => m.role !== 'Me').map(member => (
-                  <div key={member.id} className="bg-white px-3.5 py-2.5 rounded-xl border border-slate-200 flex flex-col min-w-[130px] shrink-0 hover:border-blue-300 hover:shadow-sm transition cursor-pointer">
-                    <span className="font-bold text-slate-800 text-xs mb-1.5 truncate">{member.name}</span>
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-[12px] text-slate-500 flex justify-between">예정 <strong className="text-orange-500">{member.stats.monthNewAmt.toLocaleString()}</strong></span>
-                      <span className="text-[12px] text-slate-500 flex justify-between">체결 <strong className="text-blue-600">{member.stats.monthMaintainAmt.toLocaleString()}</strong></span>
-                    </div>
-                    
-                  </div>
-                ))}
+            </div>
+
+            <div className="flex flex-col w-full md:w-[40%] gap-2 relative z-10">
+              <div className="flex justify-between items-end">
+                <span className="text-xs font-bold text-slate-500 flex items-center gap-1">
+                  <Target className="w-3.5 h-3.5 text-blue-500"/> 월간 목표: 
+                  <button onClick={handleTargetChange} className="underline underline-offset-2 text-blue-600 hover:text-blue-800 cursor-pointer">
+                    {monthlyTarget.toLocaleString()}원
+                  </button>
+                </span>
+                <span className="text-sm font-black text-blue-600 flex items-center gap-1">
+                  {progressPercent}% 달성 <TrendingUp className="w-4 h-4"/>
+                </span>
+              </div>
+              <div className="w-full bg-slate-100 rounded-full h-3.5 border border-slate-200 overflow-hidden shadow-inner">
+                <div 
+                  className="bg-gradient-to-r from-blue-400 to-blue-600 h-3.5 rounded-full transition-all duration-1000 relative" 
+                  style={{ width: `${progressPercent}%` }}
+                >
+                  <div className="absolute inset-0 bg-white/20 w-full animate-[shimmer_2s_infinite]"></div>
+                </div>
               </div>
             </div>
           </div>
-        )}
+
+          {isSM && (
+            <div className="relative z-10 pt-4 border-t border-slate-100 flex flex-col gap-3">
+              <div className="flex flex-col md:flex-row gap-4 md:gap-6 items-start md:items-center">
+                <div className="flex gap-4 bg-blue-50 px-5 py-3 rounded-2xl border border-blue-100 shadow-sm shrink-0">
+                  <div className="flex flex-col">
+                    <span className="text-orange-500 text-xs font-bold">팀 총 예정 ({teamMonthlyStats.newCnt}건)</span>
+                    <span className="text-lg font-black text-slate-800">{teamMonthlyStats.newAmt.toLocaleString()}원</span>
+                  </div>
+                  <div className="w-px bg-blue-200"></div>
+                  <div className="flex flex-col">
+                    <span className="text-blue-600 text-xs font-bold">팀 총 체결 ({teamMonthlyStats.maintainCnt}건)</span>
+                    <span className="text-lg font-black text-blue-900">{teamMonthlyStats.maintainAmt.toLocaleString()}원</span>
+                  </div>
+                </div>
+                
+                <div className="flex gap-2.5 overflow-x-auto pb-2 md:pb-0 w-full [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden mask-edge">
+                  {teamSchedules.filter(m => m.role !== 'Me').map(member => (
+                    <div key={member.id} className="bg-white px-3.5 py-2.5 rounded-xl border border-slate-200 flex flex-col min-w-[130px] shrink-0 hover:border-blue-300 hover:shadow-sm transition cursor-pointer">
+                      <span className="font-bold text-slate-800 text-xs mb-1.5 truncate">{member.name}</span>
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[12px] text-slate-500 flex justify-between">예정 <strong className="text-orange-500">{member.stats.monthNewAmt.toLocaleString()}</strong></span>
+                        <span className="text-[12px] text-slate-500 flex justify-between">체결 <strong className="text-blue-600">{member.stats.monthMaintainAmt.toLocaleString()}</strong></span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
+      {/* 헤더 메뉴 */}
       <div className="shrink-0 flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 sm:p-0 bg-white sm:bg-transparent z-10 border-b sm:border-0 border-slate-100">
         <div className="flex items-center gap-3 md:gap-4 justify-between w-full md:w-auto">
           <h1 className="text-xl sm:text-2xl font-black text-slate-800 flex items-center gap-2"><CalendarIcon className="w-5 h-5 text-blue-600" /> 스케줄 보드</h1>
-          
           <div className="flex items-center gap-2 sm:gap-3">
             <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
               <button onClick={() => setViewMode('weekly')} className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded text-xs font-bold transition-all cursor-pointer ${viewMode === 'weekly' ? 'bg-white shadow text-blue-600' : 'text-slate-500 hover:text-slate-800'}`}>주간</button>
@@ -575,7 +578,7 @@ export default function SchedulePage() {
         </div>
       </div>
 
-      {isLoading && <div className="flex justify-center flex-1 items-center"><Loader2 className="w-8 h-8 animate-spin text-blue-500" /></div>}
+      {isLoading && <div className="flex justify-center flex-1 items-center py-20"><Loader2 className="w-8 h-8 animate-spin text-blue-500" /></div>}
 
       {!isLoading && (
         <>
@@ -700,10 +703,12 @@ export default function SchedulePage() {
             )}
           </div>
 
-          {/* 모바일 뷰 */}
-          <div className="md:hidden flex flex-col bg-slate-50 flex-1 min-h-0 relative overflow-hidden">
+          {/* ⭐️ 모바일 뷰: 구조 대폭 수정 */}
+          {/* flex-1 min-h-0 overflow-hidden 제약을 없애 자연스러운 스크롤 허용 */}
+          <div className="md:hidden flex flex-col bg-slate-50">
             {viewMode === 'weekly' ? (
-              <div className="shrink-0 flex overflow-x-auto bg-white border-b border-slate-200 px-2 py-3 gap-2 shadow-sm [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden z-10">
+              /* ⭐️ 스크롤을 내려도 탭은 고정되도록 sticky 추가 (글로벌 헤더가 있다면 top-14 등 높이 조절 필요) */
+              <div className="sticky top-[0px] z-30 shrink-0 flex overflow-x-auto bg-white border-b border-slate-200 px-2 py-3 gap-2 shadow-sm [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {weekDays.map(day => {
                   const isSelected = selectedMobileDate === day.date;
                   const isToday = day.date === formatDateStr(new Date());
@@ -723,7 +728,7 @@ export default function SchedulePage() {
                 })}
               </div>
             ) : (
-              <div className="shrink-0 bg-white border-b border-slate-200 px-2 py-3 shadow-sm z-10">
+              <div className="sticky top-[56px] z-30 shrink-0 bg-white border-b border-slate-200 px-2 py-3 shadow-sm">
                 <div className="grid grid-cols-7 mb-1.5">
                   {["일", "월", "화", "수", "목", "금", "토"].map((d, i) => (
                     <div key={d} className={`text-center text-[10px] font-bold ${i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-slate-500'}`}>{d}</div>
@@ -757,7 +762,8 @@ export default function SchedulePage() {
               </div>
             )}
 
-            <div className="flex-1 p-4 flex flex-col gap-4 overflow-y-auto pb-28">
+            {/* ⭐️ 내부에 걸려있던 스크롤(overflow-y-auto)을 제거하여, 페이지 휠이 통째로 내려가도록 수정 */}
+            <div className="p-4 flex flex-col gap-4 pb-28">
               <div className="space-y-3">
                 {companyNotices.filter(e => e.date === selectedMobileDate).length > 0 && (
                   <div className="flex flex-col gap-2">
@@ -819,7 +825,7 @@ export default function SchedulePage() {
 
             <button 
               onClick={() => openModal(selectedMobileDate)}
-              className="md:hidden absolute bottom-6 right-6 w-14 h-14 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-xl shadow-blue-600/30 hover:bg-blue-700 hover:scale-105 active:scale-95 transition-all z-40 border-2 border-white cursor-pointer"
+              className="md:hidden fixed bottom-6 right-6 w-14 h-14 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-xl shadow-blue-600/30 hover:bg-blue-700 hover:scale-105 active:scale-95 transition-all z-40 border-2 border-white cursor-pointer"
             >
               <Plus className="w-6 h-6" />
             </button>
@@ -827,10 +833,11 @@ export default function SchedulePage() {
         </>
       )}
 
+      {/* ⭐️ 상세 모달 (높이 가려짐 방지 적용) */}
       {detailModalEvent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden p-6 space-y-4">
-            <div className="flex items-center justify-between border-b pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm md:p-4 pt-24 animate-in fade-in">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md flex flex-col max-h-[90vh] overflow-hidden">
+            <div className="flex items-center justify-between border-b px-5 py-4 shrink-0">
               <h3 className="font-black text-lg text-slate-800 flex items-center gap-2">
                 {detailModalEvent.contractStatus === 'maintain' ? (
                   <><Trophy className="w-5 h-5 text-yellow-500" /> 체결 상세 정보</>
@@ -845,7 +852,7 @@ export default function SchedulePage() {
               </button>
             </div>
             
-            <div className="space-y-3 text-sm">
+            <div className="space-y-3 text-sm px-5 py-4 overflow-y-auto flex-1 overscroll-contain pb-safe">
               <div className="flex justify-between bg-slate-50 p-3 rounded-xl border border-slate-100">
                 <span className="font-bold text-slate-500">일시</span>
                 <span className="font-bold text-slate-800">{detailModalEvent.date} {detailModalEvent.time}</span>
@@ -882,11 +889,11 @@ export default function SchedulePage() {
 
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2">
                 <span className="font-bold text-slate-500 text-xs block">{detailModalEvent.contractStatus ? "가입 상품 내역" : "상세 내용"}</span>
-                <p className="text-slate-800 font-medium whitespace-pre-wrap leading-relaxed overflow-y-auto">{detailModalEvent.content}</p>
+                <p className="text-slate-800 font-medium whitespace-pre-wrap leading-relaxed">{detailModalEvent.content}</p>
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-3 border-t">
+            <div className="flex justify-end gap-2 px-5 py-4 border-t shrink-0 bg-white">
               {!detailModalEvent.contractStatus && (detailModalEvent.agent_id === myInfo?.id || !detailModalEvent.agent_id) && (
                 <>
                   <button 
