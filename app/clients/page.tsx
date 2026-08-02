@@ -339,20 +339,147 @@ export default function ClientsPage() {
     }
   };
 
+
+  // ⭐️ 1. 병원명 마스킹 및 고지사항 자동 계산 포맷팅 함수 (컴포넌트 내부에 추가)
+  const formatMedicalHistory = (medicalData: any) => {
+    if (!medicalData) return "특이사항 없음";
+
+    try {
+      const data = typeof medicalData === 'string' ? JSON.parse(medicalData) : medicalData;
+      const memoStr = data.memo || (typeof data === 'string' ? data : "");
+      if (!memoStr.trim()) return "특이사항 없음";
+
+      // 💡 요약(그룹핑)이 필요한 4가지 섹션을 담을 객체
+      const grouped = {
+        recent3m: {} as Record<string, any>,
+        recent1y: {} as Record<string, any>,
+        visit7: {} as Record<string, any>,
+        medication30: {} as Record<string, any>
+      };
+
+      // 💡 묶지 않고(요약X) 개별 나열할 2가지 섹션을 담을 배열
+      const admissions: string[] = [];
+      const surgeries: string[] = [];
+
+      let currentSection = "";
+      let isParsed = false;
+      
+      const lines = memoStr.split('\n');
+      
+      lines.forEach(line => {
+        const trimmed = line.trim();
+        if (!trimmed) return;
+
+        // 1. 어떤 섹션의 데이터인지 판별 (헤더 감지)
+        if (trimmed.includes('[3개월')) { currentSection = 'recent3m'; return; }
+        if (trimmed.includes('[1년')) { currentSection = 'recent1y'; return; }
+        if (trimmed.includes('수술 의심')) { currentSection = 'surgery'; return; }
+        if (trimmed.includes('입원 이력')) { currentSection = 'admission'; return; }
+        if (trimmed.includes('7번 이상')) { currentSection = 'visit7'; return; }
+        if (trimmed.includes('30일 이상')) { currentSection = 'medication30'; return; }
+
+        // 2. 데이터 라인('-' 로 시작) 추출 및 분석
+        if (trimmed.startsWith('-') && currentSection) {
+          const parts = trimmed.split('·').map(p => p.trim());
+          
+          if (parts.length >= 3) {
+            const dateMatch = parts[0].match(/\d{4}-\d{2}-\d{2}/);
+            const date = dateMatch ? dateMatch[0] : "";
+            const code = parts[2] || "";
+            let name = parts[3] || "";
+            let extra = parts.slice(4).join(' · '); // 입원일수나 진료비 등 나머지 정보
+            
+            if (date) {
+              isParsed = true;
+              
+              // "(180일 투약)" 등에서 숫자만 추출
+              let days = 0;
+              const mediMatch = name.match(/\((\d+)일\s*투약\)/);
+              if (mediMatch) {
+                days = parseInt(mediMatch[1], 10);
+                name = name.replace(/\(\d+일\s*투약\)/, '').trim(); // 질병명에서 텍스트 제거
+              }
+
+              // 💡 [입원] 및 [수술]은 묶지 않고 1건씩 라인 그대로 추가 (병원명 parts[1]은 원천 배제)
+              if (currentSection === 'admission' || currentSection === 'surgery') {
+                const extraInfo = extra ? ` · ${extra}` : '';
+                const lineStr = `- ${date} · ${code} · ${name}${extraInfo}`;
+                
+                if (currentSection === 'admission') admissions.push(lineStr);
+                else surgeries.push(lineStr);
+              } 
+              // 💡 나머지 이력들은 질병코드(또는 질병명)를 기준으로 하나로 묶음(그룹핑)
+              else {
+                const groupKey = code || name || '미상';
+                const targetGroup = grouped[currentSection as keyof typeof grouped];
+                
+                if (targetGroup) {
+                  if (!targetGroup[groupKey]) {
+                    targetGroup[groupKey] = { code, name, dates: new Set(), count: 0, days: 0 };
+                  }
+                  targetGroup[groupKey].dates.add(date);
+                  targetGroup[groupKey].count++;      // 방문 횟수 누적
+                  targetGroup[groupKey].days += days; // 투약 일수 누적
+                }
+              }
+            }
+          }
+        }
+      });
+
+      // 3. 파싱된 데이터를 요청하신 깔끔한 포맷으로 최종 조립
+      if (isParsed) {
+        let resultParts: string[] = [];
+
+        // 그룹핑된 데이터를 "시작일~종료일 · 코드 · 질병명 · 총 X회/일" 포맷으로 렌더링하는 헬퍼 함수
+        const renderGrouped = (groupObj: any, unit: string) => {
+          const vals = Object.values(groupObj) as any[];
+          if (vals.length === 0) return null;
+          
+          return vals.map(g => {
+            const sorted = Array.from(g.dates).sort() as string[];
+            const start = sorted[0];
+            const end = sorted[sorted.length - 1];
+            const dateStr = (start !== end && start && end) ? `${start}~${end}` : start;
+            const countOrDays = unit === '일' ? g.days : g.count;
+            return `- ${dateStr} · ${g.code} · ${g.name} · 총 ${countOrDays}${unit}`;
+          }).join('\n');
+        };
+
+        const r3m = renderGrouped(grouped.recent3m, '회');
+        if (r3m) resultParts.push(`[3개월 내 다녀온 병원 및 약국 이력]\n${r3m}`);
+
+        const r1y = renderGrouped(grouped.recent1y, '회');
+        if (r1y) resultParts.push(`[1년 내 같은 질병(코드) 병원 이력]\n${r1y}`);
+
+        if (admissions.length > 0) resultParts.push(`[5년 내 입원 이력]\n${admissions.join('\n')}`);
+        
+        if (surgeries.length > 0) resultParts.push(`[5년 내 수술 의심 (처치/수술 & 진료비 5만원↑)]\n${surgeries.join('\n')}`);
+
+        const v7 = renderGrouped(grouped.visit7, '회');
+        if (v7) resultParts.push(`[5년 내 같은 코드로 7번 이상 병원 이력]\n${v7}`);
+
+        const m30 = renderGrouped(grouped.medication30, '일');
+        if (m30) resultParts.push(`[5년 내 같은 약품으로 30일 이상 투약]\n${m30}`);
+
+        if (resultParts.length > 0) {
+          return `■ 주요 병력 요약 (알릴 의무 대상)\n\n` + resultParts.join('\n\n');
+        }
+      }
+
+      // 만약 시스템 양식이 바뀌어 파싱에 실패하더라도, 일반 병원명 자리만 정규식으로 안전하게 지우고 반환 (안전장치)
+      return memoStr.replace(/·\s*[^·]+\s*·/g, "· ·").trim() || "특이사항 없음";
+
+    } catch (e) {
+      console.error("의료 기록 파싱 에러", e);
+      return "특이사항 없음";
+    }
+  };
+
+
   // ⭐️ 1. 비동기(async) 함수로 변경: 버튼 클릭 시에만 단 1건의 복호화를 수행합니다.
   const openKakaoRequestModal = async (client: Client) => {
-    let medicalMemo = "특이사항 없음";
-    
-    if (client.medical_history) {
-      try {
-        const history = typeof client.medical_history === 'string' ? JSON.parse(client.medical_history) : client.medical_history;
-        if (history && history.memo) {
-          medicalMemo = history.memo;
-        }
-      } catch(e) {
-        console.error("의료 기록 파싱 오류", e);
-      }
-    }
+    const medicalMemo = formatMedicalHistory(client.medical_history);
 
     // ⭐️ 2. 버튼이 눌렸을 때 해당 고객의 암호화된 번호를 복호화
     let decryptedReg: string = "";
@@ -381,27 +508,29 @@ ${medicalMemo}`;
     setKakaoRequestData({ isOpen: true, text: template, clientName: client.name });
   };
 
-  const handleSendKakaoRequest = () => {
+  const handleSendKakaoRequest = async () => {
     const { text } = kakaoRequestData;
-    const globalWindow = window as any;
     
-    if (typeof window !== "undefined" && globalWindow.Kakao) {
-      const kakao = globalWindow.Kakao;
-      const KAKAO_KEY = process.env.NEXT_PUBLIC_KAKAO_JS_KEY || "ccb428fb9e389bec1c8579c12828fd97";
-      
-      if (!kakao.isInitialized()) {
-        kakao.init(KAKAO_KEY);
-      }
-      
-      kakao.Share.sendDefault({
-        objectType: 'text',
-        text: text,
-      });
-      
-      setKakaoRequestData({ isOpen: false, text: "", clientName: "" });
-    } else {
-      alert("카카오톡 시스템을 불러오는 중입니다. 화면을 새로고침 하거나 잠시 후 다시 시도해주세요.");
+    // 1. 내용 복사 (PC 사용자를 위한 처리)
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch(e) {
+      console.error("클립보드 복사 실패", e);
     }
+
+    // 2. 접속 기기 판별 (모바일 vs PC)
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    
+    if (isMobile) {
+      // ⭐️ 모바일: 카카오톡 앱을 실행하면서 '순수 텍스트'만 전달
+      window.location.href = `kakaotalk://send?text=${encodeURIComponent(text)}`;
+    } else {
+      // ⭐️ PC: 웹 브라우저에서 PC 카톡을 강제로 열 수 없으므로, 복사 후 붙여넣기 안내
+      alert("✅ 내용이 클립보드에 복사되었습니다!\nPC 카카오톡 대화창에 바로 붙여넣기(Ctrl+V) 해주세요.");
+    }
+    
+    // 전송 후 모달 닫기
+    setKakaoRequestData({ isOpen: false, text: "", clientName: "" });
   };
 
   if (clients === null) {
@@ -570,7 +699,7 @@ ${medicalMemo}`;
                               className="bg-white border border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-900 px-2.5 py-1 rounded-md text-[11px] font-bold transition-colors shadow-sm whitespace-nowrap cursor-pointer"
                               title="클릭 시 정보 수정 후 전송"
                             >
-                              고객등록
+                              고객등록요청
                             </button>
 
                             {isManager && selectedAgentFilter !== "me" && client.agents?.name && (
@@ -713,7 +842,7 @@ ${medicalMemo}`;
                           onClick={() => openKakaoRequestModal(client)}
                           className="bg-white border border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-900 px-2 py-1 rounded-md text-[10px] font-bold transition-colors shadow-sm ml-1 whitespace-nowrap cursor-pointer"
                         >
-                          고객등록
+                          고객등록요청
                         </button>
 
                         {isManager && selectedAgentFilter !== "me" && client.agents?.name && (
