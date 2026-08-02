@@ -366,7 +366,8 @@ export default function ClientsPage() {
       
       const lines = memoStr.split('\n');
       
-      lines.forEach(line => {
+      // ⭐️ 타입 에러 해결: (line: string)으로 명시적 타입 지정
+      lines.forEach((line: string) => {
         const trimmed = line.trim();
         if (!trimmed) return;
 
