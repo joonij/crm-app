@@ -355,10 +355,11 @@ export default function ClientsPage() {
     }
 
     // ⭐️ 2. 버튼이 눌렸을 때 해당 고객의 암호화된 번호를 복호화
-    let decryptedReg = "";
+    let decryptedReg: string = "";
     if (client.registration_number) {
       try {
-        decryptedReg = await decryptRegNumber(client.registration_number);
+        const result = await decryptRegNumber(client.registration_number);
+        decryptedReg = result || ""; // result가 null이면 "" 대입
       } catch (e) {
         console.error("복호화 중 에러 발생", e);
       }
