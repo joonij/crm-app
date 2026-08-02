@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, useMemo, useRef } from "react";
-import { Plus, Users, X, CheckSquare, Square, BarChart3, Phone, Search, Crown, UserPlus, Star, Trash2, ChevronDown, MessageCircle, Send, Copy, Info } from "lucide-react";
+import { Plus, Users, X, CheckSquare, Square, BarChart3, Phone, Search, Crown, UserPlus, Star, Trash2, ChevronDown, MessageCircle } from "lucide-react";
 import ClientModal from "@/components/ClientModal";
 import { supabase } from "@/lib/supabase";
 import Link from 'next/link';
@@ -18,7 +18,6 @@ type Client = {
   is_favorite?: boolean;
   agent_id?: number;
   agents?: { name: string };
-  // ⭐️ 설계 요청 시 필요한 추가 필드들 (DB에 있는 경우)
   telecom?: string;
   address?: string;
   job?: string;
@@ -99,9 +98,6 @@ export default function ClientsPage() {
   
   const [progressModalClient, setProgressModalClient] = useState<Client | null>(null);
   const [recruitingModalClient, setRecruitingModalClient] = useState<Client | null>(null);
-  
-  // ⭐️ 카카오톡 설계 요청 모달 상태 관리
-  const [kakaoRequestData, setKakaoRequestData] = useState<{isOpen: boolean, text: string, clientName: string}>({isOpen: false, text: "", clientName: ""});
 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -333,11 +329,10 @@ export default function ClientsPage() {
     }
   };
 
-  // ⭐️ 1. 카카오톡 전송 템플릿 생성 및 모달 열기 함수
-  const openKakaoRequestModal = (client: Client) => {
+  // ⭐️ 원클릭 카카오톡 다이렉트 전송 함수 (모달 없음)
+  const handleDirectKakaoSend = async (client: Client) => {
     let medicalMemo = "특이사항 없음";
     
-    // DB의 JSONB 객체 파싱 및 메모 추출
     if (client.medical_history) {
       try {
         const history = typeof client.medical_history === 'string' ? JSON.parse(client.medical_history) : client.medical_history;
@@ -349,6 +344,7 @@ export default function ClientsPage() {
       }
     }
 
+    // 양식 텍스트 생성
     const template = `[고객 등록 및 설계 요청]
 
 이름: ${client.name}
@@ -364,30 +360,23 @@ ${medicalMemo}
 
 고객등록 및 설계 요청드립니다.`;
 
-    setKakaoRequestData({ isOpen: true, text: template, clientName: client.name });
-  };
-
-  // ⭐️ 2. 카카오톡 전송 또는 클립보드 복사 함수
-  const handleSendKakaoRequest = async () => {
-    const { text } = kakaoRequestData;
-    
+    // 1. 공통 로직: 내용을 클립보드에 우선 복사
     try {
-      await navigator.clipboard.writeText(text);
+      await navigator.clipboard.writeText(template);
     } catch(e) {
       console.error("클립보드 복사 실패", e);
     }
 
+    // 2. 기기 판별 후 분기 처리
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     
     if (isMobile) {
-      // 모바일 기기: 카카오톡 앱 바로 실행
-      window.location.href = `kakaotalk://send?text=${encodeURIComponent(text)}`;
+      // 모바일: 카카오톡 앱 호출하여 채팅방 선택 화면으로 이동
+      window.location.href = `kakaotalk://send?text=${encodeURIComponent(template)}`;
     } else {
-      // PC: 복사 완료 안내 알림
-      alert("✅ 내용이 클립보드에 복사되었습니다!\nPC 카카오톡 대화창에 바로 붙여넣기(Ctrl+V) 해주세요.");
+      // PC: 복사되었음을 알림
+      alert(`✅ [${client.name}] 고객 정보가 복사되었습니다!\nPC 카카오톡 담당자 채팅창에 붙여넣기(Ctrl+V) 해주세요.\n\n※ 보안 상 주민등록번호는 직접 입력해주세요.`);
     }
-    
-    setKakaoRequestData({ isOpen: false, text: "", clientName: "" });
   };
 
   if (clients === null) {
@@ -456,7 +445,6 @@ ${medicalMemo}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-
 
           <div className="flex w-full gap-2 overflow-x-auto pt-1 pb-1 lg:pt-0 lg:pb-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             <button 
@@ -552,13 +540,13 @@ ${medicalMemo}
                               {client.name}
                             </Link>
                             
-                            {/* ⭐️ 카카오톡 설계 요청 버튼 (데스크탑) */}
+                            {/* ⭐️ 변경된 부분: 카카오톡 고객등록 텍스트 버튼 (데스크탑) */}
                             <button 
-                              onClick={() => openKakaoRequestModal(client)}
-                              className="bg-[#FEE500] text-amber-900 hover:bg-[#FADA0A] px-2.5 py-1 rounded-md text-[11px] font-black transition-colors shadow-sm whitespace-nowrap"
-                              title="고객등록/설계 요청"
+                              onClick={() => handleDirectKakaoSend(client)}
+                              className="bg-[#FEE500] text-amber-900 hover:bg-[#FADA0A] px-2.5 py-1.5 rounded-md text-[11px] font-black transition-colors shadow-sm whitespace-nowrap cursor-pointer flex items-center gap-1"
+                              title="클릭 시 즉시 복사/전송"
                             >
-                              고객등록
+                              <MessageCircle className="w-3.5 h-3.5 fill-current" /> 고객등록
                             </button>
 
                             {isManager && selectedAgentFilter !== "me" && client.agents?.name && (
@@ -695,12 +683,12 @@ ${medicalMemo}
                           {client.name}
                         </Link>
                         
-                        {/* ⭐️ 카카오톡 설계 요청 버튼 (모바일) */}
+                        {/* ⭐️ 변경된 부분: 카카오톡 고객등록 텍스트 버튼 (모바일) */}
                         <button 
-                          onClick={() => openKakaoRequestModal(client)}
-                          className="bg-[#FEE500] text-amber-900 hover:bg-[#FADA0A] px-2 py-1 rounded-md text-[10px] font-black transition-colors shadow-sm ml-1 whitespace-nowrap"
+                          onClick={() => handleDirectKakaoSend(client)}
+                          className="bg-[#FEE500] text-amber-900 hover:bg-[#FADA0A] px-2 py-1.5 rounded-md text-[10px] font-black transition-colors shadow-sm ml-1 whitespace-nowrap cursor-pointer flex items-center gap-1"
                         >
-                          고객등록
+                          <MessageCircle className="w-3 h-3 fill-current" /> 고객등록
                         </button>
 
                         {isManager && selectedAgentFilter !== "me" && client.agents?.name && (
@@ -793,54 +781,6 @@ ${medicalMemo}
         <ClientModal onClose={() => setIsModalOpen(false)} onSuccess={() => void fetchClients()} />
       )}
 
-      {/* 🟢 카카오톡 양식 전송 미리보기 모달 */}
-      {kakaoRequestData.isOpen && (
-        <div 
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in"
-          onClick={() => setKakaoRequestData({ ...kakaoRequestData, isOpen: false })}
-        >
-          <div 
-            className="bg-white w-full max-w-[400px] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="bg-[#FEE500] px-5 py-4 flex justify-between items-center border-b border-[#FADA0A]">
-              <div className="flex items-center gap-2 text-amber-900">
-                <MessageCircle className="w-5 h-5 fill-current" />
-                <h3 className="font-extrabold text-base">카카오톡 설계 요청</h3>
-              </div>
-              <button 
-                onClick={() => setKakaoRequestData({ ...kakaoRequestData, isOpen: false })}
-                className="text-amber-700 hover:text-amber-900 hover:bg-[#FADA0A] p-1 rounded-full transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="p-5 flex flex-col gap-3">
-              <div className="bg-amber-50 text-amber-800 text-xs font-bold p-3 rounded-lg flex gap-2">
-                <Info className="w-4 h-4 shrink-0" />
-                <p>전송 전 내용을 자유롭게 수정할 수 있습니다.<br/><span className="text-red-600">※ 보안 상 주민등록번호는 직접 입력해주세요.</span></p>
-              </div>
-              
-              <textarea
-                value={kakaoRequestData.text}
-                onChange={(e) => setKakaoRequestData({ ...kakaoRequestData, text: e.target.value })}
-                className="w-full h-[320px] p-4 text-sm bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 resize-none font-medium text-gray-700 leading-relaxed"
-              />
-              
-              <div className="flex gap-2 mt-2">
-                <button
-                  onClick={handleSendKakaoRequest}
-                  className="flex-1 bg-[#FEE500] hover:bg-[#FADA0A] text-amber-900 font-black py-3.5 rounded-xl shadow-sm transition-colors flex items-center justify-center gap-2"
-                >
-                  <Send className="w-4 h-4" /> 카카오톡 전송 (복사)
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* 🔵 영업 진행 상황 모달 */}
       {progressModalClient && (
         <div 
@@ -863,7 +803,7 @@ ${medicalMemo}
               </div>
               <button 
                 onClick={() => setProgressModalClient(null)}
-                className="text-gray-400 hover:text-gray-600 transition-colors p-2 hover:bg-gray-200 rounded-full"
+                className="text-gray-400 hover:text-gray-600 transition-colors p-2 hover:bg-gray-200 rounded-full cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -926,7 +866,7 @@ ${medicalMemo}
               </div>
               <button 
                 onClick={() => setRecruitingModalClient(null)}
-                className="text-gray-400 hover:text-gray-600 transition-colors p-2 hover:bg-purple-200/50 rounded-full"
+                className="text-gray-400 hover:text-gray-600 transition-colors p-2 hover:bg-purple-200/50 rounded-full cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
