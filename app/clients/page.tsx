@@ -366,7 +366,7 @@ export default function ClientsPage() {
     }
 
     // ⭐️ 3. 복호화된 주민번호를 템플릿에 바로 삽입 (빈칸 대신 실제 번호가 들어갑니다)
-    const template = `[고객 등록 및 설계 요청]
+    const template = `고객등록 및 설계 요청드립니다.
 
 이름: ${client.name}
 주민등록번호: ${decryptedReg || '미입력'}
@@ -375,11 +375,8 @@ export default function ClientsPage() {
 주소: ${client.address || '미입력'}
 직업: ${client.job || '미입력'}
 운전여부: ${client.driving_status || '미입력'}
-
-[병력사항 메모 요약]
-${medicalMemo}
-
-고객등록 및 설계 요청드립니다.`;
+병력사항:
+${medicalMemo}`;
 
     setKakaoRequestData({ isOpen: true, text: template, clientName: client.name });
   };
@@ -398,12 +395,7 @@ ${medicalMemo}
       
       kakao.Share.sendDefault({
         objectType: 'text',
-        text: text, 
-        link: {
-          mobileWebUrl: window.location.origin,
-          webUrl: window.location.origin,
-        },
-        buttonTitle: 'CRM 시스템 열기',
+        text: text,
       });
       
       setKakaoRequestData({ isOpen: false, text: "", clientName: "" });
