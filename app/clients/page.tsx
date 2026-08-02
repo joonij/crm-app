@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, useMemo, useRef } from "react";
-import { Plus, Users, X, CheckSquare, Square, BarChart3, Phone, Search, Crown, UserPlus, Star, Trash2, ChevronDown, MessageCircle, Send, Copy } from "lucide-react";
+import { Plus, Users, X, CheckSquare, Square, BarChart3, Phone, Search, Crown, UserPlus, Star, Trash2, ChevronDown, MessageCircle, Send, Copy, Info } from "lucide-react";
 import ClientModal from "@/components/ClientModal";
 import { supabase } from "@/lib/supabase";
 import Link from 'next/link';
