@@ -1,10 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState, useMemo, useRef } from "react";
-import { Plus, Users, X, CheckSquare, Square, BarChart3, Phone, Search, Crown, UserPlus, Star, Trash2, ChevronDown, MessageCircle, Info, Send } from "lucide-react";
+import { Plus, Users, X, CheckSquare, Square, BarChart3, Phone, Search, Crown, UserPlus, Star, Trash2, ChevronDown, Info, Send } from "lucide-react";
 import ClientModal from "@/components/ClientModal";
 import { supabase } from "@/lib/supabase";
 import Link from 'next/link';
+
+// ⭐️ 암호화 해제를 위한 함수 임포트 (경로는 프로젝트 설정에 맞게 유지)
+import { decryptRegNumber } from "@/app/actions/crypto"; 
 
 type Client = {
   id: number;
@@ -23,6 +26,8 @@ type Client = {
   job?: string;
   driving_status?: string;
   medical_history?: any;
+  registration_number?: string | null;
+  decrypted_reg?: string | null; // ⭐️ 복호화된 주민번호를 담을 필드 추가
 };
 
 const contractStatusMap: Record<string, string> = {
@@ -99,7 +104,6 @@ export default function ClientsPage() {
   const [progressModalClient, setProgressModalClient] = useState<Client | null>(null);
   const [recruitingModalClient, setRecruitingModalClient] = useState<Client | null>(null);
 
-  // ⭐️ 카카오톡 텍스트 편집 모달 상태
   const [kakaoRequestData, setKakaoRequestData] = useState<{isOpen: boolean, text: string, clientName: string}>({isOpen: false, text: "", clientName: ""});
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -170,14 +174,32 @@ export default function ClientsPage() {
 
     const fetchedData = data || [];
 
-    const introCounts = fetchedData.reduce((acc, curr) => {
+    // ⭐️ 불러온 고객 목록의 주민등록번호를 일괄 복호화 처리
+    const decryptedClients = await Promise.all(
+      fetchedData.map(async (client) => {
+        let decrypted = null;
+        if (client.registration_number) {
+          try {
+            decrypted = await decryptRegNumber(client.registration_number);
+          } catch (e) {
+            console.error("복호화 에러", e);
+          }
+        }
+        return {
+          ...client,
+          decrypted_reg: decrypted
+        };
+      })
+    );
+
+    const introCounts = decryptedClients.reduce((acc, curr) => {
       if (curr.introduce_client) {
         acc[curr.introduce_client] = (acc[curr.introduce_client] || 0) + 1;
       }
       return acc;
     }, {} as Record<number, number>);
 
-    const clientsWithKeyman = fetchedData.map(client => ({
+    const clientsWithKeyman = decryptedClients.map(client => ({
       ...client,
       isKeyman: (introCounts[client.id] || 0) >= 3,
       is_favorite: !!client.is_favorite
@@ -332,7 +354,6 @@ export default function ClientsPage() {
     }
   };
 
-  // ⭐️ 1. 모달 띄우기 및 텍스트 자동 채우기
   const openKakaoRequestModal = (client: Client) => {
     let medicalMemo = "특이사항 없음";
     
@@ -347,25 +368,21 @@ export default function ClientsPage() {
       }
     }
 
-    const template = `[고객 등록 및 설계 요청]
+    const template = `고객등록 및 설계 요청드립니다.
 
 이름: ${client.name}
-주민등록번호: [주민번호 13자리 입력]
+주민등록번호: ${client.decrypted_reg || '미입력'}
 연락처: ${client.phone || '미입력'}
 통신사: ${client.telecom || '미입력'}
 주소: ${client.address || '미입력'}
 직업: ${client.job || '미입력'}
 운전여부: ${client.driving_status || '미입력'}
-
-[병력사항 메모 요약]
-${medicalMemo}
-
-고객등록 및 설계 요청드립니다.`;
+병력사항:
+${medicalMemo}`;
 
     setKakaoRequestData({ isOpen: true, text: template, clientName: client.name });
   };
 
-  // ⭐️ 2. 모달창에서 입력한 값을 바탕으로 카카오톡 API 실제 전송
   const handleSendKakaoRequest = () => {
     const { text } = kakaoRequestData;
     const globalWindow = window as any;
@@ -378,18 +395,11 @@ ${medicalMemo}
         kakao.init(KAKAO_KEY);
       }
       
-      // 장문 텍스트가 잘리지 않도록 'text' 타입 사용
       kakao.Share.sendDefault({
         objectType: 'text',
         text: text, 
-        link: {
-          mobileWebUrl: window.location.origin,
-          webUrl: window.location.origin,
-        },
-        buttonTitle: 'CRM 시스템 열기',
       });
       
-      // 전송 후 모달 닫기
       setKakaoRequestData({ isOpen: false, text: "", clientName: "" });
     } else {
       alert("카카오톡 시스템을 불러오는 중입니다. 화면을 새로고침 하거나 잠시 후 다시 시도해주세요.");
@@ -553,17 +563,16 @@ ${medicalMemo}
                           </button>
                           
                           <div className="flex items-center gap-2">
-                            <Link href={`/clients/${client.id}`} className="block text-base font-bold text-gray-900 group-hover:text-blue-600 transition-colors py-1.5">
+                            <Link href={`/clients/${client.id}`} className="block text-base font-bold text-gray-900 group-hover:text-blue-600 transition-colors py-1.5 flex items-center">
                               {client.name}
                             </Link>
                             
-                            {/* ⭐️ 변경: 모달 여는 버튼 (데스크탑) */}
                             <button 
                               onClick={() => openKakaoRequestModal(client)}
-                              className="bg-[#FEE500] text-amber-900 hover:bg-[#FADA0A] px-2.5 py-1.5 rounded-md text-[11px] font-black transition-colors shadow-sm whitespace-nowrap cursor-pointer flex items-center gap-1"
-                              title="클릭 시 정보 수정 후 카톡 전송"
+                              className="bg-white border border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-900 px-2.5 py-1 rounded-md text-[11px] font-bold transition-colors shadow-sm whitespace-nowrap cursor-pointer"
+                              title="클릭 시 정보 수정 후 전송"
                             >
-                              <MessageCircle className="w-3.5 h-3.5 fill-current" /> 고객등록
+                              고객등록요청
                             </button>
 
                             {isManager && selectedAgentFilter !== "me" && client.agents?.name && (
@@ -696,16 +705,17 @@ ${medicalMemo}
                       </button>
 
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <Link href={`/clients/${client.id}`} className="text-lg font-extrabold text-gray-900 hover:text-blue-600">
-                          {client.name}
-                        </Link>
+                        <div className="flex items-center gap-1.5">
+                          <Link href={`/clients/${client.id}`} className="text-lg font-extrabold text-gray-900 hover:text-blue-600">
+                            {client.name}
+                          </Link>
+                        </div>
                         
-                        {/* ⭐️ 변경: 모달 여는 버튼 (모바일) */}
                         <button 
                           onClick={() => openKakaoRequestModal(client)}
-                          className="bg-[#FEE500] text-amber-900 hover:bg-[#FADA0A] px-2 py-1.5 rounded-md text-[10px] font-black transition-colors shadow-sm ml-1 whitespace-nowrap cursor-pointer flex items-center gap-1"
+                          className="bg-white border border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-900 px-2 py-1 rounded-md text-[10px] font-bold transition-colors shadow-sm ml-1 whitespace-nowrap cursor-pointer"
                         >
-                          <MessageCircle className="w-3 h-3 fill-current" /> 고객등록
+                          고객등록요청
                         </button>
 
                         {isManager && selectedAgentFilter !== "me" && client.agents?.name && (
@@ -799,46 +809,51 @@ ${medicalMemo}
       )}
 
       {/* 🟢 카카오톡 양식 전송 편집 및 모달 */}
+      {/* 🟢 설계 요청 폼 편집 및 전송 모달 (디자인 전체 변경) */}
       {kakaoRequestData.isOpen && (
         <div 
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm md:p-4 pt-24 animate-in fade-in"
           onClick={() => setKakaoRequestData({ ...kakaoRequestData, isOpen: false })}
         >
           <div 
-            className="bg-white w-full max-w-[400px] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200"
+            className="bg-white w-full md:max-w-[900px] w-full md:max-h-[900px] h-full md:rounded-2xl md:shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="bg-[#FEE500] px-5 py-4 flex justify-between items-center border-b border-[#FADA0A]">
-              <div className="flex items-center gap-2 text-amber-900">
-                <MessageCircle className="w-5 h-5 fill-current" />
-                <h3 className="font-extrabold text-base">카카오톡 설계 요청</h3>
+            {/* 세련된 화이트/그레이 헤더 */}
+            <div className="bg-gray-50 px-5 py-4 flex justify-between items-center border-b border-gray-100">
+              <div className="flex items-center gap-2 text-gray-900">
+                <h3 className="font-extrabold text-base">고객등록 및 설계 요청</h3>
               </div>
               <button 
                 onClick={() => setKakaoRequestData({ ...kakaoRequestData, isOpen: false })}
-                className="text-amber-700 hover:text-amber-900 hover:bg-[#FADA0A] p-1 rounded-full transition-colors cursor-pointer"
+                className="text-gray-400 hover:text-gray-600 hover:bg-gray-200 p-1.5 rounded-full transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
             
-            <div className="p-5 flex flex-col gap-3">
-              <div className="bg-amber-50 text-amber-800 text-xs font-bold p-3 rounded-lg flex gap-2">
-                <Info className="w-4 h-4 shrink-0" />
-                <p>전송 전 내용을 자유롭게 수정할 수 있습니다.<br/><span className="text-red-600">※ 보안 상 주민등록번호는 직접 입력해주세요.</span></p>
+            <div className="p-4 h-full flex flex-col gap-3">
+              {/* 은은한 블루/그레이톤 안내 배너 */}
+              <div className="bg-blue-50/50 text-blue-800 border border-blue-100/50 text-[13px] font-semibold p-3.5 rounded-xl flex gap-2.5">
+                <Info className="w-4 h-4 shrink-0 text-blue-500 mt-0.5" />
+                <p className="leading-relaxed text-gray-600">
+                  전송 전 내용을 자유롭게 수정할 수 있습니다.
+                </p>
               </div>
               
               <textarea
                 value={kakaoRequestData.text}
                 onChange={(e) => setKakaoRequestData({ ...kakaoRequestData, text: e.target.value })}
-                className="w-full h-[320px] p-4 text-sm bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 resize-none font-medium text-gray-700 leading-relaxed"
+                className="w-full md:max-h-[800px] h-full p-4 text-sm bg-white border border-gray-200 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 resize-none font-medium text-gray-700 leading-relaxed shadow-sm"
               />
               
               <div className="flex gap-2 mt-2">
+                {/* 메인 액션 버튼 (다크 그레이) */}
                 <button
                   onClick={handleSendKakaoRequest}
-                  className="flex-1 bg-[#FEE500] hover:bg-[#FADA0A] text-amber-900 font-black py-3.5 rounded-xl shadow-sm transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                  className="flex-1 bg-gray-900 hover:bg-gray-800 text-white font-bold py-3.5 rounded-xl shadow-sm transition-colors flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <Send className="w-4 h-4" /> 카카오톡 앱으로 전송
+                  <Send className="w-4 h-4" /> 메시지 전송
                 </button>
               </div>
             </div>
