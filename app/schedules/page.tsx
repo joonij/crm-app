@@ -728,7 +728,7 @@ export default function SchedulePage() {
                 })}
               </div>
             ) : (
-              <div className="sticky top-[56px] z-30 shrink-0 bg-white border-b border-slate-200 px-2 py-3 shadow-sm">
+              <div className="sticky top-[0px] z-30 shrink-0 bg-white border-b border-slate-200 px-2 py-3 shadow-sm">
                 <div className="grid grid-cols-7 mb-1.5">
                   {["일", "월", "화", "수", "목", "금", "토"].map((d, i) => (
                     <div key={d} className={`text-center text-[10px] font-bold ${i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-slate-500'}`}>{d}</div>

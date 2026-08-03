@@ -18,7 +18,7 @@ type Schedule = {
 export default function ClientScheduleCard({ clientId, agentId }: { clientId: string, agentId: number }) {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   // ⭐️ 폼 상태에 category 추가
-  const [scheduleForm, setScheduleForm] = useState({ content: "", date: "", time: "", repeat: false, category: "" });
+  const [scheduleForm, setScheduleForm] = useState({ content: "", date: "", time: "", repeat: false, category: "AP" });
   const [isSaving, setIsSaving] = useState(false);
 
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -58,7 +58,7 @@ export default function ClientScheduleCard({ clientId, agentId }: { clientId: st
 
   const handleCancelEdit = () => {
     setEditingId(null);
-    setScheduleForm({ content: "", date: "", time: "", repeat: false, category: "" });
+    setScheduleForm({ content: "", date: "", time: "", repeat: false, category: "AP" });
   };
 
   const handleSaveSchedule = async () => {
@@ -108,7 +108,7 @@ export default function ClientScheduleCard({ clientId, agentId }: { clientId: st
         if (error) throw error;
       }
 
-      setScheduleForm({ content: "", date: "", time: "", repeat: false, category: "" }); 
+      setScheduleForm({ content: "", date: "", time: "", repeat: false, category: "AP" });
       setEditingId(null); 
       fetchSchedules(); 
       

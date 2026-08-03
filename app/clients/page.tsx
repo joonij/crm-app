@@ -27,7 +27,6 @@ type Client = {
   driving_status?: string;
   medical_history?: any;
   registration_number?: string | null;
-  // decrypted_reg 필드는 초기 로딩 속도 최적화를 위해 제거됨
 };
 
 const contractStatusMap: Record<string, string> = {
@@ -112,7 +111,10 @@ export default function ClientsPage() {
   const [isManager, setIsManager] = useState(false);
   const [currentAgentId, setCurrentAgentId] = useState<number | null>(null);
   const [teamMembers, setTeamMembers] = useState<{ id: number; name: string; rank: string; }[]>([]);
+  
   const [selectedAgentFilter, setSelectedAgentFilter] = useState<string>("me");
+  // ⭐️ 추가: 최초 접속 시 필터(me/all)가 직급에 맞게 세팅되었는지 확인하는 상태
+  const isFilterInitialized = useRef(false);
 
   const [page, setPage] = useState(1);
   const ITEMS_PER_PAGE = 20;
@@ -140,7 +142,20 @@ export default function ClientsPage() {
 
     setCurrentAgentId(agent.id);
 
-    const managerAuth = agent.rank === "SM" || agent.rank === "지점장";
+    // ⭐️ 추가: 최초 접속 시 직급을 판별하여 필터 기본값 자동 세팅
+    if (!isFilterInitialized.current) {
+      isFilterInitialized.current = true;
+      const defaultFilter = (!agent.rank || agent.rank === "FC") ? "me" : "all";
+      
+      // 만약 세팅해야 할 필터값이 현재 값과 다르면 상태를 바꾸고 종료 (바뀐 상태로 다시 로드됨)
+      if (selectedAgentFilter !== defaultFilter) {
+        setSelectedAgentFilter(defaultFilter);
+        return; 
+      }
+    }
+
+    // ⭐️ 변경: FC가 아닌 모든 직급(SM, BM, 지점장 등)에게 '팀 전체 고객(all)' 권한 부여
+    const managerAuth = !!agent.rank && agent.rank !== "FC";
     setIsManager(managerAuth);
 
     let query = supabase.from("clients").select("*, agents(name)");
@@ -173,9 +188,6 @@ export default function ClientsPage() {
     }
 
     const fetchedData = data || [];
-
-    // ⭐️ 페이지 로딩 최적화: 일괄 복호화 로직(Promise.all)을 완전히 제거했습니다.
-    // 덕분에 수천 개의 데이터가 있어도 1초 만에 즉시 화면이 로딩됩니다.
 
     const introCounts = fetchedData.reduce((acc, curr) => {
       if (curr.introduce_client) {
@@ -339,8 +351,6 @@ export default function ClientsPage() {
     }
   };
 
-
-  // ⭐️ 1. 병원명 마스킹 및 고지사항 자동 계산 포맷팅 함수 (컴포넌트 내부에 추가)
   const formatMedicalHistory = (medicalData: any) => {
     if (!medicalData) return "특이사항 없음";
 
@@ -349,7 +359,6 @@ export default function ClientsPage() {
       const memoStr = data.memo || (typeof data === 'string' ? data : "");
       if (!memoStr.trim()) return "특이사항 없음";
 
-      // 💡 요약(그룹핑)이 필요한 4가지 섹션을 담을 객체
       const grouped = {
         recent3m: {} as Record<string, any>,
         recent1y: {} as Record<string, any>,
@@ -357,7 +366,6 @@ export default function ClientsPage() {
         medication30: {} as Record<string, any>
       };
 
-      // 💡 묶지 않고(요약X) 개별 나열할 2가지 섹션을 담을 배열
       const admissions: string[] = [];
       const surgeries: string[] = [];
 
@@ -366,12 +374,10 @@ export default function ClientsPage() {
       
       const lines = memoStr.split('\n');
       
-      // ⭐️ 타입 에러 해결: (line: string)으로 명시적 타입 지정
       lines.forEach((line: string) => {
         const trimmed = line.trim();
         if (!trimmed) return;
 
-        // 1. 어떤 섹션의 데이터인지 판별 (헤더 감지)
         if (trimmed.includes('[3개월')) { currentSection = 'recent3m'; return; }
         if (trimmed.includes('[1년')) { currentSection = 'recent1y'; return; }
         if (trimmed.includes('수술 의심')) { currentSection = 'surgery'; return; }
@@ -379,7 +385,6 @@ export default function ClientsPage() {
         if (trimmed.includes('7번 이상')) { currentSection = 'visit7'; return; }
         if (trimmed.includes('30일 이상')) { currentSection = 'medication30'; return; }
 
-        // 2. 데이터 라인('-' 로 시작) 추출 및 분석
         if (trimmed.startsWith('-') && currentSection) {
           const parts = trimmed.split('·').map(p => p.trim());
           
@@ -388,20 +393,18 @@ export default function ClientsPage() {
             const date = dateMatch ? dateMatch[0] : "";
             const code = parts[2] || "";
             let name = parts[3] || "";
-            let extra = parts.slice(4).join(' · '); // 입원일수나 진료비 등 나머지 정보
+            let extra = parts.slice(4).join(' · '); 
             
             if (date) {
               isParsed = true;
               
-              // "(180일 투약)" 등에서 숫자만 추출
               let days = 0;
               const mediMatch = name.match(/\((\d+)일\s*투약\)/);
               if (mediMatch) {
                 days = parseInt(mediMatch[1], 10);
-                name = name.replace(/\(\d+일\s*투약\)/, '').trim(); // 질병명에서 텍스트 제거
+                name = name.replace(/\(\d+일\s*투약\)/, '').trim(); 
               }
 
-              // 💡 [입원] 및 [수술]은 묶지 않고 1건씩 라인 그대로 추가 (병원명 parts[1]은 원천 배제)
               if (currentSection === 'admission' || currentSection === 'surgery') {
                 const extraInfo = extra ? ` · ${extra}` : '';
                 const lineStr = `- ${date} · ${code} · ${name}${extraInfo}`;
@@ -409,7 +412,6 @@ export default function ClientsPage() {
                 if (currentSection === 'admission') admissions.push(lineStr);
                 else surgeries.push(lineStr);
               } 
-              // 💡 나머지 이력들은 질병코드(또는 질병명)를 기준으로 하나로 묶음(그룹핑)
               else {
                 const groupKey = code || name || '미상';
                 const targetGroup = grouped[currentSection as keyof typeof grouped];
@@ -419,8 +421,8 @@ export default function ClientsPage() {
                     targetGroup[groupKey] = { code, name, dates: new Set(), count: 0, days: 0 };
                   }
                   targetGroup[groupKey].dates.add(date);
-                  targetGroup[groupKey].count++;      // 방문 횟수 누적
-                  targetGroup[groupKey].days += days; // 투약 일수 누적
+                  targetGroup[groupKey].count++;      
+                  targetGroup[groupKey].days += days; 
                 }
               }
             }
@@ -428,11 +430,9 @@ export default function ClientsPage() {
         }
       });
 
-      // 3. 파싱된 데이터를 요청하신 깔끔한 포맷으로 최종 조립
       if (isParsed) {
         let resultParts: string[] = [];
 
-        // 그룹핑된 데이터를 "시작일~종료일 · 코드 · 질병명 · 총 X회/일" 포맷으로 렌더링하는 헬퍼 함수
         const renderGrouped = (groupObj: any, unit: string) => {
           const vals = Object.values(groupObj) as any[];
           if (vals.length === 0) return null;
@@ -468,7 +468,6 @@ export default function ClientsPage() {
         }
       }
 
-      // 만약 시스템 양식이 바뀌어 파싱에 실패하더라도, 일반 병원명 자리만 정규식으로 안전하게 지우고 반환 (안전장치)
       return memoStr.replace(/·\s*[^·]+\s*·/g, "· ·").trim() || "특이사항 없음";
 
     } catch (e) {
@@ -477,23 +476,19 @@ export default function ClientsPage() {
     }
   };
 
-
-  // ⭐️ 1. 비동기(async) 함수로 변경: 버튼 클릭 시에만 단 1건의 복호화를 수행합니다.
   const openKakaoRequestModal = async (client: Client) => {
     const medicalMemo = formatMedicalHistory(client.medical_history);
 
-    // ⭐️ 2. 버튼이 눌렸을 때 해당 고객의 암호화된 번호를 복호화
     let decryptedReg: string = "";
     if (client.registration_number) {
       try {
         const result = await decryptRegNumber(client.registration_number);
-        decryptedReg = result || ""; // result가 null이면 "" 대입
+        decryptedReg = result || ""; 
       } catch (e) {
         console.error("복호화 중 에러 발생", e);
       }
     }
 
-    // ⭐️ 3. 복호화된 주민번호를 템플릿에 바로 삽입 (빈칸 대신 실제 번호가 들어갑니다)
     const template = `고객등록 및 설계 요청드립니다.
 
 이름: ${client.name}
@@ -512,25 +507,20 @@ ${medicalMemo}`;
   const handleSendKakaoRequest = async () => {
     const { text } = kakaoRequestData;
     
-    // 1. 내용 복사 (PC 사용자를 위한 처리)
     try {
       await navigator.clipboard.writeText(text);
     } catch(e) {
       console.error("클립보드 복사 실패", e);
     }
 
-    // 2. 접속 기기 판별 (모바일 vs PC)
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     
     if (isMobile) {
-      // ⭐️ 모바일: 카카오톡 앱을 실행하면서 '순수 텍스트'만 전달
       window.location.href = `kakaotalk://send?text=${encodeURIComponent(text)}`;
     } else {
-      // ⭐️ PC: 웹 브라우저에서 PC 카톡을 강제로 열 수 없으므로, 복사 후 붙여넣기 안내
       alert("✅ 내용이 클립보드에 복사되었습니다!\nPC 카카오톡 대화창에 바로 붙여넣기(Ctrl+V) 해주세요.");
     }
     
-    // 전송 후 모달 닫기
     setKakaoRequestData({ isOpen: false, text: "", clientName: "" });
   };
 
@@ -576,8 +566,8 @@ ${medicalMemo}`;
                 onChange={(e) => setSelectedAgentFilter(e.target.value)}
                 className="w-full pl-3 pr-8 py-2.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 font-bold text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 appearance-none shadow-sm cursor-pointer"
               >
-                <option value="me">내 고객 목록</option>
                 <option value="all">팀 전체 고객</option>
+                <option value="me">내 고객 목록</option>
                 <optgroup label="팀원 목록">
                   {teamMembers
                     .filter(m => m.id !== currentAgentId)
