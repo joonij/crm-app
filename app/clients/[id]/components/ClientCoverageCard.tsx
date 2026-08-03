@@ -1,13 +1,22 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import Link from "next/link";
-import { Shield, Trash2, ChevronDown, ChevronUp, Plus, BarChart3, Edit2, RotateCcw, MinusCircle, TrendingDown, Undo, Check, X, Banknote, Search, AlertCircle, ShieldCheck, Save, Loader2, CheckCircle2, PenTool } from "lucide-react";
+import { Shield, Trash2, ChevronDown, ChevronUp, Plus, BarChart3, Edit2, RotateCcw, MinusCircle, TrendingDown, Undo, Check, X, Banknote, Search, AlertCircle, ShieldCheck, Save, Loader2, CheckCircle2, PenTool, FileText } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import InsuranceModal from "@/app/clients/[id]/components/InsuranceModal";
 import QuickClaimModal from "@/components/QuickClaimModal";
 
-const SUPPORTED_COMPANIES = ["메리츠화재", "현대해상", "DB손해", "삼성화재"];
+// ⭐️ PDF.js 라이브러리 임포트 및 워커 설정 (버전 완벽 대응)
+import * as pdfjsLib from "pdfjs-dist";
+if (typeof window !== "undefined") {
+  const version = pdfjsLib.version || "6.2.108";
+  const majorVersion = parseInt(version.split(".")[0], 10);
+  const ext = majorVersion >= 4 ? "mjs" : "js";
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${version}/build/pdf.worker.min.${ext}`;
+}
+
+const SUPPORTED_COMPANIES = ["메리츠화재", "현대해상", "DB손해", "삼성화재", "라이나생명", "미래에셋생명"];
 
 const formatAmount = (val: string) => {
   if (!val) return "";
@@ -113,13 +122,16 @@ const statusTheme: Record<string, { bg: string; border: string; text: string }> 
 export default function ClientCoverageCard({ clientId }: { clientId: string }) {
   const [clientData, setClientData] = useState<any>(null); 
   const [coverages, setCoverages] = useState<Coverage[]>([]);
-  const [isCoveragesLoaded, setIsCoveragesLoaded] = useState(false); // ⭐️ 보험 데이터 로딩 완료 상태
+  const [isCoveragesLoaded, setIsCoveragesLoaded] = useState(false);
 
   const [expandedCovId, setExpandedCovId] = useState<number | null>(null);
   const [isCovModalOpen, setIsCovModalOpen] = useState(false);
   const [companies, setCompanies] = useState<InsuranceCompany[]>([]);
 
-  // 보장 공백 진단 컨트롤을 위한 상태
+  // 파일 업로드 관련 상태
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isParsing, setIsParsing] = useState(false);
+
   const [selectedGaps, setSelectedGaps] = useState<string[]>([]);
   const [customGaps, setCustomGaps] = useState<{id: string, title: string, desc: string, action: string}[]>([]);
   const [isAddingCustomGap, setIsAddingCustomGap] = useState(false);
@@ -159,7 +171,7 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
       }));
       setCoverages(processedData);
     }
-    setIsCoveragesLoaded(true); // ⭐️ 보험 데이터 세팅이 완전히 끝나면 true로 변경
+    setIsCoveragesLoaded(true);
   };
 
   useEffect(() => { 
@@ -190,86 +202,277 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     void fetchMyClients();
   }, [clientId]);
 
-  // 보장 공백 자동 검출 로직
-// 보장 공백 자동 검출 로직
-const gapItems = useMemo(() => {
-  const s = {
-    cancer: { after: 0 }, 
-    similarCancer: { after: 0 }, // ⭐️ 추가
-    brain: { after: 0 }, 
-    heart: { after: 0 },
-    circulatory: { after: 0 },  // ⭐️ 추가
-    death: { after: 0 },        // ⭐️ 추가
-    pension: { after: 0 },      // ⭐️ 추가
-    surgery: { after: 0 }, 
-    hasJongSurgery: false, 
-    homeCare: { after: 0 },
-    hospitalization: { after: 0 }, 
-    injury: { after: 0 }, 
-    hasDriver: false, 
-    hasDental: false
-  };
-  
+  // ⭐️ 1. 완벽한 테이블 구조 복원 및 역순 탐색 알고리즘 (특약명 혼선 방지)
+  const parseInsurancePDF = (pdfText: string, clientName: string) => {
+    let result = {
+      insurance_company: "",
+      product_name: "",
+      monthly_premium: 0,
+      payment_period: "",
+      contractor_name: clientName,    // 고객명 자동 입력
+      insured_name: clientName,       // 고객명 자동 입력
+      beneficiary_name: clientName,   // 고객명 자동 입력
+      agent_name: "정준희",           // 담당설계사 자동 입력
+      policy_status: "new",           
+      details: [] as { name: string; amount: string; renewal_type: string }[]
+    };
 
-  coverages.forEach(ins => {
-    const isAfter = ins.policy_status === "maintain" || ins.policy_status === "new";
-    if (!isAfter) return;
+    // 보험사 파악
+    if (pdfText.includes("라이나생명")) result.insurance_company = "라이나생명";
+    else if (pdfText.includes("미래에셋생명")) result.insurance_company = "미래에셋생명";
+    else return result;
 
-    const prodName = ins.product_name || "";
-    if (prodName.includes("운전자")) s.hasDriver = true;
-    if (prodName.includes("치아") || prodName.includes("덴탈") || prodName.includes("치과")) s.hasDental = true;
-
-    if (ins.details) {
-      ins.details.forEach((d: any) => {
-        const afterVal = d.is_deleted ? 0 : extractNumber(d.original_amount || d.amount);
-        const name = d.name || "";
-
-        if (name.includes("암") && !name.includes("유사") && !name.includes("고액")) s.cancer.after += afterVal;
-        if (name.includes("유사암") || name.includes("소액암")) s.similarCancer.after += afterVal; // ⭐️ 추가
-        if (name.includes("뇌")) s.brain.after += afterVal;
-        if (name.includes("허혈") || name.includes("심장") || name.includes("급성심근")) s.heart.after += afterVal;
-        if (name.includes("순환계")) s.circulatory.after += afterVal; // ⭐️ 추가
-        if (name.includes("사망")) s.death.after += afterVal;         // ⭐️ 추가
-        if (name.includes("연금")) s.pension.after += afterVal;       // ⭐️ 추가
-
-        if (name.includes("수술")) {
-          s.surgery.after += afterVal;
-          if (name.includes("종") || name.includes("1-5종") || name.includes("1-6종") || name.includes("1-9종")) s.hasJongSurgery = true;
-        }
-        if (name.includes("재가") || name.includes("치매")) s.homeCare.after += afterVal;
-        if (name.includes("입원") && !name.includes("진단") && !name.includes("제외") && !name.includes("실손") && !name.includes("의료비")) s.hospitalization.after += afterVal;
-        if (name.includes("통합상해") || (name.includes("상해") && name.includes("진단"))) s.injury.after += afterVal;
-        if (name.includes("교통사고처리") || name.includes("변호사선임") || name.includes("자동차부상")) s.hasDriver = true;
-        if (name.includes("임플란트") || name.includes("크라운") || name.includes("보철")) s.hasDental = true;
-      });
+    // 💡 총 보험료 추출 (표 하단의 합계/실납입보험료 무조건 캡처)
+    const premiumMatches = pdfText.match(/(합\s*계|납입보험료|실납입보험료|합계보험료)[\s|]*([\d,]+)/g);
+    if (premiumMatches) {
+      const lastMatch = premiumMatches[premiumMatches.length - 1];
+      const numOnly = lastMatch.match(/([\d,]+)/);
+      if (numOnly) result.monthly_premium = Number(numOnly[1].replace(/,/g, ''));
     }
-  });
 
-  return [
-    { condition: s.cancer.after < 5000, title: "암 보장 공백 발견", action: "일반암 진단비 증액 권장" },
-    { condition: s.similarCancer.after < 1000, title: "유사암 보장 공백", action: "유사암 진단비 보완 권장" }, // ⭐️ 추가
-    { condition: s.brain.after < 2000, title: "뇌혈관 보장 공백 발견", action: "뇌혈관 진단/수술비 보완 요망" },
-    { condition: s.heart.after < 2000, title: "심장 보장 공백 발견", action: "심혈관 특정진단비 보완 권장" },
-    { condition: s.circulatory.after < 2000, title: "순환계질환 보장 공백", action: "순환계질환 진단비 보완 요망" }, // ⭐️ 추가
-    { condition: s.death.after < 3000, title: "사망보장 자산 부족", action: "정기/종신 사망보험금 확보" }, // ⭐️ 추가
-    { condition: s.pension.after === 0, title: "노후 연금 자산 부재", action: "노후 대비 연금저축/보험 가입" }, // ⭐️ 추가
-    { condition: s.surgery.after === 0 || !s.hasJongSurgery, title: "질병/종수술비 보장 부재", action: "질병 및 1-5종 수술비 장착" },
-    { condition: s.homeCare.after === 0, title: "치매 리스크 노출", action: "장기요양 재가급여 특약 추가" },
-    { condition: s.injury.after === 0, title: "통합상해진단비 공백", action: "통합상해진단비 보완 권장" },
-    { condition: s.hospitalization.after === 0, title: "일당 입원비 보장 부재", action: "간병인/입원일당 확보 고려" },
-    { condition: !s.hasDriver, title: "운전자 핵심 비용 부재", action: "형사합의금 지원 플랜 마련" },
-    { condition: !s.hasDental, title: "치아 보장 자산 부재", action: "치과 전문 덴탈 케어 안내" }
-  ];
-}, [coverages]);
+    // 상품명 추출
+    if (result.insurance_company === "라이나생명") {
+      const productMatch = pdfText.match(/보험상품명\s*\|\s*([^\n|]+)/);
+      if (productMatch) result.product_name = productMatch[1].replace(/무배당/g, '').trim();
+    } else {
+      const productMatch = pdfText.match(/([가-힣A-Za-z0-9-]+\s*건강보험\s*무배당)/);
+      if (productMatch) result.product_name = productMatch[1].replace("상령", "").replace(/무배당/g, '').trim();
+    }
 
-  // ⭐️ 2. DB 데이터 불러오기 (보험 데이터가 완료된 후에만 세팅하도록 조건 강화)
+    const lines = pdfText.split('\n').map(l => l.trim()).filter(l => l);
+    let tempBuffer: string[] = [];
+
+    // 역순 스캔을 통한 완벽한 열(Column) 분리 로직
+    for (const line of lines) {
+      // 강력한 쓰레기값 필터 (이전 행의 잔여물 및 머리말/꼬리말 완벽 차단)
+      const isJunk = /청약서|발행일시|가입안내서|페이지로 구성|동일한 번호|발행번호|FC\s*:|Tel\s*:|Page\s*:|보장내역|상품별 특이사항|유의사항|가입설계번호|대리점명|지점명|설계사명|www\.|라이나생명|미래에셋생명|Chubb|가입설계용|쪽|※|합\s*계|납입보험료|실납입보험료|합계보험료|구분|상품명|피보험자|가입금액|보험기간|납입기간|납입주기|보험료|계약사항|보장내용|계약자|지급사유|지급금액|보장합니다|가입기준|주피보험자/i.test(line);
+
+      if (isJunk || line.length < 2) {
+        tempBuffer = []; // 오염 방지용 버퍼 초기화
+        continue;
+      }
+
+      tempBuffer.push(line);
+      const fullLine = tempBuffer.join(" ");
+      const fullParts = fullLine.split('|').map(p => p.trim()).filter(p => p);
+      const len = fullParts.length;
+
+      // 표 데이터는 최소 4열 이상을 가짐
+      if (len >= 4) {
+        const lastStr = fullParts[len - 1].replace(/,/g, '');
+        const isPremium = /^\d+$/.test(lastStr);
+        const hasTerm = fullParts.some(p => p.includes("납") || p.includes("년") || p.includes("세") || p.includes("일시납"));
+
+        if (isPremium && hasTerm) {
+          tempBuffer = []; // 행 인식 성공 시 버퍼 비우기
+
+          const premium = fullParts.pop()?.replace(/,/g, '') || "0";
+          
+          let amount = "0";
+          let payTerm = "";
+          let insTermArr: string[] = [];
+          let nameArr: string[] = [];
+          let foundAmount = false;
+
+          // 오른쪽 끝부터 역방향(<-) 탐색하여 가입금액(순수숫자)을 기준으로 특약명과 기간을 정확히 분리!
+          for (let i = fullParts.length - 1; i >= 0; i--) {
+              const part = fullParts[i];
+              const cleanPart = part.replace(/,/g, '').replace(/만원/g, '').replace(/\s/g, ''); 
+              
+              if (!foundAmount && /^\d+$/.test(cleanPart)) {
+                  amount = cleanPart;
+                  foundAmount = true;
+              } else if (!foundAmount) {
+                  if (part.includes("납")) payTerm = part;
+                  insTermArr.unshift(part); // 숫자가 나오기 전은 기간(Term)
+              } else {
+                  nameArr.unshift(part); // 숫자가 나온 후 왼쪽의 모든 텍스트는 이름(Name)
+              }
+          }
+          
+          let insTerm = insTermArr.join(" ");
+          let rawName = nameArr.join(" ");
+
+          // 더럽혀진 특약명 완벽 클렌징
+          let name = rawName
+              .replace(new RegExp(clientName, "g"), '') // 고객명 분리
+              .replace(/최초계약\s*\d+년/g, '')
+              .replace(/갱신계약\s*\d+년(\s*갱신)?/g, '')
+              .replace(/\(최대\s*\d+세\s*만기\)/g, '')
+              .replace(/당 최초계약/g, '')
+              .replace(/무배당 최초계약/g, '')
+              .replace(/\[해약환급금이[^\]]+\]/g, '')
+              .replace(/\([^)]*해약환급금[^)]*\)/g, '')
+              .replace(/무배당/g, '')
+              .replace(/\[W\]/g, '')
+              .trim();
+              
+          // 맨 앞의 구분자(주계약/특약) 제거 (단, 텍스트가 그거 하나면 살려둠)
+          if (name.replace(/^(주계약|기본계약|특약)\s*/, '').length > 0) {
+              name = name.replace(/^(주계약|기본계약|특약)\s*/, '');
+          }
+          name = name.replace(/^[^가-힣a-zA-Z0-9]+/, '').trim(); // 앞부분 특수기호 제거
+
+          const isMain = rawName.includes("주계약") || rawName.includes("기본계약");
+
+          if (isMain) {
+            if (!result.product_name) result.product_name = name;
+            if (payTerm) {
+               result.payment_period = payTerm.includes("납") ? payTerm : payTerm + "납";
+            }
+          }
+
+          let renewal = "비갱신";
+          if (name.includes("갱신형") || insTerm.includes("갱신") || rawName.includes("갱신")) {
+            const renewMatch = insTerm.match(/(\d+)년\s*갱신/);
+            renewal = renewMatch ? `${renewMatch[1]}년 갱신` : "갱신";
+          }
+          name = name.replace(/\(갱신형\)/g, '').trim();
+
+          // 모든 항목을 빠짐없이 리스트에 추가 (주계약, 납입면제 모두 포함)
+          if (name.length > 0) {
+             result.details.push({ name, amount, renewal_type: renewal });
+          }
+        }
+      }
+    }
+    return result;
+  };
+
+  // ⭐️ 2. PDF 파일 업로드 및 텍스트 추출
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsParsing(true);
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      let fullText = "";
+
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        const items = textContent.items as any[];
+
+        items.sort((a, b) => {
+          if (Math.abs(b.transform[5] - a.transform[5]) > 4) return b.transform[5] - a.transform[5]; 
+          return a.transform[4] - b.transform[4]; 
+        });
+
+        let lastY = items.length > 0 ? items[0].transform[5] : 0;
+        let pageText = "";
+        
+        for (const item of items) {
+          const str = item.str.trim();
+          if (!str) continue;
+
+          if (Math.abs(lastY - item.transform[5]) > 4) {
+            pageText += "\n";
+            lastY = item.transform[5];
+            pageText += str;
+          } else {
+            pageText += pageText.endsWith("\n") || pageText === "" ? str : ` | ${str}`;
+          }
+        }
+        fullText += pageText + "\n";
+      }
+
+      // 고객명 추출하여 파서에 전달 (계약자, 피보험자 자동 입력을 위해)
+      const cName = clientData?.name || "";
+      const parsedData = parseInsurancePDF(fullText, cName);
+
+      if (parsedData.insurance_company) {
+        setEditingPolicyId(-1);
+        setEditingPolicyForm(parsedData);
+      } else {
+        alert("⚠️ 지원하지 않는 보험사 양식이거나 텍스트를 추출할 수 없는 PDF입니다.");
+      }
+
+    } catch (error) {
+      console.error("PDF 파싱 오류:", error);
+      alert("PDF 분석 중 오류가 발생했습니다.");
+    } finally {
+      setIsParsing(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const gapItems = useMemo(() => {
+    const s = {
+      cancer: { after: 0 }, 
+      similarCancer: { after: 0 },
+      brain: { after: 0 }, 
+      heart: { after: 0 },
+      circulatory: { after: 0 },  
+      death: { after: 0 },        
+      pension: { after: 0 },      
+      surgery: { after: 0 }, 
+      hasJongSurgery: false, 
+      homeCare: { after: 0 },
+      hospitalization: { after: 0 }, 
+      injury: { after: 0 }, 
+      hasDriver: false, 
+      hasDental: false
+    };
+    
+    coverages.forEach(ins => {
+      const isAfter = ins.policy_status === "maintain" || ins.policy_status === "new";
+      if (!isAfter) return;
+
+      const prodName = ins.product_name || "";
+      if (prodName.includes("운전자")) s.hasDriver = true;
+      if (prodName.includes("치아") || prodName.includes("덴탈") || prodName.includes("치과")) s.hasDental = true;
+
+      if (ins.details) {
+        ins.details.forEach((d: any) => {
+          const afterVal = d.is_deleted ? 0 : extractNumber(d.original_amount || d.amount);
+          const name = d.name || "";
+
+          if (name.includes("암") && !name.includes("유사") && !name.includes("고액")) s.cancer.after += afterVal;
+          if (name.includes("유사암") || name.includes("소액암")) s.similarCancer.after += afterVal;
+          if (name.includes("뇌")) s.brain.after += afterVal;
+          if (name.includes("허혈") || name.includes("심장") || name.includes("급성심근")) s.heart.after += afterVal;
+          if (name.includes("순환계")) s.circulatory.after += afterVal;
+          if (name.includes("사망")) s.death.after += afterVal;         
+          if (name.includes("연금")) s.pension.after += afterVal;       
+
+          if (name.includes("수술")) {
+            s.surgery.after += afterVal;
+            if (name.includes("종") || name.includes("1-5종") || name.includes("1-6종") || name.includes("1-9종")) s.hasJongSurgery = true;
+          }
+          if (name.includes("재가") || name.includes("치매")) s.homeCare.after += afterVal;
+          if (name.includes("입원") && !name.includes("진단") && !name.includes("제외") && !name.includes("실손") && !name.includes("의료비")) s.hospitalization.after += afterVal;
+          if (name.includes("통합상해") || (name.includes("상해") && name.includes("진단"))) s.injury.after += afterVal;
+          if (name.includes("교통사고처리") || name.includes("변호사선임") || name.includes("자동차부상")) s.hasDriver = true;
+          if (name.includes("임플란트") || name.includes("크라운") || name.includes("보철")) s.hasDental = true;
+        });
+      }
+    });
+
+    return [
+      { condition: s.cancer.after < 5000, title: "암 보장 공백 발견", action: "일반암 진단비 증액 권장" },
+      { condition: s.similarCancer.after < 1000, title: "유사암 보장 공백", action: "유사암 진단비 보완 권장" },
+      { condition: s.brain.after < 2000, title: "뇌혈관 보장 공백 발견", action: "뇌혈관 진단/수술비 보완 요망" },
+      { condition: s.heart.after < 2000, title: "심장 보장 공백 발견", action: "심혈관 특정진단비 보완 권장" },
+      { condition: s.circulatory.after < 2000, title: "순환계질환 보장 공백", action: "순환계질환 진단비 보완 요망" },
+      { condition: s.death.after < 3000, title: "사망보장 자산 부족", action: "정기/종신 사망보험금 확보" },
+      { condition: s.pension.after === 0, title: "노후 연금 자산 부재", action: "노후 대비 연금저축/보험 가입" },
+      { condition: s.surgery.after === 0 || !s.hasJongSurgery, title: "질병/종수술비 보장 부재", action: "질병 및 1-5종 수술비 장착" },
+      { condition: s.homeCare.after === 0, title: "치매 리스크 노출", action: "장기요양 재가급여 특약 추가" },
+      { condition: s.injury.after === 0, title: "통합상해진단비 공백", action: "통합상해진단비 보완 권장" },
+      { condition: s.hospitalization.after === 0, title: "일당 입원비 보장 부재", action: "간병인/입원일당 확보 고려" },
+      { condition: !s.hasDriver, title: "운전자 핵심 비용 부재", action: "형사합의금 지원 플랜 마련" },
+      { condition: !s.hasDental, title: "치아 보장 자산 부재", action: "치과 전문 덴탈 케어 안내" }
+    ];
+  }, [coverages]);
+
   useEffect(() => {
     if (!hasInitializedGaps && clientData && isCoveragesLoaded) {
       if (clientData.consulting_details) {
         if (Array.isArray(clientData.consulting_details.selectedGaps)) {
           setSelectedGaps(clientData.consulting_details.selectedGaps);
         } else {
-          // DB에 내용이 없으면 조건이 일치하는 것만 기본 선택
           setSelectedGaps(gapItems.filter(g => g.condition).map(g => g.title));
         }
 
@@ -292,7 +495,6 @@ const gapItems = useMemo(() => {
       ...newCustomGap
     };
     setCustomGaps([...customGaps, newGap]);
-    // 커스텀 갭을 추가하면 자동으로 활성화 처리
     setSelectedGaps([...selectedGaps, newGap.title]);
     setIsAddingCustomGap(false);
     setNewCustomGap({ title: "", desc: "", action: "" });
@@ -303,7 +505,6 @@ const gapItems = useMemo(() => {
     setSelectedGaps(selectedGaps.filter(t => t !== title));
   };
 
-  // ⭐️ 3. 체크박스 선택값 저장 시 로컬 clientData도 함께 갱신
   const handleSaveGaps = async () => {
     setIsSavingGaps(true);
     try {
@@ -315,7 +516,6 @@ const gapItems = useMemo(() => {
       const { error } = await supabase.from("clients").update({ consulting_details: updatedConsulting }).eq("id", clientId);
       if (error) throw error;
       
-      // 로컬 데이터 최신화 (다음 저장 시 과거 데이터로 덮어쓰는 것 방지)
       setClientData((prev: any) => ({ ...prev, consulting_details: updatedConsulting }));
       
       setGapSaveSuccess(true);
@@ -396,10 +596,40 @@ const gapItems = useMemo(() => {
     }
   };
 
+  // ⭐️ 3. 저장 및 신규 DB 입력 처리 로직
   const handleSavePolicyEdit = async () => {
     if (!editingPolicyId || !editingPolicyForm) return;
     
     const cleanPremium = Number(String(editingPolicyForm.monthly_premium).replace(/,/g, ''));
+
+    if (editingPolicyId === -1) {
+      const { error } = await supabase.from("subscription_insurance").insert([{
+        client_id: parseInt(clientId, 10),
+        insurance_company: editingPolicyForm.insurance_company,
+        product_name: editingPolicyForm.product_name,
+        monthly_premium: cleanPremium,
+        payment_period: editingPolicyForm.payment_period || null,
+        details: editingPolicyForm.details,
+        policy_status: editingPolicyForm.policy_status || "new",
+        subscription_date: editingPolicyForm.subscription_date || null,
+        maturity_date: editingPolicyForm.maturity_date || null,
+        contractor_name: editingPolicyForm.contractor_name || null,
+        insured_name: editingPolicyForm.insured_name || null,
+        beneficiary_name: editingPolicyForm.beneficiary_name || null,
+        agent_name: editingPolicyForm.agent_name || null,
+      }]);
+
+      if (error) {
+        alert("신규 보험 저장에 실패했습니다.");
+        console.error(error);
+      } else {
+        alert("신규 제안 보험이 성공적으로 등록되었습니다.");
+        setEditingPolicyId(null);
+        setEditingPolicyForm(null);
+        fetchCoverages();
+      }
+      return;
+    }
 
     const { error } = await supabase.from("subscription_insurance").update({
       insurance_company: editingPolicyForm.insurance_company,
@@ -514,6 +744,19 @@ const gapItems = useMemo(() => {
     if (!editingDetail) return;
     if (!editingDetail.tempName.trim()) return alert("특약명을 입력해주세요.");
     
+    if (covId === -1 && editingPolicyForm && editingPolicyForm.details) {
+      const newDetails = [...editingPolicyForm.details];
+      newDetails[idx] = {
+        ...newDetails[idx],
+        name: editingDetail.tempName,
+        amount: formatAmount(editingDetail.tempAmount),
+        renewal_type: editingDetail.tempRenewalType,
+      };
+      setEditingPolicyForm({ ...editingPolicyForm, details: newDetails });
+      setEditingDetail(null);
+      return;
+    }
+
     const cov = coverages.find(c => c.id === covId);
     if (!cov || !cov.details) return;
     
@@ -545,26 +788,35 @@ const gapItems = useMemo(() => {
   };
 
   const handleAddNewDetail = async (covId: number) => {
-    const cov = coverages.find(c => c.id === covId);
+    const cov = covId === -1 ? editingPolicyForm as Coverage : coverages.find(c => c.id === covId);
     if (!cov) return;
     
     const newDetails = cov.details ? [...cov.details] : [];
     const newIdx = newDetails.length;
     
     newDetails.push({ name: "", amount: "", renewal_type: "비갱신" });
-    setCoverages(prev => prev.map(c => c.id === covId ? { ...c, details: newDetails } : c));
+
+    if (covId === -1 && editingPolicyForm) {
+      setEditingPolicyForm({ ...editingPolicyForm, details: newDetails });
+    } else {
+      setCoverages(prev => prev.map(c => c.id === covId ? { ...c, details: newDetails } : c));
+    }
     
     setEditingDetail({ covId, idx: newIdx, tempName: "", tempAmount: "", tempRenewalType: "비갱신", mode: 'new' });
   };
 
   const handleCancelEdit = async (covId: number, idx: number) => {
-    const cov = coverages.find(c => c.id === covId);
+    const cov = covId === -1 ? editingPolicyForm as Coverage : coverages.find(c => c.id === covId);
     if (cov && cov.details) {
       const detail = cov.details[idx];
       if (detail.name === "" && detail.amount === "") {
         const newDetails = [...cov.details];
         newDetails.splice(idx, 1);
-        setCoverages(prev => prev.map(c => c.id === covId ? { ...c, details: newDetails } : c));
+        if (covId === -1 && editingPolicyForm) {
+           setEditingPolicyForm({ ...editingPolicyForm, details: newDetails });
+        } else {
+           setCoverages(prev => prev.map(c => c.id === covId ? { ...c, details: newDetails } : c));
+        }
       }
     }
     setEditingDetail(null);
@@ -592,7 +844,7 @@ const gapItems = useMemo(() => {
         <span className="text-[10px] text-gray-500 mb-0.5 ml-1">{label}</span>
         <input
           type="text"
-          className="border border-gray-200 rounded p-2 outline-none focus:border-blue-500 text-xs w-full bg-white"
+          className="border border-gray-200 rounded p-2 outline-none focus:border-emerald-500 text-xs w-full bg-white font-bold text-gray-800"
           placeholder={`${label} (이름/연락처 검색)`}
           value={currentValue}
           onChange={(e) => {
@@ -613,7 +865,7 @@ const gapItems = useMemo(() => {
                   setEditingPolicyForm({ ...editingPolicyForm, [nameField]: c.name, [idField]: c.id });
                   setFocusedClientField(null);
                 }}
-                className="px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-blue-50 cursor-pointer transition-colors flex items-center justify-between"
+                className="px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-emerald-50 cursor-pointer transition-colors flex items-center justify-between"
               >
                 <span>{c.name}</span>
                 {c.phone && <span className="text-[10px] text-gray-400 tracking-tight">{c.phone}</span>}
@@ -649,8 +901,26 @@ const gapItems = useMemo(() => {
             <Link href={`/clients/${clientId}/analysis`} className="flex flex-1 sm:flex-none items-center justify-center gap-1.5 rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-gray-800">
               <BarChart3 className="w-4 h-4" /> 분석표 보기
             </Link>
+
+            {/* ⭐️ PDF 업로드 버튼 */}
+            <input 
+              type="file" 
+              accept=".pdf" 
+              ref={fileInputRef} 
+              style={{ display: 'none' }} 
+              onChange={handleFileUpload} 
+            />
+            <button 
+              onClick={() => fileInputRef.current?.click()} 
+              disabled={isParsing}
+              className="cursor-pointer flex flex-1 sm:flex-none items-center justify-center gap-1.5 rounded-lg bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-600 transition-colors hover:bg-indigo-100 disabled:opacity-50"
+            >
+              {isParsing ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />} 
+              {isParsing ? "분석 중..." : "PDF 추출"}
+            </button>
+
             <button onClick={() => setIsCovModalOpen(true)} className="cursor-pointer flex flex-1 sm:flex-none items-center justify-center gap-1.5 rounded-lg bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-600 transition-colors hover:bg-blue-100">
-              <Plus className="w-4 h-4" /> 보험 추가
+              <Plus className="w-4 h-4" /> 수동 추가
             </button>
           </div>
         </div>
@@ -702,7 +972,6 @@ const gapItems = useMemo(() => {
             )}
             
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5">
-              {/* 1. 자동 검출된 카드 */}
               {gapItems.map(gap => {
                 const isSelected = selectedGaps.includes(gap.title);
                 const isDetected = gap.condition;
@@ -733,7 +1002,6 @@ const gapItems = useMemo(() => {
                 )
               })}
 
-              {/* 2. 직접 작성한 커스텀 카드 */}
               {customGaps.map((custom) => {
                 const isSelected = selectedGaps.includes(custom.title);
                 
@@ -767,7 +1035,7 @@ const gapItems = useMemo(() => {
             </div>
           </div>
 
-          {/* 기존 검색바 */}
+          {/* 검색바 */}
           <div className="mb-2 relative">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
@@ -840,13 +1108,13 @@ const gapItems = useMemo(() => {
 
                           <div className="flex flex-col">
                             <span className="text-[10px] text-gray-500 mb-0.5 ml-1">담당설계사</span>
-                            <input type="text" placeholder="담당설계사" value={editingPolicyForm?.agent_name || ""} onChange={e => setEditingPolicyForm({...editingPolicyForm!, agent_name: e.target.value})} className="border border-gray-200 rounded p-2 outline-none focus:border-blue-500" />
+                            <input type="text" placeholder="담당설계사" value={editingPolicyForm?.agent_name || ""} onChange={e => setEditingPolicyForm({...editingPolicyForm!, agent_name: e.target.value})} className="border border-gray-200 rounded p-2 outline-none focus:border-blue-500 text-gray-800 font-medium" />
                           </div>
                           
                           <div className="flex flex-col">
                             <span className="text-[10px] text-gray-500 mb-0.5 ml-1">월 보험료</span>
                             <div className="flex items-center border border-gray-200 rounded p-2 bg-white focus-within:border-blue-500">
-                              <input type="text" placeholder="월 보험료" value={formatAmount(String(editingPolicyForm?.monthly_premium || ""))} onChange={e => setEditingPolicyForm({...editingPolicyForm!, monthly_premium: Number(e.target.value.replace(/,/g, ''))})} className="flex-1 w-full outline-none" />
+                              <input type="text" placeholder="월 보험료" value={formatAmount(String(editingPolicyForm?.monthly_premium || ""))} onChange={e => setEditingPolicyForm({...editingPolicyForm!, monthly_premium: Number(e.target.value.replace(/,/g, ''))})} className="flex-1 w-full outline-none font-bold text-gray-800" />
                               <span className="text-gray-400">원</span>
                             </div>
                           </div>
@@ -875,7 +1143,7 @@ const gapItems = useMemo(() => {
                             <input type="date" max="9999-12-31" value={editingPolicyForm?.maturity_date || ""} onChange={e => setEditingPolicyForm({...editingPolicyForm!, maturity_date: e.target.value})} className="border border-gray-200 rounded p-2 outline-none focus:border-blue-500 h-[34px]" />
                           </div>
                           <div className="flex flex-col col-span-2">
-                            <span className="text-[10px] text-gray-500 mb-0.5 ml-1">납입 기간</span>
+                            <span className="text-[10px] text-gray-500 mb-0.5 ml-1">주계약 납입 기간</span>
                             <select 
                               value={editingPolicyForm?.payment_period || ""} 
                               onChange={e => setEditingPolicyForm({...editingPolicyForm!, payment_period: e.target.value})} 
@@ -1224,6 +1492,159 @@ const gapItems = useMemo(() => {
         client={clientData} 
         insurance={selectedClaimIns} 
       />
+
+      {/* 🟢 PDF 파싱 결과 수동 추가(팝업) 모달 */}
+      {editingPolicyId === -1 && editingPolicyForm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="bg-white w-full max-w-3xl max-h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="bg-emerald-50 px-5 py-4 border-b border-emerald-100 flex justify-between items-center">
+              <h3 className="font-extrabold text-emerald-800 text-lg flex items-center gap-2">
+                <FileText className="w-5 h-5"/> 수동 추가 (PDF 분석 완료)
+              </h3>
+              <button 
+                onClick={() => { setEditingPolicyId(null); setEditingPolicyForm(null); }} 
+                className="text-gray-400 hover:text-gray-600 bg-white hover:bg-gray-100 p-1.5 rounded-full transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5"/>
+              </button>
+            </div>
+            
+            {/* Modal Body */}
+            <div className="p-5 overflow-y-auto flex flex-col gap-4 custom-scrollbar">
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="col-span-2 sm:col-span-1 flex flex-col">
+                  <span className="text-xs font-bold text-gray-500 mb-1">보험사</span>
+                  <select 
+                    value={editingPolicyForm.insurance_company || ""} 
+                    onChange={e => setEditingPolicyForm({...editingPolicyForm, insurance_company: e.target.value})} 
+                    className="border border-gray-200 rounded-lg p-2.5 outline-none focus:border-emerald-500 bg-gray-50 hover:bg-white cursor-pointer"
+                  >
+                    <option value="">-- 보험사 선택 --</option>
+                    <optgroup label="[ 생명보험 ]">
+                      {lifeInsurances.map((c) => <option key={c.company_name} value={c.company_name}>{c.company_name}</option>)}
+                    </optgroup>
+                    <optgroup label="[ 손해보험 ]">
+                      {nonLifeInsurances.map((c) => <option key={c.company_name} value={c.company_name}>{c.company_name}</option>)}
+                    </optgroup>
+                  </select>
+                </div>
+                
+                <div className="col-span-2 sm:col-span-1 flex flex-col">
+                  <span className="text-xs font-bold text-gray-500 mb-1">상품명</span>
+                  <input type="text" value={editingPolicyForm.product_name || ""} onChange={e => setEditingPolicyForm({...editingPolicyForm, product_name: e.target.value})} className="border border-gray-200 rounded-lg p-2.5 outline-none focus:border-emerald-500 font-bold text-gray-800" />
+                </div>
+
+                <div className="col-span-2 sm:col-span-1 flex flex-col">
+                  <span className="text-xs font-bold text-gray-500 mb-1">월 보험료</span>
+                  <div className="flex items-center border border-gray-200 rounded-lg p-2.5 bg-white focus-within:border-emerald-500">
+                    <input type="text" value={formatAmount(String(editingPolicyForm.monthly_premium || ""))} onChange={e => setEditingPolicyForm({...editingPolicyForm, monthly_premium: Number(e.target.value.replace(/,/g, ''))})} className="flex-1 w-full outline-none font-bold text-gray-800 text-right" />
+                    <span className="text-gray-400 font-medium ml-1">원</span>
+                  </div>
+                </div>
+
+                <div className="col-span-2 sm:col-span-1 flex flex-col">
+                  <span className="text-xs font-bold text-gray-500 mb-1">주계약 납입 기간</span>
+                  <select 
+                    value={editingPolicyForm.payment_period || ""} 
+                    onChange={e => setEditingPolicyForm({...editingPolicyForm, payment_period: e.target.value})} 
+                    className="border border-gray-200 rounded-lg p-2.5 outline-none focus:border-emerald-500 bg-white cursor-pointer"
+                  >
+                    <option value="">선택 안함</option>
+                    {["일시납", "전기납", "3년납", "5년납", "7년납", "10년납", "15년납", "20년납", "25년납", "30년납"].map(term => (
+                       <option key={term} value={term}>{term}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {renderClientSearchInput('contractor', '계약자')}
+                {renderClientSearchInput('insured', '피보험자')}
+                {renderClientSearchInput('beneficiary', '수익자')}
+                
+                <div className="flex flex-col">
+                  <span className="text-[10px] text-gray-500 mb-0.5 ml-1">담당설계사</span>
+                  <input type="text" value={editingPolicyForm?.agent_name || ""} onChange={e => setEditingPolicyForm({...editingPolicyForm!, agent_name: e.target.value})} className="border border-gray-200 rounded p-2 outline-none focus:border-emerald-500 text-gray-800 font-bold" />
+                </div>
+              </div>
+
+              {/* 자동 추출된 특약 리스트 */}
+              <div className="border-t border-gray-100 pt-4 mt-2">
+                <p className="text-sm font-extrabold text-gray-800 mb-3 flex items-center gap-1.5">
+                  특약 상세 내역 <span className="text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full text-xs">{editingPolicyForm.details?.length || 0}건</span>
+                </p>
+                <div className="space-y-2.5 bg-gray-50 p-3 rounded-xl border border-gray-100 h-64 overflow-y-auto custom-scrollbar">
+                  {editingPolicyForm.details?.map((detail, idx) => (
+                    <div key={idx} className="flex flex-col sm:flex-row justify-between items-start sm:items-center text-sm bg-white p-3 rounded-lg border border-gray-200 shadow-sm gap-3 hover:border-emerald-300 transition-colors">
+                      <input 
+                        type="text" 
+                        value={detail.name} 
+                        onChange={(e) => {
+                          const newDetails = [...editingPolicyForm.details!];
+                          newDetails[idx].name = e.target.value;
+                          setEditingPolicyForm({...editingPolicyForm, details: newDetails});
+                        }} 
+                        className="w-full sm:flex-1 bg-transparent outline-none font-bold text-gray-700 placeholder-gray-300" 
+                        placeholder="특약명 입력"
+                      />
+                      
+                      <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                        <div className="flex items-center border border-gray-200 rounded-md bg-gray-50 focus-within:border-emerald-500 focus-within:bg-white px-2 py-1.5 transition-colors">
+                          <input 
+                            type="text" 
+                            value={formatAmount(detail.amount)} 
+                            onChange={(e) => {
+                              const newDetails = [...editingPolicyForm.details!];
+                              newDetails[idx].amount = formatAmount(e.target.value);
+                              setEditingPolicyForm({...editingPolicyForm, details: newDetails});
+                            }} 
+                            className="w-16 text-right bg-transparent outline-none font-extrabold text-emerald-600" 
+                          />
+                          <span className="text-[11px] text-gray-400 font-bold ml-1">만원</span>
+                        </div>
+                        
+                        <select 
+                          value={detail.renewal_type || "비갱신"} 
+                          onChange={(e) => {
+                            const newDetails = [...editingPolicyForm.details!];
+                            newDetails[idx].renewal_type = e.target.value;
+                            setEditingPolicyForm({...editingPolicyForm, details: newDetails});
+                          }} 
+                          className="bg-gray-50 text-[12px] font-bold text-gray-600 border border-gray-200 rounded-md px-2 py-2 outline-none focus:border-emerald-500 hover:bg-white transition-colors cursor-pointer"
+                        >
+                          <option value="비갱신">비갱신</option>
+                          <option value="갱신">갱신</option>
+                          <option value="1년 갱신">1년</option>
+                          <option value="3년 갱신">3년</option>
+                          <option value="5년 갱신">5년</option>
+                          <option value="10년 갱신">10년</option>
+                          <option value="20년 갱신">20년</option>
+                        </select>
+                        
+                        <button onClick={() => handleCancelEdit(-1, idx)} className="text-gray-300 hover:text-red-500 bg-white hover:bg-red-50 p-1.5 rounded-md transition-colors cursor-pointer"><Trash2 className="w-4 h-4"/></button>
+                      </div>
+                    </div>
+                  ))}
+                  
+                  <button onClick={() => handleAddNewDetail(-1)} className="w-full mt-1 py-3 text-sm font-bold text-emerald-600 border border-dashed border-emerald-300 rounded-lg hover:bg-emerald-50 transition-colors cursor-pointer">
+                    + 특약 내역 수동 추가
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-gray-100 flex justify-end gap-2 bg-white">
+              <button 
+                onClick={handleSavePolicyEdit} 
+                className="cursor-pointer w-full sm:w-auto bg-gray-900 text-white px-6 py-3 rounded-xl font-bold hover:bg-gray-800 transition-all flex items-center justify-center gap-2 shadow-md cursor-pointer"
+              >
+                <CheckCircle2 className="w-5 h-5"/> 새로 제안할 보험으로 저장
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </>
   );
 }
