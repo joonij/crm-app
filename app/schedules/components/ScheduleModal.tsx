@@ -1,4 +1,3 @@
-//app/schedules/components/ScheduleModal.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -32,12 +31,13 @@ export default function ScheduleModal({ isOpen, onClose, onSuccess, myInfo, edit
   // ⭐️ 고객 목록 및 검색어 상태
   const [clients, setClients] = useState<{ id: number; name: string; phone: string | null }[]>([]);
   const [clientSearch, setClientSearch] = useState("");
+  const [isClientDropdownOpen, setIsClientDropdownOpen] = useState(false); // 드롭다운 상태 추가
 
   const [form, setForm] = useState({
     date: defaultDate || "",
     endDate: "", 
     time: "09:00",
-    category: "", // ⭐️ 카테고리 상태 추가
+    category: "", 
     content: "",
     schedule_type: "personal" as ScheduleType,
     client_id: "", 
@@ -72,7 +72,7 @@ export default function ScheduleModal({ isOpen, onClose, onSuccess, myInfo, edit
     fetchClients();
   }, [myInfo?.id, isOpen, editData]);
 
-  // ⭐️ 2. 핵심 해결 로직: 모달이 열릴 때마다 상태 완벽 초기화
+  // 2. 모달이 열릴 때마다 상태 완벽 초기화
   useEffect(() => {
     if (isOpen) {
       if (editData) {
@@ -81,7 +81,7 @@ export default function ScheduleModal({ isOpen, onClose, onSuccess, myInfo, edit
           date: editData.date,
           endDate: editData.date,
           time: editData.time ? editData.time.substring(0, 5) : "09:00",
-          category: editData.category || "", // ⭐️ 수정 데이터 반영
+          category: editData.category || "", 
           content: editData.content,
           schedule_type: editData.schedule_type,
           client_id: editData.client_id ? String(editData.client_id) : "",
@@ -93,16 +93,28 @@ export default function ScheduleModal({ isOpen, onClose, onSuccess, myInfo, edit
           date: defaultDate || "",
           endDate: "",
           time: "09:00",
-          category: "", // ⭐️ 초기화 반영
+          category: "", 
           content: "",
           schedule_type: "personal",
           client_id: "",
         });
         setDateMode('single');
-        setClientSearch(""); // 고객 검색창도 초기화
+        setClientSearch(""); 
       }
     }
   }, [isOpen, editData, defaultDate]);
+
+  // ⭐️ 검색어 기반 고객 필터링 로직 추가
+  const cleanSearchInput = clientSearch.replace(/\s+/g, "").toLowerCase();
+  const cleanPhoneSearch = clientSearch.replace(/[^0-9]/g, "");
+
+  const filteredClients = clientSearch
+    ? clients.filter(c => {
+        const matchName = c.name ? c.name.replace(/\s+/g, "").toLowerCase().includes(cleanSearchInput) : false;
+        const matchPhone = cleanPhoneSearch && c.phone ? c.phone.replace(/[^0-9]/g, "").includes(cleanPhoneSearch) : false;
+        return matchName || matchPhone;
+      })
+    : clients;
 
   if (!isOpen) return null;
 
@@ -125,7 +137,6 @@ export default function ScheduleModal({ isOpen, onClose, onSuccess, myInfo, edit
 
     setIsSubmitting(true);
     try {
-      // ⭐️ basePayload에 category 항목 포함
       const basePayload = {
         agent_id: myInfo.id,
         agency_id: myInfo.agency_id,
@@ -271,32 +282,56 @@ export default function ScheduleModal({ isOpen, onClose, onSuccess, myInfo, edit
             )}
           </div>
 
-          {/* 고객 연동 Datalist (개별 일정일 때만 노출) */}
+          {/* ⭐️ 고객 연동 모바일 호환 커스텀 Dropdown */}
           {form.schedule_type === 'personal' && (
             <div className="bg-blue-50/50 border border-blue-100 p-3 rounded-xl animate-in fade-in zoom-in-95 duration-200">
               <label className="flex items-center gap-1.5 text-xs font-bold text-blue-700 mb-2">
                 <Search className="w-3.5 h-3.5" /> 관련 고객 선택 (선택 사항)
               </label>
-              <input
-                list="client-list"
-                value={clientSearch}
-                onChange={(e) => {
-                  setClientSearch(e.target.value);
-                  const matched = clients.find(c => `${c.name} (${formatPhoneNumber(c.phone)})` === e.target.value);
-                  setForm(prev => ({ ...prev, client_id: matched ? String(matched.id) : "" }));
-                }}
-                className="w-full text-sm p-2 border border-blue-200 rounded-lg focus:ring-2 outline-none  bg-white"
-                placeholder="성함 또는 전화번호 검색"
-              />
-              <datalist id="client-list">
-                {clients.map(c => (
-                  <option key={c.id} value={`${c.name} (${formatPhoneNumber(c.phone)})`} />
-                ))}
-              </datalist>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={clientSearch}
+                  onChange={(e) => {
+                    setClientSearch(e.target.value);
+                    const matched = clients.find(c => `${c.name} (${formatPhoneNumber(c.phone)})` === e.target.value);
+                    setForm(prev => ({ ...prev, client_id: matched ? String(matched.id) : "" }));
+                  }}
+                  onFocus={() => setIsClientDropdownOpen(true)}
+                  onBlur={() => setTimeout(() => setIsClientDropdownOpen(false), 150)}
+                  className="w-full text-sm p-2 border border-blue-200 rounded-lg focus:ring-2 outline-none bg-white"
+                  placeholder="성함 또는 전화번호 검색"
+                />
+                
+                {isClientDropdownOpen && filteredClients.length > 0 && (
+                  <ul 
+                    className="absolute z-50 left-0 right-0 top-full mt-1 max-h-48 overflow-y-auto bg-white border border-blue-200 rounded-lg shadow-xl py-1"
+                    onMouseDown={(e) => e.preventDefault()}
+                  >
+                    {filteredClients.map(c => {
+                      const displayText = `${c.name} (${formatPhoneNumber(c.phone)})`;
+                      return (
+                        <li
+                          key={c.id}
+                          onClick={() => {
+                            setClientSearch(displayText);
+                            setForm(prev => ({ ...prev, client_id: String(c.id) }));
+                            setIsClientDropdownOpen(false);
+                          }}
+                          className="px-3 py-2 text-sm font-medium text-slate-700 hover:bg-blue-50 cursor-pointer transition-colors flex items-center justify-between"
+                        >
+                          <span>{c.name}</span>
+                          <span className="text-xs text-slate-400">{formatPhoneNumber(c.phone)}</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
             </div>
           )}
 
-          {/* ⭐️ 카테고리 선택 (새로 추가된 영역) */}
+          {/* 카테고리 선택 */}
           <div>
             <label className="block text-xs font-bold text-slate-600 mb-1.5">카테고리</label>
             <div className="relative">

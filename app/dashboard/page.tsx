@@ -1,4 +1,3 @@
-// app/dashboard/page.tsx
 "use client";
 
 import { useEffect, useState, useRef } from "react";
@@ -13,14 +12,12 @@ import {
 const calculateDDay = (targetDateStr: string | null) => {
   if (!targetDateStr) return null;
   
-  // "2026. 08. 15." 같은 포맷을 "2026-08-15"로 강제 변환
   let cleanStr = targetDateStr.replace(/\./g, '-').replace(/\s/g, '');
   if (cleanStr.endsWith('-')) cleanStr = cleanStr.slice(0, -1);
 
   const target = new Date(cleanStr);
   if (isNaN(target.getTime())) return null;
 
-  // 자정(0시 0분 0초) 기준으로 세팅하여 시간 오차 방지
   target.setHours(0, 0, 0, 0);
   const now = new Date();
   now.setHours(0, 0, 0, 0);
@@ -52,20 +49,17 @@ const calculateSangryungDDay = (birthDateStr: string | null) => {
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 };
 
-// 금액 포맷팅 헬퍼
 const formatMoney = (val: number) => {
   if (val === 0) return "0원";
   return `${val.toLocaleString()}원`;
 };
 
-// YYYY-MM 문자열 생성 헬퍼
 const getMonthString = (offsetMonths: number = 0) => {
   const date = new Date();
   date.setMonth(date.getMonth() - offsetMonths);
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 };
 
-// 재터치 뱃지 테마 계산 헬퍼
 const getRetouchTheme = (days: number) => {
   if (days >= 180) return { bg: "bg-rose-100", text: "text-rose-700", label: "180일+" };
   if (days >= 90) return { bg: "bg-orange-100", text: "text-orange-700", label: "90일+" };
@@ -115,58 +109,42 @@ export default function DashboardPage() {
       setIsLoading(true);
 
       let myName = "";
-      let validAgentIds: number[] = [];
+      let myAgentId = null;
 
-      // 1. 로그인 유저 정보 및 열람 권한 범위(validAgentIds) 획득
+      // 1. 로그인 유저 정보 획득
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data: agentData } = await supabase.from("agents").select("*").eq("auth_id", user.id).single();
+        const { data: agentData } = await supabase.from("agents").select("id, name").eq("auth_id", user.id).single();
         if (agentData) {
           myName = agentData.name;
+          myAgentId = agentData.id;
           setCurrentAgentName(myName);
-          validAgentIds.push(agentData.id); // 내 숫자 ID 추가
-
-          // 팀장(SM)인 경우 같은 지점 팀원의 ID도 권한 목록에 추가
-          if (agentData.rank === "SM" && agentData.agency_id) {
-            const { data: teamAgents } = await supabase.from("agents").select("id").eq("agency_id", agentData.agency_id);
-            if (teamAgents) {
-              teamAgents.forEach(a => {
-                if (!validAgentIds.includes(a.id)) validAgentIds.push(a.id);
-              });
-            }
-          }
         }
       }
 
-      const fetchSchedulesSafe = async () => {
-        try {
-          const res = await supabase.from("schedules").select("*");
-          if (res.error) return { data: [] }; 
-          return res;
-        } catch (error) {
-          return { data: [] };
-        }
-      };
+      if (!myAgentId) {
+        setIsLoading(false);
+        return;
+      }
 
-      // 2. 전체 데이터 호출
+      // ⭐️ 2. 전체 데이터 호출 대신 "내(Agent) 데이터"만 쿼리 최적화
       const [clientsRes, insRes, schedulesRes] = await Promise.all([
-        supabase.from("clients").select("*"),
-        supabase.from("subscription_insurance").select("*"),
-        fetchSchedulesSafe() 
+        supabase.from("clients").select("*").eq("agent_id", myAgentId),
+        // 내가 담당인 계약만 호출
+        supabase.from("subscription_insurance").select("*").eq("agent_name", myName),
+        // 내 고객의 스케줄만 호출하기 위한 사전 준비
+        supabase.from("schedules").select("*") 
       ]);
 
-      const allClients = clientsRes.data || [];
-      const allInsurances = insRes.data || [];
-      const allSchedules = schedulesRes.data || [];
-
-      // ⭐️ 3. 보안 로직: 내가 열람할 수 있는 고객 데이터만 남기기
-      const myClients = allClients.filter(c => validAgentIds.includes(Number(c.agent_id)));
+      const myClients = clientsRes.data || [];
+      const myInsurances = insRes.data || [];
+      
       const myClientIds = myClients.map(c => Number(c.id));
       const clientMap = new Map(myClients.map(c => [Number(c.id), c.name]));
 
-      // ⭐️ 4. 내 고객의 보험과 일정만 남기기 (원천 차단)
-      const myInsurances = allInsurances.filter(ins => myClientIds.includes(Number(ins.client_id)));
-      const mySchedules = allSchedules.filter(sch => myClientIds.includes(Number(sch.client_id)));
+      // 스케줄은 전체를 부르되 메모리에서 내 고객 스케줄만 필터 (혹은 agent_id 조인이 있다면 agent_id 쿼리로 대체 가능)
+      const allSchedules = schedulesRes.data || [];
+      const mySchedules = allSchedules.filter(sch => sch.agent_id === myAgentId || myClientIds.includes(Number(sch.client_id)));
 
       const generatedNotis: Notification[] = [];
 
@@ -234,27 +212,26 @@ export default function DashboardPage() {
       setUnreadCount(unreadCount);
 
       // ----------------------------------------------------
-      // ④ 자동차보험 갱신 리스트 (D-60 이내, 오직 내 고객만)
+      // ④ 자동차보험 갱신 리스트 (D-60 이내)
       // ----------------------------------------------------
-      const autoList = myInsurances // 👈 이제 myInsurances를 사용하므로 남의 고객은 절대 안 뜸
+      const autoList = myInsurances 
         .filter(ins => ins.product_name && ins.product_name.includes("자동차") && ins.maturity_date)
         .map(ins => ({ 
           ...ins, 
           dDay: calculateDDay(ins.maturity_date), 
-          clientName: clientMap.get(Number(ins.client_id)) 
+          clientName: clientMap.get(Number(ins.client_id)) || ins.contractor_name 
         }))
-        // D-Day가 null이 아니고 0 이상 60 이하인 것들만 렌더링
         .filter(ins => ins.dDay !== null && ins.dDay >= 0 && ins.dDay <= 60)
         .sort((a, b) => (a.dDay || 0) - (b.dDay || 0));
         
       setAutoRenewals(autoList);
 
       // ----------------------------------------------------
-      // ⑤ 진행 중인 계약 리스트 (new 상태 + 내 실적만)
+      // ⑤ 진행 중인 계약 리스트 (new 상태)
       // ----------------------------------------------------
       const newPolicies = myInsurances
-        .filter(ins => ins.policy_status === "new" && ins.agent_name === myName)
-        .map(ins => ({ ...ins, clientName: clientMap.get(Number(ins.client_id)) }))
+        .filter(ins => ins.policy_status === "new")
+        .map(ins => ({ ...ins, clientName: clientMap.get(Number(ins.client_id)) || ins.contractor_name }))
         .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
       setInProgress(newPolicies);
       
@@ -262,7 +239,7 @@ export default function DashboardPage() {
       setTotalInProgressPremium(totalNewPremium);
 
       // ----------------------------------------------------
-      // ⑥ 최근 체결한 보험 & 통계 (maintain 상태 + 최근 30일 + 내 실적만)
+      // ⑥ 최근 체결한 보험 & 통계 (maintain 상태 + 최근 30일)
       // ----------------------------------------------------
       const thisMonthStr = getMonthString(0);
       const lastMonthStr = getMonthString(1);
@@ -271,7 +248,7 @@ export default function DashboardPage() {
       let statThisMonth = 0, statLastMonth = 0, statTwoMonthsAgo = 0;
 
       const completedPolicies = myInsurances
-        .filter(ins => ins.policy_status === "maintain" && ins.subscription_date && ins.agent_name === myName)
+        .filter(ins => ins.policy_status === "maintain" && ins.subscription_date)
         .map(ins => {
           let cleanSubDate = ins.subscription_date!.replace(/\./g, '-').replace(/\s/g, '');
           if (cleanSubDate.endsWith('-')) cleanSubDate = cleanSubDate.slice(0, -1);
@@ -280,7 +257,7 @@ export default function DashboardPage() {
           else if (cleanSubDate.startsWith(lastMonthStr)) statLastMonth += (ins.monthly_premium || 0);
           else if (cleanSubDate.startsWith(twoMonthsAgoStr)) statTwoMonthsAgo += (ins.monthly_premium || 0);
           
-          return { ...ins, clientName: clientMap.get(Number(ins.client_id)) };
+          return { ...ins, clientName: clientMap.get(Number(ins.client_id)) || ins.contractor_name };
         })
         .sort((a, b) => new Date(b.subscription_date || 0).getTime() - new Date(a.subscription_date || 0).getTime())
         .slice(0, 10); 
@@ -338,7 +315,7 @@ export default function DashboardPage() {
         <div className="relative" ref={notiRef}>
           <button 
             onClick={() => setIsNotiOpen(!isNotiOpen)} 
-            className="p-2.5 bg-white border border-gray-200 rounded-full shadow-sm hover:bg-gray-50 transition-colors relative"
+            className="p-2.5 bg-white border border-gray-200 rounded-full shadow-sm hover:bg-gray-50 transition-colors relative cursor-pointer"
           >
             <Bell className="w-6 h-6 text-gray-700" />
             {unreadCount > 0 && (
@@ -354,7 +331,7 @@ export default function DashboardPage() {
               <div className="bg-gray-50 border-b border-gray-100 p-3 flex justify-between items-center shrink-0">
                 <span className="font-bold text-sm text-gray-800">새로운 알림</span>
                 {unreadCount > 0 && (
-                  <button onClick={markAllAsRead} className="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-0.5">
+                  <button onClick={markAllAsRead} className="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-0.5 cursor-pointer">
                     <Check className="w-3 h-3"/> 모두 읽음
                   </button>
                 )}

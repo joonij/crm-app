@@ -1,16 +1,18 @@
-// app/clients/[id]/page.tsx
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ChevronLeft, FileText, Stethoscope, Calendar, User, Crown, MessageCircle } from "lucide-react";
+import { ChevronLeft, FileText, Stethoscope, Calendar, User, Crown, MessageCircle, Send, Info, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import ClientDetailModal from "./components/ClientDetailModal";
 import ClientMemoCard from "./components/ClientMemoCard";
 import ClientCoverageCard from "./components/ClientCoverageCard";
 import ClientsMedicalHistoryCard from "./components/ClientsMedicalHistoryCard";
 import ClientScheduleCard from "./components/ClientScheduleCard";
+
+// ⭐️ 암호화 해제를 위한 함수 임포트
+import { decryptRegNumber } from "@/app/actions/crypto"; 
 
 type Client = {
   id: number;
@@ -31,7 +33,7 @@ type Client = {
   driving_statuses?: { id: number; status: string } | null;
   bank_lists?: { id: number; bank: string } | null;
   referrer?: { id: number; name: string } | null; 
-  report_uuid?: string | null; // ⭐️ UUID 속성 추가
+  report_uuid?: string | null;
 };
 
 export default function ClientDetailPage() {
@@ -44,6 +46,9 @@ export default function ClientDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [isKeyman, setIsKeyman] = useState(false);
   const [activeTab, setActiveTab] = useState<"memo" | "medical" | "schedule">("memo");
+
+  // ⭐️ 고객등록요청 모달 상태 추가
+  const [kakaoRequestData, setKakaoRequestData] = useState<{isOpen: boolean, text: string, clientName: string}>({isOpen: false, text: "", clientName: ""});
   
   const contractStatusStyleMap: Record<string, string> = {
     "계약완료": "bg-blue-50 text-blue-700 border-blue-200/80",
@@ -113,7 +118,6 @@ export default function ClientDetailPage() {
     if (id) void fetchClient();
   }, [fetchClient, id]);
 
-  // ⭐️ 링크 복사 핸들러 추가
   const handleCopyReportLink = async () => {
     if (!client?.report_uuid) {
       alert("아직 리포트 링크가 생성되지 않았거나, 새로고침이 필요합니다.");
@@ -128,6 +132,186 @@ export default function ClientDetailPage() {
     } catch (err) {
       alert("링크 복사에 실패했습니다. 직접 복사해주세요: " + url);
     }
+  };
+
+  // ⭐️ 병력 요약 헬퍼 함수
+  const formatMedicalHistory = (medicalData: any) => {
+    if (!medicalData) return "특이사항 없음";
+
+    try {
+      const data = typeof medicalData === 'string' ? JSON.parse(medicalData) : medicalData;
+      const memoStr = data.memo || (typeof data === 'string' ? data : "");
+      if (!memoStr.trim()) return "특이사항 없음";
+
+      const grouped = {
+        recent3m: {} as Record<string, any>,
+        recent1y: {} as Record<string, any>,
+        visit7: {} as Record<string, any>,
+        medication30: {} as Record<string, any>
+      };
+
+      const admissions: string[] = [];
+      const surgeries: string[] = [];
+
+      let currentSection = "";
+      let isParsed = false;
+      
+      const lines = memoStr.split('\n');
+      
+      lines.forEach((line: string) => {
+        const trimmed = line.trim();
+        if (!trimmed) return;
+
+        if (trimmed.includes('[3개월')) { currentSection = 'recent3m'; return; }
+        if (trimmed.includes('[1년')) { currentSection = 'recent1y'; return; }
+        if (trimmed.includes('수술 의심')) { currentSection = 'surgery'; return; }
+        if (trimmed.includes('입원 이력')) { currentSection = 'admission'; return; }
+        if (trimmed.includes('7번 이상')) { currentSection = 'visit7'; return; }
+        if (trimmed.includes('30일 이상')) { currentSection = 'medication30'; return; }
+
+        if (trimmed.startsWith('-') && currentSection) {
+          const parts = trimmed.split('·').map(p => p.trim());
+          
+          if (parts.length >= 3) {
+            const dateMatch = parts[0].match(/\d{4}-\d{2}-\d{2}/);
+            const date = dateMatch ? dateMatch[0] : "";
+            const code = parts[2] || "";
+            let name = parts[3] || "";
+            let extra = parts.slice(4).join(' · '); 
+            
+            if (date) {
+              isParsed = true;
+              
+              let days = 0;
+              const mediMatch = name.match(/\((\d+)일\s*투약\)/);
+              if (mediMatch) {
+                days = parseInt(mediMatch[1], 10);
+                name = name.replace(/\(\d+일\s*투약\)/, '').trim(); 
+              }
+
+              if (currentSection === 'admission' || currentSection === 'surgery') {
+                const extraInfo = extra ? ` · ${extra}` : '';
+                const lineStr = `- ${date} · ${code} · ${name}${extraInfo}`;
+                
+                if (currentSection === 'admission') admissions.push(lineStr);
+                else surgeries.push(lineStr);
+              } 
+              else {
+                const groupKey = code || name || '미상';
+                const targetGroup = grouped[currentSection as keyof typeof grouped];
+                
+                if (targetGroup) {
+                  if (!targetGroup[groupKey]) {
+                    targetGroup[groupKey] = { code, name, dates: new Set(), count: 0, days: 0 };
+                  }
+                  targetGroup[groupKey].dates.add(date);
+                  targetGroup[groupKey].count++;      
+                  targetGroup[groupKey].days += days; 
+                }
+              }
+            }
+          }
+        }
+      });
+
+      if (isParsed) {
+        let resultParts: string[] = [];
+
+        const renderGrouped = (groupObj: any, unit: string) => {
+          const vals = Object.values(groupObj) as any[];
+          if (vals.length === 0) return null;
+          
+          return vals.map(g => {
+            const sorted = Array.from(g.dates).sort() as string[];
+            const start = sorted[0];
+            const end = sorted[sorted.length - 1];
+            const dateStr = (start !== end && start && end) ? `${start}~${end}` : start;
+            const countOrDays = unit === '일' ? g.days : g.count;
+            return `- ${dateStr} · ${g.code} · ${g.name} · 총 ${countOrDays}${unit}`;
+          }).join('\n');
+        };
+
+        const r3m = renderGrouped(grouped.recent3m, '회');
+        if (r3m) resultParts.push(`[3개월 내 다녀온 병원 및 약국 이력]\n${r3m}`);
+
+        const r1y = renderGrouped(grouped.recent1y, '회');
+        if (r1y) resultParts.push(`[1년 내 같은 질병(코드) 병원 이력]\n${r1y}`);
+
+        if (admissions.length > 0) resultParts.push(`[5년 내 입원 이력]\n${admissions.join('\n')}`);
+        if (surgeries.length > 0) resultParts.push(`[5년 내 수술 의심 (처치/수술 & 진료비 5만원↑)]\n${surgeries.join('\n')}`);
+
+        const v7 = renderGrouped(grouped.visit7, '회');
+        if (v7) resultParts.push(`[5년 내 같은 코드로 7번 이상 병원 이력]\n${v7}`);
+
+        const m30 = renderGrouped(grouped.medication30, '일');
+        if (m30) resultParts.push(`[5년 내 같은 약품으로 30일 이상 투약]\n${m30}`);
+
+        if (resultParts.length > 0) {
+          return `■ 주요 병력 요약 (알릴 의무 대상)\n\n` + resultParts.join('\n\n');
+        }
+      }
+
+      return memoStr.replace(/·\s*[^·]+\s*·/g, "· ·").trim() || "특이사항 없음";
+
+    } catch (e) {
+      console.error("의료 기록 파싱 에러", e);
+      return "특이사항 없음";
+    }
+  };
+
+  // ⭐️ 고객등록요청 모달 열기 핸들러
+  const openKakaoRequestModal = async () => {
+    if (!client) return;
+
+    const medicalMemo = formatMedicalHistory(client.medical_history);
+
+    let decryptedReg: string = "";
+    if (client.registration_number) {
+      try {
+        const result = await decryptRegNumber(client.registration_number);
+        decryptedReg = result || ""; 
+      } catch (e) {
+        console.error("복호화 중 에러 발생", e);
+      }
+    }
+
+    const telecomLabel = client.telecom_carriers?.telecom || "미입력";
+    const drivingLabel = client.driving_statuses?.status || "미입력";
+
+    const template = `고객등록 및 설계 요청드립니다.
+
+이름: ${client.name}
+주민등록번호: ${decryptedReg || '미입력'}
+연락처: ${client.phone || '미입력'}
+통신사: ${telecomLabel}
+주소: ${client.address || '미입력'}
+직업: ${client.job || '미입력'}
+운전여부: ${drivingLabel}
+병력사항:
+${medicalMemo}`;
+
+    setKakaoRequestData({ isOpen: true, text: template, clientName: client.name });
+  };
+
+  // ⭐️ 카카오톡 전송 핸들러
+  const handleSendKakaoRequest = async () => {
+    const { text } = kakaoRequestData;
+    
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch(e) {
+      console.error("클립보드 복사 실패", e);
+    }
+
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    
+    if (isMobile) {
+      window.location.href = `kakaotalk://send?text=${encodeURIComponent(text)}`;
+    } else {
+      alert("✅ 내용이 클립보드에 복사되었습니다!\nPC 카카오톡 대화창에 바로 붙여넣기(Ctrl+V) 해주세요.");
+    }
+    
+    setKakaoRequestData({ isOpen: false, text: "", clientName: "" });
   };
 
   if (isLoading) {
@@ -182,8 +366,15 @@ export default function ClientDetailPage() {
           </div>
         </div>
         
-        {/* ⭐️ 버튼 영역 분리 및 링크 복사 버튼 추가 */}
-        <div className="flex w-full md:w-auto items-center gap-2">
+        {/* ⭐️ 버튼 영역: 고객등록요청 버튼 추가 */}
+        <div className="flex w-full md:w-auto items-center gap-2 flex-wrap sm:flex-nowrap">
+          <button 
+            onClick={() => openKakaoRequestModal()}
+            className="cursor-pointer flex-1 md:flex-none flex items-center justify-center gap-1.5 px-4 py-2 bg-indigo-50 text-indigo-600 border border-indigo-200 text-sm font-bold rounded-xl hover:bg-indigo-100 transition-colors shadow-sm"
+          >
+            <Send className="w-4 h-4" /> 고객등록요청
+          </button>
+          
           <button 
             onClick={handleCopyReportLink} 
             className="cursor-pointer flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 border border-blue-200 text-sm font-bold rounded-xl hover:bg-blue-100 transition-colors shadow-sm"
@@ -255,6 +446,55 @@ export default function ClientDetailPage() {
               void fetchClient(); 
             }}
           />
+        </div>
+      )}
+
+      {/* 🟢 설계 요청 폼 편집 및 전송 모달 */}
+      {kakaoRequestData.isOpen && (
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm md:p-4 pt-24 animate-in fade-in"
+          onClick={() => setKakaoRequestData({ ...kakaoRequestData, isOpen: false })}
+        >
+          <div 
+            className="bg-white w-full md:max-w-[900px] md:max-h-[900px] h-full md:rounded-2xl md:shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-gray-50 px-5 py-4 flex justify-between items-center border-b border-gray-100">
+              <div className="flex items-center gap-2 text-gray-900">
+                <h3 className="font-extrabold text-base">고객등록 및 설계 요청</h3>
+              </div>
+              <button 
+                onClick={() => setKakaoRequestData({ ...kakaoRequestData, isOpen: false })}
+                className="text-gray-400 hover:text-gray-600 hover:bg-gray-200 p-1.5 rounded-full transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-4 h-full flex flex-col gap-3">
+              <div className="bg-blue-50/50 text-blue-800 border border-blue-100/50 text-[13px] font-semibold p-3.5 rounded-xl flex gap-2.5">
+                <Info className="w-4 h-4 shrink-0 text-blue-500 mt-0.5" />
+                <p className="leading-relaxed text-gray-600">
+                  전송 전 내용을 자유롭게 수정할 수 있습니다.
+                </p>
+              </div>
+              
+              <textarea
+                value={kakaoRequestData.text}
+                onChange={(e) => setKakaoRequestData({ ...kakaoRequestData, text: e.target.value })}
+                className="w-full md:max-h-[800px] h-full p-4 text-sm bg-white border border-gray-200 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 resize-none font-medium text-gray-700 leading-relaxed shadow-sm"
+              />
+              
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={handleSendKakaoRequest}
+                  className="flex-1 bg-gray-900 hover:bg-gray-800 text-white font-bold py-3.5 rounded-xl shadow-sm transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Send className="w-4 h-4" /> 메시지 전송
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
