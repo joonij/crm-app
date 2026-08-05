@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Clock, Loader2, Plus, Megaphone, Building2, Users, Edit2, Trash2, X, Trophy, Target, TrendingUp, DollarSign, AlertCircle } from "lucide-react";
+import Link from "next/link";
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Clock, Loader2, Plus, Megaphone, Building2, Users, Edit2, Trash2, X, Trophy, Target, TrendingUp, DollarSign, AlertCircle, User, Building } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import ScheduleModal from "./components/ScheduleModal"; 
 
@@ -17,9 +18,10 @@ type ScheduleEvent = {
   color: string;
   agency_id: number;
   agent_id?: number;
+  client_id?: number; 
   ownerName?: string;
   repeat?: boolean;
-  clients?: { name: string };
+  clients?: { name?: string; contractor_name?: string; insured_name?: string; };
   contractStatus?: 'new' | 'maintain' | null; 
   premium?: number;
 };
@@ -70,7 +72,7 @@ export default function SchedulePage() {
 
   const [monthlyTarget, setMonthlyTarget] = useState(2000000);
 
-  // ⭐️ 추가: 모바일 실적 보드 접기/펴기 상태 관리
+  const [highlightedClientId, setHighlightedClientId] = useState<number | null>(null);
   const [isScoreboardOpen, setIsScoreboardOpen] = useState(true);
 
   const formatDateStr = (date: Date) => {
@@ -190,7 +192,7 @@ export default function SchedulePage() {
         const memberNames = members.map(m => m.name);
 
         const { data: contracts } = await supabase.from("subscription_insurance")
-          .select("id, subscription_date, insurance_company, product_name, monthly_premium, contractor_name, agent_name, policy_status")
+          .select("id, client_id, subscription_date, insurance_company, product_name, monthly_premium, contractor_name, insured_name, agent_name, policy_status")
           .in("policy_status", ["maintain", "new"])
           .in("agent_name", memberNames)
           .gte("subscription_date", startDate)
@@ -245,16 +247,18 @@ export default function SchedulePage() {
           return {
             id: `contract-${c.id}`,
             date: c.subscription_date,
-            time: "10:00",
+            time: "23:59",
             content: `${c.insurance_company} ${c.product_name}`,
             category: isMaintain ? "계약/체결" : "계약/예정",
             schedule_type: "personal",
             color: isMaintain 
-              ? "bg-gradient-to-r from-amber-50 to-yellow-50 border border-yellow-300 shadow-sm"
-              : "bg-gradient-to-r from-orange-50 to-rose-50 border border-orange-300 shadow-sm",
+              ? "bg-gradient-to-r from-amber-50 to-yellow-50 border border-yellow-300"
+              : "bg-gradient-to-r from-orange-50 to-rose-50 border border-orange-300",
             agency_id: myAgencyId,
+            agent_id: members.find(m => m.name === c.agent_name)?.id,
+            client_id: c.client_id,
             ownerName: c.agent_name,
-            clients: { name: c.contractor_name || "고객" },
+            clients: { contractor_name: c.contractor_name || "고객", insured_name: c.insured_name || "고객" },
             contractStatus: c.policy_status as 'new' | 'maintain',
             premium: premium
           };
@@ -263,9 +267,9 @@ export default function SchedulePage() {
         setMyMonthlyStats({ newAmt: myMonthNew.amt, newCnt: myMonthNew.cnt, maintainAmt: myMonthMaintain.amt, maintainCnt: myMonthMaintain.cnt });
         setTeamMonthlyStats({ newAmt: teamMonthNew.amt, newCnt: teamMonthNew.cnt, maintainAmt: teamMonthMaintain.amt, maintainCnt: teamMonthMaintain.cnt });
 
-        setCompanyNotices(schedules.filter(s => s.schedule_type === 'company').map(e => ({ ...e, color: "bg-indigo-100 text-indigo-900 border-indigo-200" })));
-        setAgencyNotices(schedules.filter(s => s.schedule_type === 'agency' && (myRank === 'RM' || branchAgencyIds.includes(s.agency_id))).map(e => ({ ...e, color: "bg-purple-100 text-purple-900 border-purple-200" })));
-        setTeamNotices(schedules.filter(s => s.schedule_type === 'team' && (myRank === 'BM' ? branchAgencyIds.includes(s.agency_id) : s.agency_id === myAgencyId)).map(e => ({ ...e, color: "bg-emerald-100 text-emerald-900 border-emerald-200" })));
+        setCompanyNotices(schedules.filter(s => s.schedule_type === 'company').map(e => ({ ...e, time: e.time.substring(0, 5), color: "bg-indigo-100 text-indigo-900 border-indigo-200" })));
+        setAgencyNotices(schedules.filter(s => s.schedule_type === 'agency' && (myRank === 'RM' || branchAgencyIds.includes(s.agency_id))).map(e => ({ ...e, time: e.time.substring(0, 5), color: "bg-purple-100 text-purple-900 border-purple-200" })));
+        setTeamNotices(schedules.filter(s => s.schedule_type === 'team' && (myRank === 'BM' ? branchAgencyIds.includes(s.agency_id) : s.agency_id === myAgencyId)).map(e => ({ ...e, time: e.time.substring(0, 5), color: "bg-emerald-100 text-emerald-900 border-emerald-200" })));
         
         const formattedMembers = members.map(member => {
           let memberEvents: ScheduleEvent[] = schedules.filter(s => s.agent_id === member.id && s.schedule_type === 'personal').map(evt => ({
@@ -338,13 +342,32 @@ export default function SchedulePage() {
     }
   };
 
-  const renderEvent = (evt: any, showOwner: boolean = false) => {
+  const renderEvent = (evt: ScheduleEvent, showOwner: boolean = false) => {
+    const hasClient = !!evt.client_id;
+    const isFaded = highlightedClientId !== null && (!hasClient || evt.client_id !== highlightedClientId);
+    const isHighlighted = highlightedClientId !== null && hasClient && evt.client_id === highlightedClientId;
+    
+    // ⭐️ 수정: scale을 약간 줄이고, z-index를 높여 좌측 잘림 현상 완벽 방지
+    const hoverEffectClass = isFaded 
+      ? 'opacity-30' 
+      : isHighlighted 
+        ? 'ring-2 ring-blue-500 shadow-lg scale-[1.01] z-30 relative bg-opacity-100 transition-all duration-200' 
+        : 'opacity-100 hover:shadow-md hover:z-20 relative transition-all duration-200';
+
     if (evt.contractStatus === 'maintain') {
       return (
-        <div key={evt.id} className={`p-2 rounded-xl sm:rounded-md border text-sm sm:text-xs flex flex-col gap-1.5 transition-all ${evt.color}`}>
+        <div 
+          key={evt.id} 
+          onMouseEnter={() => hasClient && setHighlightedClientId(evt.client_id!)}
+          onMouseLeave={() => setHighlightedClientId(null)}
+          onClick={(e) => { e.stopPropagation(); setDetailModalEvent(evt); }}
+          className={`p-2 rounded-xl sm:rounded-md border text-sm sm:text-xs flex flex-col gap-1.5 cursor-pointer shadow-sm ${evt.color} ${hoverEffectClass}`}
+        >
           <div className="flex items-center justify-between border-b border-yellow-200/50 pb-1.5 sm:pb-1">
-            <span className="flex items-center">
-            🎉{evt.clients?.name && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/60 text-yellow-800 whitespace-nowrap overflow-hidden text-ellipsis max-w-[60px]">{evt.clients.name}</span>}
+            <span className="flex items-center gap-1">
+              🎉
+              {evt.clients?.contractor_name && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/60 text-yellow-800 whitespace-nowrap overflow-hidden text-ellipsis max-w-[80px]">{evt.clients.contractor_name}</span>}
+              {evt.clients?.insured_name && evt.clients.insured_name !== evt.clients.contractor_name && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/60 text-yellow-800 whitespace-nowrap overflow-hidden text-ellipsis max-w-[80px]">피:{evt.clients.insured_name}</span>}
             </span>
             <span className="font-extrabold text-[10px] text-yellow-900  px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 border border-yellow-200">
               계약체결
@@ -356,11 +379,10 @@ export default function SchedulePage() {
               {evt.content}
             </span>
             <div className="flex justify-between items-end pt-1">
-              
               <span className="text-[10px] opacity-70 truncate">
                 {isSM && evt.ownerName}
               </span>
-              <button onClick={(e) => { e.stopPropagation(); setDetailModalEvent(evt); }} className="text-yellow-800 hover:text-yellow-900 font-bold text-[11px] bg-white/60 px-2 py-0.5 rounded border border-yellow-300 shadow-xs shrink-0 cursor-pointer">상세</button>
+              <span className="text-yellow-800 font-bold text-[11px] bg-white/60 px-2 py-0.5 rounded border border-yellow-300 shadow-xs shrink-0">상세</span>
             </div>
           </div>
         </div>
@@ -369,11 +391,18 @@ export default function SchedulePage() {
 
     if (evt.contractStatus === 'new') {
       return (
-        <div key={evt.id} className={`p-2 rounded-xl sm:rounded-md border text-sm sm:text-xs flex flex-col gap-1.5 transition-all ${evt.color}`}>
+        <div 
+          key={evt.id} 
+          onMouseEnter={() => hasClient && setHighlightedClientId(evt.client_id!)}
+          onMouseLeave={() => setHighlightedClientId(null)}
+          onClick={(e) => { e.stopPropagation(); setDetailModalEvent(evt); }}
+          className={`p-2 rounded-xl sm:rounded-md border text-sm sm:text-xs flex flex-col gap-1.5 cursor-pointer shadow-sm ${evt.color} ${hoverEffectClass}`}
+        >
           <div className="flex items-center justify-between border-b border-orange-200/50 pb-1.5 sm:pb-1">
-            <span className="flex items-center">
+            <span className="flex items-center gap-1">
               <AlertCircle className="w-3.5 h-3.5 sm:w-3 sm:h-3 text-orange-600 shrink-0" />
-              {evt.clients?.name && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/60 text-orange-800 whitespace-nowrap overflow-hidden text-ellipsis max-w-[60px]">{evt.clients.name}</span>}
+              {evt.clients?.contractor_name && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/60 text-orange-800 whitespace-nowrap overflow-hidden text-ellipsis max-w-[80px]">{evt.clients.contractor_name}</span>}
+              {evt.clients?.insured_name && evt.clients.insured_name !== evt.clients.contractor_name && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/60 text-orange-800 whitespace-nowrap overflow-hidden text-ellipsis max-w-[80px]">피:{evt.clients.insured_name}</span>}
             </span>
             <span className="font-extrabold text-[10px] text-orange-900  px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 border border-orange-200">
               계약예정
@@ -388,7 +417,7 @@ export default function SchedulePage() {
               <span className="text-[10px] opacity-70 truncate">
                 {isSM && evt.ownerName}
               </span>
-              <button onClick={(e) => { e.stopPropagation(); setDetailModalEvent(evt); }} className="text-orange-800 hover:text-orange-900 font-bold text-[11px] bg-white/60 px-2 py-0.5 rounded border border-orange-300 shadow-xs shrink-0 cursor-pointer">상세</button>
+              <span className="text-orange-800 font-bold text-[11px] bg-white/60 px-2 py-0.5 rounded border border-orange-300 shadow-xs shrink-0">상세</span>
             </div>
           </div>
         </div>
@@ -397,15 +426,20 @@ export default function SchedulePage() {
 
     const catColor = getCategoryColor(evt.category);
     return (
-      <div key={evt.id} className={`p-3 sm:p-2 rounded-xl sm:rounded-md border text-sm sm:text-xs flex flex-col gap-1.5 shadow-sm transition-all ${evt.color}`}>
+      <div 
+        key={evt.id} 
+        onMouseEnter={() => hasClient && setHighlightedClientId(evt.client_id!)}
+        onMouseLeave={() => setHighlightedClientId(null)}
+        onClick={(e) => { e.stopPropagation(); setDetailModalEvent(evt); }}
+        className={`p-3 sm:p-2 rounded-xl sm:rounded-md border text-sm sm:text-xs flex flex-col gap-1.5 shadow-sm cursor-pointer ${evt.color} ${hoverEffectClass}`}
+      >
         <div className="items-center border-b border-black/10 pb-1.5 sm:pb-1 w-full">
           <span className="justify-between font-black sm:font-extrabold flex items-center gap-1.5 sm:gap-1 text-[13px] sm:text-xs whitespace-nowrap shrink-0">
             {evt.time}
             {evt.clients?.name && (<span className="text-[10px] font-bold px-1.5 py-0.5 text-slate-700 truncate max-w-[60px]">{evt.clients.name}</span>)}
             {evt.category && <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${catColor}`}>{evt.category}</span>}
-            </span>
+          </span>
         </div>
-        
         
         <div className="flex items-center mt-0.5">
           <span className="font-medium block truncate w-full" title={evt.content}>{evt.content}</span>
@@ -414,7 +448,7 @@ export default function SchedulePage() {
           <span className="text-[10px] opacity-70 truncate">
             {isSM && evt.ownerName}
           </span>
-          <button onClick={(e) => { e.stopPropagation(); setDetailModalEvent(evt); }} className="text-blue-600 hover:text-blue-800 font-bold text-[11px] bg-white/80 px-2 py-0.5 rounded border border-blue-200/50 shadow-xs shrink-0 cursor-pointer">더보기</button>
+          <span className="text-blue-600 font-bold text-[11px] bg-white/80 px-2 py-0.5 rounded border border-blue-200/50 shadow-xs shrink-0">상세</span>
         </div>
       </div>
     );
@@ -452,12 +486,10 @@ export default function SchedulePage() {
   return (
     <div className="flex flex-col p-0 sm:p-4 md:p-6 max-w-[1500px] mx-auto space-y-0 sm:space-y-4 md:space-y-6 relative min-h-screen pb-0 sm:pb-0 md:pb-20 bg-slate-50 sm:bg-transparent">
       
-      {/* ⭐️ 수정 2: 모바일 실적 보드 패널에 접기/펴기 로직 적용 */}
       <div className="shrink-0 bg-white p-4 sm:p-6 sm:rounded-3xl shadow-sm relative flex flex-col gap-4 sm:gap-5 border-b sm:border border-blue-100 z-20 transition-all duration-300">
         <div className="absolute right-0 top-0 w-64 h-64 bg-blue-100 rounded-full filter blur-[80px] opacity-60 pointer-events-none"></div>
         <div className="absolute left-0 bottom-0 w-48 h-48 bg-teal-50 rounded-full filter blur-[80px] opacity-60 pointer-events-none"></div>
 
-        {/* 모바일 전용 접기/펴기 토글 버튼 */}
         <div className="flex justify-between items-center md:hidden relative z-20">
           <span className="text-xs font-bold text-slate-500 flex items-center gap-1.5"><Trophy className="w-3.5 h-3.5" /> 이번 달 실적 요약</span>
           <button
@@ -468,7 +500,6 @@ export default function SchedulePage() {
           </button>
         </div>
 
-        {/* ⭐️ 접었을 때 간단히 보여줄 1줄 요약 바 */}
         {!isScoreboardOpen && (
           <div className="md:hidden flex justify-between items-center px-3 py-2.5 bg-slate-50 rounded-xl border border-slate-100 animate-in fade-in relative z-20">
             <span className="text-[11px] font-bold text-slate-600">나의 체결금액</span>
@@ -476,7 +507,6 @@ export default function SchedulePage() {
           </div>
         )}
 
-        {/* 상태에 따라 내용물 숨김 (데스크탑에서는 항상 보임) */}
         <div className={`${isScoreboardOpen ? 'flex' : 'hidden'} md:flex flex-col gap-5 relative overflow-hidden transition-all`}>
           <div className="relative z-10 flex flex-col md:flex-row gap-6 md:items-center justify-between">
             <div className="flex items-center gap-4">
@@ -554,7 +584,6 @@ export default function SchedulePage() {
         </div>
       </div>
 
-      {/* 헤더 메뉴 */}
       <div className="shrink-0 flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 sm:p-0 bg-white sm:bg-transparent z-10 border-b sm:border-0 border-slate-100">
         <div className="flex items-center gap-3 md:gap-4 justify-between w-full md:w-auto">
           <h1 className="text-xl sm:text-2xl font-black text-slate-800 flex items-center gap-2"><CalendarIcon className="w-5 h-5 text-blue-600" /> 스케줄 보드</h1>
@@ -657,12 +686,14 @@ export default function SchedulePage() {
                         {week.map((day, idx) => {
                            const dayEvents = allEventsForMonth.filter(e => e.date === day.date);
                            return (
-                            <div key={day.date} className={`group relative bg-white p-2 flex flex-col overflow-hidden hover:bg-slate-50 ${day.isCurrentMonth ? '' : 'opacity-60 bg-slate-50'}`}>
+                            // ⭐️ 수정: hover 시 왼쪽 짤림 현상 방지를 위해 overflow-hidden 제거 및 px-1 -mx-1 적용
+                            <div key={day.date} className={`group relative bg-white p-2 flex flex-col hover:bg-slate-50 ${day.isCurrentMonth ? '' : 'opacity-60 bg-slate-50'}`}>
                               <div className="flex justify-between items-start mb-2">
                                 <span className={`text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full ${day.date === formatDateStr(new Date()) ? 'bg-blue-600 text-white' : idx%7===0 ? 'text-red-500' : idx%7===6 ? 'text-blue-500' : ''}`}>{day.raw}</span>
                                 <button onClick={() => openModal(day.date)} className="opacity-0 group-hover:opacity-100 p-1 bg-white border border-blue-200 text-blue-600 rounded-full shadow-sm hover:bg-blue-600 hover:text-white transition-all cursor-pointer"><Plus className="w-3 h-3" /></button>
                               </div>
-                              <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                              {/* ⭐️ 수정: px-1 -mx-1 로 보이지 않는 여백 확보 */}
+                              <div className="flex-1 overflow-y-auto space-y-2 px-1 -mx-1 py-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                                 {dayEvents.map(evt => renderEvent(evt, true))}
                               </div>
                             </div>
@@ -703,11 +734,8 @@ export default function SchedulePage() {
             )}
           </div>
 
-          {/* ⭐️ 모바일 뷰: 구조 대폭 수정 */}
-          {/* flex-1 min-h-0 overflow-hidden 제약을 없애 자연스러운 스크롤 허용 */}
           <div className="md:hidden flex flex-col bg-slate-50">
             {viewMode === 'weekly' ? (
-              /* ⭐️ 스크롤을 내려도 탭은 고정되도록 sticky 추가 (글로벌 헤더가 있다면 top-14 등 높이 조절 필요) */
               <div className="sticky top-[0px] z-30 shrink-0 flex overflow-x-auto bg-white border-b border-slate-200 px-2 py-3 gap-2 shadow-sm [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {weekDays.map(day => {
                   const isSelected = selectedMobileDate === day.date;
@@ -762,7 +790,6 @@ export default function SchedulePage() {
               </div>
             )}
 
-            {/* ⭐️ 내부에 걸려있던 스크롤(overflow-y-auto)을 제거하여, 페이지 휠이 통째로 내려가도록 수정 */}
             <div className="p-4 flex flex-col gap-4 pb-28">
               <div className="space-y-3">
                 {companyNotices.filter(e => e.date === selectedMobileDate).length > 0 && (
@@ -773,7 +800,7 @@ export default function SchedulePage() {
                 )}
                 {agencyNotices.filter(e => e.date === selectedMobileDate).length > 0 && (
                   <div className="flex flex-col gap-2">
-                    <div className="flex items-center gap-1.5 text-purple-700 font-black text-xs px-1"><Building2 className="w-3.5 h-3.5" /> 지점 공지</div>
+                    <div className="flex items-center gap-1.5 text-purple-700 font-black text-xs px-1"><Building className="w-3.5 h-3.5" /> 지점 공지</div>
                     {agencyNotices.filter(e => e.date === selectedMobileDate).map(evt => renderEvent(evt))}
                   </div>
                 )}
@@ -833,7 +860,7 @@ export default function SchedulePage() {
         </>
       )}
 
-      {/* ⭐️ 상세 모달 (높이 가려짐 방지 적용) */}
+      {/* ⭐️ 상세 모달 */}
       {detailModalEvent && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm md:p-4 pt-24 animate-in fade-in">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md flex flex-col max-h-[90vh] overflow-hidden">
@@ -878,12 +905,24 @@ export default function SchedulePage() {
                 )
               )}
 
-              {detailModalEvent.clients?.name && (
+              {/* ⭐️ 관련 고객 프로필 이동 버튼 추가 */}
+              {(detailModalEvent.clients?.name || detailModalEvent.clients?.contractor_name) && (
                 <div className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-100">
                   <span className="font-bold text-slate-500">관련 고객</span>
-                  <span className="font-bold text-slate-800 flex items-center gap-1 border border-slate-300 bg-white px-2 py-0.5 rounded text-xs">
-                    {detailModalEvent.clients.name}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-slate-800 flex items-center gap-1 border border-slate-300 bg-white px-2 py-0.5 rounded text-xs">
+                      {detailModalEvent.clients.name || detailModalEvent.clients.contractor_name}
+                      {detailModalEvent.clients.insured_name && detailModalEvent.clients.insured_name !== detailModalEvent.clients.contractor_name && ` / ${detailModalEvent.clients.insured_name}`}
+                    </span>
+                    {detailModalEvent.client_id && (
+                      <Link 
+                        href={`/clients/${detailModalEvent.client_id}`}
+                        className="bg-blue-100 text-blue-700 px-2.5 py-1 rounded-lg text-xs font-bold hover:bg-blue-200 transition-colors flex items-center gap-1 cursor-pointer shadow-sm"
+                      >
+                        <User className="w-3.5 h-3.5" /> 프로필 이동
+                      </Link>
+                    )}
+                  </div>
                 </div>
               )}
 

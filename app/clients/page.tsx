@@ -21,12 +21,15 @@ type Client = {
   is_favorite?: boolean;
   agent_id?: number;
   agents?: { name: string };
-  telecom?: string;
+  telecom?: any; // ID 타입(number)일 수 있으므로 any 또는 string | number 로 유연하게 처리
   address?: string;
   job?: string;
-  driving_status?: string;
+  driving_status?: any; // ID 타입(number)일 수 있으므로 유연하게 처리
   medical_history?: any;
   registration_number?: string | null;
+  // ⭐️ 조인된 테이블 데이터 구조 추가
+  telecom_carriers?: { telecom: string };
+  driving_statuses?: { status: string };
 };
 
 const contractStatusMap: Record<string, string> = {
@@ -113,7 +116,6 @@ export default function ClientsPage() {
   const [teamMembers, setTeamMembers] = useState<{ id: number; name: string; rank: string; }[]>([]);
   
   const [selectedAgentFilter, setSelectedAgentFilter] = useState<string>("me");
-  // ⭐️ 추가: 최초 접속 시 필터(me/all)가 직급에 맞게 세팅되었는지 확인하는 상태
   const isFilterInitialized = useRef(false);
 
   const [page, setPage] = useState(1);
@@ -142,23 +144,21 @@ export default function ClientsPage() {
 
     setCurrentAgentId(agent.id);
 
-    // ⭐️ 추가: 최초 접속 시 직급을 판별하여 필터 기본값 자동 세팅
     if (!isFilterInitialized.current) {
       isFilterInitialized.current = true;
       const defaultFilter = (!agent.rank || agent.rank === "FC") ? "me" : "all";
       
-      // 만약 세팅해야 할 필터값이 현재 값과 다르면 상태를 바꾸고 종료 (바뀐 상태로 다시 로드됨)
       if (selectedAgentFilter !== defaultFilter) {
         setSelectedAgentFilter(defaultFilter);
         return; 
       }
     }
 
-    // ⭐️ 변경: FC가 아닌 모든 직급(SM, BM, 지점장 등)에게 '팀 전체 고객(all)' 권한 부여
     const managerAuth = !!agent.rank && agent.rank !== "FC";
     setIsManager(managerAuth);
 
-    let query = supabase.from("clients").select("*, agents(name)");
+    // ⭐️ 조인(Join) 추가: telecom_carriers와 driving_statuses 데이터를 함께 불러옵니다.
+    let query = supabase.from("clients").select("*, agents(name), telecom_carriers(telecom), driving_statuses(status)");
 
     if (managerAuth) {
       const { data: members } = await supabase
@@ -489,15 +489,19 @@ export default function ClientsPage() {
       }
     }
 
+    // ⭐️ 조인된 데이터에서 텍스트 값을 추출, 없으면 fallback 적용
+    const telecomLabel = client.telecom_carriers?.telecom || (typeof client.telecom === 'string' ? client.telecom : '미입력');
+    const drivingLabel = client.driving_statuses?.status || (typeof client.driving_status === 'string' ? client.driving_status : '미입력');
+
     const template = `고객등록 및 설계 요청드립니다.
 
 이름: ${client.name}
 주민등록번호: ${decryptedReg || '미입력'}
 연락처: ${client.phone || '미입력'}
-통신사: ${client.telecom || '미입력'}
+통신사: ${telecomLabel}
 주소: ${client.address || '미입력'}
 직업: ${client.job || '미입력'}
-운전여부: ${client.driving_status || '미입력'}
+운전여부: ${drivingLabel}
 병력사항:
 ${medicalMemo}`;
 
@@ -926,7 +930,7 @@ ${medicalMemo}`;
         <ClientModal onClose={() => setIsModalOpen(false)} onSuccess={() => void fetchClients()} />
       )}
 
-      {/* 🟢 설계 요청 폼 편집 및 전송 모달 (디자인 전체 변경 완료) */}
+      {/* 🟢 설계 요청 폼 편집 및 전송 모달 */}
       {kakaoRequestData.isOpen && (
         <div 
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm md:p-4 pt-24 animate-in fade-in"
@@ -936,7 +940,6 @@ ${medicalMemo}`;
             className="bg-white w-full md:max-w-[900px] w-full md:max-h-[900px] h-full md:rounded-2xl md:shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* 세련된 화이트/그레이 헤더 */}
             <div className="bg-gray-50 px-5 py-4 flex justify-between items-center border-b border-gray-100">
               <div className="flex items-center gap-2 text-gray-900">
                 <h3 className="font-extrabold text-base">고객등록 및 설계 요청</h3>
@@ -950,7 +953,6 @@ ${medicalMemo}`;
             </div>
             
             <div className="p-4 h-full flex flex-col gap-3">
-              {/* 은은한 블루/그레이톤 안내 배너 */}
               <div className="bg-blue-50/50 text-blue-800 border border-blue-100/50 text-[13px] font-semibold p-3.5 rounded-xl flex gap-2.5">
                 <Info className="w-4 h-4 shrink-0 text-blue-500 mt-0.5" />
                 <p className="leading-relaxed text-gray-600">
@@ -965,7 +967,6 @@ ${medicalMemo}`;
               />
               
               <div className="flex gap-2 mt-2">
-                {/* 메인 액션 버튼 (다크 그레이) */}
                 <button
                   onClick={handleSendKakaoRequest}
                   className="flex-1 bg-gray-900 hover:bg-gray-800 text-white font-bold py-3.5 rounded-xl shadow-sm transition-colors flex items-center justify-center gap-2 cursor-pointer"
