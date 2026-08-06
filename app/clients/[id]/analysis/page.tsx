@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Check, X, ArrowLeft, Umbrella, TrendingDown, ShieldCheck, Printer, AlertCircle, Stethoscope, CheckCircle2, Info, FileText, AlertTriangle, Save, Loader2, Settings2, Star, RotateCcw, ShieldAlert, Share2, Target, Phone, MessageCircle, ArrowRight, UserPlus, ChevronDown, ChevronUp, Search, LineChart, Gem } from "lucide-react";
+import { COVERAGE_OPTIONS, ALLOWED_COVERAGES, calculateCoverageScores, getStandardCoverageInfo, applyCoverageToMap } from "@/lib/coverageMapper";
 
 const formatMoney = (amount: number) => {
   if (amount === 0) return "0원";
@@ -84,32 +85,8 @@ const compareEnglishKorean = (a: string, b: string) => {
   if (!aIsEng && bIsEng) return 1;  
   return a.localeCompare(b, "ko-KR"); 
 };
-
-const RAW_ALLOWED_COVERAGES = [  
-  "일반사망 진단비", "재해사망 진단비", "상해사망 진단비", "질병사망 진단비", 
-  "재해 후유장해3%↑", "상해 후유장해3%↑", "질병 후유장해3%↑", 
-  "일반암 진단비", "고액암 진단비", "소액암 진단비", "유사암 진단비", "통합암 진단비",
-  "항암방사선약물 치료비", "암주요 치료비", "암통합 치료비", 
-  "순환계질환통합 진단비",
-  "뇌산정특례대상 진단비", "뇌혈관질환 진단비", "뇌졸중 진단비", "뇌출혈 진단비",
-  "심장산정특례대상 진단비", "허혈성심장질환 진단비", "급성심근경색 진단비", "심근병증 진단비",
-  "순환계질환통합 치료비", 
-  "재해 수술비", "재해1종 수술비", "재해2종 수술비", "재해3종 수술비", "재해4종 수술비", "재해5종 수술비",
-  "상해 수술비", "상해1종 수술비", "상해2종 수술비", "상해3종 수술비", "상해4종 수술비", "상해5종 수술비",
-  "질병 수술비", "질병1종 수술비", "질병2종 수술비", "질병3종 수술비", "질병4종 수술비", "질병5종 수술비",
-  "재해 입원비","상해 입원비", "질병 입원비",
-  "통합상해 진단비", "골절 진단비", "화상 진단비",
-  "장기요양 1~2등급 진단비", "장기요양 1~3등급 진단비", "장기요양 1~4등급 진단비", "장기요양 1~5등급 진단비", "장기요양 1~인지지원등급 진단비", 
-  "장기요양 1~2등급 재가급여", "장기요양 1~3등급 재가급여", "장기요양 1~4등급 재가급여", "장기요양 1~5등급 재가급여", "장기요양 1~인지지원등급 재가급여", 
-  "장기요양 1~2등급 시설급여", "장기요양 1~3등급 시설급여", "장기요양 1~4등급 시설급여", "장기요양 1~5등급 시설급여", "장기요양 1~인지지원등급 시설급여", 
-  "간병인 사용비", "간병인 지원비",
-  "레진", "인레이", "크라운", "임플란트", "보존치료", "보철치료",
-  "자동차사고 벌금", "교통사고처리 지원금", "자동차사고변호사 선임비", "자동차부상 치료비", 
-  "실손의료비 상해입원", "실손의료비 질병입원", "실손의료비 상해통원", "실손의료비 질병통원", "실손의료비 상해약제", "실손의료비 질병약제",
-  "상해급여 의료비", "질병급여 의료비", "중증상해비급여 의료비", "중증질병비급여 의료비", "중증3대비급여 의료비", "비중증상해비급여 의료비", "비중증질병비급여 의료비", "비중증3대비급여 의료비"
-];
-
-const ALLOWED_COVERAGES = RAW_ALLOWED_COVERAGES.map(name => name.replace(/\s+/g, ""));
+// 🟢 지운 자리에 이것만 넣으세요!
+const RAW_ALLOWED_COVERAGES = COVERAGE_OPTIONS;
 
 const HIDDEN_IN_SUMMARY = [
   "급성심근경색 진단비", "뇌출혈 진단비", "뇌졸중 진단비",
@@ -310,6 +287,8 @@ export default function AnalysisPage() {
           if (prodName.includes("치아") || prodName.includes("덴탈") || prodName.includes("치과")) scores.hasDental = true;
         }
 
+        // page.tsx의 ins.details.forEach 내부 코드 교체
+
         if (ins.details && Array.isArray(ins.details)) {
           ins.details.forEach((detail: any) => {
             const rawName = detail.name?.trim();
@@ -320,177 +299,24 @@ export default function AnalysisPage() {
             const afterVal = detail.is_deleted ? 0 : extractNumber(detail.amount);
             const name = detail.name || "";
 
-            if (name.includes("암") && !name.includes("유사") && !name.includes("고액")) {
-              if (isBefore) scores.cancer.before += beforeVal;
-              if (isAfter) scores.cancer.after += afterVal;
-            }
-            if (name.includes("유사암") || name.includes("소액암")) {
-              if (isBefore) scores.similarCancer.before += beforeVal;
-              if (isAfter) scores.similarCancer.after += afterVal;
-            }
-            if (name.includes("뇌혈")) {
-              if (isBefore) scores.brain.before += beforeVal;
-              if (isAfter) scores.brain.after += afterVal;
-            }
-            if (name.includes("허혈") || name.includes("심장") || name.includes("급성심근")) {
-              if (isBefore) scores.heart.before += beforeVal;
-              if (isAfter) scores.heart.after += afterVal;
-            }
-            if (name.includes("순환계")) {
-              if (isBefore) scores.circulatory.before += beforeVal;
-              if (isAfter) scores.circulatory.after += afterVal;
-            }
-            if (name.includes("사망")) {
-              if (isBefore) scores.death.before += beforeVal;
-              if (isAfter) scores.death.after += afterVal;
-            }
-            if (name.includes("연금")) {
-              if (isBefore) scores.pension.before += beforeVal;
-              if (isAfter) scores.pension.after += afterVal;
-            }
+            // 1. 카테고리별 보장 공백 점수 계산 (coverageMapper에서 가져옴)
+            calculateCoverageScores(name, beforeVal, afterVal, isBefore, isAfter, scores);
 
-            if (name.includes("수술")) {
-              if (isBefore) scores.surgery.before += beforeVal;
-              if (isAfter) scores.surgery.after += afterVal;
-              if (isAfter && (name.includes("종") || name.includes("1-5종") || name.includes("1-6종") || name.includes("1-9종"))) {
-                scores.hasJongSurgery = true;
-              }
-            }
-            if (name.includes("재가") || name.includes("치매")) {
-              if (isBefore) scores.homeCare.before += beforeVal;
-              if (isAfter) scores.homeCare.after += afterVal;
-            }
-            if (name.includes("입원") && !name.includes("진단") && !name.includes("제외") && !name.includes("실손") && !name.includes("의료비")) {
-              if (isBefore) scores.hospitalization.before += beforeVal;
-              if (isAfter) scores.hospitalization.after += afterVal;
-            }
-            if (name.includes("통합상해") || (name.includes("상해") && name.includes("진단"))) {
-              if (isBefore) scores.injury.before += beforeVal;
-              if (isAfter) scores.injury.after += afterVal;
-            }
-            if (isAfter) {
-              if (name.includes("교통사고처리") || name.includes("변호사선임") || name.includes("자동차부상")) scores.hasDriver = true;
-              if (name.includes("임플란트") || name.includes("크라운") || name.includes("보철")) scores.hasDental = true;
-            }
+            // 2 & 3. 쓰레기 특약 필터링 및 이름 표준화 (coverageMapper에서 가져옴)
+            const standardInfo = getStandardCoverageInfo(normalizedName);
+            if (!standardInfo) return; // 필터링 대상이면 즉시 패스!
 
-            const matchedIndex = ALLOWED_COVERAGES.findIndex(allowed => 
-              normalizedName.includes(allowed)
+            // 4. 일반사망 특수 처리 및 맵에 합산 (coverageMapper에서 가져옴)
+            applyCoverageToMap(
+              standardInfo.standardKey, 
+              standardInfo.standardDisplayName, 
+              normalizedName, 
+              beforeVal, 
+              afterVal, 
+              isBefore, 
+              isAfter, 
+              coverageMap
             );
-
-            if (matchedIndex === -1) return; 
-
-            if (normalizedName.includes("암주요") && !normalizedName.includes("제외")) return; 
-            if (ALLOWED_COVERAGES[matchedIndex] === "재해수술비" && (normalizedName.includes("대") || normalizedName.includes("특정") || normalizedName.includes("제외") || normalizedName.includes("병원"))) return;
-            if (ALLOWED_COVERAGES[matchedIndex] === "상해수술비" && (normalizedName.includes("대") || normalizedName.includes("특정") || normalizedName.includes("제외") || normalizedName.includes("병원"))) return;
-            if (ALLOWED_COVERAGES[matchedIndex] === "질병수술비" && (normalizedName.includes("대") || normalizedName.includes("특정") || normalizedName.includes("제외") || normalizedName.includes("병원"))) return;
-            if (ALLOWED_COVERAGES[matchedIndex] === "재해입원비" && (normalizedName.includes("대") || normalizedName.includes("특정") || normalizedName.includes("제외") || normalizedName.includes("병원"))) return;
-            if (ALLOWED_COVERAGES[matchedIndex] === "상해입원비" && (normalizedName.includes("대") || normalizedName.includes("특정") || normalizedName.includes("제외") || normalizedName.includes("병원"))) return;
-            if (ALLOWED_COVERAGES[matchedIndex] === "질병입원비" && (normalizedName.includes("대") || normalizedName.includes("특정") || normalizedName.includes("제외") || normalizedName.includes("병원"))) return;
-            if (ALLOWED_COVERAGES[matchedIndex] === "자동차사고부상치료비" && (normalizedName.includes("7급") || normalizedName.includes("4급") || normalizedName.includes("3급") || normalizedName.includes("2급"))) return;
-            if (ALLOWED_COVERAGES[matchedIndex] === "자동차부상치료비" && (normalizedName.includes("7급") || normalizedName.includes("4급") || normalizedName.includes("3급") || normalizedName.includes("2급"))) return;
-            if (ALLOWED_COVERAGES[matchedIndex] === "골절 진단비" && (normalizedName.includes("제외") || normalizedName.includes("대"))) return;
-            if (ALLOWED_COVERAGES[matchedIndex] === "골절진단비" && (normalizedName.includes("제외") || normalizedName.includes("대"))) return;
-            
-            let standardDisplayName = RAW_ALLOWED_COVERAGES[matchedIndex];
-            let standardKey = ALLOWED_COVERAGES[matchedIndex];
-
-            if (standardDisplayName === "재해사망 진단비") {
-              standardDisplayName = "상해사망 진단비";
-              standardKey = "상해사망진단비";
-            }
-            if (standardDisplayName === "재해 후유장해3%↑") {
-              standardDisplayName = "상해 후유장해3%↑";
-              standardKey = "상해후유장해3%↑";
-            }
-            else if (standardDisplayName === "통합암 진단비") {
-              standardDisplayName = "일반암 진단비";
-              standardKey = "일반암진단비";
-            }
-            else if (standardDisplayName === "항암약물 치료비" || standardDisplayName === "항암방사선 치료비") {
-              standardDisplayName = "항암약물방사선 치료비";
-              standardKey = "항암약물방사선치료비";
-            }
-            else if (normalizedName.includes("암주요") && normalizedName.includes("제외")) {
-              standardDisplayName = "암주요 치료비";
-              standardKey = "암주요치료비";
-            }
-            else if (normalizedName.includes("암통합") && normalizedName.includes("제외")) {
-              standardDisplayName = "암통합 치료비";
-              standardKey = "암통합치료비";
-            }
-            else if (standardDisplayName === "순환계통합 진단비" || standardDisplayName === "순환계질환 진단비" || standardDisplayName === "순환계 진단비" || standardDisplayName === "순환계질환통합 진단비") {
-              standardDisplayName = "순환계질환통합 진단비";
-              standardKey = "순환계질환통합진단비";
-            }
-            else if (standardDisplayName === "재해 수술비" || standardDisplayName === "재해수술비") {
-              standardDisplayName = "상해 수술비"; 
-              standardKey = "상해수술비"; 
-            }
-            else if (standardDisplayName === "재해1종 수술비" || standardDisplayName === "재해1종수술비") {
-              standardDisplayName = "상해1종 수술비"; 
-              standardKey = "상해1종수술비"; 
-            }
-            else if (standardDisplayName === "재해2종 수술비" || standardDisplayName === "재해2종수술비") {
-              standardDisplayName = "상해2종 수술비"; 
-              standardKey = "상해2종수술비"; 
-            }
-            else if (standardDisplayName === "재해3종 수술비" || standardDisplayName === "재해3종수술비") {
-              standardDisplayName = "상해3종 수술비"; 
-              standardKey = "상해3종수술비"; 
-            }
-            else if (standardDisplayName === "재해4종 수술비" || standardDisplayName === "재해4종수술비") {
-              standardDisplayName = "상해4종 수술비"; 
-              standardKey = "상해4종수술비"; 
-            }
-            else if (standardDisplayName === "재해5종 수술비" || standardDisplayName === "재해5종수술비") {
-              standardDisplayName = "상해5종 수술비"; 
-              standardKey = "상해5종수술비"; 
-            }
-            else if (standardDisplayName === "재해 입원비" || standardDisplayName === "재해입원비") {
-              standardDisplayName = "상해 입원비"; 
-              standardKey = "상해입원비"; 
-            }
-            else if (standardDisplayName === "자동차사고부상치료비" || standardDisplayName === "자동차사고부상 치료비" || standardDisplayName === "자동차부상치료비" || standardDisplayName === "자동차부상 치료비") {
-              standardDisplayName = "자동차부상 치료비"; 
-              standardKey = "자동차부상치료비"; 
-            }
-            else if (standardDisplayName === "자동차사고벌금" || standardDisplayName === "자동차사고 벌금") {
-              standardDisplayName = "자동차사고 벌금"; 
-              standardKey = "자동차사고벌금"; 
-            }
-            else if (standardDisplayName === "교통사고처리지원금" || standardDisplayName === "교통사고 처리지원금") {
-              standardDisplayName = "교통사고 처리지원금"; 
-              standardKey = "교통사고처리지원금"; 
-            }
-            else if (standardDisplayName === "골절 진단비" || standardDisplayName === "골절진단비") {
-              standardDisplayName = "골절 진단비"; 
-              standardKey = "골절진단비"; 
-            }
-
-            if (!coverageMap[standardKey]) {
-              coverageMap[standardKey] = { displayName: standardDisplayName, before: 0, after: 0, rawNames: [] };
-            }
-            if (isBefore) coverageMap[standardKey].before += beforeVal;
-            if (isAfter) coverageMap[standardKey].after += afterVal;
-            
-            // ⭐️ 원본 특약명 저장 로직 추가
-            if (!coverageMap[standardKey].rawNames.includes(normalizedName)) {
-              coverageMap[standardKey].rawNames.push(normalizedName);
-            }
-
-            if (standardKey === "일반사망 진단비") {
-              if (!coverageMap["상해사망진단비"]) {
-                coverageMap["상해사망진단비"] = { displayName: "상해사망 진단비", before: 0, after: 0, rawNames: [] };
-              }
-              if (isBefore) coverageMap["상해사망진단비"].before += beforeVal;
-              if (isAfter) coverageMap["상해사망진단비"].after += afterVal;
-
-              if (!coverageMap["질병사망진단비"]) {
-                coverageMap["질병사망진단비"] = { displayName: "질병사망 진단비", before: 0, after: 0, rawNames: [] };
-              }
-              if (isBefore) coverageMap["질병사망진단비"].before += beforeVal;
-              if (isAfter) coverageMap["질병사망진단비"].after += afterVal;
-            }
           });
         }
       });
