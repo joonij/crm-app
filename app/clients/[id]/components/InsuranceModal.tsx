@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { Shield, X, Plus, Sparkles, FileText, Loader2, CheckSquare } from "lucide-react";
+import { Shield, X, Plus, Sparkles, FileText, Loader2, CheckSquare, Trash2 } from "lucide-react";
 
 const inputClassName =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20";
@@ -56,132 +56,257 @@ const POLICY_PERIOD_OPTIONS = ["전기납", "일시납", "5년납", "7년납", "
 const RENEWAL_OPTIONS = ["전기납", "일시납", "비갱신", "1년 갱신", "3년 갱신", "5년 갱신", "10년 갱신", "15년 갱신", "20년 갱신", "30년 갱신"];
 
 const mapToStandardCoverage = (rawName: string) => {
-  if (rawName.includes("기타")) return rawName;
+  let displayRawName = rawName
+    // 1. 불필요한 단어들 핀셋 제거 (괄호를 통째로 지우지 않음!)
+    .replace(/[0-9]+\.[0-9]+\.[0-9]+\s*간편고지/g, '') 
+    .replace(/[0-9]+\.[0-9]+\s*간편고지/g, '') 
+    .replace(/간편고지|간편심사|간편가입|특약|기본계약/g, '')
+    .replace(/_?비갱신형?|_?갱신형?/g, '')
+    .replace(/무배당|\(무\)/g, '')
+    .replace(/해[지약]환급금/g, '')
+    .replace(/[무저]해지환급형?|[무저]해지/g, '')
+    .replace(/미지급형?|일부지급형?/g, '')
+    
+    // 2. 단어가 빠져나가고 남은 콤마(,)나 기호들 청소 (예: "( , 연간1회)" -> "(연간1회)")
+    .replace(/\(\s*[,:|&/ ]+/g, '(') 
+    .replace(/[,:|&/ ]+\s*\)/g, ')') 
+    .replace(/\[\s*[,:|&/ ]+/g, '[') 
+    .replace(/[,:|&/ ]+\s*\]/g, ']')
+    .replace(/[,:|&/]\s*[,:|&/]+/g, ',') 
 
-  const name = rawName.replace(/\s+/g, ""); 
+    // 3. 내용물이 다 지워져서 텅 빈 괄호만 완전히 제거
+    .replace(/\(\)/g, '')
+    .replace(/\[\]/g, '')
+
+    .trim()
+    .replace(/^[-_]+\s*/, '')
+    .replace(/\s{2,}/g, ' '); 
+
+  if (!displayRawName) displayRawName = rawName;
+
+  // ⭐️ [핵심] 살아남은 모든 괄호 덩어리들을 백업해둠 (예: "(연간1회)", "(3대질환)")
+  let extraTags = "";
+  const tagsMatch = displayRawName.match(/\([^)]+\)/g);
+  if (tagsMatch) {
+    extraTags = tagsMatch.join("");
+  }
+
+  // ⭐️ 매핑 함수 래퍼 (괄호는 보존하고 껍데기 이름만 변환)
+  const getMappedName = () => {
+    if (displayRawName.includes("기타")) return displayRawName;
+    if (displayRawName.includes("주계약") || displayRawName.includes("[W]") || displayRawName.includes("특약W")) return displayRawName;
+
+    const name = displayRawName.replace(/\s+/g, ""); 
+    
+    if ((name.includes("실손") || name.includes("의료")) && name.includes("상해") && name.includes("입원")) return "실손의료비 상해입원";
+    if ((name.includes("실손") || name.includes("의료")) && name.includes("질병") && name.includes("입원")) return "실손의료비 질병입원";
+    if ((name.includes("실손") || name.includes("의료")) && (name.includes("외래") || name.includes("통원")) && name.includes("상해")) return "실손의료비 상해통원";
+    if ((name.includes("실손") || name.includes("의료")) && (name.includes("외래") || name.includes("통원")) && name.includes("질병")) return "실손의료비 질병통원";
+    if ((name.includes("실손") || name.includes("의료")) && (name.includes("처방") || name.includes("약제")) && name.includes("상해")) return "실손의료비 상해약제";
+    if ((name.includes("실손") || name.includes("의료")) && (name.includes("처방") || name.includes("약제")) && name.includes("질병")) return "실손의료비 질병약제";
+    
+    if (name.includes("특정") && (name.includes("후유") || name.includes("장해"))) return displayRawName;
+    if (name.includes("교통") && (name.includes("후유") || name.includes("장해"))) return displayRawName;
+    if (name.includes("고도") && name.includes("재해") && (name.includes("후유") || name.includes("장해"))) return "재해 후유장해80%↑";
+    if (name.includes("고도") && name.includes("상해") && (name.includes("후유") || name.includes("장해"))) return "상해 후유장해80%↑";
+    if (name.includes("고도") && name.includes("질병") && (name.includes("후유") || name.includes("장해"))) return "질병 후유장해80%↑";
+    if (name.includes("재해") && (name.includes("후유") || name.includes("장해")) && name.includes("80")) return "재해 후유장해80%↑";
+    if (name.includes("상해") && (name.includes("후유") || name.includes("장해")) && name.includes("80")) return "상해 후유장해80%↑";
+    if (name.includes("질병") && (name.includes("후유") || name.includes("장해")) && name.includes("80")) return "질병 후유장해80%↑";
+    if (name.includes("재해") && (name.includes("후유") || name.includes("장해")) && name.includes("50")) return "재해 후유장해50%↑";
+    if (name.includes("상해") && (name.includes("후유") || name.includes("장해")) && name.includes("50")) return "상해 후유장해50%↑";
+    if (name.includes("질병") && (name.includes("후유") || name.includes("장해")) && name.includes("50")) return "질병 후유장해50%↑";
+    if (name.includes("재해") && (name.includes("후유") || name.includes("장해"))) return "재해 후유장해3%↑";
+    if (name.includes("상해") && (name.includes("후유") || name.includes("장해"))) return "상해 후유장해3%↑";
+    if (name.includes("질병") && (name.includes("후유") || name.includes("장해"))) return "질병 후유장해3%↑";
   
-  if ((name.includes("실손") || name.includes("의료")) && name.includes("상해") && name.includes("입원")) return "실손의료비 상해입원";
-  if ((name.includes("실손") || name.includes("의료")) && name.includes("질병") && name.includes("입원")) return "실손의료비 질병입원";
-  if ((name.includes("실손") || name.includes("의료")) && (name.includes("외래") || name.includes("통원")) && name.includes("상해")) return "실손의료비 상해통원";
-  if ((name.includes("실손") || name.includes("의료")) && (name.includes("외래") || name.includes("통원")) && name.includes("질병")) return "실손의료비 질병통원";
-  if ((name.includes("실손") || name.includes("의료")) && (name.includes("처방") || name.includes("약제")) && name.includes("상해")) return "실손의료비 상해약제";
-  if ((name.includes("실손") || name.includes("의료")) && (name.includes("처방") || name.includes("약제")) && name.includes("질병")) return "실손의료비 질병약제";
-
-  if (name.includes("일반암") && name.includes("진단")) return "일반암 진단비";
-  if (name.includes("고액암") && name.includes("진단")) return "고액암 진단비";
-  if (name.includes("소액암") && name.includes("진단")) return "소액암 진단비";
-  if (name.includes("유사암") && name.includes("진단")) return "유사암 진단비";
-  if (name.includes("항암방사선약물")) return "항암방사선약물 치료비";
-  if (name.includes("암수술")) return "암 수술비";
+    if (name.includes("유사암제외") && name.includes("소액암제외") && name.includes("진단")) return "일반암 진단비(소액암유사암제외)";
+    if (name.includes("소액암제외") && name.includes("진단")) return "일반암 진단비(유사암제외)";
+    if (name.includes("유사암제외") && name.includes("진단")) return "일반암 진단비(유사암제외)";
+    if (name.includes("고액암") && name.includes("진단")) return "고액암 진단비";
+    if (name.includes("소액암") && name.includes("진단")) return "유사암 진단비";
+    if (name.includes("유사암") && name.includes("진단")) return "유사암 진단비";
+    if (name.includes("암") && name.includes("진단")) return "일반암 진단비(유사암제외)";
   
-  if (name.includes("대") && name.includes("혈관") && (name.includes("질환") || name.includes("진단"))) return rawName;
-  if (name.includes("대") && name.includes("순환계") && (name.includes("질환") || name.includes("진단"))) return rawName;
-
-  if (name.includes("대") && name.includes("뇌혈관") && (name.includes("질환") || name.includes("진단"))) return rawName;
-  if (name.includes("뇌혈관") && (name.includes("질환") || name.includes("진단"))) return "뇌혈관질환 진단비";
-  if (name.includes("뇌졸증") && name.includes("진단")) return "뇌졸증 진단비";
-  if (name.includes("뇌출혈") && name.includes("진단")) return "뇌출혈 진단비";
-  if (name.includes("뇌") && name.includes("특례")) return "뇌산정특례대상 진단비";
+    if (name.includes("방사선") && name.includes("약물") && name.includes("치료")) return "항암방사선약물 치료비";
+    if (name.includes("항암") && name.includes("방사선") && name.includes("치료")) return "항암방사선 치료비";
+    if (name.includes("항암") && name.includes("약물") && name.includes("치료")) return "항암약물 치료비";
+    if (name.includes("소액암제외") && name.includes("암") && name.includes("수술")) return "일반암 수술비(유사암제외)";
+    if (name.includes("유사암제외") && name.includes("암") && name.includes("수술")) return "일반암 수술비(유사암제외)";
+    if (name.includes("소액암") && name.includes("수술")) return "유사암 수술비";
+    if (name.includes("유사암") && name.includes("수술")) return "유사암 수술비";
+    if (name.includes("암") && name.includes("수술")) return "암 수술비";
+    
+    if (name.includes("뇌") && (name.includes("산정") || name.includes("특례"))) return "뇌산정특례대상 진단비";
+    if (name.includes("심") && (name.includes("산정") || name.includes("특례"))) return "심장산정특례대상 진단비";
+    if (name.includes("대") && name.includes("혈관") && (name.includes("질환") || name.includes("진단"))) return displayRawName;
+    if (name.includes("대") && name.includes("심") && (name.includes("질환") || name.includes("진단"))) return displayRawName;
+    if (name.includes("대") && name.includes("순환계") && (name.includes("질환") || name.includes("진단"))) return displayRawName;
   
-  if (name.includes("허혈") && (name.includes("질환") || name.includes("진단"))) return "허혈성심장질환 진단비";
-  if (name.includes("급성심근") && name.includes("진단")) return "급성심근경색 진단비";
-  if (name.includes("심장") && name.includes("특례")) return "심장산정특례대상 진단비";
+    if (name.includes("뇌혈관") && (name.includes("질환") || name.includes("진단"))) return "뇌혈관질환 진단비";
+    if (name.includes("뇌졸증") && name.includes("진단")) return "뇌졸증 진단비";
+    if (name.includes("뇌출혈") && name.includes("진단")) return "뇌출혈 진단비";
+    
+    if (name.includes("허혈") && name.includes("진단")) return "허혈성심장질환 진단비";
+    if (name.includes("급성심근") && name.includes("진단")) return "급성심근경색 진단비";
   
-  if (name.includes("특정") && name.includes("장해")) return rawName;
-  if (name.includes("교통") && name.includes("장해")) return rawName;
-  if (name.includes("상해") && name.includes("장해") && name.includes("3")) return "상해 후유장해3%↑";
-  if (name.includes("질병") && name.includes("장해") && name.includes("3")) return "질병 후유장해3%↑";
-  if (name.includes("재해") && name.includes("장해") && name.includes("3")) return "재해 후유장해3%↑";
-  if (name.includes("상해") && name.includes("장해") && name.includes("80")) return "상해 후유장해80%↑";
-  if (name.includes("질병") && name.includes("장해") && name.includes("80")) return "질병 후유장해80%↑";
-  if (name.includes("재해") && name.includes("장해") && name.includes("80")) return "재해 후유장해80%↑";
-
-  if (name.includes("특정") && name.includes("사망")) return rawName;
-  if (name.includes("교통") && name.includes("사망")) return rawName;
-  if (name.includes("상해") && name.includes("사망")) return "상해사망 진단비";
-  if (name.includes("질병") && name.includes("사망")) return "질병사망 진단비";
-  if (name.includes("재해") && name.includes("사망")) return "재해사망 진단비";
-  if (name.includes("일반") && name.includes("사망")) return "일반사망 진단비";
+    if (name.includes("제외") && name.includes("부정맥") && name.includes("진단")) return "부정맥 진단비(기타부정맥제외)";
+    if (!name.includes("+") && (name.includes("특정") || (name.includes("기타"))) && name.includes("부정맥") && name.includes("진단")) return "기타부정맥 진단비";
+    if (name.includes("부정맥") && name.includes("진단")) return "부정맥 진단비";
+    if (name.includes("심부전") && name.includes("진단")) return "심부전 진단비";
+    if (name.includes("심근염") && name.includes("진단")) return "심근염 진단비";
   
-  if (name.includes("손상") && name.includes("수술")) return rawName;
-  if (name.includes("복원") && name.includes("수술")) return rawName;
-  if (name.includes("흉터") && name.includes("수술")) return rawName;
-  if (name.includes("제외") && name.includes("수술")) return rawName;
-  if (name.includes("대") && name.includes("수술")) return rawName;
-  if (name.includes("특정") && name.includes("수술")) return rawName;
-
-  if (name.includes("입원제외") && name.includes("상해") && name.includes("수술")) return "상해입원 수술비(당일입원제외)";
-  if (name.includes("입원포함") && name.includes("상해") && name.includes("수술")) return "상해통원 수술비(당일입원포함)";
-  if (name.includes("1종") && name.includes("상해")) return "상해1종 수술비";
-  if (name.includes("2종") && name.includes("상해")) return "상해2종 수술비";
-  if (name.includes("3종") && name.includes("상해")) return "상해3종 수술비";
-  if (name.includes("4종") && name.includes("상해")) return "상해4종 수술비";
-  if (name.includes("5종") && name.includes("상해")) return "상해5종 수술비";
-  if (name.includes("상해") && name.includes("수술")) return "상해 수술비";
+    if (name.includes("특정") && name.includes("사망")) return displayRawName;
+    if (name.includes("교통") && name.includes("사망")) return displayRawName;
+    if (name.includes("재해") && name.includes("사망")) return "재해사망 진단비";
+    if (name.includes("상해") && name.includes("사망")) return "상해사망 진단비";
+    if (name.includes("질병") && name.includes("사망")) return "질병사망 진단비";
+    
+    if (name.includes("질환") && name.includes("수술")) return displayRawName;
+    if (name.includes("이식") && name.includes("수술")) return displayRawName;
+    if (name.includes("중증") && name.includes("수술")) return displayRawName;
+    if (name.includes("손상") && name.includes("수술")) return displayRawName;
+    if (name.includes("복원") && name.includes("수술")) return displayRawName;
+    if (name.includes("흉터") && name.includes("수술")) return displayRawName;
+    if (name.includes("대") && name.includes("수술")) return displayRawName;
+    if (name.includes("특정") && name.includes("수술")) return displayRawName;
+    if (name.includes("철심") && name.includes("수술")) return "골절철심제거 수술비";
+    if (name.includes("골절") && name.includes("수술")) return "골절 수술비";
+    if (name.includes("화상") && name.includes("수술")) return "화상 수술비";
+    if (name.includes("입원제외") && name.includes("재해") && name.includes("수술")) return "재해입원 수술비(당일입원제외)";
+    if (name.includes("입원포함") && name.includes("재해") && name.includes("수술")) return "재해통원 수술비(당일입원포함)";
+    if (name.includes("입원제외") && name.includes("상해") && name.includes("수술")) return "상해입원 수술비(당일입원제외)";
+    if (name.includes("입원포함") && name.includes("상해") && name.includes("수술")) return "상해통원 수술비(당일입원포함)";
+    if (name.includes("입원제외") && name.includes("질병") && name.includes("수술")) return "질병입원 수술비(당일입원제외)";
+    if (name.includes("입원포함") && name.includes("질병") && name.includes("수술")) return "질병통원 수술비(당일입원포함)";
+    if (name.includes("제외") && name.includes("수술")) return displayRawName;
+    
+    if (!name.includes("1~8") && !name.includes("1~7") && !name.includes("1~5") && !name.includes("8종") && !name.includes("7종") && name.includes("1종") && name.includes("재해")) return "재해1종 수술비";
+    if (!name.includes("1~8") && !name.includes("1~7") && !name.includes("1~5") && !name.includes("8종") && !name.includes("7종") && name.includes("2종") && name.includes("재해")) return "재해2종 수술비";
+    if (!name.includes("1~8") && !name.includes("1~7") && !name.includes("1~5") && !name.includes("8종") && !name.includes("7종") && name.includes("3종") && name.includes("재해")) return "재해3종 수술비";
+    if (!name.includes("1~8") && !name.includes("1~7") && !name.includes("1~5") && !name.includes("8종") && !name.includes("7종") && name.includes("4종") && name.includes("재해")) return "재해4종 수술비";
+    if (!name.includes("1~8") && !name.includes("1~7") && !name.includes("1~5") && !name.includes("8종") && !name.includes("7종") && name.includes("5종") && name.includes("재해")) return "재해5종 수술비";
   
-  if (name.includes("1종") && name.includes("질병")) return "질병1종 수술비";
-  if (name.includes("2종") && name.includes("질병")) return "질병2종 수술비";
-  if (name.includes("3종") && name.includes("질병")) return "질병3종 수술비";
-  if (name.includes("4종") && name.includes("질병")) return "질병4종 수술비";
-  if (name.includes("5종") && name.includes("질병")) return "질병5종 수술비";
-  if (name.includes("1종") && name.includes("수술")) return "1종 수술비";
-  if (name.includes("2종") && name.includes("수술")) return "2종 수술비";
-  if (name.includes("3종") && name.includes("수술")) return "3종 수술비";
-  if (name.includes("4종") && name.includes("수술")) return "4종 수술비";
-  if (name.includes("5종") && name.includes("수술")) return "5종 수술비";
-  if (name.includes("질병") && name.includes("수술")) return "질병 수술비";
-
-  if (name.includes("특정") && name.includes("입원비")) return rawName;
+    if (!name.includes("1~8") && !name.includes("1~7") && !name.includes("1~5") && !name.includes("8종") && !name.includes("7종") && name.includes("1종") && name.includes("상해")) return "상해1종 수술비";
+    if (!name.includes("1~8") && !name.includes("1~7") && !name.includes("1~5") && !name.includes("8종") && !name.includes("7종") && name.includes("2종") && name.includes("상해")) return "상해2종 수술비";
+    if (!name.includes("1~8") && !name.includes("1~7") && !name.includes("1~5") && !name.includes("8종") && !name.includes("7종") && name.includes("3종") && name.includes("상해")) return "상해3종 수술비";
+    if (!name.includes("1~8") && !name.includes("1~7") && !name.includes("1~5") && !name.includes("8종") && !name.includes("7종") && name.includes("4종") && name.includes("상해")) return "상해4종 수술비";
+    if (!name.includes("1~8") && !name.includes("1~7") && !name.includes("1~5") && !name.includes("8종") && !name.includes("7종") && name.includes("5종") && name.includes("상해")) return "상해5종 수술비";
+    
+    if (!name.includes("1~8") && !name.includes("1~7") && !name.includes("1~5") && !name.includes("8종") && !name.includes("7종") && name.includes("1종") && name.includes("질병")) return "질병1종 수술비";
+    if (!name.includes("1~8") && !name.includes("1~7") && !name.includes("1~5") && !name.includes("8종") && !name.includes("7종") && name.includes("2종") && name.includes("질병")) return "질병2종 수술비";
+    if (!name.includes("1~8") && !name.includes("1~7") && !name.includes("1~5") && !name.includes("8종") && !name.includes("7종") && name.includes("3종") && name.includes("질병")) return "질병3종 수술비";
+    if (!name.includes("1~8") && !name.includes("1~7") && !name.includes("1~5") && !name.includes("8종") && !name.includes("7종") && name.includes("4종") && name.includes("질병")) return "질병4종 수술비";
+    if (!name.includes("1~8") && !name.includes("1~7") && !name.includes("1~5") && !name.includes("8종") && !name.includes("7종") && name.includes("5종") && name.includes("질병")) return "질병5종 수술비";
+    
+    if (!name.includes("1~8") && !name.includes("1~7") && !name.includes("1~5") && !name.includes("8종") && !name.includes("7종") && name.includes("1종") && name.includes("수술")) return "상해1종 수술비||질병1종 수술비";
+    if (!name.includes("1~8") && !name.includes("1~7") && !name.includes("1~5") && !name.includes("8종") && !name.includes("7종") && name.includes("2종") && name.includes("수술")) return "상해2종 수술비||질병2종 수술비";
+    if (!name.includes("1~8") && !name.includes("1~7") && !name.includes("1~5") && !name.includes("8종") && !name.includes("7종") && name.includes("3종") && name.includes("수술")) return "상해3종 수술비||질병3종 수술비";
+    if (!name.includes("1~8") && !name.includes("1~7") && !name.includes("1~5") && !name.includes("8종") && !name.includes("7종") && name.includes("4종") && name.includes("수술")) return "상해4종 수술비||질병4종 수술비";
+    if (!name.includes("1~8") && !name.includes("1~7") && !name.includes("1~5") && !name.includes("8종") && !name.includes("7종") && name.includes("5종") && name.includes("수술")) return "상해5종 수술비||질병5종 수술비";
   
-  if ((name.includes("이상") || name.includes("초과")) && (name.includes("3") || name.includes("4")) && name.includes("재해") && name.includes("입원")) return "재해 입원비(3일이상)";
-  if ((name.includes("이상") || name.includes("초과")) && (name.includes("3") || name.includes("4")) && name.includes("상해") && name.includes("입원")) return "상해 입원비(3일이상)";
-  if ((name.includes("이상") || name.includes("초과")) && (name.includes("3") || name.includes("4")) && name.includes("질병") && name.includes("입원")) return "질병 입원비(3일이상)";
-  if (name.includes("중환자") && name.includes("재해") && name.includes("입원")) return "재해중환자실 입원비";
-  if (name.includes("중환자") && name.includes("상해") && name.includes("입원")) return "상해중환자실 입원비";
-  if (name.includes("중환자") && name.includes("질병") && name.includes("입원")) return "질병중환자실 입원비";
-  if (name.includes("재해") && name.includes("입원일당")) return "재해 입원비";
-  if (name.includes("상해") && name.includes("입원일당")) return "상해 입원비";
-  if (name.includes("질병") && name.includes("입원일당")) return "질병 입원비";
+    if (name.includes("재해") && name.includes("질병")) return "재해 수술비";
+    if (name.includes("상해") && name.includes("질병")) return "상해 수술비";
+    if (name.includes("질병") && name.includes("질병")) return "질병 수술비";
   
-  if (name.includes("골절") && name.includes("진단") && name.includes("제외")) return "골절 진단비(치아파절제외)";
-  if (name.includes("5대") && name.includes("골절") && name.includes("진단")) return "5대골절 진단비";
-  if (name.includes("골절") && name.includes("진단")) return "골절 진단비";
-  if (name.includes("화상") && name.includes("진단")) return "화상 진단비";
+    if (name.includes("특정") && name.includes("입원비")) return displayRawName;
+    
+    if ((name.includes("이상") || name.includes("초과")) && (name.includes("3") || name.includes("4")) && name.includes("재해") && name.includes("입원")) return "재해 입원비(3일이상)";
+    if ((name.includes("이상") || name.includes("초과")) && (name.includes("3") || name.includes("4")) && name.includes("상해") && name.includes("입원")) return "상해 입원비(3일이상)";
+    if ((name.includes("이상") || name.includes("초과")) && (name.includes("3") || name.includes("4")) && name.includes("질병") && name.includes("입원")) return "질병 입원비(3일이상)";
+    if (name.includes("중환자") && name.includes("재해") && name.includes("입원")) return "재해중환자실 입원비";
+    if (name.includes("중환자") && name.includes("상해") && name.includes("입원")) return "상해중환자실 입원비";
+    if (name.includes("중환자") && name.includes("질병") && name.includes("입원")) return "질병중환자실 입원비";
+    if (name.includes("간병") && name.includes("재해") && name.includes("입원")) return displayRawName;
+    if (name.includes("간병") && name.includes("상해") && name.includes("입원")) return displayRawName;
+    if (name.includes("간병") && name.includes("질병") && name.includes("입원")) return displayRawName;
+    if (name.includes("간병") && name.includes("입원")) return displayRawName;
+    if (name.includes("재해") && name.includes("입원")) return "재해 입원비";
+    if (name.includes("상해") && name.includes("입원")) return "상해 입원비";
+    if (name.includes("질병") && name.includes("입원")) return "질병 입원비";
+    
+    if (name.includes("대") && name.includes("골절") && name.includes("진단")) return displayRawName;
+    if (name.includes("특정") && name.includes("골절") && name.includes("진단")) return displayRawName;
+    if (name.includes("골절") && name.includes("진단") && name.includes("제외")) return "골절 진단비(치아파절제외)";
+    if (name.includes("골절") && name.includes("진단")) return "골절 진단비";
+    if (name.includes("화상") && name.includes("진단")) return "화상 진단비";
+    if (name.includes("통합") && name.includes("상해") && name.includes("중증") && name.includes("진단")) return "통합상해 진단비(중증)";
+    if (name.includes("통합") && name.includes("상해") && name.includes("중등증") && name.includes("진단")) return "통합상해 진단비(중등증)";
+    if (name.includes("통합") && name.includes("상해") && name.includes("진단")) return "통합상해 진단비(경증)";
+  
+    if (name.includes("도수정복") && name.includes("치료")) return "도수정복술 치료비";
+    if (name.includes("깁스") && name.includes("치료")) return "깁스 치료비";
+    if (name.includes("부목") && name.includes("치료")) return "골절부목 치료비";
+    if (name.includes("재활") && name.includes("치료")) return "상해재활 치료비";
+    
+    if (name.includes("응급실") && name.includes("비응급")) return "응급실내원비(비응급)";
+    if (name.includes("응급실") && name.includes("응급")) return "응급실내원비(응급)";
+  
+    if (name.includes("요양") && name.includes("1~2") && name.includes("진단")) return "장기요양 1~2등급 진단비";
+    if (name.includes("요양") && name.includes("1~3") && name.includes("진단")) return "장기요양 1~3등급 진단비";
+    if (name.includes("요양") && name.includes("1~4") && name.includes("진단")) return "장기요양 1~4등급 진단비";
+    if (name.includes("요양") && name.includes("1~5") && name.includes("진단")) return "장기요양 1~5등급 진단비";
+    if (name.includes("요양") && name.includes("1~인지") && name.includes("진단")) return "장기요양 1~인지지원등급 진단비";
+  
+    if (name.includes("요양") && name.includes("1~2") && name.includes("재가")) return "장기요양 1~2등급 재가급여";
+    if (name.includes("요양") && name.includes("1~3") && name.includes("재가")) return "장기요양 1~3등급 재가급여";
+    if (name.includes("요양") && name.includes("1~4") && name.includes("재가")) return "장기요양 1~4등급 재가급여";
+    if (name.includes("요양") && name.includes("1~5") && name.includes("재가")) return "장기요양 1~5등급 재가급여";
+    if (name.includes("요양") && name.includes("1~인지") && name.includes("재가")) return "장기요양 1~인지지원등급 재가급여";
+  
+    if (name.includes("요양") && name.includes("1~2") && name.includes("시설")) return "장기요양 1~2등급 시설급여";
+    if (name.includes("요양") && name.includes("1~3") && name.includes("시설")) return "장기요양 1~3등급 시설급여";
+    if (name.includes("요양") && name.includes("1~4") && name.includes("시설")) return "장기요양 1~4등급 시설급여";
+    if (name.includes("요양") && name.includes("1~5") && name.includes("시설")) return "장기요양 1~5등급 시설급여";
+    if (name.includes("요양") && name.includes("1~인지") && name.includes("시설")) return "장기요양 1~인지지원등급 시설급여";
 
-  if (name.includes("골절") && name.includes("철심") && name.includes("수술")) return "골절철심제거 수술비";
-  if (name.includes("5대") && name.includes("골절") && name.includes("수술")) return "5대골절 수술비";
-  if (name.includes("골절") && name.includes("수술")) return "골절 수술비";
-  if (name.includes("화상") && name.includes("수술")) return "화상 수술비";
-  if (name.includes("깁스") && name.includes("치료")) return "깁스 치료비";
-  if (name.includes("제외") && name.includes("부목")) return "골절부목 치료비(치아파절제외)";
+    return null; 
+  };
 
-  if (name.includes("응급실") && name.includes("비응급")) return "응급실내원비(비응급)";
-  if (name.includes("응급실") && name.includes("응급")) return "응급실내원비(응급)";
+  let finalName = getMappedName();
 
-  if (name.includes("요양") && name.includes("1~2") && name.includes("진단")) return "장기요양 1~2등급 진단비";
-  if (name.includes("요양") && name.includes("1~3") && name.includes("진단")) return "장기요양 1~3등급 진단비";
-  if (name.includes("요양") && name.includes("1~4") && name.includes("진단")) return "장기요양 1~4등급 진단비";
-  if (name.includes("요양") && name.includes("1~5") && name.includes("진단")) return "장기요양 1~5등급 진단비";
-  if (name.includes("요양") && name.includes("1~인지") && name.includes("진단")) return "장기요양 1~인지지원등급 진단비";
+  // 매핑 로직에서 아무것도 안 걸려 원본(displayRawName) 자체가 반환된 경우, 
+  // 원본 안에는 이미 괄호가 포함되어 있으므로 그냥 반환합니다.
+  if (finalName === null || finalName === displayRawName) {
+    return displayRawName;
+  }
 
-  if (name.includes("요양") && name.includes("1~2") && name.includes("재가")) return "장기요양 1~2등급 재가급여";
-  if (name.includes("요양") && name.includes("1~3") && name.includes("재가")) return "장기요양 1~3등급 재가급여";
-  if (name.includes("요양") && name.includes("1~4") && name.includes("재가")) return "장기요양 1~4등급 재가급여";
-  if (name.includes("요양") && name.includes("1~5") && name.includes("재가")) return "장기요양 1~5등급 재가급여";
-  if (name.includes("요양") && name.includes("1~인지") && name.includes("재가")) return "장기요양 1~인지지원등급 재가급여";
+  // ⭐️ 매핑된 표준 담보명 끝에, 위에서 백업해둔 괄호 내용들을 전부 이어 붙여줍니다.
+  if (extraTags) {
+    if (finalName.includes("||")) {
+      // 1종 수술비처럼 두 줄로 쪼개지는 경우, 각각의 항목 끝에 괄호를 붙입니다.
+      finalName = finalName.split("||").map(n => {
+        return n.includes(extraTags) ? n : n + extraTags;
+      }).join("||");
+    } else {
+      if (!finalName.includes(extraTags)) {
+        finalName += extraTags;
+      }
+    }
+  }
 
-  if (name.includes("요양") && name.includes("1~2") && name.includes("시설")) return "장기요양 1~2등급 시설급여";
-  if (name.includes("요양") && name.includes("1~3") && name.includes("시설")) return "장기요양 1~3등급 시설급여";
-  if (name.includes("요양") && name.includes("1~4") && name.includes("시설")) return "장기요양 1~4등급 시설급여";
-  if (name.includes("요양") && name.includes("1~5") && name.includes("시설")) return "장기요양 1~5등급 시설급여";
-  if (name.includes("요양") && name.includes("1~인지") && name.includes("시설")) return "장기요양 1~인지지원등급 시설급여";
+  return finalName;
+};
 
-  return rawName; 
+// ⭐️ 강력한 헤더/쓰레기값 필터 (특약명 절단 방지용 완벽 최적화)
+const isHeaderOrJunk = (line: string) => {
+  const s = line.trim();
+  if (s.startsWith("※") || s.startsWith("■") || s.startsWith("-") || s.startsWith("*")) return true;
+
+  const noSpace = s.replace(/\s+/g, "").toLowerCase();
+  
+  // 단독으로 쓰인 짧은 헤더 완벽 차단
+  if (/^(보험료(\(원\))?|\(만원\)|구분|쪽|page|보험|기간|납입|주기|가입금액|계약사항|보장내용)$/.test(noSpace)) return true;
+  
+  // 실납입/할인전/합계 및 안내문구 등 표기 오류 유발 헤더 100% 차단
+  if (/발행일시|가입안내서|페이지로|동일한번호|발행번호|fc:|tel:|page:|보험회사|미래에셋생명|보험상품명|주피보험자|보험계약의|계약체결시|수령하시기|할인전보험료|실납입보험료|합계|선택특약의|청약서를|기본계약|대상계약|가입특약|특약가입개요|소비자가직접|청약서발행|가입설계번호|대리점명|지점명|설계사명|www\.|라이나생명|chubb|가입설계용|보장내역|계약사항|계약자|지급사유|지급금액|보장합니다|가입기준|보험종류|보험가입금액|보험기간|납입기간|납입주기|의무부가특약|케어매칭서비스|암전장유전체|다수특약에|가입필요및/i.test(noSpace)) return true;
+  
+  return false;
 };
 
 // 초기 폼 상태
 const initialFormState = {
-  policy_status: "maintain",
+  policy_status: "new",
   company: "",
   product: "",
   premium: "", 
@@ -223,12 +348,12 @@ export default function InsuranceModal({
   const [focusedRenewalIndex, setFocusedRenewalIndex] = useState<number | null>(null);
   const [focusedPolicyPeriod, setFocusedPolicyPeriod] = useState(false);
 
-  // 고객 검색 자동완성용 상태 (전화번호 포함)
+  // 고객 검색 자동완성용 상태
   const [clientsList, setClientsList] = useState<{ id: number; name: string; phone?: string }[]>([]);
   const [focusedClientField, setFocusedClientField] = useState<'contractor' | 'insured' | 'beneficiary' | null>(null);
 
   // 담당자(본인) 여부 체크박스 상태
-  const [isCurrentUserAgent, setIsCurrentUserAgent] = useState(false);
+  const [isCurrentUserAgent, setIsCurrentUserAgent] = useState(true);
   const [loggedInAgentName, setLoggedInAgentName] = useState("");
 
   useEffect(() => {
@@ -238,6 +363,7 @@ export default function InsuranceModal({
 
     const fetchInitialData = async () => {
       let currentClientName = "";
+      let agentName = "";
 
       // 1. 현재 로그인한 유저 정보 확인
       const { data: { user } } = await supabase.auth.getUser();
@@ -246,20 +372,17 @@ export default function InsuranceModal({
         const { data: agentData } = await supabase.from("agents").select("id, name").eq("auth_id", user.id).single();
         
         if (agentData) {
+          agentName = agentData.name;
           setLoggedInAgentName(agentData.name);
+          setIsCurrentUserAgent(true);
 
-          // 담당 고객 목록 불러오기
-          const { data: myClients, error: clientsError } = await supabase
+          const { data: myClients } = await supabase
             .from("clients")
             .select("id, name, phone")
             .eq("agent_id", agentData.id) 
             .order("name");
             
-          if (clientsError) {
-             console.error("🚨 고객 목록 불러오기 실패:", clientsError.message);
-          } else if (myClients) {
-             setClientsList(myClients);
-          }
+          if (myClients) setClientsList(myClients);
         }
       }
 
@@ -276,23 +399,26 @@ export default function InsuranceModal({
       }
       
       const currentClientId = parseInt(clientId, 10);
+      const today = new Date().toISOString().split("T")[0];
 
       setCovForm(prev => ({
         ...prev,
-        // 모달 켤 때 기본값 세팅
         contractor_name: currentClientName,
         contractor_id: currentClientId,
         insured_name: currentClientName,
         insured_id: currentClientId,
         beneficiary_name: currentClientName,
         beneficiary_id: currentClientId,
-        agent_name: "", 
+        agent_name: agentName,
+        subscriptionDate: today,
+        policy_status: "new"
       }));
     };
 
     fetchInitialData();
   }, [clientId]);
 
+  // ⭐️ 강력한 텍스트 파싱 및 라우팅 엔진
   const handleAnalyzeText = async () => {
     if (!pasteText.trim()) return alert("분석할 텍스트를 입력해주세요.");
     setIsAnalyzing(true);
@@ -306,147 +432,347 @@ export default function InsuranceModal({
       let extractedSubDate = "";
       let extractedMatDate = "";
       let extractedPaymentPeriod = ""; 
+      let mainInsTerm = ""; 
       const extractedDetails: CoverageDetail[] = [];
 
       const lines = pasteText.split('\n').map(l => l.trim()).filter(l => l);
 
-      const policyNumIndex = lines.findIndex(l => l.includes("증권번호"));
-      if (policyNumIndex > 0) {
-        extractedProduct = lines[policyNumIndex - 1];
-      }
-
-      for (const line of lines) {
-        if (line.includes("보험") || line.includes("생명") || line.includes("화재") || line.includes("해상") || line.includes("공제")) {
-          const companyMatch = line.match(/([가-힣]+(?:생명|화재|해상|손해|보험|공제))/);
-          if (companyMatch) extractedCompany = companyMatch[1];
-          break;
+      // 1. 보험사 파악
+      if (pasteText.includes("라이나생명")) extractedCompany = "라이나생명";
+      else if (pasteText.includes("미래에셋생명")) extractedCompany = "미래에셋생명";
+      else {
+        for (const line of lines) {
+          if (line.includes("보험") || line.includes("생명") || line.includes("화재") || line.includes("해상") || line.includes("공제")) {
+            const companyMatch = line.match(/([가-힣]+(?:생명|화재|해상|손해|보험|공제))/);
+            if (companyMatch) extractedCompany = companyMatch[1];
+            break;
+          }
         }
       }
 
-      const dateRegex = /(\d{4})[./-](\d{2})[./-](\d{2})\s*~\s*(\d{4})[./-](\d{2})[./-](\d{2})/;
+      // ⭐️ [라우팅] 문서 타입(Strategy) 스마트 분류
+      const isLinaProposal = extractedCompany === "라이나생명" && (pasteText.includes("발행일시") || pasteText.includes("청약번호"));
+      const isMiraeProposal = extractedCompany === "미래에셋생명" && (pasteText.includes("발행일시") || pasteText.includes("가입안내서"));
+
+      // 2. 총 보험료 공통 추출
+      const premiumMatches = pasteText.match(/(합\s*계|납입보험료|실납입보험료|합계보험료|납입예정)\s*[:|]?\s*([\d,]+)/g);
+      if (premiumMatches) {
+        const lastMatch = premiumMatches[premiumMatches.length - 1];
+        const numOnly = lastMatch.match(/([\d,]+)/);
+        if (numOnly) extractedPremium = numOnly[1].replace(/,/g, '');
+      }
+
+      // 3. 날짜 공통 추출
+      const dateRegex = /(\d{4})[./-](\d{2})[./-](\d{2})\s*(?:~|부터)\s*(\d{4})[./-](\d{2})[./-](\d{2})/;
       const dateMatch = pasteText.match(dateRegex);
       if (dateMatch) {
         extractedSubDate = `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`;
         extractedMatDate = `${dateMatch[4]}-${dateMatch[5]}-${dateMatch[6]}`;
       }
 
-      const periodMatch = pasteText.match(/\((?:.*?납)?[,\s]*([0-9]+(?:년|세납|세|년납)|전기납|일시납)\)/) 
-                        || pasteText.match(/([0-9]+(?:년납|세납|년|세)|전기납|일시납)/);
+      // ➖➖➖➖➖➖ 1. [가입제안서] 라이나생명 전용 로직 ➖➖➖➖➖➖
+      if (isLinaProposal) {
+        const productMatch = pasteText.match(/보험상품명\s*[|\s]?\s*([^\n]+)/);
+        if (productMatch) extractedProduct = productMatch[1].replace(/무배당/g, '').replace(/\|/g, '').replace(/청약번호.*/, '').trim();
 
-      if (periodMatch) {
-        let p = periodMatch[1];
-        if (!p.includes("납") && !p.includes("일시") && !p.includes("전기")) {
-          p += "납";
-        }
-        extractedPaymentPeriod = p;
-      }
-
-      // ⭐️ 가입일-만기일 기간과 납입기간이 일치하는지 비교하는 정교한 로직 추가
-      let isPeriodSame = false;
-      if (extractedPaymentPeriod.includes("전기납")) {
-        isPeriodSame = true;
-      } else if (extractedSubDate && extractedMatDate && extractedPaymentPeriod) {
-        const subYear = parseInt(extractedSubDate.split("-")[0], 10);
-        const matYear = parseInt(extractedMatDate.split("-")[0], 10);
-        const payMatch = extractedPaymentPeriod.match(/([0-9]+)년/);
-        
-        if (payMatch && !isNaN(subYear) && !isNaN(matYear)) {
-          const payYears = parseInt(payMatch[1], 10);
-          // 기간 차이가 납입 기간과 정확히 일치할 때만 true
-          if (matYear - subYear === payYears) {
-            isPeriodSame = true;
+        let tempBuffer: string[] = [];
+        for (const line of lines) {
+          if (isHeaderOrJunk(line)) {
+            tempBuffer = [];
+            continue;
           }
-        }
-      }
 
-      const premiumRegex = /([0-9,]+)원\s*(?:약관조회|상품공시실)/;
-      const premiumMatch = pasteText.match(premiumRegex);
-      if (premiumMatch) {
-        extractedPremium = premiumMatch[1].replace(/,/g, "");
-      } else {
-        const termsIndex = lines.findIndex(l => l.includes("약관조회") || l.includes("상품공시실"));
-        if (termsIndex > 0) {
-          const premiumLine = lines[termsIndex - 1];
-          const backupMatch = premiumLine.match(/([0-9,]+)/);
-          if (backupMatch) extractedPremium = backupMatch[1].replace(/,/g, "");
-        }
-      }
-      
-      const expectedMatch = pasteText.match(/납입예정\s*([0-9,]+)원/);
-      if (expectedMatch) {
-        const expectedAmount = parseInt(expectedMatch[1].replace(/,/g, ""), 10);
-        if (expectedAmount === 0) {
-          extractedPremium = "0";
-        }
-      }
+          tempBuffer.push(line);
+          const fullLine = tempBuffer.join(" ");
+          const fullParts = fullLine.split(/\s+/).filter(p => p && p !== "|");
+          const len = fullParts.length;
 
-      for (const line of lines) {
-        if (line.includes("보장구분") || line.includes("보장명") || line.includes("실손구분")) continue;
+          if (len >= 6) {
+            const lastStr = fullParts[len - 1].replace(/,/g, '');
+            const isPremium = /^\d+$/.test(lastStr);
+            
+            const payCandidate = fullParts[len - 2] || ""; 
+            const payCandidate2 = fullParts[len - 3] || ""; 
+            const isValidPayTerm = payCandidate.includes("납") || payCandidate.includes("년") || payCandidate2.includes("납") || payCandidate2.includes("년");
 
-        const coverageRegex = /^(.*?)\s+((?:\d+,?)+\s*(?:억\s*(?:\d+,?)*\s*만원|억원|만원|원))(?:\s+(.*?))?\s+(정상|소멸|유지|해지)$/;
-        const match = line.match(coverageRegex);
-        
-        if (match) {
-          let rawName = match[1].trim();
-          let amountStr = match[2].trim();
-          let periodStr = match[3] ? match[3].trim() : ""; 
-          let status = match[4].trim();
+            if (isPremium && isValidPayTerm) {
+              tempBuffer = []; 
+              fullParts.pop(); 
+              
+              const peek = fullParts[fullParts.length - 1];
+              if (peek === "월납" || peek === "연납" || peek === "일시납" || /^[월연]납$/.test(peek)) {
+                  fullParts.pop();
+              }
 
-          if (status === "소멸" || status === "해지") continue;
+              const payTerm = fullParts.pop() || "20년납";
+              const insTerm = fullParts.pop() || "";
+              let amount = fullParts.pop()?.replace(/,/g, '') || "0";
+              
+              const lastNamePart = fullParts[fullParts.length - 1];
+              if (lastNamePart === covForm.contractor_name || /^[가-힣]\*[가-힣]$/.test(lastNamePart || "")) {
+                  fullParts.pop();
+              }
 
-          let name = rawName;
+              let rawName = fullParts.join(" ");
+              
+              const mainIdx = rawName.indexOf("주계약");
+              const subIdx = rawName.indexOf("특약");
+              if (mainIdx !== -1 && subIdx !== -1) {
+                  rawName = rawName.substring(Math.min(mainIdx, subIdx));
+              } else if (mainIdx !== -1) {
+                  rawName = rawName.substring(mainIdx);
+              } else if (subIdx !== -1) {
+                  rawName = rawName.substring(subIdx);
+              }
 
-          if (rawName.includes("\t")) {
-            const parts = rawName.split("\t").filter(t => t.trim() !== "");
-            name = parts[parts.length - 1]; 
-          } else {
-            const parts = rawName.split(/\s+/);
-            if (parts.length > 1) {
-              if (parts[1].includes(parts[0]) || parts[0].includes(parts[1])) {
-                 if (parts[0] !== "기타") parts.shift();
+              let name = rawName.replace(new RegExp(covForm.contractor_name, "g"), '').trim();
+              name = name.replace(/^[^가-힣a-zA-Z0-9\[\(]+/, '');
+
+              const isMain = rawName.includes("주계약");
+              if (isMain) {
+                if (!extractedProduct) extractedProduct = name.replace(/\[.*?\]/g, '').replace(/주계약|기본계약/g, "").trim();
+                extractedPaymentPeriod = payTerm.includes("납") ? payTerm : payTerm + "납";
+                mainInsTerm = insTerm; 
+              }
+              
+              let renewal = "비갱신";
+              if (name.includes("갱신형") || name.includes("갱신") || insTerm.includes("갱신")) {
+                renewal = insTerm.includes("년") ? `${insTerm.replace(/[^0-9]/g, '')}년 갱신` : "갱신";
+              }
+              
+              name = name.replace(/\([^)]*해약환급금[^)]*\)/g, '').replace(/\(갱신형\)/g, '').replace(/무배당/g, '').replace(/_갱신형/g, '').replace(/주계약\s*/, '').replace(/특약\s*/, '').trim();
+              
+              if (name.length > 0) {
+                const mappedNames = mapToStandardCoverage(name).split("||");
+                mappedNames.forEach(mName => {
+                  extractedDetails.push({ name: mName, amount: formatAmountWithComma(amount), renewal_type: renewal });
+                });
               }
             }
-            name = parts.join(" ");
+          }
+        }
+      } 
+      // ➖➖➖➖➖➖ 2. [가입제안서] 미래에셋생명 전용 로직 ➖➖➖➖➖➖
+      else if (isMiraeProposal) {
+        const productMatch = pasteText.match(/([가-힣A-Za-z0-9-]+\s*건강보험\s*무배당)/);
+        if (productMatch) extractedProduct = productMatch[1].replace("상령", "").replace(/무배당/g, '').trim();
+
+        let tempBuffer: string[] = [];
+        for (const line of lines) {
+          if (isHeaderOrJunk(line)) {
+            tempBuffer = [];
+            continue;
           }
 
-          let cleanAmount = amountStr.replace(/,/g, "").replace(/\s/g, "");
-          let parsedAmountNum = 0;
+          tempBuffer.push(line);
+          const fullLine = tempBuffer.join(" ");
+          const fullParts = fullLine.split(/\s+/).filter(p => p && p !== "|");
+          const len = fullParts.length;
 
-          if (cleanAmount.includes("억")) {
-            const parts = cleanAmount.split("억");
-            const eok = parseInt(parts[0].replace(/[^0-9]/g, ""), 10) || 0;
-            parsedAmountNum += eok * 10000;
-            if (parts[1] && parts[1].includes("만")) {
-              const man = parseInt(parts[1].replace(/[^0-9]/g, ""), 10) || 0;
-              parsedAmountNum += man;
+          if (len >= 4) {
+            const lastStr = fullParts[len - 1].replace(/,/g, '');
+            const isPremium = /^\d+$/.test(lastStr);
+            const payCandidate = fullParts[len - 2] || "";
+            const isValidPayTerm = payCandidate.includes("납") || payCandidate.includes("년") || payCandidate.includes("세") || payCandidate.includes("일시납");
+
+            if (isPremium && isValidPayTerm) {
+              tempBuffer = []; 
+              fullParts.pop(); 
+              
+              let amount = "0";
+              let payTerm = "";
+              let insTermArr: string[] = [];
+              let nameArr: string[] = [];
+              let foundAmount = false;
+
+              for (let i = fullParts.length - 1; i >= 0; i--) {
+                  const part = fullParts[i];
+                  const cleanPart = part.replace(/,/g, '').replace(/만원/g, '');
+                  if (!foundAmount && /^\d+$/.test(cleanPart)) {
+                      amount = cleanPart;
+                      foundAmount = true;
+                  } else if (!foundAmount) {
+                      if(part.includes("납")) payTerm = part;
+                      else insTermArr.unshift(part);
+                  } else {
+                      nameArr.unshift(part);
+                  }
+              }
+
+              let insTerm = insTermArr.join(" ");
+              let rawName = nameArr.join(" ");
+
+              let name = rawName.replace(new RegExp(covForm.contractor_name, "g"), '').replace(/최초계약\s*\d+년/g, '').replace(/갱신계약\s*\d+년(\s*갱신)?/g, '').replace(/\(최대\s*\d+세\s*만기\)/g, '').replace(/무배\s*당/g, '').replace(/당\s*최초계약/g, '').replace(/최초계약/g, '').replace(/\[해약환급금이[^\]]+\]/g, '').replace(/\([^)]*해약환급금[^)]*\)/g, '').replace(/\[W\]/g, '').trim();
+              name = name.replace(/^[^가-힣a-zA-Z0-9\[\(]+/, '');
+
+              if (rawName.includes("주계약") || rawName.includes("기본계약")) {
+                  if (!extractedProduct) extractedProduct = name.replace(/\[.*?\]/g, '').replace(/주계약|기본계약/g, "").trim();
+                  if (payTerm) extractedPaymentPeriod = payTerm;
+                  mainInsTerm = insTerm; 
+              }
+
+              let renewal = "비갱신";
+              if (name.includes("갱신형") || insTerm.includes("갱신") || rawName.includes("갱신")) {
+                  const renewMatch = insTerm.match(/(\d+)년\s*갱신/);
+                  renewal = renewMatch ? `${renewMatch[1]}년 갱신` : "갱신";
+              }
+              
+              name = name.replace(/\(갱신형\)/g, '').trim();
+              if (name.length > 0) {
+                const mappedNames = mapToStandardCoverage(name).split("||");
+                mappedNames.forEach(mName => {
+                  extractedDetails.push({ name: mName, amount: formatAmountWithComma(amount), renewal_type: renewal });
+                });
+              }
             }
-          } else {
-            parsedAmountNum = parseInt(cleanAmount.replace(/[^0-9]/g, ""), 10) || 0;
           }
+        }
+      } 
+      // ➖➖➖➖➖➖ 3. [일반 보장분석] 기존 메리츠 등 원본 코드 복원 ➖➖➖➖➖➖
+      else {
+        if (!extractedProduct) {
+          const policyNumIndex = lines.findIndex(l => l.includes("증권번호"));
+          if (policyNumIndex > 0) {
+            extractedProduct = lines[policyNumIndex - 1];
+          } else {
+            const prodLine = lines.find(l => (l.includes("보험") || l.includes("플랜")) && !l.includes("보험회사") && !l.includes("보장"));
+            if (prodLine) extractedProduct = prodLine;
+          }
+        }
 
-          const finalMappedName = mapToStandardCoverage(name);
+        const periodMatch = pasteText.match(/\((?:.*?납)?[,\s]*([0-9]+(?:년|세납|세|년납)|전기납|일시납)\)/) || pasteText.match(/([0-9]+(?:년납|세납|년|세)|전기납|일시납)/);
+        if (periodMatch) {
+          let p = periodMatch[1];
+          if (!p.includes("납") && !p.includes("일시") && !p.includes("전기")) p += "납";
+          extractedPaymentPeriod = p;
+        }
 
-          // ⭐️ 지능형 특약 기간(갱신/비갱신) 세팅
-          let renewalType = "비갱신";
+        let isPeriodSame = false;
+        if (extractedPaymentPeriod.includes("전기납")) {
+          isPeriodSame = true;
+        } else if (extractedSubDate && extractedMatDate && extractedPaymentPeriod) {
+          const subYear = parseInt(extractedSubDate.split("-")[0], 10);
+          const matYear = parseInt(extractedMatDate.split("-")[0], 10);
+          const payMatch = extractedPaymentPeriod.match(/([0-9]+)년/);
+          if (payMatch && !isNaN(subYear) && !isNaN(matYear)) {
+            const payYears = parseInt(payMatch[1], 10);
+            if (matYear - subYear === payYears) isPeriodSame = true;
+          }
+        }
+
+        const premiumRegex = /([0-9,]+)원\s*(?:약관조회|상품공시실)/;
+        const premiumMatch = pasteText.match(premiumRegex);
+        if (premiumMatch) {
+          extractedPremium = premiumMatch[1].replace(/,/g, "");
+        } else {
+          const termsIndex = lines.findIndex(l => l.includes("약관조회") || l.includes("상품공시실"));
+          if (termsIndex > 0) {
+            const premiumLine = lines[termsIndex - 1];
+            const backupMatch = premiumLine.match(/([0-9,]+)/);
+            if (backupMatch) extractedPremium = backupMatch[1].replace(/,/g, "");
+          }
+        }
+
+        const expectedMatch = pasteText.match(/납입예정\s*([0-9,]+)원/);
+        if (expectedMatch) {
+          const expectedAmount = parseInt(expectedMatch[1].replace(/,/g, ""), 10);
+          if (expectedAmount === 0) extractedPremium = "0";
+        }
+
+        for (const line of lines) {
+          if (line.includes("보장구분") || line.includes("보장명") || line.includes("실손구분")) continue;
+          if (line.includes("유의사항") || line.includes("상기 내용")) break;
+
+          const coverageRegex = /^(.*?)\s+((?:\d+,?)+\s*(?:억\s*(?:\d+,?)*\s*만원|억원|만원|원))(?:\s+(.*?))?\s+(정상|소멸|유지|해지)$/;
+          const match = line.match(coverageRegex);
           
-          if (periodStr.includes("갱신")) {
-            const cycleMatch = periodStr.match(/([0-9]+년)\s*갱신/);
-            if (cycleMatch) renewalType = `${cycleMatch[1]} 갱신`;
-            else renewalType = "갱신형";
-          } else if (name.includes("갱신")) {
-            const cycleMatch = name.match(/([0-9]+년)\s*갱신/);
-            if (cycleMatch) renewalType = `${cycleMatch[1]} 갱신`;
-            else renewalType = "갱신형";
-          } else {
-            // ⭐️ 기간과 납입기간이 일치할 때만 납입기간 복사, 아니면 무조건 "비갱신"
-            renewalType = isPeriodSame && extractedPaymentPeriod ? extractedPaymentPeriod : "비갱신";
-          }
+          if (match) {
+            let rawName = match[1].trim();
+            let amountStr = match[2].trim();
+            let periodStr = match[3] ? match[3].trim() : ""; 
+            let status = match[4].trim();
 
-          extractedDetails.push({
-            name: finalMappedName,
-            amount: formatAmountWithComma(parsedAmountNum.toString()),
-            renewal_type: renewalType
-          });
+            if (status === "소멸" || status === "해지") continue;
+
+            let name = rawName;
+            if (rawName.includes("\t")) {
+              const parts = rawName.split("\t").filter(t => t.trim() !== "");
+              name = parts[parts.length - 1]; 
+            } else {
+              const parts = rawName.split(/\s+/);
+              if (parts.length > 1) {
+                if (parts[1].includes(parts[0]) || parts[0].includes(parts[1])) {
+                   if (parts[0] !== "기타") parts.shift();
+                }
+              }
+              name = parts.join(" ");
+            }
+
+            let cleanAmount = amountStr.replace(/,/g, "").replace(/\s/g, "");
+            let parsedAmountNum = 0;
+
+            if (cleanAmount.includes("억")) {
+              const parts = cleanAmount.split("억");
+              const eok = parseInt(parts[0].replace(/[^0-9]/g, ""), 10) || 0;
+              parsedAmountNum += eok * 10000;
+              if (parts[1] && parts[1].includes("만")) {
+                const man = parseInt(parts[1].replace(/[^0-9]/g, ""), 10) || 0;
+                parsedAmountNum += man;
+              }
+            } else {
+              parsedAmountNum = parseInt(cleanAmount.replace(/[^0-9]/g, ""), 10) || 0;
+            }
+            
+            const finalMappedName = mapToStandardCoverage(name);
+            let renewalType = "비갱신";
+
+            if (periodStr.includes("갱신")) {
+              const cycleMatch = periodStr.match(/([0-9]+년)\s*갱신/);
+              if (cycleMatch) renewalType = `${cycleMatch[1]} 갱신`;
+              else renewalType = "갱신형";
+            } else if (name.includes("갱신")) {
+              const cycleMatch = name.match(/([0-9]+년)\s*갱신/);
+              if (cycleMatch) renewalType = `${cycleMatch[1]} 갱신`;
+              else renewalType = "갱신형";
+            } else {
+              renewalType = isPeriodSame && extractedPaymentPeriod ? extractedPaymentPeriod : "비갱신";
+            }
+
+            finalMappedName.split("||").forEach(mName => {
+              extractedDetails.push({
+                name: mName,
+                amount: formatAmountWithComma(parsedAmountNum.toString()),
+                renewal_type: renewalType
+              });
+            });
+          }
+        }
+      }
+
+      // 💡 [보험 만기 일자 스마트 계산 엔진 (공통)]
+      let calculatedMatDate = extractedMatDate;
+      const todayObj = new Date();
+      const defaultTodayStr = `${todayObj.getFullYear()}-${String(todayObj.getMonth() + 1).padStart(2, '0')}-${String(todayObj.getDate()).padStart(2, '0')}`;
+      const baseDateStr = extractedSubDate || defaultTodayStr;
+      
+      if (!calculatedMatDate && mainInsTerm) {
+        const baseYear = parseInt(baseDateStr.split("-")[0], 10);
+        const baseMonthDay = baseDateStr.substring(4); 
+        
+        if (mainInsTerm.includes("종신")) {
+          calculatedMatDate = "9999-12-31";
+        } else if (mainInsTerm.includes("년")) {
+          const yearMatch = mainInsTerm.match(/(\d+)년/);
+          if (yearMatch) {
+            calculatedMatDate = `${baseYear + parseInt(yearMatch[1], 10)}${baseMonthDay}`;
+          }
+        } else if (mainInsTerm.includes("세")) {
+          const targetAgeMatch = mainInsTerm.match(/(\d+)세/);
+          const currentAgeMatch = pasteText.match(/(\d+)세/); 
+          if (targetAgeMatch && currentAgeMatch) {
+            const yearsToAdd = parseInt(targetAgeMatch[1], 10) - parseInt(currentAgeMatch[1], 10);
+            if (yearsToAdd > 0) calculatedMatDate = `${baseYear + yearsToAdd}${baseMonthDay}`;
+          }
         }
       }
 
@@ -456,8 +782,8 @@ export default function InsuranceModal({
         product: extractedProduct || prev.product,
         premium: extractedPremium || prev.premium,
         premiumFormatted: extractedPremium ? formatAmountWithComma(extractedPremium) : prev.premiumFormatted,
-        subscriptionDate: extractedSubDate || prev.subscriptionDate,
-        maturityDate: extractedMatDate || prev.maturityDate,
+        subscriptionDate: extractedSubDate || defaultTodayStr,
+        maturityDate: calculatedMatDate || "",
         paymentPeriod: extractedPaymentPeriod || prev.paymentPeriod,
       }));
 
@@ -625,11 +951,11 @@ export default function InsuranceModal({
           </button>
         </div>
 
-        <div className="p-4 md:p-6 overflow-y-auto space-y-6">
+        <div className="p-4 md:p-6 overflow-y-auto space-y-6 custom-scrollbar">
           <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-4 space-y-3">
             <div className="flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-indigo-500" />
-              <p className="text-sm font-bold text-indigo-900">메리츠화재 등 보장분석 텍스트 파싱</p>
+              <p className="text-sm font-bold text-indigo-900">보험사 가입설계서 텍스트 붙여넣기 파싱</p>
             </div>
             <div className="flex flex-col sm:flex-row gap-2">
               <textarea 
@@ -789,7 +1115,7 @@ export default function InsuranceModal({
                 </div>
                 <input 
                   type="text" 
-                  className={`${inputClassName} ${isCurrentUserAgent ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''}`} 
+                  className={`${inputClassName} ${isCurrentUserAgent ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''} font-bold`} 
                   onChange={(e) => setCovForm({ ...covForm, agent_name: e.target.value })} 
                   value={covForm.agent_name}
                   readOnly={isCurrentUserAgent}
@@ -808,13 +1134,13 @@ export default function InsuranceModal({
                 const displayRenewals = getDisplayOptions(detail.renewal_type || "", RENEWAL_OPTIONS);
 
                 return (
-                  <div key={index} className="flex flex-wrap sm:flex-nowrap gap-2 items-center p-2 sm:p-0 bg-gray-50/50 sm:bg-transparent rounded-lg border sm:border-0 border-gray-100 relative">
+                  <div key={index} className="flex flex-wrap sm:flex-nowrap gap-2 items-center p-2 sm:p-0 bg-gray-50/50 sm:bg-transparent rounded-lg border sm:border-0 border-gray-100 relative hover:border-blue-200 transition-colors">
                     
                     <div className="relative w-full sm:w-[45%] shrink-0">
                       <input
                         type="text"
                         placeholder="특약 항목명 (검색 또는 직접입력)"
-                        className={`${inputClassName} w-full text-xs font-bold`}
+                        className={`${inputClassName} w-full text-xs font-bold text-gray-800`}
                         value={detail.name}
                         onChange={(e) => updateCovDetail(index, "name", e.target.value)}
                         onFocus={() => setFocusedIndex(index)}
@@ -844,13 +1170,16 @@ export default function InsuranceModal({
                     </div>
                     
                     <div className="flex w-full sm:flex-1 gap-1.5 items-center">
-                      <input
-                        type="text"
-                        placeholder="가입 금액"
-                        className={`${inputClassName} flex-1 min-w-0 text-xs text-right`}
-                        value={detail.amount}
-                        onChange={(e) => updateCovDetail(index, "amount", e.target.value)}
-                      />
+                      <div className="flex flex-1 items-center bg-white border border-gray-200 rounded-lg overflow-hidden focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all">
+                        <input
+                          type="text"
+                          placeholder="가입 금액"
+                          className="w-full text-right text-xs px-2 py-2 outline-none font-bold text-blue-700 placeholder:font-normal"
+                          value={detail.amount}
+                          onChange={(e) => updateCovDetail(index, "amount", e.target.value)}
+                        />
+                        <span className="text-[11px] font-bold text-gray-500 pr-2.5 bg-white">만원</span>
+                      </div>
                       
                       <div className="relative shrink-0 w-[84px] sm:w-[100px]">
                         <input
@@ -884,16 +1213,16 @@ export default function InsuranceModal({
                         )}
                       </div>
 
-                      <button onClick={() => removeCovDetail(index)} className="p-1.5 text-gray-400 hover:text-red-500 transition-colors shrink-0 bg-white rounded-md border border-gray-200 cursor-pointer">
-                        <X className="w-4 h-4" />
+                      <button onClick={() => removeCovDetail(index)} className="p-2 text-gray-400 hover:text-red-500 transition-colors shrink-0 bg-white rounded-md border border-gray-200 cursor-pointer shadow-sm hover:bg-red-50">
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
                 );
               })}
             </div>
-            <button onClick={addCovDetail} className="cursor-pointer w-full py-3 md:py-2.5 flex items-center justify-center gap-1 text-sm font-medium text-blue-600 border border-dashed border-blue-200 bg-blue-50/50 rounded-lg hover:bg-blue-50 transition-colors mt-4">
-              <Plus className="w-4 h-4" /> 빈 항목 한 줄 추가
+            <button onClick={addCovDetail} className="cursor-pointer w-full py-3 md:py-2.5 flex items-center justify-center gap-1 text-sm font-bold text-blue-600 border border-dashed border-blue-300 bg-blue-50/50 rounded-lg hover:bg-blue-100 transition-colors mt-4">
+              <Plus className="w-4 h-4" /> 특약 한 줄 추가
             </button>
           </div>
         </div>
@@ -902,7 +1231,8 @@ export default function InsuranceModal({
           <button onClick={onClose} className="cursor-pointer flex-1 md:flex-none px-4 py-3 md:py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
             취소
           </button>
-          <button onClick={handleSaveCoverage} disabled={isSaving} className="cursor-pointer flex-1 md:flex-none px-6 py-3 md:py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50">
+          <button onClick={handleSaveCoverage} disabled={isSaving} className="cursor-pointer flex-1 md:flex-none px-6 py-3 md:py-2 text-sm font-bold text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5 shadow-md">
+            {isSaving ? <Loader2 className="w-4 h-4 animate-spin"/> : <CheckSquare className="w-4 h-4"/>}
             {isSaving ? "저장 중..." : "보장 내역 완전히 저장"}
           </button>
         </div>

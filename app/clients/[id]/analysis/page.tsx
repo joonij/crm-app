@@ -1,4 +1,3 @@
-// app/clients/[id]/analysis/page.tsx
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
@@ -6,7 +5,6 @@ import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Check, X, ArrowLeft, Umbrella, TrendingDown, ShieldCheck, Printer, AlertCircle, Stethoscope, CheckCircle2, Info, FileText, AlertTriangle, Save, Loader2, Settings2, Star, RotateCcw, ShieldAlert, Share2, Target, Phone, MessageCircle, ArrowRight, UserPlus, ChevronDown, ChevronUp, Search, LineChart, Gem } from "lucide-react";
 
-// 금액 포맷팅 (숫자 -> 억/만 단위)
 const formatMoney = (amount: number) => {
   if (amount === 0) return "0원";
   if (amount >= 10000) {
@@ -19,14 +17,12 @@ const formatMoney = (amount: number) => {
 
 const formatPremium = (amount: number) => `${amount.toLocaleString()}원`;
 
-// 특약 상세 금액 3자리 콤마 포맷팅 헬퍼
 const formatDetailAmount = (val: string | number) => {
   if (!val) return "0";
   const raw = String(val).replace(/,/g, "");
   return raw.replace(/\d+/g, (match) => Number(match).toLocaleString());
 };
 
-// 문자열에서 숫자만 추출하는 헬퍼
 const extractNumber = (str: string | undefined | null) => {
   if (!str) return 0;
   let raw = String(str).replace(/\s+/g, ""); 
@@ -54,7 +50,6 @@ const extractNumber = (str: string | undefined | null) => {
   return total;
 };
 
-// 납입 기간 추출 헬퍼
 const extractMonthsFromPeriod = (
   periodStr: string | null | undefined,
   subDate: string | null | undefined,
@@ -218,7 +213,7 @@ export default function AnalysisPage() {
   const [analysisData, setAnalysisData] = useState({
     premium: { before: 0, after: 0 },
     totalPremium: { before: 0, after: 0 }, 
-    coverages: [] as { name: string; before: number; after: number }[],
+    coverages: [] as { name: string; before: number; after: number; rawNames?: string[] }[],
     rawPolicies: [] as any[],
   });
   
@@ -236,7 +231,6 @@ export default function AnalysisPage() {
   const [isSavingConsulting, setIsSavingConsulting] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
-  // ⭐️ 누락되었던 상태(State) 변수들 복구
   const [activeTab, setActiveTab] = useState<'insurances' | 'gaps'>('insurances');
   const [insuranceSearchTerm, setInsuranceSearchTerm] = useState("");
   const [expandedCovId, setExpandedCovId] = useState<number | null>(null);
@@ -278,9 +272,8 @@ export default function AnalysisPage() {
       let premiumAfter = 0;
       let totalPremiumBefore = 0; 
       let totalPremiumAfter = 0;  
-      const coverageMap: Record<string, { displayName: string; before: number; after: number }> = {};
+      const coverageMap: Record<string, { displayName: string; before: number; after: number; rawNames: string[] }> = {};
 
-      // ⭐️ 새로 추가된 연금, 사망, 유사암, 순환계 점수 합산 로직
       const scores = {
         cancer: { before: 0, after: 0 },
         similarCancer: { before: 0, after: 0 }, 
@@ -475,20 +468,25 @@ export default function AnalysisPage() {
             }
 
             if (!coverageMap[standardKey]) {
-              coverageMap[standardKey] = { displayName: standardDisplayName, before: 0, after: 0 };
+              coverageMap[standardKey] = { displayName: standardDisplayName, before: 0, after: 0, rawNames: [] };
             }
             if (isBefore) coverageMap[standardKey].before += beforeVal;
             if (isAfter) coverageMap[standardKey].after += afterVal;
+            
+            // ⭐️ 원본 특약명 저장 로직 추가
+            if (!coverageMap[standardKey].rawNames.includes(normalizedName)) {
+              coverageMap[standardKey].rawNames.push(normalizedName);
+            }
 
             if (standardKey === "일반사망 진단비") {
               if (!coverageMap["상해사망진단비"]) {
-                coverageMap["상해사망진단비"] = { displayName: "상해사망 진단비", before: 0, after: 0 };
+                coverageMap["상해사망진단비"] = { displayName: "상해사망 진단비", before: 0, after: 0, rawNames: [] };
               }
               if (isBefore) coverageMap["상해사망진단비"].before += beforeVal;
               if (isAfter) coverageMap["상해사망진단비"].after += afterVal;
 
               if (!coverageMap["질병사망진단비"]) {
-                coverageMap["질병사망진단비"] = { displayName: "질병사망 진단비", before: 0, after: 0 };
+                coverageMap["질병사망진단비"] = { displayName: "질병사망 진단비", before: 0, after: 0, rawNames: [] };
               }
               if (isBefore) coverageMap["질병사망진단비"].before += beforeVal;
               if (isAfter) coverageMap["질병사망진단비"].after += afterVal;
@@ -502,6 +500,7 @@ export default function AnalysisPage() {
         name: coverageMap[key].displayName,
         before: coverageMap[key].before,
         after: coverageMap[key].after,
+        rawNames: coverageMap[key].rawNames // ⭐️ KCD 검사용으로 전달
       }))
       .filter((item) => (item.before > 0 || item.after > 0) && item.name !== "일반사망 진단비")
       .sort((a, b) => {
@@ -570,10 +569,32 @@ export default function AnalysisPage() {
     setTimeout(() => { document.title = originalTitle; }, 500);
   };
 
-  const calculateCodeCoverage = useCallback((keywords: string[], type: 'before' | 'after') => {
+  // ⭐️ 뇌혈관 질환 KCD 코드 목록 정의
+  const BRAIN_KCD_CODES = [
+    "I60~I62", "I63", "I64", "I65~I66", "I67~I69"
+  ];
+
+  // ⭐️ 예외 로직이 추가된 KCD 커버리지 계산 함수
+  const calculateCodeCoverage = useCallback((keywords: string[], type: 'before' | 'after', kcdId: string) => {
     return analysisData.coverages
       .filter(c => keywords.some(kw => c.name.includes(kw)))
-      .reduce((acc, curr) => acc + curr[type], 0);
+      .reduce((acc, curr) => {
+        // ⭐️ 특약의 원본 이름들 중 "(뇌혈관질환 제외)" 혹은 "뇌혈관제외" 가 포함되어 있는지 검사
+        const isBrainExcluded = curr.rawNames?.some(raw => 
+          raw.includes("뇌혈관질환제외") || 
+          raw.includes("뇌혈관제외") || 
+          raw.includes("허혈성심장질환제외") || 
+          raw.includes("뇌혈관질환및허혈성심장질환제외") || 
+          raw.includes("뇌혈관질환 및 허혈성심장질환 제외")
+        );
+        
+        // ⭐️ 현재 계산 중인 KCD 코드가 뇌혈관 질환에 속하고, 특약이 뇌혈관을 제외한다면 합산(acc)에서 패스(0 리턴)
+        if (BRAIN_KCD_CODES.includes(kcdId) && isBrainExcluded) {
+          return acc; 
+        }
+
+        return acc + curr[type];
+      }, 0);
   }, [analysisData.coverages]);
 
   const openKcdModal = () => {
@@ -690,7 +711,6 @@ export default function AnalysisPage() {
     { condition: !scores.hasDriver, title: "운전자 핵심 비용 부재", desc: "민사/형사상 책임을 방어하는 교통사고처리지원금, 변호사선임비 등의 방어막이 없습니다.", action: "형사합의금 지원 플랜 마련" },
     { condition: !scores.hasDental, title: "치아 보장 자산 부재", desc: "큰 비용이 드는 임플란트, 크라운에 대한 전문 치과 치료비 보장이 없습니다.", action: "치과 전문 덴탈 케어 안내" }
   ];
-  console.log(scores);
 
   const displayGaps = (() => {
     const filteredAutoGaps = baseGapItems.filter(item => {
@@ -1178,8 +1198,8 @@ export default function AnalysisPage() {
                     <tbody className="divide-y divide-slate-100">
                       {group.items.map((item, itemIdx) => {
                         const override = kcdOverrides[item.id] || {};
-                        const beforeAmt = override.before !== undefined ? override.before : calculateCodeCoverage(item.keywords, 'before');
-                        const afterAmt = override.after !== undefined ? override.after : calculateCodeCoverage(item.keywords, 'after');
+                        const beforeAmt = override.before !== undefined ? override.before : calculateCodeCoverage(item.keywords, 'before', item.id);
+                        const afterAmt = override.after !== undefined ? override.after : calculateCodeCoverage(item.keywords, 'after', item.id);
                         const isHighlight = override.highlight !== undefined ? override.highlight : item.highlight;
 
                         const gap = afterAmt - beforeAmt;
@@ -1255,8 +1275,8 @@ export default function AnalysisPage() {
                     <tbody className="divide-y divide-slate-100">
                       {group.items.map((item, itemIdx) => {
                         const override = kcdOverrides[item.id] || {};
-                        const beforeAmt = override.before !== undefined ? override.before : calculateCodeCoverage(item.keywords, 'before');
-                        const afterAmt = override.after !== undefined ? override.after : calculateCodeCoverage(item.keywords, 'after');
+                        const beforeAmt = override.before !== undefined ? override.before : calculateCodeCoverage(item.keywords, 'before', item.id);
+                        const afterAmt = override.after !== undefined ? override.after : calculateCodeCoverage(item.keywords, 'after', item.id);
                         const isHighlight = override.highlight !== undefined ? override.highlight : item.highlight;
                         
                         const gap = afterAmt - beforeAmt;
@@ -1596,8 +1616,8 @@ export default function AnalysisPage() {
                       {group.items.map((item) => {
                         const overrideBefore = tempKcdOverrides[item.id]?.before;
                         const overrideAfter = tempKcdOverrides[item.id]?.after;
-                        const autoBefore = calculateCodeCoverage(item.keywords, 'before');
-                        const autoAfter = calculateCodeCoverage(item.keywords, 'after');
+                        const autoBefore = calculateCodeCoverage(item.keywords, 'before', item.id);
+                        const autoAfter = calculateCodeCoverage(item.keywords, 'after', item.id);
                         
                         const displayBefore = overrideBefore !== undefined ? overrideBefore : autoBefore;
                         const displayAfter = overrideAfter !== undefined ? overrideAfter : autoAfter;

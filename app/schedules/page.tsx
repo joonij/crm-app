@@ -281,7 +281,14 @@ export default function SchedulePage() {
 
           const memberContracts = contractEvents.filter(ce => ce.ownerName === member.name);
           memberEvents = [...memberEvents, ...memberContracts];
-          memberEvents.sort((a, b) => a.time.localeCompare(b.time));
+          
+          // ⭐️ 달력 내부 이벤트 정렬: 1순위 시간, 2순위 피보험자명(가나다순)
+          memberEvents.sort((a, b) => {
+            if (a.time !== b.time) return a.time.localeCompare(b.time);
+            const nameA = a.clients?.insured_name || a.clients?.contractor_name || a.clients?.name || "";
+            const nameB = b.clients?.insured_name || b.clients?.contractor_name || b.clients?.name || "";
+            return nameA.localeCompare(nameB, 'ko-KR');
+          });
 
           return {
             id: member.id, 
@@ -347,7 +354,6 @@ export default function SchedulePage() {
     const isFaded = highlightedClientId !== null && (!hasClient || evt.client_id !== highlightedClientId);
     const isHighlighted = highlightedClientId !== null && hasClient && evt.client_id === highlightedClientId;
     
-    // ⭐️ 수정: scale을 약간 줄이고, z-index를 높여 좌측 잘림 현상 완벽 방지
     const hoverEffectClass = isFaded 
       ? 'opacity-30' 
       : isHighlighted 
@@ -366,8 +372,16 @@ export default function SchedulePage() {
           <div className="flex items-center justify-between border-b border-yellow-200/50 pb-1.5 sm:pb-1">
             <span className="flex items-center gap-1">
               🎉
-              {evt.clients?.contractor_name && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/60 text-yellow-800 whitespace-nowrap overflow-hidden text-ellipsis max-w-[80px]">{evt.clients.contractor_name}</span>}
-              {evt.clients?.insured_name && evt.clients.insured_name !== evt.clients.contractor_name && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/60 text-yellow-800 whitespace-nowrap overflow-hidden text-ellipsis max-w-[80px]">피:{evt.clients.insured_name}</span>}
+              {evt.clients?.contractor_name === evt.clients?.insured_name ? (
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/60 text-yellow-800 whitespace-nowrap overflow-hidden text-ellipsis max-w-[80px]">
+                  {evt.clients?.insured_name}
+                </span>
+              ) : (
+                <>
+                  {evt.clients?.insured_name && <span className="text-[10px] font-bold py-0.5 rounded bg-white/60 text-yellow-800 whitespace-nowrap overflow-hidden text-ellipsis max-w-[60px]">{evt.clients.insured_name}</span>}
+                  {evt.clients?.contractor_name && <span className="text-[10px] font-bold py-0.5 rounded bg-white/60 text-yellow-800 whitespace-nowrap overflow-hidden text-ellipsis max-w-[60px]">{evt.clients.contractor_name}</span>}
+                </>
+              )}
             </span>
             <span className="font-extrabold text-[10px] text-yellow-900  px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 border border-yellow-200">
               계약체결
@@ -401,8 +415,16 @@ export default function SchedulePage() {
           <div className="flex items-center justify-between border-b border-orange-200/50 pb-1.5 sm:pb-1">
             <span className="flex items-center gap-1">
               <AlertCircle className="w-3.5 h-3.5 sm:w-3 sm:h-3 text-orange-600 shrink-0" />
-              {evt.clients?.contractor_name && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/60 text-orange-800 whitespace-nowrap overflow-hidden text-ellipsis max-w-[80px]">{evt.clients.contractor_name}</span>}
-              {evt.clients?.insured_name && evt.clients.insured_name !== evt.clients.contractor_name && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/60 text-orange-800 whitespace-nowrap overflow-hidden text-ellipsis max-w-[80px]">피:{evt.clients.insured_name}</span>}
+              {evt.clients?.contractor_name === evt.clients?.insured_name ? (
+                <span className="text-[10px] font-bold py-0.5 rounded bg-white/60 text-orange-800 whitespace-nowrap overflow-hidden text-ellipsis max-w-[80px]">
+                  {evt.clients?.insured_name}
+                </span>
+              ) : (
+                <>
+                  {evt.clients?.insured_name && <span className="text-[10px] font-bold py-0.5 rounded bg-white/60 text-orange-800 whitespace-nowrap overflow-hidden text-ellipsis max-w-[60px]">{evt.clients.insured_name}</span>}
+                  {evt.clients?.contractor_name && <span className="text-[10px] font-bold py-0.5 rounded bg-white/60 text-orange-800 whitespace-nowrap overflow-hidden text-ellipsis max-w-[60px]">{evt.clients.contractor_name}</span>}
+                </>
+              )}
             </span>
             <span className="font-extrabold text-[10px] text-orange-900  px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 border border-orange-200">
               계약예정
@@ -685,16 +707,23 @@ export default function SchedulePage() {
                       <div key={`week-${wIdx}`} className="grid grid-cols-[repeat(7,minmax(120px,1fr))_minmax(180px,220px)] gap-[1px] min-h-[160px] xl:min-h-[200px]">
                         {week.map((day, idx) => {
                            const dayEvents = allEventsForMonth.filter(e => e.date === day.date);
+                           
+                           // ⭐️ 모바일 달력(혹은 월간 달력) 렌더링 시 일별 이벤트를 피보험자 가나다순으로 한 번 더 정렬 보장
+                           const sortedDayEvents = [...dayEvents].sort((a, b) => {
+                             if (a.time !== b.time) return a.time.localeCompare(b.time);
+                             const nameA = a.clients?.insured_name || a.clients?.contractor_name || a.clients?.name || "";
+                             const nameB = b.clients?.insured_name || b.clients?.contractor_name || b.clients?.name || "";
+                             return nameA.localeCompare(nameB, 'ko-KR');
+                           });
+
                            return (
-                            // ⭐️ 수정: hover 시 왼쪽 짤림 현상 방지를 위해 overflow-hidden 제거 및 px-1 -mx-1 적용
                             <div key={day.date} className={`group relative bg-white p-2 flex flex-col hover:bg-slate-50 ${day.isCurrentMonth ? '' : 'opacity-60 bg-slate-50'}`}>
                               <div className="flex justify-between items-start mb-2">
                                 <span className={`text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full ${day.date === formatDateStr(new Date()) ? 'bg-blue-600 text-white' : idx%7===0 ? 'text-red-500' : idx%7===6 ? 'text-blue-500' : ''}`}>{day.raw}</span>
                                 <button onClick={() => openModal(day.date)} className="opacity-0 group-hover:opacity-100 p-1 bg-white border border-blue-200 text-blue-600 rounded-full shadow-sm hover:bg-blue-600 hover:text-white transition-all cursor-pointer"><Plus className="w-3 h-3" /></button>
                               </div>
-                              {/* ⭐️ 수정: px-1 -mx-1 로 보이지 않는 여백 확보 */}
                               <div className="flex-1 overflow-y-auto space-y-2 px-1 -mx-1 py-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                                {dayEvents.map(evt => renderEvent(evt, true))}
+                                {sortedDayEvents.map(evt => renderEvent(evt, true))}
                               </div>
                             </div>
                            )
@@ -814,7 +843,14 @@ export default function SchedulePage() {
 
               <div className="space-y-4">
                 {teamSchedules.map(member => {
-                  const memberEvents = member.events.filter(e => e.date === selectedMobileDate);
+                  // ⭐️ 모바일 리스트에서도 피보험자 순으로 한 번 더 명확하게 정렬
+                  const memberEvents = member.events.filter(e => e.date === selectedMobileDate).sort((a, b) => {
+                    if (a.time !== b.time) return a.time.localeCompare(b.time);
+                    const nameA = a.clients?.insured_name || a.clients?.contractor_name || a.clients?.name || "";
+                    const nameB = b.clients?.insured_name || b.clients?.contractor_name || b.clients?.name || "";
+                    return nameA.localeCompare(nameB, 'ko-KR');
+                  });
+
                   if (memberEvents.length === 0) return null;
                   
                   const mobNewAmt = viewMode === 'weekly' ? member.stats.weekNewAmt : member.stats.monthNewAmt;
@@ -905,14 +941,14 @@ export default function SchedulePage() {
                 )
               )}
 
-              {/* ⭐️ 관련 고객 프로필 이동 버튼 추가 */}
-              {(detailModalEvent.clients?.name || detailModalEvent.clients?.contractor_name) && (
+              {/* ⭐️ 관련 고객 프로필 이동 버튼 추가 (모달에서도 피보험자 우선 표시) */}
+              {(detailModalEvent.clients?.name || detailModalEvent.clients?.contractor_name || detailModalEvent.clients?.insured_name) && (
                 <div className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-100">
                   <span className="font-bold text-slate-500">관련 고객</span>
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-slate-800 flex items-center gap-1 border border-slate-300 bg-white px-2 py-0.5 rounded text-xs">
-                      {detailModalEvent.clients.name || detailModalEvent.clients.contractor_name}
-                      {detailModalEvent.clients.insured_name && detailModalEvent.clients.insured_name !== detailModalEvent.clients.contractor_name && ` / ${detailModalEvent.clients.insured_name}`}
+                      {detailModalEvent.clients.insured_name || detailModalEvent.clients.contractor_name || detailModalEvent.clients.name}
+                      {detailModalEvent.clients.contractor_name && detailModalEvent.clients.contractor_name !== detailModalEvent.clients.insured_name && ` / 계약자:${detailModalEvent.clients.contractor_name}`}
                     </span>
                     {detailModalEvent.client_id && (
                       <Link 
