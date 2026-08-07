@@ -71,9 +71,14 @@ export const COVERAGE_OPTIONS = [
   // 특약명 매핑(변환) 함수
   export const mapToStandardCoverage = (rawName: string) => {
     let displayRawName = rawName
-      .replace(/[0-9]+\.[0-9]+\.[0-9]+\s*간편고지/g, '') 
-      .replace(/[0-9]+\.[0-9]+\s*간편고지/g, '') 
-      .replace(/간편고지|간편심사|간편가입|특약|기본계약/g, '')
+      .replace(/\(?\s*[0-9]+\.[0-9]+(\.[0-9]+)?\s*(간\s*편\s*(고\s*지|심\s*사|가\s*입)?)?\s*\)?/g, '')
+      .replace(/\(?\s*[0-9]{3}\s*간\s*편\s*(고\s*지|심\s*사|가\s*입)?\s*\)?/g, '')
+      .replace(/\(\s*[0-9]{3}\s*\)/g, '')
+      .replace(/\(\s*[IVXⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+\s*\)/gi, '')
+      .replace(/\[?\s*해\s*[지약]\s*환\s*급\s*금\s*이?\s*없\s*는\s*유\s*형\s*\]?/g, '')
+      .replace(/간\s*편\s*고\s*지|간\s*편\s*심\s*사|간\s*편\s*가\s*입|간\s*편|특\s*약\s*W?|특\s*약|기\s*본\s*계\s*약/g, '')
+      .replace(/\[\s*W\s*\]/g, '')
+
       .replace(/_?비갱신형?|_?갱신형?/g, '')
       .replace(/무배당|\(무\)/g, '')
       .replace(/해[지약]환급금/g, '')
@@ -86,11 +91,11 @@ export const COVERAGE_OPTIONS = [
       .replace(/[,:|&/ ]+\s*\]/g, ']')
       .replace(/[,:|&/]\s*[,:|&/]+/g, ',') 
   
-      .replace(/\(\)/g, '')
-      .replace(/\[\]/g, '')
+      .replace(/\(\s*\)/g, '')
+      .replace(/\[\s*\]/g, '')
       .trim()
       .replace(/^[-_]+\s*/, '')
-      .replace(/\s{2,}/g, ' '); 
+      .replace(/\s{2,}/g, ' ');
   
     if (!displayRawName) displayRawName = rawName;
   
@@ -101,12 +106,20 @@ export const COVERAGE_OPTIONS = [
     }
   
     const getMappedName = () => {
-      if (displayRawName.includes("기타")) return displayRawName;
-      if (displayRawName.includes("[W]") || displayRawName.includes("특약W")) return displayRawName;
   
       const name = displayRawName.replace(/\s+/g, ""); 
+
+
       
-      if (!name.includes("왜래") && !name.includes("통원") && (name.includes("실손") || name.includes("의료")) && name.includes("상해") && name.includes("입원")) return "상해입원 실손의료비";
+    // 미래에셋생명 특약
+    if (name.includes("특정순환계질환") && name.includes("진단")) return "특정순환계질환 진단비";
+    if (name.includes("특정순환계질환") && name.includes("통합치료비")) return "특정순환계질환통합 치료비";
+    // 미래에셋생명 특약
+
+    if (name.includes("납입") && (name.includes("면제"))) return "납입면제";
+    if (name.includes("납입") && (name.includes("지원"))) return "납입지원";
+      
+    if (!name.includes("왜래") && !name.includes("통원") && (name.includes("실손") || name.includes("의료")) && name.includes("상해") && name.includes("입원")) return "상해입원 실손의료비";
     if (!name.includes("왜래") && !name.includes("통원") && (name.includes("실손") || name.includes("의료")) && name.includes("질병") && name.includes("입원")) return "질병입원 실손의료비";
     if ((name.includes("실손") || name.includes("의료")) && (name.includes("처방") || name.includes("약제")) && name.includes("상해")) return "상해약제 실손의료비";
     if ((name.includes("실손") || name.includes("의료")) && (name.includes("처방") || name.includes("약제")) && name.includes("질병")) return "질병약제 실손의료비";
@@ -142,6 +155,7 @@ export const COVERAGE_OPTIONS = [
 
     if (name.includes("암") && name.includes("통원")) return "암통원 치료비";
     if (name.includes("암") && name.includes("하이") && name.includes("치료")) return "하이클래스암 치료비";
+    if (name.includes("비급여") && name.includes("암") && name.includes("주요") && name.includes("치료")) return "비급여암주요 치료비";
     if (name.includes("암") && name.includes("주요") && name.includes("치료")) return "암주요 치료비";
     if (name.includes("암") && name.includes("통합") && name.includes("치료")) return "통합암 치료비";
 
@@ -168,6 +182,20 @@ export const COVERAGE_OPTIONS = [
     if (name.includes("소액암") && name.includes("수술")) return "유사암 수술비";
     if (name.includes("유사암") && name.includes("수술")) return "유사암 수술비";
     if (name.includes("암") && name.includes("수술")) return "암 수술비";
+
+    if (name.includes("대") && name.includes("혈관") && name.includes("진단")) return displayRawName;
+    if (name.includes("대") && name.includes("순환") && name.includes("진단")) return displayRawName;
+    if (name.includes("특정") && name.includes("혈관") && name.includes("진단")) return displayRawName;
+    if (name.includes("특정") && name.includes("순환") && name.includes("진단")) return displayRawName;
+    if (name.includes("혈관") && name.includes("진단")) return "순환계질환 진단비";
+    if (name.includes("순환") && name.includes("진단")) return "순환계질환 진단비";
+
+    if (name.includes("특정") && name.includes("순환") && name.includes("통합") && name.includes("치료")) return displayRawName;
+    if (name.includes("특정") && name.includes("순환") && name.includes("주요") && name.includes("치료")) return displayRawName;
+    if (name.includes("대") && name.includes("순환") && name.includes("통합") && name.includes("치료")) return displayRawName;
+    if (name.includes("대") && name.includes("순환") && name.includes("주요") && name.includes("치료")) return displayRawName;
+    if (name.includes("순환") && name.includes("통합") && name.includes("치료")) return "순환계통합 치료비";
+    if (name.includes("순환") && name.includes("주요") && name.includes("치료")) return "순환계주요 치료비";
     
     if (name.includes("뇌") && (name.includes("산정") || name.includes("특례"))) return "뇌산정특례대상 진단비";
     if (name.includes("특정") && name.includes("뇌") && name.includes("진단")) return displayRawName;
@@ -211,20 +239,6 @@ export const COVERAGE_OPTIONS = [
     if (name.includes("대") && name.includes("심") && name.includes("수술")) return displayRawName;
     if (name.includes("허혈") && name.includes("수술")) return "허혈성심장질환 수술비";
     if (name.includes("심") && name.includes("수술")) return "심혈관질환 수술비";
-
-    if (name.includes("대") && name.includes("혈관") && name.includes("진단")) return displayRawName;
-    if (name.includes("대") && name.includes("순환") && name.includes("진단")) return displayRawName;
-    if (name.includes("특정") && name.includes("혈관") && name.includes("진단")) return displayRawName;
-    if (name.includes("특정") && name.includes("순환") && name.includes("진단")) return displayRawName;
-    if (name.includes("혈관") && name.includes("진단")) return "순환계질환 진단비";
-    if (name.includes("순환") && name.includes("진단")) return "순환계질환 진단비";
-
-    if (name.includes("특정") && name.includes("순환") && name.includes("통합") && name.includes("치료")) return displayRawName;
-    if (name.includes("특정") && name.includes("순환") && name.includes("주요") && name.includes("치료")) return displayRawName;
-    if (name.includes("대") && name.includes("순환") && name.includes("통합") && name.includes("치료")) return displayRawName;
-    if (name.includes("대") && name.includes("순환") && name.includes("주요") && name.includes("치료")) return displayRawName;
-    if (name.includes("순환") && name.includes("통합") && name.includes("치료")) return "순환계통합 치료비";
-    if (name.includes("순환") && name.includes("주요") && name.includes("치료")) return "순환계주요 치료비";
 
     if (name.includes("특정") && name.includes("사망")) return displayRawName;
     if (name.includes("교통") && name.includes("사망")) return displayRawName;
@@ -278,6 +292,7 @@ export const COVERAGE_OPTIONS = [
     if (name.includes("상해") && name.includes("수술")) return "상해 수술비";
     if (name.includes("질병") && name.includes("수술")) return "질병 수술비";
 
+    if (name.includes("간병") && name.includes("입원")) return displayRawName;
     if (name.includes("특정") && name.includes("입원비")) return displayRawName;
     if ((name.includes("이상") || name.includes("초과")) && (name.includes("3") || name.includes("4")) && name.includes("재해") && name.includes("입원")) return "재해 입원비(3일이상)";
     if ((name.includes("이상") || name.includes("초과")) && (name.includes("3") || name.includes("4")) && name.includes("상해") && name.includes("입원")) return "상해 입원비(3일이상)";
@@ -285,7 +300,6 @@ export const COVERAGE_OPTIONS = [
     if (name.includes("중환자") && name.includes("재해") && name.includes("입원")) return "재해중환자실 입원비";
     if (name.includes("중환자") && name.includes("상해") && name.includes("입원")) return "상해중환자실 입원비";
     if (name.includes("중환자") && name.includes("질병") && name.includes("입원")) return "질병중환자실 입원비";
-    if (name.includes("간병") && name.includes("입원")) return displayRawName;
     if (name.includes("재해") && name.includes("입원")) return "재해 입원비";
     if (name.includes("상해") && name.includes("입원")) return "상해 입원비";
     if (name.includes("질병") && name.includes("입원")) return "질병 입원비";
@@ -361,23 +375,23 @@ export const ALLOWED_COVERAGES = COVERAGE_OPTIONS.map(name => name.replace(/\s+/
 
 // 1. 보장 공백 진단용 "카테고리 점수" 계산
 export const calculateCoverageScores = (name: string, beforeVal: number, afterVal: number, isBefore: boolean, isAfter: boolean, scores: any) => {
-  if (name.includes("암") && !name.includes("유사") && !name.includes("고액")) {
+  if (!name.includes("소액") && !name.includes("유사") && !name.includes("고액") && name.includes("암")) {
     if (isBefore) scores.cancer.before += beforeVal;
     if (isAfter) scores.cancer.after += afterVal;
   }
-  if (name.includes("유사암") || name.includes("소액암")) {
+  if (!name.includes("제외") && name.includes("유사암") || name.includes("소액암")) {
     if (isBefore) scores.similarCancer.before += beforeVal;
     if (isAfter) scores.similarCancer.after += afterVal;
   }
-  if (name.includes("뇌혈")) {
+  if (name.includes("뇌")) {
     if (isBefore) scores.brain.before += beforeVal;
     if (isAfter) scores.brain.after += afterVal;
   }
-  if (name.includes("허혈") || name.includes("심장") || name.includes("급성심근")) {
+  if (name.includes("심장")) {
     if (isBefore) scores.heart.before += beforeVal;
     if (isAfter) scores.heart.after += afterVal;
   }
-  if (name.includes("순환계")) {
+  if (name.includes("순환")) {
     if (isBefore) scores.circulatory.before += beforeVal;
     if (isAfter) scores.circulatory.after += afterVal;
   }
@@ -392,7 +406,7 @@ export const calculateCoverageScores = (name: string, beforeVal: number, afterVa
   if (name.includes("수술")) {
     if (isBefore) scores.surgery.before += beforeVal;
     if (isAfter) scores.surgery.after += afterVal;
-    if (isAfter && (name.includes("종") || name.includes("1-5종") || name.includes("1-6종") || name.includes("1-9종"))) {
+    if (isAfter && (name.includes("종") || name.includes("1-5종") || name.includes("1-6종") || name.includes("1-7종") || name.includes("1-8종"))) {
       scores.hasJongSurgery = true;
     }
   }
@@ -400,7 +414,7 @@ export const calculateCoverageScores = (name: string, beforeVal: number, afterVa
     if (isBefore) scores.homeCare.before += beforeVal;
     if (isAfter) scores.homeCare.after += afterVal;
   }
-  if (name.includes("입원") && !name.includes("진단") && !name.includes("제외") && !name.includes("실손") && !name.includes("의료비")) {
+  if (name.includes("입원") && !name.includes("진단") && !name.includes("간병") && !name.includes("중환자") && !name.includes("제외") && !name.includes("실손") && !name.includes("의료")) {
     if (isBefore) scores.hospitalization.before += beforeVal;
     if (isAfter) scores.hospitalization.after += afterVal;
   }

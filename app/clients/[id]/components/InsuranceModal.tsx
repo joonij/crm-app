@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { Shield, X, Plus, Sparkles, FileText, Loader2, CheckSquare, Trash2 } from "lucide-react";
 // 👇 새로 추가할 임포트 문!
 import { COVERAGE_OPTIONS, mapToStandardCoverage } from "@/lib/coverageMapper"; 
+import { analyzeInsuranceEngine, formatAmountWithComma } from "@/lib/insuranceParser";
 
 const inputClassName =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20";
@@ -18,13 +19,6 @@ type CoverageDetail = {
 type InsuranceCompany = {
   company_type: string;
   company_name: string;
-};
-
-// 실시간 금액 콤마(,) 포맷팅 함수
-const formatAmountWithComma = (value: string) => {
-  const numericValue = value.replace(/[^0-9]/g, "");
-  if (!numericValue) return "";
-  return Number(numericValue).toLocaleString("ko-KR");
 };
 
 // ✂️✂️✂️ (여기에 있던 기존 COVERAGE_OPTIONS 배열과 mapToStandardCoverage 함수는 전체 통째로 싹 지워주세요!) ✂️✂️✂️
@@ -162,7 +156,7 @@ export default function InsuranceModal({
     fetchInitialData();
   }, [clientId]);
 
-  // ⭐️ 강력한 텍스트 파싱 및 라우팅 엔진
+  // ⭐️ 독립된 파싱 엔진을 호출하도록 완전히 슬림해진 로직!
   const handleAnalyzeText = async () => {
     if (!pasteText.trim()) return alert("분석할 텍스트를 입력해주세요.");
     setIsAnalyzing(true);
@@ -170,375 +164,28 @@ export default function InsuranceModal({
     try {
       await new Promise((resolve) => setTimeout(resolve, 800));
 
-      let extractedCompany = "";
-      let extractedProduct = "";
-      let extractedPremium = "";
-      let extractedSubDate = "";
-      let extractedMatDate = "";
-      let extractedPaymentPeriod = ""; 
-      let mainInsTerm = ""; 
-      const extractedDetails: CoverageDetail[] = [];
+      // 1. 방금 만든 엔진에 텍스트를 던지면 모든 결과를 한 번에 받아옵니다.
+      const result = analyzeInsuranceEngine(pasteText, covForm.contractor_name);
 
-      const lines = pasteText.split('\n').map(l => l.trim()).filter(l => l);
-
-      // 1. 보험사 파악
-      if (pasteText.includes("라이나생명")) extractedCompany = "라이나생명";
-      else if (pasteText.includes("미래에셋생명")) extractedCompany = "미래에셋생명";
-      else {
-        for (const line of lines) {
-          if (line.includes("보험") || line.includes("생명") || line.includes("화재") || line.includes("해상") || line.includes("공제")) {
-            const companyMatch = line.match(/([가-힣]+(?:생명|화재|해상|손해|보험|공제))/);
-            if (companyMatch) extractedCompany = companyMatch[1];
-            break;
-          }
-        }
-      }
-
-      // ⭐️ [라우팅] 문서 타입(Strategy) 스마트 분류
-      const isLinaProposal = extractedCompany === "라이나생명" && (pasteText.includes("발행일시") || pasteText.includes("청약번호"));
-      const isMiraeProposal = extractedCompany === "미래에셋생명" && (pasteText.includes("발행일시") || pasteText.includes("가입안내서"));
-
-      // 2. 총 보험료 공통 추출
-      const premiumMatches = pasteText.match(/(합\s*계|납입보험료|실납입보험료|합계보험료|납입예정)\s*[:|]?\s*([\d,]+)/g);
-      if (premiumMatches) {
-        const lastMatch = premiumMatches[premiumMatches.length - 1];
-        const numOnly = lastMatch.match(/([\d,]+)/);
-        if (numOnly) extractedPremium = numOnly[1].replace(/,/g, '');
-      }
-
-      // 3. 날짜 공통 추출
-      const dateRegex = /(\d{4})[./-](\d{2})[./-](\d{2})\s*(?:~|부터)\s*(\d{4})[./-](\d{2})[./-](\d{2})/;
-      const dateMatch = pasteText.match(dateRegex);
-      if (dateMatch) {
-        extractedSubDate = `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`;
-        extractedMatDate = `${dateMatch[4]}-${dateMatch[5]}-${dateMatch[6]}`;
-      }
-
-      // ➖➖➖➖➖➖ 1. [가입제안서] 라이나생명 전용 로직 ➖➖➖➖➖➖
-      if (isLinaProposal) {
-        const productMatch = pasteText.match(/보험상품명\s*[|\s]?\s*([^\n]+)/);
-        if (productMatch) extractedProduct = productMatch[1].replace(/무배당/g, '').replace(/\|/g, '').replace(/청약번호.*/, '').trim();
-
-        let tempBuffer: string[] = [];
-        for (const line of lines) {
-          if (isHeaderOrJunk(line)) {
-            tempBuffer = [];
-            continue;
-          }
-
-          tempBuffer.push(line);
-          const fullLine = tempBuffer.join(" ");
-          const fullParts = fullLine.split(/\s+/).filter(p => p && p !== "|");
-          const len = fullParts.length;
-
-          if (len >= 6) {
-            const lastStr = fullParts[len - 1].replace(/,/g, '');
-            const isPremium = /^\d+$/.test(lastStr);
-            
-            const payCandidate = fullParts[len - 2] || ""; 
-            const payCandidate2 = fullParts[len - 3] || ""; 
-            const isValidPayTerm = payCandidate.includes("납") || payCandidate.includes("년") || payCandidate2.includes("납") || payCandidate2.includes("년");
-
-            if (isPremium && isValidPayTerm) {
-              tempBuffer = []; 
-              fullParts.pop(); 
-              
-              const peek = fullParts[fullParts.length - 1];
-              if (peek === "월납" || peek === "연납" || peek === "일시납" || /^[월연]납$/.test(peek)) {
-                  fullParts.pop();
-              }
-
-              const payTerm = fullParts.pop() || "20년납";
-              const insTerm = fullParts.pop() || "";
-              let amount = fullParts.pop()?.replace(/,/g, '') || "0";
-              
-              const lastNamePart = fullParts[fullParts.length - 1];
-              if (lastNamePart === covForm.contractor_name || /^[가-힣]\*[가-힣]$/.test(lastNamePart || "")) {
-                  fullParts.pop();
-              }
-
-              let rawName = fullParts.join(" ");
-              
-              const mainIdx = rawName.indexOf("주계약");
-              const subIdx = rawName.indexOf("특약");
-              if (mainIdx !== -1 && subIdx !== -1) {
-                  rawName = rawName.substring(Math.min(mainIdx, subIdx));
-              } else if (mainIdx !== -1) {
-                  rawName = rawName.substring(mainIdx);
-              } else if (subIdx !== -1) {
-                  rawName = rawName.substring(subIdx);
-              }
-
-              let name = rawName.replace(new RegExp(covForm.contractor_name, "g"), '').trim();
-              name = name.replace(/^[^가-힣a-zA-Z0-9\[\(]+/, '');
-
-              const isMain = rawName.includes("주계약");
-              if (isMain) {
-                if (!extractedProduct) extractedProduct = name.replace(/\[.*?\]/g, '').replace(/주계약|기본계약/g, "").trim();
-                extractedPaymentPeriod = payTerm.includes("납") ? payTerm : payTerm + "납";
-                mainInsTerm = insTerm; 
-              }
-              
-              let renewal = "비갱신";
-              if (name.includes("갱신형") || name.includes("갱신") || insTerm.includes("갱신")) {
-                renewal = insTerm.includes("년") ? `${insTerm.replace(/[^0-9]/g, '')}년 갱신` : "갱신";
-              }
-              
-              name = name.replace(/\([^)]*해약환급금[^)]*\)/g, '').replace(/\(갱신형\)/g, '').replace(/무배당/g, '').replace(/_갱신형/g, '').replace(/주계약\s*/, '').replace(/특약\s*/, '').trim();
-              
-              if (name.length > 0) {
-                const mappedNames = mapToStandardCoverage(name).split("||");
-                mappedNames.forEach(mName => {
-                  extractedDetails.push({ name: mName, amount: formatAmountWithComma(amount), renewal_type: renewal });
-                });
-              }
-            }
-          }
-        }
-      } 
-      // ➖➖➖➖➖➖ 2. [가입제안서] 미래에셋생명 전용 로직 ➖➖➖➖➖➖
-      else if (isMiraeProposal) {
-        const productMatch = pasteText.match(/([가-힣A-Za-z0-9-]+\s*건강보험\s*무배당)/);
-        if (productMatch) extractedProduct = productMatch[1].replace("상령", "").replace(/무배당/g, '').trim();
-
-        let tempBuffer: string[] = [];
-        for (const line of lines) {
-          if (isHeaderOrJunk(line)) {
-            tempBuffer = [];
-            continue;
-          }
-
-          tempBuffer.push(line);
-          const fullLine = tempBuffer.join(" ");
-          const fullParts = fullLine.split(/\s+/).filter(p => p && p !== "|");
-          const len = fullParts.length;
-
-          if (len >= 4) {
-            const lastStr = fullParts[len - 1].replace(/,/g, '');
-            const isPremium = /^\d+$/.test(lastStr);
-            const payCandidate = fullParts[len - 2] || "";
-            const isValidPayTerm = payCandidate.includes("납") || payCandidate.includes("년") || payCandidate.includes("세") || payCandidate.includes("일시납");
-
-            if (isPremium && isValidPayTerm) {
-              tempBuffer = []; 
-              fullParts.pop(); 
-              
-              let amount = "0";
-              let payTerm = "";
-              let insTermArr: string[] = [];
-              let nameArr: string[] = [];
-              let foundAmount = false;
-
-              for (let i = fullParts.length - 1; i >= 0; i--) {
-                  const part = fullParts[i];
-                  const cleanPart = part.replace(/,/g, '').replace(/만원/g, '');
-                  if (!foundAmount && /^\d+$/.test(cleanPart)) {
-                      amount = cleanPart;
-                      foundAmount = true;
-                  } else if (!foundAmount) {
-                      if(part.includes("납")) payTerm = part;
-                      else insTermArr.unshift(part);
-                  } else {
-                      nameArr.unshift(part);
-                  }
-              }
-
-              let insTerm = insTermArr.join(" ");
-              let rawName = nameArr.join(" ");
-
-              let name = rawName.replace(new RegExp(covForm.contractor_name, "g"), '').replace(/최초계약\s*\d+년/g, '').replace(/갱신계약\s*\d+년(\s*갱신)?/g, '').replace(/\(최대\s*\d+세\s*만기\)/g, '').replace(/무배\s*당/g, '').replace(/당\s*최초계약/g, '').replace(/최초계약/g, '').replace(/\[해약환급금이[^\]]+\]/g, '').replace(/\([^)]*해약환급금[^)]*\)/g, '').replace(/\[W\]/g, '').trim();
-              name = name.replace(/^[^가-힣a-zA-Z0-9\[\(]+/, '');
-
-              if (rawName.includes("주계약") || rawName.includes("기본계약")) {
-                  if (!extractedProduct) extractedProduct = name.replace(/\[.*?\]/g, '').replace(/주계약|기본계약/g, "").trim();
-                  if (payTerm) extractedPaymentPeriod = payTerm;
-                  mainInsTerm = insTerm; 
-              }
-
-              let renewal = "비갱신";
-              if (name.includes("갱신형") || insTerm.includes("갱신") || rawName.includes("갱신")) {
-                  const renewMatch = insTerm.match(/(\d+)년\s*갱신/);
-                  renewal = renewMatch ? `${renewMatch[1]}년 갱신` : "갱신";
-              }
-              
-              name = name.replace(/\(갱신형\)/g, '').trim();
-              if (name.length > 0) {
-                const mappedNames = mapToStandardCoverage(name).split("||");
-                mappedNames.forEach(mName => {
-                  extractedDetails.push({ name: mName, amount: formatAmountWithComma(amount), renewal_type: renewal });
-                });
-              }
-            }
-          }
-        }
-      } 
-      // ➖➖➖➖➖➖ 3. [일반 보장분석] 기존 메리츠 등 원본 코드 복원 ➖➖➖➖➖➖
-      else {
-        if (!extractedProduct) {
-          const policyNumIndex = lines.findIndex(l => l.includes("증권번호"));
-          if (policyNumIndex > 0) {
-            extractedProduct = lines[policyNumIndex - 1];
-          } else {
-            const prodLine = lines.find(l => (l.includes("보험") || l.includes("플랜")) && !l.includes("보험회사") && !l.includes("보장"));
-            if (prodLine) extractedProduct = prodLine;
-          }
-        }
-
-        const periodMatch = pasteText.match(/\((?:.*?납)?[,\s]*([0-9]+(?:년|세납|세|년납)|전기납|일시납)\)/) || pasteText.match(/([0-9]+(?:년납|세납|년|세)|전기납|일시납)/);
-        if (periodMatch) {
-          let p = periodMatch[1];
-          if (!p.includes("납") && !p.includes("일시") && !p.includes("전기")) p += "납";
-          extractedPaymentPeriod = p;
-        }
-
-        let isPeriodSame = false;
-        if (extractedPaymentPeriod.includes("전기납")) {
-          isPeriodSame = true;
-        } else if (extractedSubDate && extractedMatDate && extractedPaymentPeriod) {
-          const subYear = parseInt(extractedSubDate.split("-")[0], 10);
-          const matYear = parseInt(extractedMatDate.split("-")[0], 10);
-          const payMatch = extractedPaymentPeriod.match(/([0-9]+)년/);
-          if (payMatch && !isNaN(subYear) && !isNaN(matYear)) {
-            const payYears = parseInt(payMatch[1], 10);
-            if (matYear - subYear === payYears) isPeriodSame = true;
-          }
-        }
-
-        const premiumRegex = /([0-9,]+)원\s*(?:약관조회|상품공시실)/;
-        const premiumMatch = pasteText.match(premiumRegex);
-        if (premiumMatch) {
-          extractedPremium = premiumMatch[1].replace(/,/g, "");
-        } else {
-          const termsIndex = lines.findIndex(l => l.includes("약관조회") || l.includes("상품공시실"));
-          if (termsIndex > 0) {
-            const premiumLine = lines[termsIndex - 1];
-            const backupMatch = premiumLine.match(/([0-9,]+)/);
-            if (backupMatch) extractedPremium = backupMatch[1].replace(/,/g, "");
-          }
-        }
-
-        const expectedMatch = pasteText.match(/납입예정\s*([0-9,]+)원/);
-        if (expectedMatch) {
-          const expectedAmount = parseInt(expectedMatch[1].replace(/,/g, ""), 10);
-          if (expectedAmount === 0) extractedPremium = "0";
-        }
-
-        for (const line of lines) {
-          if (line.includes("보장구분") || line.includes("보장명") || line.includes("실손구분")) continue;
-          if (line.includes("유의사항") || line.includes("상기 내용")) break;
-
-          const coverageRegex = /^(.*?)\s+((?:\d+,?)+\s*(?:억\s*(?:\d+,?)*\s*만원|억원|만원|원))(?:\s+(.*?))?\s+(정상|소멸|유지|해지)$/;
-          const match = line.match(coverageRegex);
-          
-          if (match) {
-            let rawName = match[1].trim();
-            let amountStr = match[2].trim();
-            let periodStr = match[3] ? match[3].trim() : ""; 
-            let status = match[4].trim();
-
-            if (status === "소멸" || status === "해지") continue;
-
-            let name = rawName;
-            if (rawName.includes("\t")) {
-              const parts = rawName.split("\t").filter(t => t.trim() !== "");
-              name = parts[parts.length - 1]; 
-            } else {
-              const parts = rawName.split(/\s+/);
-              if (parts.length > 1) {
-                if (parts[1].includes(parts[0]) || parts[0].includes(parts[1])) {
-                   if (parts[0] !== "기타") parts.shift();
-                }
-              }
-              name = parts.join(" ");
-            }
-
-            let cleanAmount = amountStr.replace(/,/g, "").replace(/\s/g, "");
-            let parsedAmountNum = 0;
-
-            if (cleanAmount.includes("억")) {
-              const parts = cleanAmount.split("억");
-              const eok = parseInt(parts[0].replace(/[^0-9]/g, ""), 10) || 0;
-              parsedAmountNum += eok * 10000;
-              if (parts[1] && parts[1].includes("만")) {
-                const man = parseInt(parts[1].replace(/[^0-9]/g, ""), 10) || 0;
-                parsedAmountNum += man;
-              }
-            } else {
-              parsedAmountNum = parseInt(cleanAmount.replace(/[^0-9]/g, ""), 10) || 0;
-            }
-            
-            const finalMappedName = mapToStandardCoverage(name);
-            let renewalType = "비갱신";
-
-            if (periodStr.includes("갱신")) {
-              const cycleMatch = periodStr.match(/([0-9]+년)\s*갱신/);
-              if (cycleMatch) renewalType = `${cycleMatch[1]} 갱신`;
-              else renewalType = "갱신형";
-            } else if (name.includes("갱신")) {
-              const cycleMatch = name.match(/([0-9]+년)\s*갱신/);
-              if (cycleMatch) renewalType = `${cycleMatch[1]} 갱신`;
-              else renewalType = "갱신형";
-            } else {
-              renewalType = isPeriodSame && extractedPaymentPeriod ? extractedPaymentPeriod : "비갱신";
-            }
-
-            finalMappedName.split("||").forEach(mName => {
-              extractedDetails.push({
-                name: mName,
-                amount: formatAmountWithComma(parsedAmountNum.toString()),
-                renewal_type: renewalType
-              });
-            });
-          }
-        }
-      }
-
-      // 💡 [보험 만기 일자 스마트 계산 엔진 (공통)]
-      let calculatedMatDate = extractedMatDate;
-      const todayObj = new Date();
-      const defaultTodayStr = `${todayObj.getFullYear()}-${String(todayObj.getMonth() + 1).padStart(2, '0')}-${String(todayObj.getDate()).padStart(2, '0')}`;
-      const baseDateStr = extractedSubDate || defaultTodayStr;
-      
-      if (!calculatedMatDate && mainInsTerm) {
-        const baseYear = parseInt(baseDateStr.split("-")[0], 10);
-        const baseMonthDay = baseDateStr.substring(4); 
-        
-        if (mainInsTerm.includes("종신")) {
-          calculatedMatDate = "9999-12-31";
-        } else if (mainInsTerm.includes("년")) {
-          const yearMatch = mainInsTerm.match(/(\d+)년/);
-          if (yearMatch) {
-            calculatedMatDate = `${baseYear + parseInt(yearMatch[1], 10)}${baseMonthDay}`;
-          }
-        } else if (mainInsTerm.includes("세")) {
-          const targetAgeMatch = mainInsTerm.match(/(\d+)세/);
-          const currentAgeMatch = pasteText.match(/(\d+)세/); 
-          if (targetAgeMatch && currentAgeMatch) {
-            const yearsToAdd = parseInt(targetAgeMatch[1], 10) - parseInt(currentAgeMatch[1], 10);
-            if (yearsToAdd > 0) calculatedMatDate = `${baseYear + yearsToAdd}${baseMonthDay}`;
-          }
-        }
-      }
-
+      // 2. 받아온 결과를 화면(State)에 바로 꽂아줍니다.
       setCovForm(prev => ({
         ...prev,
-        company: extractedCompany || prev.company,
-        product: extractedProduct || prev.product,
-        premium: extractedPremium || prev.premium,
-        premiumFormatted: extractedPremium ? formatAmountWithComma(extractedPremium) : prev.premiumFormatted,
-        subscriptionDate: extractedSubDate || defaultTodayStr,
-        maturityDate: calculatedMatDate || "",
-        paymentPeriod: extractedPaymentPeriod || prev.paymentPeriod,
+        company: result.company || prev.company,
+        product: result.product || prev.product,
+        premium: result.premium || prev.premium,
+        premiumFormatted: result.premium ? formatAmountWithComma(result.premium) : prev.premiumFormatted,
+        subscriptionDate: result.subDate || prev.subscriptionDate,
+        maturityDate: result.matDate || "",
+        paymentPeriod: result.paymentPeriod || prev.paymentPeriod,
       }));
 
-      if (extractedDetails.length > 0) {
-        setCovDetails(extractedDetails);
+      if (result.details.length > 0) {
+        setCovDetails(result.details);
       } else {
         alert("특약 내역을 추출하지 못했습니다. 형식이 다르거나 텍스트가 부족할 수 있습니다.");
       }
 
       setPasteText("");
-
     } catch (error) {
       alert("분석 중 오류가 발생했습니다.");
     } finally {
@@ -922,7 +569,7 @@ export default function InsuranceModal({
                           value={detail.amount}
                           onChange={(e) => updateCovDetail(index, "amount", e.target.value)}
                         />
-                        <span className="text-[11px] font-bold text-gray-500 pr-2.5 bg-white">만원</span>
+                        <span className="text-[11px] font-bold text-gray-500 pr-2.5 bg-white whitespace-nowrap shrink-0">만원</span>
                       </div>
                       
                       <div className="relative shrink-0 w-[84px] sm:w-[100px]">

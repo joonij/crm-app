@@ -907,7 +907,7 @@ const gapItems = useMemo(() => {
                             {currentStatus === 'new' && (
                               <button 
                                 onClick={(e) => { e.stopPropagation(); handleCompletePolicy(cov.id); }}
-                                className="cursor-pointer flex items-center gap-1 text-[10px] font-black bg-emerald-100 hover:bg-emerald-200 text-emerald-700 border border-emerald-300 px-2 py-0.5 rounded shadow-sm transition-colors animate-pulse"
+                                className="cursor-pointer flex items-center gap-1 text-[10px] font-black bg-emerald-100 hover:bg-emerald-200 text-emerald-700 border border-emerald-300 px-2 py-0.5 rounded shadow-sm transition-colors animate-pulse whitespace-nowrap shrink-0"
                                 title="이 제안을 체결로 확정하고 가입일을 오늘로 지정합니다."
                               >
                               체결

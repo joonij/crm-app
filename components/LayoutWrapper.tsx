@@ -4,7 +4,7 @@
 import { usePathname } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import MobileSidebar from "@/components/MobileSidebar";
-import RealtimeNotification from "@/components/RealtimeNotification";
+// import RealtimeNotification from "@/components/RealtimeNotification";
 
 export default function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -29,7 +29,7 @@ export default function LayoutWrapper({ children }: { children: React.ReactNode 
   // 3. 일반 CRM 화면일 때만 사이드바 포함 레이아웃 렌더링
   return (
     <div className="flex h-screen w-full overflow-hidden bg-gray-50">
-      <RealtimeNotification />
+      {/* <RealtimeNotification /> */}
       
       <div className="hidden md:flex h-full shrink-0 z-40 bg-slate-900 print:hidden">
         <Sidebar />
