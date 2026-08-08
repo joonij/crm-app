@@ -92,7 +92,8 @@ const HIDDEN_IN_SUMMARY = [
   "급성심근경색 진단비", "뇌출혈 진단비", "뇌졸중 진단비",
   "심근병증 진단비", "뇌산정특례대상 진단비", "심장산정특례대상 진단비"
 ];
-// ⭐️ 👇 여기서부터 추가해주세요. (카테고리 자동 분류 함수)
+
+// ⭐️ 카테고리 자동 분류 함수
 const getCategory = (name: string) => {
   if (name.includes("사망")) return "사망 보장";
   if (name.includes("후유장해")) return "후유장해 보장";
@@ -211,7 +212,7 @@ export default function AnalysisPage() {
   const [isSavingConsulting, setIsSavingConsulting] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
-  // ⭐️ [신규] 세부 설정 모달용 상태 관리
+  // ⭐️ 세부 설정 모달용 상태 관리
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<'kcd' | 'coverage'>('kcd');
   
@@ -231,7 +232,6 @@ export default function AnalysisPage() {
   const [customCoverages, setCustomCoverages] = useState<{id: string, name: string, before: number, after: number, category: string}[]>([]);
   const [tempCustomCoverages, setTempCustomCoverages] = useState<{id: string, name: string, before: number, after: number, category: string}[]>([]);
   
-  // ⭐️ 각 카테고리별 직접 추가 인풋 폼 상태 (여러 개를 따로 관리)
   const [customInputs, setCustomInputs] = useState<Record<string, { name: string, before: string, after: string }>>({});
 
   const [insuranceSearchTerm, setInsuranceSearchTerm] = useState("");
@@ -314,8 +314,32 @@ export default function AnalysisPage() {
             const afterVal = detail.is_deleted ? 0 : extractNumber(detail.amount);
             const name = detail.name || "";
 
-            // 1. 카테고리별 보장 공백 점수 계산 (coverageMapper)
+            // 1. 카테고리별 보장 공백 점수 계산
             calculateCoverageScores(name, beforeVal, afterVal, isBefore, isAfter, scores);
+
+            // ⭐️ [긴급 패치] 특정순환계 및 산정특례 데이터 증발 방지 강제 수집
+            // coverageMapper에서 버려지더라도 여기서 강제로 살려냅니다.
+            let forceKeep = false;
+            let forceDisplayName = "";
+
+            if (normalizedName.includes("특정순환계")) {
+              forceKeep = true;
+              forceDisplayName = normalizedName.includes("제외") ? "특정순환계질환 진단비(뇌혈관질환 및 허혈성심장질환 제외)" : "특정순환계질환 진단비";
+            } else if (normalizedName.includes("산정") || normalizedName.includes("특례")) {
+              if (normalizedName.includes("뇌")) {
+                forceKeep = true;
+                forceDisplayName = "뇌산정특례대상 진단비";
+              } else if (normalizedName.includes("심장") || normalizedName.includes("허혈") || normalizedName.includes("심혈관")) {
+                forceKeep = true;
+                forceDisplayName = "심장산정특례대상 진단비";
+              }
+            }
+
+            if (forceKeep) {
+              const forceKey = forceDisplayName.replace(/\s+/g, "");
+              applyCoverageToMap(forceKey, forceDisplayName, normalizedName, beforeVal, afterVal, isBefore, isAfter, coverageMap);
+              return; // 강제 매핑을 완료했으므로 아래 기본 로직 건너뜀
+            }
 
             // 2 & 3. 쓰레기 특약 필터링 및 이름 표준화 (coverageMapper)
             const standardInfo = getStandardCoverageInfo(normalizedName);
@@ -336,8 +360,20 @@ export default function AnalysisPage() {
         }
       });
 
-      // ⭐️ 전체 COVERAGE_OPTIONS 기반으로 기본 배열 뼈대 구성
-      const fullCoveragesArray = COVERAGE_OPTIONS.map((name) => {
+      // ⭐️ COVERAGE_OPTIONS에 혹시라도 누락되었을지 모를 필수 항목들 강제 주입
+      const extendedOptions = [...COVERAGE_OPTIONS];
+      const requiredExtras = [
+        "특정순환계질환 진단비",
+        "특정순환계질환 진단비(뇌혈관질환 및 허혈성심장질환 제외)",
+        "뇌산정특례대상 진단비",
+        "심장산정특례대상 진단비"
+      ];
+      requiredExtras.forEach(ext => {
+        if (!extendedOptions.includes(ext)) extendedOptions.push(ext);
+      });
+
+      // ⭐️ 전체 기반으로 기본 배열 뼈대 구성
+      const fullCoveragesArray = extendedOptions.map((name) => {
         const key = name.replace(/\s+/g, "");
         const existingData = coverageMap[key];
         return {
@@ -356,10 +392,9 @@ export default function AnalysisPage() {
         scores: scores as any
       } as any);
 
-      // ⭐️ 가시성(표시) 항목 세팅
+      // 가시성(표시) 항목 세팅
       let savedVisible = clientData.consulting_details?.visibleCoverages;
       if (!savedVisible) {
-        // 처음 세팅 시, 값이 1원이라도 있거나 필수 항목인 것들만 1차 필터링해서 보여줌 (일반사망 및 숨김목록 제외)
         savedVisible = fullCoveragesArray
           .filter(c => (c.before > 0 || c.after > 0) && c.name !== "일반사망 진단비" && !HIDDEN_IN_SUMMARY.includes(c.name))
           .map(c => c.name);
@@ -419,97 +454,116 @@ export default function AnalysisPage() {
     setTimeout(() => { document.title = originalTitle; }, 500);
   };
 
-  // ⭐️ 뇌혈관 질환 KCD 코드 목록 정의
-  const BRAIN_KCD_CODES = [
-    "I60~I62", "I63", "I64", "I65~I66", "I67~I69"
-  ];
+  // ⭐️ KCD 커버리지 계산 함수 (대표님 명시적 질환명 기반 강제 매핑 룰 완벽 적용)
+  const calculateCodeCoverage = useCallback((
+    keywords: string[], 
+    type: 'before' | 'after', 
+    kcdId: string, 
+    sanjeongOpts: { brain: boolean, heart: boolean },
+    currentOverrides?: Record<string, { before?: number; after?: number }>,
+    currentCustoms?: any[]
+  ) => {
+    // 1-1. 심장산정특례 체크 시 금액이 들어가야 할 질환명들
+    const HEART_SANJEONG_NAMES = [
+      '만성 류마티스 심장질환', '협심증', '급성 심근경색증', '기타 허혈성 심장질환', '폐성 심장질환', 
+      '심장막염 및 심내막염', '비류마티스성 판장애 및 폐동맥판장애', '상세불명 판막의 심내막염', 
+      '달리 분류된 질환에서의 심내막염 및 심장판막장애', '심근염', '심근병증 진단비', '방실 및 좌각차단, 전도장애', 
+      '심장정지', '부정맥', '기타 부정맥', '심부전', '심장병의 불명확한 기록 및 합병증', '대동맥동맥류 및 박리'
+    ];
 
-  // ⭐️ [신규] 허혈성 심장질환 KCD 코드 목록 정의
-  const ISCHEMIC_HEART_KCD_CODES = [
-    "I20", "I21~I23", "I24~I25"
-  ];
+    // 1-2. 뇌산정특례 체크 시 금액이 들어가야 할 질환명들
+    const BRAIN_SANJEONG_NAMES = [
+      '지주막하출혈, 뇌내출혈 등 (뇌출혈)', '뇌경색증', '출혈/경색으로 명시되지 않은 뇌졸중 진단비', '대뇌동맥 폐쇄 및 협착'
+    ];
 
-// ⭐️ KCD 커버리지 계산 함수 (수동 추가 항목 & 띄어쓰기 방어 & 치료비 제외 & 산정특례 체크 연동 완벽 제어)
-const calculateCodeCoverage = useCallback((
-  keywords: string[], 
-  type: 'before' | 'after', 
-  kcdId: string, 
-  sanjeongOpts: { brain: boolean, heart: boolean },
-  currentOverrides?: Record<string, { before?: number; after?: number }>,
-  currentCustoms?: any[]
-) => {
-  // ⭐️ 인자로 넘어온 임시(temp) 데이터가 없으면, 메인 화면의 데이터를 사용합니다.
-  const targetOverrides = currentOverrides || coverageOverrides;
-  const targetCustoms = currentCustoms || customCoverages;
+    // 1-3. "특정순환계질환 진단비" 가입 시 금액이 들어가야 할 질환명들
+    const CIRC_ALL_NAMES = [
+      '급성 류마티스열', '만성 류마티스 심장질환', '협심증', '급성 심근경색증', '기타 허혈성 심장질환', 
+      '폐성 심장질환', '심장막염 및 심내막염', '비류마티스성 판장애 및 폐동맥판장애', '상세불명 판막의 심내막염', 
+      '달리 분류된 질환에서의 심내막염 및 심장판막장애', '심근염', '심근병증 진단비', '부정맥', '기타 부정맥', 
+      '심부전', '지주막하출혈, 뇌내출혈 등 (뇌출혈)', '뇌경색증', '출혈/경색으로 명시되지 않은 뇌졸중 진단비', 
+      '대뇌동맥 폐쇄 및 협착', '기타 뇌혈관 질환', '대동맥동맥류 및 박리', '기타 동맥류 및 박리', 
+      '동맥색전증 및 혈전증', '동맥 및 세동맥의 기타 장애', '문맥혈전증', '식도정맥류'
+    ];
 
-  let searchKeywords = [...keywords];
-  const isBrainKcd = BRAIN_KCD_CODES.includes(kcdId);
-  const isHeartKcd = kcdId.startsWith("I") && !isBrainKcd && !kcdId.includes("I10") && !kcdId.startsWith("I7") && !kcdId.startsWith("I8") && !kcdId.startsWith("I9");
+    // 1-4. "특정순환계질환 진단비(뇌혈관질환 및 허혈성심장질환 제외)" 가입 시 금액이 들어가야 할 질환명들
+    const CIRC_EXCL_NAMES = [
+      '급성 류마티스열', '만성 류마티스 심장질환', '폐성 심장질환', '심장막염 및 심내막염', 
+      '비류마티스성 판장애 및 폐동맥판장애', '상세불명 판막의 심내막염', '달리 분류된 질환에서의 심내막염 및 심장판막장애', 
+      '심근염', '심근병증 진단비', '부정맥', '기타 부정맥', '심부전', '대동맥동맥류 및 박리', '기타 동맥류 및 박리', 
+      '동맥색전증 및 혈전증', '동맥 및 세동맥의 기타 장애', '문맥혈전증', '식도정맥류'
+    ];
 
-  if (isBrainKcd && sanjeongOpts.brain) {
-    searchKeywords.push("뇌산정", "뇌혈관산정", "뇌혈관질환산정");
-  }
-  if (isHeartKcd && sanjeongOpts.heart) {
-    searchKeywords.push("심장산정", "허혈성산정", "심혈관산정");
-  }
+    // 데이터 셋업 (금액 조정 반영)
+    const targetOverrides = currentOverrides || coverageOverrides;
+    const targetCustoms = currentCustoms || customCoverages;
+    const baseCoverages = analysisData.coverages.map(c => ({
+      name: c.name,
+      before: targetOverrides[c.name]?.before !== undefined ? targetOverrides[c.name].before : c.before,
+      after: targetOverrides[c.name]?.after !== undefined ? targetOverrides[c.name].after : c.after,
+      rawNames: c.rawNames || []
+    }));
+    const allCoverages = [...baseCoverages, ...targetCustoms];
 
-  // 1. 분석된 기본 보장들에 사용자가 '금액 조정'한 내역을 덮어씌움
-  const baseCoverages = analysisData.coverages.map(c => ({
-    name: c.name,
-    before: targetOverrides[c.name]?.before !== undefined ? targetOverrides[c.name].before : c.before,
-    after: targetOverrides[c.name]?.after !== undefined ? targetOverrides[c.name].after : c.after,
-    rawNames: c.rawNames || []
-  }));
+    // 현재 표에서 그려지고 있는 질환의 이름(아이템명) 찾기
+    const currentItemName = CIRCULATORY_CODES[0]?.items.find(i => i.id === kcdId)?.name || CANCER_CODES[0]?.items.find(i => i.id === kcdId)?.name || "";
 
-  // 2. 사용자가 탭 2에서 '수동 추가'한 항목들도 배열에 병합
-  const allCoverages = [...baseCoverages, ...targetCustoms];
-
-  // 방어용 허혈성 KCD 코드 모음
-  const ISCHEMIC_HEART_CODES = ["I20", "I21~I23", "I24~I25"];
-
-  return allCoverages
-    // 3. 띄어쓰기를 모두 없애버리고 키워드 포함 여부 완벽 검사
-    .filter(c => searchKeywords.some(kw => c.name.replace(/\s+/g, '').includes(kw.replace(/\s+/g, ''))))
-    .reduce((acc, curr) => {
+    return allCoverages.reduce((acc, curr) => {
       const cleanName = curr.name.replace(/\s+/g, '');
       const rawStr = (curr.rawNames || []).join("").replace(/\s+/g, '');
 
-      // ⭐️ [방어 1] '치료비' 단어가 포함된 특약은 KCD 진단비 합산에서 무조건 0원 처리 후 제외!
-      if (cleanName.includes("치료비") || rawStr.includes("치료비")) {
-        return acc; 
+      // [방어 1] '치료비'는 무조건 탈락
+      if (cleanName.includes("치료비") || rawStr.includes("치료비")) return acc; 
+
+      // 식별 플래그 추출
+      const isSanjeong = cleanName.includes("산정") || rawStr.includes("산정") || cleanName.includes("특례") || rawStr.includes("특례");
+      const isCirc = cleanName.includes("순환계") || rawStr.includes("순환계");
+      const isExcluded = cleanName.includes("제외") || rawStr.includes("제외");
+
+      // ⭐️ 2. 유저 명시적 규칙 강제 매핑 (이름 기준)
+      // 2-1. 산정특례 특약일 경우
+      if (isSanjeong) {
+        const isHeartSanjeong = cleanName.includes("심장") || cleanName.includes("허혈성") || cleanName.includes("심혈관") || rawStr.includes("심장") || rawStr.includes("허혈성") || rawStr.includes("심혈관");
+        const isBrainSanjeong = cleanName.includes("뇌") || rawStr.includes("뇌");
+
+        if (isHeartSanjeong && sanjeongOpts.heart && HEART_SANJEONG_NAMES.includes(currentItemName)) {
+          return acc + (curr[type] || 0);
+        }
+        if (isBrainSanjeong && sanjeongOpts.brain && BRAIN_SANJEONG_NAMES.includes(currentItemName)) {
+          return acc + (curr[type] || 0);
+        }
+        return acc; // 산정특례 특약은 위 규칙(체크 안되어있음 등)을 벗어나면 무조건 0원
       }
 
-      // ⭐️ [방어 2] 산정특례 특약은 체크박스가 켜져있을 때만 합산되도록 철벽 제어!
-      // "특정순환계질환 산정특례" 처럼 일반 키워드에 딸려 들어온 녀석들을 쳐냅니다.
-      const isSanjeongCoverage = cleanName.includes("산정") || rawStr.includes("산정");
-      if (isSanjeongCoverage) {
-        if (isBrainKcd && !sanjeongOpts.brain) return acc;
-        if (isHeartKcd && !sanjeongOpts.heart) return acc;
+      // 2-2. 특정순환계 특약일 경우
+      if (isCirc) {
+        if (isExcluded) {
+          if (CIRC_EXCL_NAMES.includes(currentItemName)) return acc + (curr[type] || 0);
+        } else {
+          if (CIRC_ALL_NAMES.includes(currentItemName)) return acc + (curr[type] || 0);
+        }
+        return acc; // 순환계 특약도 위 규칙 벗어나면 무조건 0원
       }
 
-      // 4. 뇌혈관 / 허혈성 제외 감지 (표준 특약명 & 파싱 원본명 양쪽 모두 꼼꼼하게 검사)
-      const isBrainExcluded = 
-        cleanName.includes("뇌혈관제외") || 
-        cleanName.includes("뇌혈관질환제외") || 
-        cleanName.includes("뇌혈관질환및허혈성심장질환제외") ||
-        rawStr.includes("뇌혈관제외") || 
-        rawStr.includes("뇌혈관질환제외") || 
-        rawStr.includes("뇌혈관질환및허혈성심장질환제외");
+      // ⭐️ 3. 그 외 일반 진단비 (암 진단비나 뇌혈관/허혈성 단독 진단비 등)
+      const isNormalKeywordMatch = keywords.some(kw => cleanName.includes(kw.replace(/\s+/g, '')));
+      if (isNormalKeywordMatch) {
+        // 뇌혈관/허혈성 제외 방어 코드
+        const BRAIN_KCD_CODES = ["I60~I62", "I63", "I64", "I65~I66", "I67~I69"];
+        const ISCHEMIC_HEART_CODES = ["I20", "I21~I23", "I24~I25"];
+        
+        const isBrainExcludedKwd = cleanName.includes("뇌혈관제외") || cleanName.includes("뇌혈관질환제외") || rawStr.includes("뇌혈관제외");
+        const isHeartExcludedKwd = cleanName.includes("허혈성제외") || cleanName.includes("허혈성심장질환제외") || rawStr.includes("허혈성제외");
 
-      const isHeartExcluded = 
-        cleanName.includes("허혈성제외") || 
-        cleanName.includes("허혈성심장질환제외") || 
-        cleanName.includes("뇌혈관질환및허혈성심장질환제외") ||
-        rawStr.includes("허혈성제외") || 
-        rawStr.includes("허혈성심장질환제외") || 
-        rawStr.includes("뇌혈관질환및허혈성심장질환제외");
+        if (BRAIN_KCD_CODES.includes(kcdId) && isBrainExcludedKwd) return acc;
+        if (ISCHEMIC_HEART_CODES.includes(kcdId) && isHeartExcludedKwd) return acc;
 
-      if (isBrainKcd && isBrainExcluded) return acc;
-      if (ISCHEMIC_HEART_CODES.includes(kcdId) && isHeartExcluded) return acc;
+        return acc + (curr[type] || 0);
+      }
 
-      return acc + (curr[type] || 0);
+      return acc;
     }, 0);
-}, [analysisData.coverages, coverageOverrides, customCoverages]);
+  }, [analysisData.coverages, coverageOverrides, customCoverages]);
 
   const openSettingsModal = () => {
     setTempKcdOverrides(kcdOverrides);
@@ -573,7 +627,6 @@ const calculateCodeCoverage = useCallback((
     );
   };
 
-// ⭐️ 항목 입력 시 텍스트 업데이트
 const handleCustomInputChange = (cat: string, field: 'name' | 'before' | 'after', value: string) => {
   setCustomInputs(prev => ({
     ...prev,
@@ -581,7 +634,6 @@ const handleCustomInputChange = (cat: string, field: 'name' | 'before' | 'after'
   }));
 };
 
-// ⭐️ 특정 카테고리에 항목 추가
 const handleAddCustomCoverage = (cat: string) => {
   const inputs = customInputs[cat];
   if(!inputs || !inputs.name.trim()) return alert("항목명을 입력해주세요.");
@@ -593,7 +645,6 @@ const handleAddCustomCoverage = (cat: string) => {
      category: cat
   };
   setTempCustomCoverages([...tempCustomCoverages, newCov]);
-  // 추가 후 해당 카테고리의 입력창만 비우기
   setCustomInputs(prev => ({ ...prev, [cat]: { name: "", before: "", after: "" } }));
 };
 
@@ -601,7 +652,6 @@ const handleAddCustomCoverage = (cat: string) => {
     setTempCustomCoverages(prev => prev.filter(c => c.id !== id));
   };
 
-  // 👇 1. 여기에 금액 수정 핸들러를 추가해 주세요!
   const handleTempCoverageOverride = (name: string, field: 'before' | 'after', value: any) => {
     setTempCoverageOverrides(prev => {
       const currentOverride = prev[name] || {};
@@ -686,8 +736,6 @@ const handleAddCustomCoverage = (cat: string) => {
     return [...filteredAutoGaps, ...filteredCustomGaps];
   })();
 
-// 👇 기존 displayTableItems를 지우고 아래 코드로 덮어써주세요!
-  // 화면 렌더링용 테이블 아이템 (카테고리별 완벽 정렬 적용)
   const displayTableItems = [
     ...analysisData.coverages
       .filter(item => visibleCoverages.includes(item.name))
@@ -706,15 +754,12 @@ const handleAddCustomCoverage = (cat: string) => {
       category: c.category || getCategory(c.name)
     }))
   ].sort((a, b) => {
-    // 1차 정렬: 카테고리 순서대로 (사망 -> 후유장해 -> 암 ...)
     const catA = CATEGORY_ORDER.indexOf(a.category);
     const catB = CATEGORY_ORDER.indexOf(b.category);
     if (catA !== catB) return catA - catB;
     
-    // 2차 정렬: 같은 카테고리 안에서는 '수동 추가' 항목이 아래로 가도록 배치
     if (a.isCustom !== b.isCustom) return a.isCustom ? 1 : -1;
     
-    // 3차 정렬: 일반 항목들은 원래 COVERAGE_OPTIONS 메뉴판 순서대로 정렬
     const idxA = COVERAGE_OPTIONS.indexOf(a.name);
     const idxB = COVERAGE_OPTIONS.indexOf(b.name);
     return idxA - idxB;
@@ -840,8 +885,6 @@ return (
           </div>
         </section>
 
-        {/* 요약 리포트 페이지 */}
-        {/* 요약 리포트 페이지 */}
         <section className="bg-white rounded-2xl p-6 md:p-8 border border-gray-400 shadow-sm print:p-0 print:border-none print:break-inside-avoid print:shadow-none relative overflow-hidden print:min-h-[250mm] flex flex-col gap-6">
           <div className="flex items-center justify-between border-b border-slate-200 pb-4 shrink-0 print:border-slate-300">
             <h2 className="text-xl font-black text-slate-800 flex items-center gap-2 uppercase tracking-widest">
