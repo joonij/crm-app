@@ -121,7 +121,8 @@ export default function SettingsModal({
   initialRadarTargets // 🚀 props 추가
 }: any) {
   
-  const [settingsTab, setSettingsTab] = useState<'kcd' | 'coverage'>('kcd');
+// ⭐️ TypeScript 에러 해결: 'radar' 탭 타입을 추가합니다.
+  const [settingsTab, setSettingsTab] = useState<'kcd' | 'coverage' | 'radar'>('kcd');
   const [tempKcdOverrides, setTempKcdOverrides] = useState(initialKcdOverrides || {});
   const [tempVisibleCoverages, setTempVisibleCoverages] = useState(initialVisibleCoverages || []);
   const [tempCustomCoverages, setTempCustomCoverages] = useState(initialCustomCoverages || []);
