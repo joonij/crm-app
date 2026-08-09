@@ -1,13 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState, useMemo, useRef } from "react";
-import { Plus, Users, X, CheckSquare, Square, BarChart3, Phone, Search, Crown, UserPlus, Star, Trash2, ChevronDown, MessageCircle, Info, Send } from "lucide-react";
+import { Plus, Users, X, CheckSquare, Square, BarChart3, Phone, Search, Crown, UserPlus, Star, Trash2, ChevronDown, MessageCircle, Info, Send, FileEdit, CalendarDays } from "lucide-react";
 import ClientModal from "@/components/ClientModal";
 import { supabase } from "@/lib/supabase";
 import Link from 'next/link';
 
 // ⭐️ 암호화 해제를 위한 함수 임포트
-import { decryptRegNumber } from "@/app/actions/crypto"; 
+import { decryptRegNumber, encryptRegNumber } from "@/app/actions/crypto"; 
 
 type Client = {
   id: number;
@@ -21,15 +21,17 @@ type Client = {
   is_favorite?: boolean;
   agent_id?: number;
   agents?: { name: string };
-  telecom?: any; // ID 타입(number)일 수 있으므로 any 또는 string | number 로 유연하게 처리
+  telecom?: any; 
   address?: string;
   job?: string;
-  driving_status?: any; // ID 타입(number)일 수 있으므로 유연하게 처리
+  driving_status?: any; 
   medical_history?: any;
   registration_number?: string | null;
-  // ⭐️ 조인된 테이블 데이터 구조 추가
   telecom_carriers?: { telecom: string };
   driving_statuses?: { status: string };
+  // ⭐️ 일정 조인용 타입 추가
+  schedules?: { date: string; category: string; content: string }[];
+  lastSchedule?: { date: string; category: string; content: string } | null;
 };
 
 const contractStatusMap: Record<string, string> = {
@@ -157,8 +159,8 @@ export default function ClientsPage() {
     const managerAuth = !!agent.rank && agent.rank !== "FC";
     setIsManager(managerAuth);
 
-    // ⭐️ 조인(Join) 추가: telecom_carriers와 driving_statuses 데이터를 함께 불러옵니다.
-    let query = supabase.from("clients").select("*, agents(name), telecom_carriers(telecom), driving_statuses(status)");
+    // ⭐️ 조인(Join) 추가: schedules 테이블도 함께 불러옵니다.
+    let query = supabase.from("clients").select("*, agents(name), telecom_carriers(telecom), driving_statuses(status), schedules(date, category, content)");
 
     if (managerAuth) {
       const { data: members } = await supabase
@@ -196,11 +198,21 @@ export default function ClientsPage() {
       return acc;
     }, {} as Record<number, number>);
 
-    const clientsWithKeyman = fetchedData.map(client => ({
-      ...client,
-      isKeyman: (introCounts[client.id] || 0) >= 3,
-      is_favorite: !!client.is_favorite
-    }));
+    const clientsWithKeyman = fetchedData.map(client => {
+      // ⭐️ 고객의 일정 중 가장 최신(미래 포함) 일정을 추출합니다.
+      let lastSchedule = null;
+      if (client.schedules && client.schedules.length > 0) {
+        const sortedSchedules = [...client.schedules].sort((a, b) => b.date.localeCompare(a.date));
+        lastSchedule = sortedSchedules[0];
+      }
+
+      return {
+        ...client,
+        isKeyman: (introCounts[client.id] || 0) >= 3,
+        is_favorite: !!client.is_favorite,
+        lastSchedule
+      };
+    });
 
     clientsWithKeyman.sort((a, b) => {
       if (a.is_favorite && !b.is_favorite) return -1;
@@ -211,6 +223,127 @@ export default function ClientsPage() {
     setClients(clientsWithKeyman);
   }, [selectedAgentFilter]);
 
+  // ⭐️ CSV 파일 업로드 및 주민번호 자동 암호화 처리 함수
+  const handleCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!window.confirm("선택한 CSV 파일의 고객 데이터를 일괄 등록하시겠습니까?")) {
+      e.target.value = ""; 
+      return;
+    }
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return alert("로그인이 필요합니다.");
+
+    const { data: agent } = await supabase
+      .from("agents")
+      .select("id, agency_id")
+      .eq("auth_id", user.id)
+      .single();
+
+    if (!agent) return alert("담당자 정보를 찾을 수 없습니다.");
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const text = event.target?.result as string;
+
+        const parseCSV = (csvText: string) => {
+          const result: string[][] = [];
+          let row: string[] = [];
+          let inQuotes = false;
+          let val = '';
+          for (let i = 0; i < csvText.length; i++) {
+            const char = csvText[i];
+            if (inQuotes) {
+              if (char === '"' && csvText[i + 1] === '"') {
+                val += '"';
+                i++;
+              } else if (char === '"') {
+                inQuotes = false;
+              } else {
+                val += char;
+              }
+            } else {
+              if (char === '"') {
+                inQuotes = true;
+              } else if (char === ',') {
+                row.push(val);
+                val = '';
+              } else if (char === '\n' || char === '\r') {
+                if (char === '\r' && csvText[i + 1] === '\n') i++;
+                row.push(val);
+                result.push(row);
+                row = [];
+                val = '';
+              } else {
+                val += char;
+              }
+            }
+          }
+          if (val || row.length > 0) {
+            row.push(val);
+            result.push(row);
+          }
+          return result;
+        };
+
+        const rows = parseCSV(text);
+        const dataRows = rows.slice(1).filter(row => row.length > 1 && (row[1] || '').trim() !== "");
+
+        const uploadData = await Promise.all(dataRows.map(async (row) => {
+          const rawName = row[1]?.trim();
+          const rawPhone = row[2]?.trim() || null;
+          const rawRegInput = row[3]?.trim(); 
+          
+          let encryptedReg = null;
+          if (rawRegInput && rawRegInput.includes('-')) {
+            encryptedReg = await encryptRegNumber(rawRegInput); 
+          }
+
+          const parseNum = (val: string | undefined) => {
+            const parsed = parseInt(val?.trim() || "", 10);
+            return isNaN(parsed) ? null : parsed;
+          };
+
+          return {
+            agent_id: agent.id, 
+            agency_id: agent.agency_id,
+            name: rawName,
+            phone: rawPhone,
+            registration_number: encryptedReg,
+            job: row[4]?.trim() || null,
+            notes: row[5]?.trim() || null,
+            introduce_client: parseNum(row[6]),
+            telecom_carriers: parseNum(row[7]),
+            address: row[8]?.trim() || null,
+            driving_statuses: parseNum(row[9]),
+            bank_lists: parseNum(row[10]),
+            bank_info: row[11]?.trim() || null,
+            card_withdrawal_date: row[12]?.trim() || null, 
+            client_source: parseNum(row[13]) || 1, 
+            contract_status: parseNum(row[14]) || 1, 
+            is_favorite: row[16]?.trim().toUpperCase() === "TRUE"
+          };
+        }));
+
+        const { error } = await supabase.from("clients").insert(uploadData);
+        if (error) throw error;
+
+        alert(`✅ 총 ${uploadData.length}명의 고객이 성공적으로 등록 및 암호화되었습니다!`);
+        void fetchClients(); 
+
+      } catch (error: any) {
+        console.error(error);
+        alert(`업로드 중 오류가 발생했습니다: ${error.message}`);
+      }
+    };
+    
+    reader.readAsText(file, "utf-8"); 
+    e.target.value = ""; 
+  };
+  
   useEffect(() => {
     void fetchClients();
   }, [fetchClients]);
@@ -237,6 +370,9 @@ export default function ClientsPage() {
         matchesStatus = !!client.isKeyman; 
       } else if (statusFilter === "favorite") { 
         matchesStatus = !!client.is_favorite;
+      } else if (statusFilter === "recruiting") {
+        const recSteps = parseSteps(client.recruiting_status);
+        matchesStatus = recSteps.length > 0;
       } else {
         const clientStatusId = client.contract_status !== null ? String(client.contract_status) : "";
         matchesStatus = clientStatusId === statusFilter;
@@ -489,7 +625,6 @@ export default function ClientsPage() {
       }
     }
 
-    // ⭐️ 조인된 데이터에서 텍스트 값을 추출, 없으면 fallback 적용
     const telecomLabel = client.telecom_carriers?.telecom || (typeof client.telecom === 'string' ? client.telecom : '미입력');
     const drivingLabel = client.driving_statuses?.status || (typeof client.driving_status === 'string' ? client.driving_status : '미입력');
 
@@ -541,7 +676,7 @@ ${medicalMemo}`;
       
       <section className="w-full rounded-2xl border border-gray-200 bg-white p-5 md:p-7 shadow-sm flex flex-col gap-5 md:gap-6">
         
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">Client Management</p>
             <h1 className="mt-1 text-2xl md:text-3xl font-bold tracking-tight text-gray-900 flex items-center gap-2">
@@ -551,14 +686,27 @@ ${medicalMemo}`;
             <p className="mt-2 text-sm text-gray-500">등록된 고객 정보를 조회하고 관리합니다.</p>
           </div>
           
-          <button
-            type="button"
-            onClick={() => setIsModalOpen(true)}
-            className="cursor-pointer w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-6 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-gray-800 shrink-0 shadow-sm"
-          >
-            <Plus className="h-5 w-5" strokeWidth={2} />
-            새 고객 등록
-          </button>
+          <div className="flex gap-2 w-full sm:w-auto">
+            {/* <label className="cursor-pointer w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 shrink-0 shadow-sm">
+              <FileEdit className="h-5 w-5" strokeWidth={2} />
+              엑셀 일괄 등록
+              <input 
+                type="file" 
+                accept=".csv" 
+                className="hidden" 
+                onChange={handleCsvUpload} 
+              />
+            </label> */}
+
+            <button
+              type="button"
+              onClick={() => setIsModalOpen(true)}
+              className="cursor-pointer w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-6 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-gray-800 shrink-0 shadow-sm"
+            >
+              <Plus className="h-5 w-5" strokeWidth={2} />
+              새 고객 등록
+            </button>
+          </div>
         </div>
 
         <div className="flex flex-col lg:flex-row gap-3 items-start lg:items-center bg-gray-50/70 p-2 md:p-3 rounded-xl border border-gray-100">
@@ -626,6 +774,17 @@ ${medicalMemo}`;
               <Star className={`w-4 h-4 ${statusFilter === "favorite" ? "fill-white text-white" : "text-yellow-400"}`} />
               즐겨찾기
             </button>
+            <button 
+              onClick={() => setStatusFilter("recruiting")} 
+              className={`cursor-pointer shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-bold transition-colors ${
+                statusFilter === "recruiting" 
+                  ? "bg-purple-600 text-white shadow-sm border-purple-600" 
+                  : "bg-white border border-gray-200 text-gray-600 hover:bg-purple-50"
+              }`}
+            >
+              <UserPlus className={`w-4 h-4 ${statusFilter === "recruiting" ? "text-white" : "text-purple-600"}`} />
+              리쿠르팅
+            </button>
 
             {Object.entries(contractStatusMap).map(([idKey, label]) => (
               <button 
@@ -647,7 +806,8 @@ ${medicalMemo}`;
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50/80">
               <tr>
-                {["이름", "", "영업 진행률", "리쿠르팅 진행률", "계약상태", "연락처", "관리"].map((header, idx) => (
+                {/* ⭐️ '연락처' 헤더를 '최근 일정'으로 교체 */}
+                {["이름", "", "영업 진행률", "계약상태", "리쿠르팅 진행률", "최근 일정", "관리"].map((header, idx) => (
                   <th key={idx} scope="col" className={`px-6 py-4 text-xs font-bold tracking-wider text-gray-500 uppercase ${header === "관리" ? "text-right" : "text-left"}`}>
                     {header}
                   </th>
@@ -677,6 +837,9 @@ ${medicalMemo}`;
                     <tr key={client.id} className="hover:bg-blue-50/20 transition-colors group">
                       <td className="px-6 py-3 whitespace-nowrap">
                         <div className="flex items-center gap-2">
+                          {/* <span className="cursor-pointer p-1 -ml-1 rounded-full hover:bg-gray-100 transition-colors text-xs text-gray-400 font-semibold">
+                            {client.id}
+                          </span> */}
                           <button 
                             onClick={(e) => handleToggleFavorite(e, client.id, !!client.is_favorite)}
                             className="cursor-pointer p-1 -ml-1 rounded-full hover:bg-gray-100 transition-colors"
@@ -730,21 +893,6 @@ ${medicalMemo}`;
                         </div>
                       </td>
 
-                      <td className="px-6 py-3 whitespace-nowrap">
-                        <div 
-                          className="flex items-center gap-3 cursor-pointer group/recruiting p-1 -ml-1 rounded-lg hover:bg-purple-50 transition-colors"
-                          onClick={() => setRecruitingModalClient(client)}
-                          title="리쿠르팅 진행률 체크리스트 열기"
-                        >
-                          <div className="w-28 bg-purple-100/50 rounded-full h-2.5 overflow-hidden border border-purple-200/50">
-                            <div className={`h-2.5 rounded-full transition-all duration-500 ${recPercent === 100 ? "bg-green-500" : "bg-purple-600"}`} style={{ width: `${recPercent}%` }}></div>
-                          </div>
-                          <span className="text-xs font-semibold text-gray-600 group-hover/recruiting:text-purple-600 w-12">
-                            {completedRecSteps.length} / {RECRUITING_STEPS.length}
-                          </span>
-                        </div>
-                      </td>
-
                       <td className="px-6 py-3 whitespace-nowrap text-sm font-medium text-gray-600">
                         <div className="flex items-center h-8 w-28">
                           {editingClientId === client.id ? (
@@ -771,9 +919,37 @@ ${medicalMemo}`;
                           )}
                         </div>
                       </td>
-                      <td className="whitespace-nowrap px-6 py-3 text-sm text-gray-500">
-                        <div className="flex items-center h-8">{client.phone ?? "-"}</div>
+                      
+                      <td className="px-6 py-3 whitespace-nowrap">
+                        <div 
+                          className="flex items-center gap-3 cursor-pointer group/recruiting p-1 -ml-1 rounded-lg hover:bg-purple-50 transition-colors"
+                          onClick={() => setRecruitingModalClient(client)}
+                          title="리쿠르팅 진행률 체크리스트 열기"
+                        >
+                          <div className="w-28 bg-purple-100/50 rounded-full h-2.5 overflow-hidden border border-purple-200/50">
+                            <div className={`h-2.5 rounded-full transition-all duration-500 ${recPercent === 100 ? "bg-green-500" : "bg-purple-600"}`} style={{ width: `${recPercent}%` }}></div>
+                          </div>
+                          <span className="text-xs font-semibold text-gray-600 group-hover/recruiting:text-purple-600 w-12">
+                            {completedRecSteps.length} / {RECRUITING_STEPS.length}
+                          </span>
+                        </div>
                       </td>
+
+                      {/* ⭐️ 연락처 대신 들어간 '최근 일정' UI */}
+                      <td className="whitespace-nowrap px-6 py-3 text-sm text-gray-500">
+                        {client.lastSchedule ? (
+                          <div className="flex flex-col">
+                            <span className="font-bold text-gray-800 text-[13px]">{client.lastSchedule.date}</span>
+                            <span className="text-xs text-gray-400 truncate max-w-[140px] mt-0.5" title={client.lastSchedule.content}>
+                              {client.lastSchedule.category && `[${client.lastSchedule.category}] `}
+                              {client.lastSchedule.content || '일정 있음'}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-gray-300 text-xs font-semibold">-</span>
+                        )}
+                      </td>
+
                       <td className="px-6 py-3 whitespace-nowrap text-right">
                         <button 
                           onClick={(e) => handleDeleteClient(e, client.id, client.name)}
@@ -854,7 +1030,7 @@ ${medicalMemo}`;
                     </div>
                   </div>
                   
-                  {/* 계약 상태 및 연락처 */}
+                  {/* 계약 상태 및 연락처/일정 */}
                   <div className="flex items-center gap-3">
                     <div className="h-8 w-24 shrink-0">
                       {editingClientId === client.id ? (
@@ -879,9 +1055,20 @@ ${medicalMemo}`;
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-1.5 text-sm text-gray-500">
-                      <Phone className="w-3.5 h-3.5 text-gray-400" />
-                      <span>{client.phone || "연락처 없음"}</span>
+                    
+                    {/* ⭐️ 모바일: 연락처와 일정을 나란히 표시 */}
+                    <div className="flex items-center gap-3 text-xs text-gray-500 w-full justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <Phone className="w-3.5 h-3.5 text-gray-400" />
+                        <span>{client.phone || "연락처 없음"}</span>
+                      </div>
+                      
+                      <div className="flex items-center gap-1.5">
+                        <CalendarDays className={`w-3.5 h-3.5 ${client.lastSchedule ? "text-blue-400" : "text-gray-300"}`} />
+                        <span className={`font-semibold ${client.lastSchedule ? "text-gray-700" : "text-gray-400"}`}>
+                          {client.lastSchedule ? client.lastSchedule.date : "일정 없음"}
+                        </span>
+                      </div>
                     </div>
                   </div>
 

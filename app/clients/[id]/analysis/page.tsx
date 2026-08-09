@@ -5,6 +5,157 @@ import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Check, X, ArrowLeft, Umbrella, TrendingDown, ShieldCheck, Printer, AlertCircle, Stethoscope, CheckCircle2, Info, FileText, AlertTriangle, Save, Loader2, Settings2, Star, RotateCcw, ShieldAlert, Share2, Target, Phone, MessageCircle, ArrowRight, UserPlus, ChevronDown, ChevronUp, Search, LineChart, Gem, Plus } from "lucide-react";
 import { COVERAGE_OPTIONS, ALLOWED_COVERAGES, calculateCoverageScores, getStandardCoverageInfo, applyCoverageToMap } from "@/lib/coverageMapper";
+import SettingsModal from '../components/SettingsModal';
+
+// ⭐️ 4대 핵심 보장 카테고리 및 세부 목표 설정
+export const CHART_CONFIG = [
+  {
+    title: "진단비",
+    items: [
+      { label: "일반암진단비", keywords: ["일반암"], defaultTarget: 5000 },
+      { label: "유사암진단비", keywords: ["유사암"], defaultTarget: 1000 },
+      { label: "순환계질환진단비", keywords: ["순환계질환진단", "특정순환계"], defaultTarget: 5000 },
+      { label: "뇌혈관질환진단비", keywords: ["뇌혈관질환진단", "뇌혈관"], defaultTarget: 3000 },
+      { label: "허혈성심장질환진단비", keywords: ["허혈성심장질환진단", "허혈성"], defaultTarget: 3000 },
+    ]
+  },
+  {
+    title: "치료비",
+    items: [
+      { label: "암주요치료비", keywords: ["암주요치료", "암치료"], defaultTarget: 10000 },
+      { label: "순환계질환통합치료비", keywords: ["순환계질환통합치료", "순환계통합치료"], defaultTarget: 5000 },
+      { label: "질병수술비", keywords: ["질병수술비", "질병수술"], defaultTarget: 100 },
+      { label: "질병5종수술비", keywords: ["질병5종", "1~5종", "1-5종", "종수술"], defaultTarget: 1000 },
+      { label: "질병입원비", keywords: ["질병입원비", "질병입원일당", "질병입원"], defaultTarget: 5 },
+    ]
+  },
+  {
+    title: "상해",
+    items: [
+      { label: "상해 후유장해3%↑", keywords: ["상해후유장해", "상해 후유장해", "상해후유장해3%"], defaultTarget: 10000 },
+      { label: "통합상해진단비(경증)", keywords: ["상해진단비(경증)", "통합상해진단비(경증)"], defaultTarget: 100 },
+      { label: "통합상해진단비(중등증)", keywords: ["상해진단비(중등증)", "통합상해진단비(중등증)"], defaultTarget: 500 },
+      { label: "상해수술비", keywords: ["상해수술비", "상해수술"], defaultTarget: 100 },
+      { label: "상해입원비", keywords: ["상해입원비", "상해입원일당", "상해입원"], defaultTarget: 5 },
+    ]
+  },
+  {
+    title: "노후준비",
+    items: [
+      { label: "장기요양 1~5등급 재가급여", keywords: ["재가급여", "장기요양재가"], defaultTarget: 50 },
+      { label: "장기요양 1~2등급 시설급여", keywords: ["시설급여", "장기요양시설"], defaultTarget: 100 },
+      { label: "장기요양 1~5등급 진단비", keywords: ["장기요양진단", "장기요양진단비"], defaultTarget: 1000 },
+      { label: "연금보험", keywords: ["연금"], defaultTarget: 100 },
+      { label: "종신보험", keywords: ["종신"], defaultTarget: 5000 },
+    ]
+  }
+];
+
+// ⭐️ 5각형 폴리곤 차트 컴포넌트
+// ⭐️ 5각형 폴리곤 차트 컴포넌트 (웹/프린트 모두 밝은 테마로 가독성 완벽 적용)
+const PolygonRadarChart = ({ categories, beforeData, afterData }: { categories: string[], beforeData: number[], afterData: number[] }) => {
+  const size = 320; 
+  const center = size / 2;
+  const radius = 80; 
+  const sides = categories.length;
+  const angleStep = (Math.PI * 2) / sides;
+
+  const getPoints = (data: number[]) => {
+    return data.map((val, i) => {
+      const r = (val / 100) * radius;
+      const theta = i * angleStep - Math.PI / 2;
+      const x = center + r * Math.cos(theta);
+      const y = center + r * Math.sin(theta);
+      return `${x},${y}`;
+    }).join(" ");
+  };
+
+  const levels = [20, 40, 60, 80, 100];
+
+  return (
+    <div className="relative w-full aspect-square max-w-[340px] print:max-w-[220px] mx-auto">
+      <svg viewBox={`0 0 ${size} ${size}`} className="w-full h-full drop-shadow-sm overflow-visible">
+        
+        {/* 거미줄(Grid) 배경 - 연한 회색으로 통일 */}
+        {levels.map(level => (
+          <polygon key={level} points={getPoints(Array(sides).fill(level))} fill="none" stroke="currentColor" className="text-slate-200" strokeWidth="1" />
+        ))}
+
+        {/* 대각선 (Axes) - 연한 회색으로 통일 */}
+        {Array(sides).fill(0).map((_, i) => {
+           const theta = i * angleStep - Math.PI / 2;
+           const x = center + radius * Math.cos(theta);
+           const y = center + radius * Math.sin(theta);
+           return <line key={i} x1={center} y1={center} x2={x} y2={y} stroke="currentColor" className="text-slate-200" strokeWidth="1" />
+        })}
+
+        {/* 1. 리모델링 전 (기존 보장 - 진한 회색 점선) */}
+        <polygon points={getPoints(beforeData)} fill="transparent" stroke="#64748b" strokeWidth="1.5" strokeDasharray="4,4" className="print:stroke-slate-400" />
+        {beforeData.map((val, i) => {
+           const r = (val / 100) * radius;
+           const theta = i * angleStep - Math.PI / 2;
+           const x = center + r * Math.cos(theta);
+           const y = center + r * Math.sin(theta);
+           return <circle key={`before-${i}`} cx={x} cy={y} r="3" fill="#f8fafc" stroke="#64748b" strokeWidth="1.5" className="print:stroke-slate-400" />
+        })}
+
+        {/* 2. 최적화 제안 후 (파란색 영역) */}
+        <polygon points={getPoints(afterData)} fill="rgba(59, 130, 246, 0.4)" stroke="#3b82f6" strokeWidth="2.5" />
+        {afterData.map((val, i) => {
+           const r = (val / 100) * radius;
+           const theta = i * angleStep - Math.PI / 2;
+           const x = center + r * Math.cos(theta);
+           const y = center + r * Math.sin(theta);
+           return <circle key={`after-${i}`} cx={x} cy={y} r="3.5" fill="#60a5fa" stroke="#1e3a8a" strokeWidth="1.5" />
+        })}
+
+        {/* 라벨 텍스트 - 진한 검정색(slate-800)으로 가독성 극대화 */}
+        {categories.map((label, i) => {
+           const labelRadius = radius + 32; 
+           const theta = i * angleStep - Math.PI / 2;
+           let x = center + labelRadius * Math.cos(theta);
+           let y = center + labelRadius * Math.sin(theta);
+           
+           let anchor = "middle";
+           if (x > center + 10) anchor = "start";
+           else if (x < center - 10) anchor = "end";
+
+           if (anchor === "start") x += 4;
+           if (anchor === "end") x -= 4;
+           if (y < center - 10) y -= 4;
+           if (y > center + 10) y += 8;
+
+           let lines = [label];
+           if (label.includes("장기요양 1~5등급 재가급여")) lines = ["장기요양 1~5등급", "재가급여"];
+           else if (label.includes("장기요양 1~2등급 시설급여")) lines = ["장기요양 1~2등급", "시설급여"];
+           else if (label.includes("장기요양 1~5등급 진단비")) lines = ["장기요양 1~5등급", "진단비"];
+           else if (label.includes("통합상해진단비(경증)")) lines = ["통합상해진단비", "(경증)"];
+           else if (label.includes("통합상해진단비(중등증)")) lines = ["통합상해진단비", "(중등증)"];
+           else if (label.includes("상해 후유장해3%↑")) lines = ["상해 후유장해", "3%↑"];
+           else if (label.includes("순환계질환통합치료비")) lines = ["순환계질환", "통합치료비"];
+           else if (label.includes("허혈성심장질환진단비")) lines = ["허혈성심장질환", "진단비"];
+           
+           return (
+             <text 
+               key={label} x={x} y={y} 
+               fill="currentColor" 
+               className="text-slate-800 text-[10px] sm:text-[11.5px] font-black" 
+               textAnchor={anchor} 
+               dominantBaseline="middle"
+             >
+               {lines.length === 1 ? label : (
+                   <>
+                     <tspan x={x} dy="-0.6em">{lines[0]}</tspan>
+                     <tspan x={x} dy="1.4em">{lines[1]}</tspan>
+                   </>
+               )}
+             </text>
+           )
+        })}
+      </svg>
+    </div>
+  );
+};
 
 const formatMoney = (amount: number) => {
   if (amount === 0) return "0원";
@@ -47,7 +198,6 @@ const extractNumber = (str: string | undefined | null) => {
   } else {
     total = parseInt(raw.replace(/[^0-9]/g, ""), 10) || 0;
   }
-  
   return total;
 };
 
@@ -86,14 +236,11 @@ const compareEnglishKorean = (a: string, b: string) => {
   return a.localeCompare(b, "ko-KR"); 
 };
 
-const RAW_ALLOWED_COVERAGES = COVERAGE_OPTIONS;
-
 const HIDDEN_IN_SUMMARY = [
   "급성심근경색 진단비", "뇌출혈 진단비", "뇌졸중 진단비",
   "심근병증 진단비", "뇌산정특례대상 진단비", "심장산정특례대상 진단비"
 ];
 
-// ⭐️ 카테고리 자동 분류 함수
 const getCategory = (name: string) => {
   if (name.includes("사망")) return "사망 보장";
   if (name.includes("후유장해")) return "후유장해 보장";
@@ -195,6 +342,11 @@ export default function AnalysisPage() {
   const clientId = params.id as string;
   const [agentInfo, setAgentInfo] = useState<any>(null);
   const [client, setClient] = useState<any>(null);
+  const [insuranceSearchTerm, setInsuranceSearchTerm] = useState("");
+  const [selectedGaps, setSelectedGaps] = useState<string[]>([]);
+  
+  // ⭐️ 여기서만 선언됨
+  const [radarTargets, setRadarTargets] = useState<Record<string, number>>({});
   
   const [analysisData, setAnalysisData] = useState({
     premium: { before: 0, after: 0 },
@@ -212,30 +364,13 @@ export default function AnalysisPage() {
   const [isSavingConsulting, setIsSavingConsulting] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
-  // ⭐️ 세부 설정 모달용 상태 관리
+  // 세부 설정 모달용 상태 관리
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<'kcd' | 'coverage'>('kcd');
-  
   const [kcdOverrides, setKcdOverrides] = useState<Record<string, { before?: number; after?: number; highlight?: boolean }>>({});
-  const [tempKcdOverrides, setTempKcdOverrides] = useState<Record<string, { before?: number; after?: number; highlight?: boolean }>>({});
-  
   const [coverageOverrides, setCoverageOverrides] = useState<Record<string, { before?: number; after?: number }>>({});
-  const [tempCoverageOverrides, setTempCoverageOverrides] = useState<Record<string, { before?: number; after?: number }>>({});
-
   const [includeSanjeong, setIncludeSanjeong] = useState({ brain: false, heart: false });
-  const [tempIncludeSanjeong, setTempIncludeSanjeong] = useState({ brain: false, heart: false });
-  
   const [visibleCoverages, setVisibleCoverages] = useState<string[]>([]);
-  const [tempVisibleCoverages, setTempVisibleCoverages] = useState<string[]>([]);
-  const [searchCovItem, setSearchCovItem] = useState("");
-  
   const [customCoverages, setCustomCoverages] = useState<{id: string, name: string, before: number, after: number, category: string}[]>([]);
-  const [tempCustomCoverages, setTempCustomCoverages] = useState<{id: string, name: string, before: number, after: number, category: string}[]>([]);
-  
-  const [customInputs, setCustomInputs] = useState<Record<string, { name: string, before: string, after: string }>>({});
-
-  const [insuranceSearchTerm, setInsuranceSearchTerm] = useState("");
-  const [selectedGaps, setSelectedGaps] = useState<string[]>([]);
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
@@ -251,6 +386,8 @@ export default function AnalysisPage() {
         if (clientData.consulting_details.selectedTop3) setSelectedTop3(clientData.consulting_details.selectedTop3);
         if (clientData.consulting_details.coverageOverrides) setCoverageOverrides(clientData.consulting_details.coverageOverrides);
         if (clientData.consulting_details.includeSanjeong) setIncludeSanjeong(clientData.consulting_details.includeSanjeong);
+        // DB에서 설정한 타겟값 불러오기
+        if (clientData.consulting_details.radarTargets) setRadarTargets(clientData.consulting_details.radarTargets);
       }
     }
 
@@ -314,38 +451,35 @@ export default function AnalysisPage() {
             const afterVal = detail.is_deleted ? 0 : extractNumber(detail.amount);
             const name = detail.name || "";
 
-            // 1. 카테고리별 보장 공백 점수 계산
             calculateCoverageScores(name, beforeVal, afterVal, isBefore, isAfter, scores);
 
-            // ⭐️ [긴급 패치] 특정순환계 및 산정특례 데이터 증발 방지 강제 수집
-            // coverageMapper에서 버려지더라도 여기서 강제로 살려냅니다.
             let forceKeep = false;
             let forceDisplayName = "";
 
-            if (normalizedName.includes("특정순환계")) {
-              forceKeep = true;
-              forceDisplayName = normalizedName.includes("제외") ? "특정순환계질환 진단비(뇌혈관질환 및 허혈성심장질환 제외)" : "특정순환계질환 진단비";
-            } else if (normalizedName.includes("산정") || normalizedName.includes("특례")) {
-              if (normalizedName.includes("뇌")) {
+            if (!normalizedName.includes("치료") && !normalizedName.includes("수술")) {
+              if (normalizedName.includes("산정") || normalizedName.includes("특례")) {
+                if (normalizedName.includes("뇌")) {
+                  forceKeep = true;
+                  forceDisplayName = "뇌산정특례대상 진단비";
+                } else if (normalizedName.includes("심장") || normalizedName.includes("허혈") || normalizedName.includes("심혈관")) {
+                  forceKeep = true;
+                  forceDisplayName = "심장산정특례대상 진단비";
+                }
+              } else if (normalizedName.includes("특정순환계")) {
                 forceKeep = true;
-                forceDisplayName = "뇌산정특례대상 진단비";
-              } else if (normalizedName.includes("심장") || normalizedName.includes("허혈") || normalizedName.includes("심혈관")) {
-                forceKeep = true;
-                forceDisplayName = "심장산정특례대상 진단비";
+                forceDisplayName = normalizedName.includes("제외") ? "특정순환계질환 진단비(뇌혈관질환 및 허혈성심장질환 제외)" : "특정순환계질환 진단비";
               }
             }
 
             if (forceKeep) {
               const forceKey = forceDisplayName.replace(/\s+/g, "");
               applyCoverageToMap(forceKey, forceDisplayName, normalizedName, beforeVal, afterVal, isBefore, isAfter, coverageMap);
-              return; // 강제 매핑을 완료했으므로 아래 기본 로직 건너뜀
+              return; 
             }
 
-            // 2 & 3. 쓰레기 특약 필터링 및 이름 표준화 (coverageMapper)
             const standardInfo = getStandardCoverageInfo(normalizedName);
-            if (!standardInfo) return; // 필터링 대상이면 즉시 패스
+            if (!standardInfo) return; 
 
-            // 4. 일반사망 특수 처리 및 맵에 합산 (coverageMapper)
             applyCoverageToMap(
               standardInfo.standardKey, 
               standardInfo.standardDisplayName, 
@@ -360,7 +494,6 @@ export default function AnalysisPage() {
         }
       });
 
-      // ⭐️ COVERAGE_OPTIONS에 혹시라도 누락되었을지 모를 필수 항목들 강제 주입
       const extendedOptions = [...COVERAGE_OPTIONS];
       const requiredExtras = [
         "특정순환계질환 진단비",
@@ -372,7 +505,6 @@ export default function AnalysisPage() {
         if (!extendedOptions.includes(ext)) extendedOptions.push(ext);
       });
 
-      // ⭐️ 전체 기반으로 기본 배열 뼈대 구성
       const fullCoveragesArray = extendedOptions.map((name) => {
         const key = name.replace(/\s+/g, "");
         const existingData = coverageMap[key];
@@ -392,7 +524,6 @@ export default function AnalysisPage() {
         scores: scores as any
       } as any);
 
-      // 가시성(표시) 항목 세팅
       let savedVisible = clientData.consulting_details?.visibleCoverages;
       if (!savedVisible) {
         savedVisible = fullCoveragesArray
@@ -420,7 +551,8 @@ export default function AnalysisPage() {
         visibleCoverages: visibleCoverages,
         customCoverages: customCoverages,
         coverageOverrides: coverageOverrides,
-        includeSanjeong: includeSanjeong
+        includeSanjeong: includeSanjeong,
+        radarTargets: radarTargets // ⭐️ 모달에서 수정된 타겟값 저장
       };
       const { error } = await supabase
         .from("clients")
@@ -454,7 +586,6 @@ export default function AnalysisPage() {
     setTimeout(() => { document.title = originalTitle; }, 500);
   };
 
-  // ⭐️ KCD 커버리지 계산 함수 (대표님 명시적 질환명 기반 강제 매핑 룰 완벽 적용)
   const calculateCodeCoverage = useCallback((
     keywords: string[], 
     type: 'before' | 'after', 
@@ -463,38 +594,12 @@ export default function AnalysisPage() {
     currentOverrides?: Record<string, { before?: number; after?: number }>,
     currentCustoms?: any[]
   ) => {
-    // 1-1. 심장산정특례 체크 시 금액이 들어가야 할 질환명들
-    const HEART_SANJEONG_NAMES = [
-      '만성 류마티스 심장질환', '협심증', '급성 심근경색증', '기타 허혈성 심장질환', '폐성 심장질환', 
-      '심장막염 및 심내막염', '비류마티스성 판장애 및 폐동맥판장애', '상세불명 판막의 심내막염', 
-      '달리 분류된 질환에서의 심내막염 및 심장판막장애', '심근염', '심근병증 진단비', '방실 및 좌각차단, 전도장애', 
-      '심장정지', '부정맥', '기타 부정맥', '심부전', '심장병의 불명확한 기록 및 합병증', '대동맥동맥류 및 박리'
-    ];
+    const HEART_SANJEONG_NAMES = ['만성류마티스심장질환', '협심증', '급성심근경색증', '기타허혈성심장질환', '폐성심장질환', '심장막염및심내막염', '비류마티스성판장애및폐동맥판장애', '상세불명판막의심내막염', '달리분류된질환에서의심내막염및심장판막장애', '심근염', '심근병증진단비', '방실및좌각차단,전도장애', '심장정지', '부정맥', '기타부정맥', '심부전', '심장병의불명확한기록및합병증', '대동맥동맥류및박리'];
+    const BRAIN_SANJEONG_NAMES = ['지주막하출혈,뇌내출혈등(뇌출혈)', '뇌경색증', '출혈/경색으로명시되지않은뇌졸중진단비', '대뇌동맥폐쇄및협착'];
+    
+    const CIRC_ALL_NAMES = ['급성류마티스열', '만성류마티스심장질환', '협심증', '급성심근경색증', '기타허혈성심장질환', '폐성심장질환', '심장막염및심내막염', '비류마티스성판장애및폐동맥판장애', '상세불명판막의심내막염', '달리분류된질환에서의심내막염및심장판막장애', '심근염', '심근병증진단비', '부정맥', '기타부정맥', '심부전', '지주막하출혈,뇌내출혈등(뇌출혈)', '뇌경색증', '출혈/경색으로명시되지않은뇌졸중진단비', '대뇌동맥폐쇄및협착', '기타뇌혈관질환', '대동맥동맥류및박리', '기타동맥류및박리', '동맥색전증및혈전증', '동맥및세동맥의기타장애', '문맥혈전증', '식도정맥류'];
+    const CIRC_EXCL_NAMES = ['급성류마티스열', '만성류마티스심장질환', '폐성심장질환', '심장막염및심내막염', '비류마티스성판장애및폐동맥판장애', '상세불명판막의심내막염', '달리분류된질환에서의심내막염및심장판막장애', '심근염', '심근병증진단비', '부정맥', '기타부정맥', '심부전', '대동맥동맥류및박리', '기타동맥류및박리', '동맥색전증및혈전증', '동맥및세동맥의기타장애', '문맥혈전증', '식도정맥류'];
 
-    // 1-2. 뇌산정특례 체크 시 금액이 들어가야 할 질환명들
-    const BRAIN_SANJEONG_NAMES = [
-      '지주막하출혈, 뇌내출혈 등 (뇌출혈)', '뇌경색증', '출혈/경색으로 명시되지 않은 뇌졸중 진단비', '대뇌동맥 폐쇄 및 협착'
-    ];
-
-    // 1-3. "특정순환계질환 진단비" 가입 시 금액이 들어가야 할 질환명들
-    const CIRC_ALL_NAMES = [
-      '급성 류마티스열', '만성 류마티스 심장질환', '협심증', '급성 심근경색증', '기타 허혈성 심장질환', 
-      '폐성 심장질환', '심장막염 및 심내막염', '비류마티스성 판장애 및 폐동맥판장애', '상세불명 판막의 심내막염', 
-      '달리 분류된 질환에서의 심내막염 및 심장판막장애', '심근염', '심근병증 진단비', '부정맥', '기타 부정맥', 
-      '심부전', '지주막하출혈, 뇌내출혈 등 (뇌출혈)', '뇌경색증', '출혈/경색으로 명시되지 않은 뇌졸중 진단비', 
-      '대뇌동맥 폐쇄 및 협착', '기타 뇌혈관 질환', '대동맥동맥류 및 박리', '기타 동맥류 및 박리', 
-      '동맥색전증 및 혈전증', '동맥 및 세동맥의 기타 장애', '문맥혈전증', '식도정맥류'
-    ];
-
-    // 1-4. "특정순환계질환 진단비(뇌혈관질환 및 허혈성심장질환 제외)" 가입 시 금액이 들어가야 할 질환명들
-    const CIRC_EXCL_NAMES = [
-      '급성 류마티스열', '만성 류마티스 심장질환', '폐성 심장질환', '심장막염 및 심내막염', 
-      '비류마티스성 판장애 및 폐동맥판장애', '상세불명 판막의 심내막염', '달리 분류된 질환에서의 심내막염 및 심장판막장애', 
-      '심근염', '심근병증 진단비', '부정맥', '기타 부정맥', '심부전', '대동맥동맥류 및 박리', '기타 동맥류 및 박리', 
-      '동맥색전증 및 혈전증', '동맥 및 세동맥의 기타 장애', '문맥혈전증', '식도정맥류'
-    ];
-
-    // 데이터 셋업 (금액 조정 반영)
     const targetOverrides = currentOverrides || coverageOverrides;
     const targetCustoms = currentCustoms || customCoverages;
     const baseCoverages = analysisData.coverages.map(c => ({
@@ -505,50 +610,47 @@ export default function AnalysisPage() {
     }));
     const allCoverages = [...baseCoverages, ...targetCustoms];
 
-    // 현재 표에서 그려지고 있는 질환의 이름(아이템명) 찾기
     const currentItemName = CIRCULATORY_CODES[0]?.items.find(i => i.id === kcdId)?.name || CANCER_CODES[0]?.items.find(i => i.id === kcdId)?.name || "";
+    const cleanCurrentName = currentItemName.replace(/\s+/g, '');
 
     return allCoverages.reduce((acc, curr) => {
+      const amt = curr[type] || 0;
+      if (amt === 0) return acc;
+
       const cleanName = curr.name.replace(/\s+/g, '');
       const rawStr = (curr.rawNames || []).join("").replace(/\s+/g, '');
 
-      // [방어 1] '치료비'는 무조건 탈락
       if (cleanName.includes("치료비") || rawStr.includes("치료비")) return acc; 
 
-      // 식별 플래그 추출
       const isSanjeong = cleanName.includes("산정") || rawStr.includes("산정") || cleanName.includes("특례") || rawStr.includes("특례");
       const isCirc = cleanName.includes("순환계") || rawStr.includes("순환계");
       const isExcluded = cleanName.includes("제외") || rawStr.includes("제외");
 
-      // ⭐️ 2. 유저 명시적 규칙 강제 매핑 (이름 기준)
-      // 2-1. 산정특례 특약일 경우
       if (isSanjeong) {
         const isHeartSanjeong = cleanName.includes("심장") || cleanName.includes("허혈성") || cleanName.includes("심혈관") || rawStr.includes("심장") || rawStr.includes("허혈성") || rawStr.includes("심혈관");
         const isBrainSanjeong = cleanName.includes("뇌") || rawStr.includes("뇌");
 
-        if (isHeartSanjeong && sanjeongOpts.heart && HEART_SANJEONG_NAMES.includes(currentItemName)) {
-          return acc + (curr[type] || 0);
+        if (isHeartSanjeong && sanjeongOpts.heart && HEART_SANJEONG_NAMES.includes(cleanCurrentName)) return acc + amt;
+        if (isBrainSanjeong && sanjeongOpts.brain && BRAIN_SANJEONG_NAMES.includes(cleanCurrentName)) return acc + amt;
+        
+        if (!isHeartSanjeong && !isBrainSanjeong && isCirc) {
+          if (sanjeongOpts.heart && HEART_SANJEONG_NAMES.includes(cleanCurrentName)) return acc + amt;
+          if (sanjeongOpts.brain && BRAIN_SANJEONG_NAMES.includes(cleanCurrentName)) return acc + amt;
         }
-        if (isBrainSanjeong && sanjeongOpts.brain && BRAIN_SANJEONG_NAMES.includes(currentItemName)) {
-          return acc + (curr[type] || 0);
-        }
-        return acc; // 산정특례 특약은 위 규칙(체크 안되어있음 등)을 벗어나면 무조건 0원
+        return acc; 
       }
 
-      // 2-2. 특정순환계 특약일 경우
       if (isCirc) {
         if (isExcluded) {
-          if (CIRC_EXCL_NAMES.includes(currentItemName)) return acc + (curr[type] || 0);
+          if (CIRC_EXCL_NAMES.includes(cleanCurrentName)) return acc + amt;
         } else {
-          if (CIRC_ALL_NAMES.includes(currentItemName)) return acc + (curr[type] || 0);
+          if (CIRC_ALL_NAMES.includes(cleanCurrentName)) return acc + amt;
         }
-        return acc; // 순환계 특약도 위 규칙 벗어나면 무조건 0원
+        return acc; 
       }
 
-      // ⭐️ 3. 그 외 일반 진단비 (암 진단비나 뇌혈관/허혈성 단독 진단비 등)
       const isNormalKeywordMatch = keywords.some(kw => cleanName.includes(kw.replace(/\s+/g, '')));
       if (isNormalKeywordMatch) {
-        // 뇌혈관/허혈성 제외 방어 코드
         const BRAIN_KCD_CODES = ["I60~I62", "I63", "I64", "I65~I66", "I67~I69"];
         const ISCHEMIC_HEART_CODES = ["I20", "I21~I23", "I24~I25"];
         
@@ -558,113 +660,42 @@ export default function AnalysisPage() {
         if (BRAIN_KCD_CODES.includes(kcdId) && isBrainExcludedKwd) return acc;
         if (ISCHEMIC_HEART_CODES.includes(kcdId) && isHeartExcludedKwd) return acc;
 
-        return acc + (curr[type] || 0);
+        return acc + amt;
       }
 
       return acc;
     }, 0);
   }, [analysisData.coverages, coverageOverrides, customCoverages]);
 
-  const openSettingsModal = () => {
-    setTempKcdOverrides(kcdOverrides);
-    setTempVisibleCoverages(visibleCoverages);
-    setTempCustomCoverages(customCoverages);
-    setTempCoverageOverrides(coverageOverrides);
-    setTempIncludeSanjeong(includeSanjeong);
-    setSearchCovItem("");
-    setSettingsTab('kcd');
-    setIsSettingsModalOpen(true);
-  };
-
-  const applySettingsOverrides = async () => {
+  const applySettingsOverrides = async (newSettings: any) => {
     try {
       const payload = {
         briefing: briefingText,
-        kcdOverrides: tempKcdOverrides,
         selectedTop3: selectedTop3,
-        visibleCoverages: tempVisibleCoverages,
-        customCoverages: tempCustomCoverages,
-        coverageOverrides: tempCoverageOverrides,
-        includeSanjeong: tempIncludeSanjeong
+        kcdOverrides: newSettings.kcdOverrides,
+        visibleCoverages: newSettings.visibleCoverages,
+        customCoverages: newSettings.customCoverages,
+        coverageOverrides: newSettings.coverageOverrides,
+        includeSanjeong: newSettings.includeSanjeong,
+        radarTargets: newSettings.radarTargets
       };
 
       const { error } = await supabase.from("clients").update({ consulting_details: payload }).eq("id", clientId);
       if (error) throw error;
 
-      setKcdOverrides(tempKcdOverrides);
-      setVisibleCoverages(tempVisibleCoverages);
-      setCustomCoverages(tempCustomCoverages);
-      setCoverageOverrides(tempCoverageOverrides);
-      setIncludeSanjeong(tempIncludeSanjeong);
+      setKcdOverrides(newSettings.kcdOverrides);
+      setVisibleCoverages(newSettings.visibleCoverages);
+      setCustomCoverages(newSettings.customCoverages);
+      setCoverageOverrides(newSettings.coverageOverrides);
+      setIncludeSanjeong(newSettings.includeSanjeong);
+      setRadarTargets(newSettings.radarTargets);
       setIsSettingsModalOpen(false);
     } catch (error: any) {
       alert(`저장 중 오류가 발생했습니다: ${error.message}`);
     }
   };
 
-  const handleTempKcdOverride = (id: string, field: 'before' | 'after' | 'highlight', value: any) => {
-    setTempKcdOverrides(prev => {
-      const currentOverride = prev[id] || {};
-      const updatedOverride = { ...currentOverride, [field]: value };
-      
-      if (value === undefined || value === "") {
-         delete updatedOverride[field];
-      }
-      
-      if (Object.keys(updatedOverride).length === 0) {
-        const newObj = { ...prev };
-        delete newObj[id];
-        return newObj;
-      }
-
-      return { ...prev, [id]: updatedOverride };
-    });
-  };
-
-  const toggleVisibleCoverage = (name: string) => {
-    setTempVisibleCoverages(prev => 
-      prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]
-    );
-  };
-
-const handleCustomInputChange = (cat: string, field: 'name' | 'before' | 'after', value: string) => {
-  setCustomInputs(prev => ({
-    ...prev,
-    [cat]: { ...(prev[cat] || { name: "", before: "", after: "" }), [field]: value }
-  }));
-};
-
-const handleAddCustomCoverage = (cat: string) => {
-  const inputs = customInputs[cat];
-  if(!inputs || !inputs.name.trim()) return alert("항목명을 입력해주세요.");
-  const newCov = {
-     id: Date.now().toString(),
-     name: inputs.name.trim(),
-     before: parseInt(inputs.before.replace(/[^0-9]/g, '')) || 0,
-     after: parseInt(inputs.after.replace(/[^0-9]/g, '')) || 0,
-     category: cat
-  };
-  setTempCustomCoverages([...tempCustomCoverages, newCov]);
-  setCustomInputs(prev => ({ ...prev, [cat]: { name: "", before: "", after: "" } }));
-};
-
-  const handleDeleteCustomCoverage = (id: string) => {
-    setTempCustomCoverages(prev => prev.filter(c => c.id !== id));
-  };
-
-  const handleTempCoverageOverride = (name: string, field: 'before' | 'after', value: any) => {
-    setTempCoverageOverrides(prev => {
-      const currentOverride = prev[name] || {};
-      const updatedOverride = { ...currentOverride, [field]: value };
-      if (value === undefined || value === "") delete updatedOverride[field];
-      if (Object.keys(updatedOverride).length === 0) {
-        const newObj = { ...prev };
-        delete newObj[name];
-        return newObj;
-      }
-      return { ...prev, [name]: updatedOverride };
-    });
-  };
+  const openSettingsModal = () => setIsSettingsModalOpen(true);
 
   if (isLoading || !client) {
     return <div className="flex h-screen items-center justify-center text-gray-500 bg-slate-50"><Loader2 className="w-10 h-10 animate-spin text-blue-600" /></div>;
@@ -712,7 +743,7 @@ const handleAddCustomCoverage = (cat: string) => {
     { condition: scores.heart.before < 2000, title: "심장 보장 공백 발견", desc: `현재 허혈성/심장 보장금액이 ${formatMoney(scores.heart.before)}으로 권장 기준보다 부족합니다.`, action: "심혈관 특정진단비 보완 권장" },
     { condition: scores.circulatory.before < 2000, title: "순환계질환 보장 공백", desc: `현재 순환계질환 보장금액이 ${formatMoney(scores.circulatory.before)}으로 부족합니다. (뇌/심장 광범위 커버 필요)`, action: "순환계질환 진단비 보완 요망" }, 
     { condition: scores.death.before < 3000, title: "사망보장 자산 부족", desc: `현재 사망 보장 자산이 ${formatMoney(scores.death.before)}으로 가족을 위한 최소 대비가 부족합니다.`, action: "정기/종신 사망보험금 확보" }, 
-    { condition: scores.pension.before === 0, title: "노후 연금 자산 부재", desc: "은퇴 후를 대비할 수 있는 연금 관련 보장 자산이 전혀 없습니다.", action: "노후 대비 연금저축/보험 가입" }, 
+    { condition: scores.pension.before === 0, title: "노후 연금 자산 부재", desc: "은퇴 후를 대비할 수 있는 연금 관련 보장 자산이 전혀 없습니다.", action: "노후 대비 연금저축/보험 가 가입" }, 
     { condition: scores.surgery.before === 0 || !scores.hasJongSurgery, title: "질병/종수술비 보장 부재", desc: scores.surgery.before === 0 ? "포트폴리오에 수술비 특약이 전혀 확인되지 않습니다." : "질병 강도에 비례해 지급되는 '종수술비'가 빠져있습니다.", action: "질병 및 1-5종 수술비 장착" },
     { condition: scores.homeCare.before === 0, title: "치매 리스크 노출", desc: "장기요양등급 판정 시 매월 생활비를 받는 재가급여 자산이 비어있습니다.", action: "장기요양 재가급여 특약 추가" },
     { condition: scores.injury.before === 0, title: "통합상해진단비 공백", desc: "일상생활 중 발생하는 골절, 화상 등 각종 외상성 상해 진단비 자산이 없습니다.", action: "통합상해진단비 보완 권장" },
@@ -733,7 +764,8 @@ const handleAddCustomCoverage = (cat: string) => {
       return client.consulting_details.selectedGaps.includes(custom.title);
     }).map((custom: any) => ({ ...custom, isCustom: true }));
 
-    return [...filteredAutoGaps, ...filteredCustomGaps];
+    // ⭐️ 끝에 .slice(0, 4) 를 추가하여 우선순위가 높은 순서대로 최대 4개까지만 표시합니다.
+    return [...filteredAutoGaps, ...filteredCustomGaps].slice(0, 4);
   })();
 
   const displayTableItems = [
@@ -757,13 +789,53 @@ const handleAddCustomCoverage = (cat: string) => {
     const catA = CATEGORY_ORDER.indexOf(a.category);
     const catB = CATEGORY_ORDER.indexOf(b.category);
     if (catA !== catB) return catA - catB;
-    
     if (a.isCustom !== b.isCustom) return a.isCustom ? 1 : -1;
-    
     const idxA = COVERAGE_OPTIONS.indexOf(a.name);
     const idxB = COVERAGE_OPTIONS.indexOf(b.name);
     return idxA - idxB;
   });
+
+  // 데이터 추출 헬퍼 함수
+  const getChartValue = (keywords: string[], type: 'before' | 'after') => {
+      let total = 0;
+      customCoverages.forEach(c => {
+          const cleanName = c.name.replace(/\s/g, '');
+          if (keywords.some(kw => cleanName.includes(kw.replace(/\s/g, '')))) total += c[type] || 0;
+      });
+      analysisData.coverages.forEach(c => {
+          const cleanName = c.name.replace(/\s/g, '');
+          const overridden = coverageOverrides[c.name] || {};
+          const val = overridden[type] !== undefined ? overridden[type] : c[type];
+          if (keywords.some(kw => cleanName.includes(kw.replace(/\s/g, '')))) total += val || 0;
+      });
+      return total;
+  };
+
+  // 4축 밸런스 점수 계산
+  const chartDataGrouped = CHART_CONFIG.map(cat => {
+      let catBeforeSum = 0;
+      let catAfterSum = 0;
+      
+      cat.items.forEach(item => {
+         const bVal = getChartValue(item.keywords, 'before');
+         const aVal = getChartValue(item.keywords, 'after');
+         const target = radarTargets[item.label] !== undefined ? radarTargets[item.label] : item.defaultTarget;
+         
+         catBeforeSum += Math.min(100, (bVal / target) * 100);
+         catAfterSum += Math.min(100, (aVal / target) * 100);
+      });
+      
+      // 항목 수로 나누어 카테고리별 평균 달성률(%) 도출
+      return {
+         label: cat.title,
+         before: Math.max(15, catBeforeSum / cat.items.length),
+         after: Math.max(15, catAfterSum / cat.items.length)
+      };
+  });
+
+  chartDataGrouped.forEach(d => { if (d.after < d.before) d.after = d.before; });
+  const beforePoints = chartDataGrouped.map(d => d.before);
+  const afterPoints = chartDataGrouped.map(d => d.after);
 
 return (
   <>
@@ -792,7 +864,7 @@ return (
             page-break-after: always !important;
             break-after: page !important;
           }
-          section, table, tbody, tr, .print-card {
+          section, table, tbody, tr, .print-card, .print-bundle {
             page-break-inside: avoid !important;
             break-inside: avoid !important;
           }
@@ -885,7 +957,7 @@ return (
           </div>
         </section>
 
-        <section className="bg-white rounded-2xl p-6 md:p-8 border border-gray-400 shadow-sm print:p-0 print:border-none print:break-inside-avoid print:shadow-none relative overflow-hidden print:min-h-[250mm] flex flex-col gap-6">
+        <section className="bg-white rounded-2xl p-6 md:p-8 border border-gray-400 shadow-sm print:p-0 print:border-none print:break-inside-avoid print:shadow-none relative overflow-hidden flex flex-col gap-6">
           <div className="flex items-center justify-between border-b border-slate-200 pb-4 shrink-0 print:border-slate-300">
             <h2 className="text-xl font-black text-slate-800 flex items-center gap-2 uppercase tracking-widest">
               <ShieldCheck className="w-6 h-6 text-blue-600" /> 보장 리포트
@@ -894,8 +966,10 @@ return (
           
           {(() => {
             return (
-              <div className="flex flex-col gap-8 print:border-slate-300">
-                <div className="flex flex-col justify-center">
+              <div className="flex flex-col gap-8 print:border-slate-300 print-bundle">
+                
+                {/* 상단: 미흡 보장 진단 */}
+                <div className="flex flex-col">
                   <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <h4 className="text-lg font-black text-gray-900 flex items-center gap-2">
                       {displayGaps.length > 0 ? <AlertCircle className="w-5 h-5 text-red-500"/> : <ShieldCheck className="w-5 h-5 text-emerald-600"/>} 
@@ -909,7 +983,7 @@ return (
                   </div>
 
                   {displayGaps.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-4 min-h-[370px]">
+                    <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-4">
                       {displayGaps.map((item, index) => {
                         return (
                           <div key={index} className="bg-red-50/40 border border-red-100 p-4 rounded-2xl shadow-sm print:border-red-200 flex flex-col">
@@ -946,11 +1020,59 @@ return (
                     </div>
                   )}
                 </div>
+
+                {/* ⭐️ 하단: 4개의 5각형 밸런스 차트 (카테고리별 분리) */}
+                <div className="bg-slate-50/80 border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col items-center">
+                  <div className="w-full mb-6">
+                    <h4 className="text-base font-black text-slate-800 flex items-center gap-2 mb-1">
+                      <Target className="w-5 h-5 text-blue-600"/> 보장 밸런스
+                    </h4>
+                  </div>
+                  
+                  {/* 2x2 그리드로 4개의 차트 렌더링 */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-y-12 print:gap-y-0 gap-x-4 w-full">
+                    {CHART_CONFIG.map((config, idx) => {
+                        const bData = config.items.map(item => {
+                            const val = getChartValue(item.keywords, 'before');
+                            const target = radarTargets[item.label] !== undefined ? radarTargets[item.label] : item.defaultTarget;
+                            return Math.max(15, Math.min(100, (val / target) * 100));
+                        });
+                        const aData = config.items.map(item => {
+                            const val = getChartValue(item.keywords, 'after');
+                            const target = radarTargets[item.label] !== undefined ? radarTargets[item.label] : item.defaultTarget;
+                            return Math.max(15, Math.min(100, (val / target) * 100));
+                        });
+                        aData.forEach((d, i) => { if (d < bData[i]) aData[i] = bData[i]; });
+
+                        return (
+                            <div key={idx} className="flex flex-col items-center">
+                                <h5 className="font-black text-blue-700 print:text-blue-800 text-[13px] mb-3 bg-blue-50 print:bg-blue-100 px-3 py-1.5 rounded-md shadow-sm border border-blue-200 print:border-blue-300">
+                                  {config.title} 밸런스
+                                </h5>
+                                <PolygonRadarChart categories={config.items.map(i => i.label)} beforeData={bData} afterData={aData} />
+                            </div>
+                        )
+                    })}
+                  </div>
+                  
+                  {/* 차트 범례 */}
+                  <div className="flex justify-center gap-6 pt-6 border-t border-slate-200 w-full">
+                    <div className="flex items-center gap-2">
+                      <span className="w-4 h-0 border-t-2 border-dashed border-slate-400"></span>
+                      <span className="text-xs text-slate-600 font-bold">기존 보장</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="w-3.5 h-3.5 bg-blue-500/40 border-[1.5px] border-blue-500 rounded-[3px]"></span>
+                      <span className="text-xs text-slate-800 font-black">권장 보장</span>
+                    </div>
+                  </div>
+                </div>
+
               </div>
             );
           })()}
 
-          <div className="flex flex-col gap-4 shrink-0">
+          <div className="flex flex-col gap-4 shrink-0 print-bundle mt-4">
             <div className="flex flex-col md:flex-row gap-4 print:flex print:flex-col print:flex-row">
               <div className="flex-1 bg-slate-50 border border-slate-200 p-6 rounded-2xl print:border-slate-300 flex flex-col justify-between print:flex-1 print:justify-between">
                  <p className="text-sm font-bold text-slate-500 mb-6 flex items-center gap-1.5">
@@ -1033,7 +1155,7 @@ return (
               const upgradedCoverages = analysisData.coverages.filter(item => item.after > item.before && !HIDDEN_IN_SUMMARY.includes(item.name));
               
               return (
-                <div className="flex flex-col gap-8 mt-8 pt-8 border-t border-slate-200 border-dashed print:border-slate-300 print:mt-6 print:pt-6">
+                <div className="flex flex-col gap-8 mt-8 pt-8 border-t border-slate-200 border-dashed print:border-slate-300 print:mt-6 print:pt-6 print-bundle">
                   <div className={`flex flex-col justify-center ${upgradedCoverages.length === 0 ? 'print:hidden' : ''}`}>
                     <div className="mb-4">
                       <h4 className="text-lg font-black text-gray-900 flex items-center gap-2">
@@ -1042,7 +1164,8 @@ return (
                       <div className="flex items-center justify-between mt-1">
                         <p className="text-xs font-bold text-gray-500">기존 대비 보장 금액이 <strong className="text-emerald-600">가장 많이 늘어난 3가지 핵심 담보</strong>입니다.</p>
                       </div>
-                        <div className="flex flex-wrap gap-2 mt-3 print:hidden">
+                        {/* ⭐️ 변경됨: flex flex-wrap 대신 grid grid-cols-3 사용하여 강제 1줄 3칸 분할 */}
+                        <div className="grid grid-cols-3 gap-2 mt-3 w-full print:hidden">
                           {[0, 1, 2].map((slotIndex) => {
                             return (
                               <select
@@ -1053,7 +1176,8 @@ return (
                                   newSelected[slotIndex] = e.target.value;
                                   setSelectedTop3(newSelected);
                                 }}
-                                className="text-[11px] font-bold border border-emerald-200 rounded-lg px-2 py-1.5 bg-emerald-50 text-emerald-700 outline-none focus:border-emerald-500 shadow-sm cursor-pointer"
+                                // ⭐️ 변경됨: w-full (너비 꽉 채움) 및 truncate (글자가 넘치면 ... 처리) 추가
+                                className="w-full truncate cursor-pointer text-[11px] font-bold border border-emerald-200 rounded-lg px-2 py-1.5 bg-emerald-50 text-emerald-700 outline-none focus:border-emerald-500 shadow-sm"
                               >
                                 <option value="">{slotIndex + 1}위 (자동 추천)</option>
                                 {upgradedCoverages.map(c => (
@@ -1125,7 +1249,7 @@ return (
               );
             })()}
             
-            <div className="bg-slate-50 border border-slate-200 p-5 rounded-2xl print:bg-slate-50/80 shrink-0 mt-8">
+            <div className="bg-slate-50 border border-slate-200 p-5 rounded-2xl print:bg-slate-50/80 shrink-0 mt-8 print-bundle">
               <div className="flex items-start gap-3">
                 <Info className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
                 <div className="w-full">
@@ -1133,7 +1257,7 @@ return (
                   <textarea
                     value={briefingText}
                     onChange={(e) => setBriefingText(e.target.value)}
-                    className="w-full min-h-[300px] bg-transparent text-1xl text-slate-600 font-medium leading-relaxed outline-none resize-none focus:border-b focus:border-blue-300 transition-colors print:border-none print:p-0"
+                    className="w-full min-h-[180px] bg-transparent text-1xl text-slate-600 font-medium leading-relaxed outline-none resize-none focus:border-b focus:border-blue-300 transition-colors print:border-none print:p-0"
                     rows={briefingText ? briefingText.split('\n').length + 1 : 3}
                   />
                 </div>
@@ -1208,9 +1332,10 @@ return (
                   <table className="w-full text-sm text-center border-collapse">
                     <thead className="bg-slate-100 border-b border-slate-200">
                       <tr>
-                        <th className="py-3.5 px-3 text-left font-bold text-slate-600 w-[35%]">KCD 질환명 (분류코드)</th>
-                        <th className="py-3.5 px-2 font-bold text-slate-500 w-[20%] border-l border-slate-200">기존 보장액</th>
-                        <th className="py-3.5 px-2 font-black text-blue-600 w-[20%] bg-blue-50 border-l border-blue-100 shadow-inner">권장 보장액</th>
+                        <th className="py-3.5 px-3 text-left font-bold text-slate-600 w-[40%]">KCD 질환명 (분류코드)</th>
+                        <th className="py-3.5 px-2 font-bold text-slate-500 w-[25%] border-l border-slate-200">기존 보장액</th>
+                        <th className="py-3.5 px-2 font-black text-blue-600 w-[25%] bg-blue-50 border-l border-blue-100 shadow-inner">권장 보장액</th>
+                        <th className="py-3.5 px-2 font-bold text-slate-500 w-[10%] border-l border-slate-200">★</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -1226,13 +1351,13 @@ return (
 
                         return (
                           <tr key={itemIdx} className={isUpgraded ? 'bg-blue-50/10 hover:bg-blue-50/30 transition-colors' : 'hover:bg-slate-50/50'}>
-                            <td className="py-1 px-3 text-left">
+                            <td className="py-2 px-4 text-left">
                               <div className="flex flex-col gap-0.5">
                                 <span className={`font-bold text-[13px] ${isUpgraded ? 'text-blue-900' : 'text-slate-800'}`}>
                                   {item.name}
                                 </span>
                                 <div className="flex items-center gap-1.5">
-                                  <span className="text-[11px] font-medium text-slate-400 tracking-wider">
+                                  <span className="text-[10px] font-medium text-slate-400 tracking-wider">
                                     {item.id}
                                   </span>
                                   {isHighlight && (
@@ -1243,10 +1368,10 @@ return (
                                 </div>
                               </div>
                             </td>
-                            <td className={`py-1 px-2 border-l border-slate-100 ${isZeroBefore ? 'text-red-400' : 'text-slate-600 font-bold'}`}>
+                            <td className={`py-2 px-2 border-l border-slate-100 ${isZeroBefore ? 'text-red-400' : 'text-slate-600 font-bold'}`}>
                               {isZeroBefore ? <X className="w-4 h-4 mx-auto" strokeWidth={3} /> : formatMoney(beforeAmt)}
                             </td>
-                            <td className={`py-1 px-2 border-l border-blue-100 bg-blue-50/30 font-black ${afterAmt > 0 ? 'text-blue-700' : 'text-slate-400'}`}>
+                            <td className={`py-2 px-2 border-l border-blue-100 bg-blue-50/30 font-black ${afterAmt > 0 ? 'text-blue-700' : 'text-slate-400'}`}>
                               {
                                 afterAmt > 0 ? 
                                 <div className="flex flex-col items-center justify-center gap-1">
@@ -1255,6 +1380,9 @@ return (
                                  : 
                                 '-'
                               }
+                            </td>
+                            <td className="py-2 px-2 border-l border-slate-100 text-center text-slate-300">
+                               {isHighlight ? <Star className="w-4 h-4 fill-amber-500 text-amber-500 mx-auto" /> : '-'}
                             </td>
                           </tr>
                         );
@@ -1285,9 +1413,10 @@ return (
                   <table className="w-full text-sm text-center border-collapse">
                     <thead className="bg-slate-100 border-b border-slate-200">
                       <tr>
-                        <th className="py-3.5 px-3 text-left font-bold text-slate-600 w-[35%]">KCD 질환명 (분류코드)</th>
-                        <th className="py-3.5 px-2 font-bold text-slate-500 w-[20%] border-l border-slate-200">기존 보장액</th>
-                        <th className="py-3.5 px-2 font-black text-blue-600 w-[20%] bg-blue-50 border-l border-blue-100 shadow-inner">권장 보장액</th>
+                        <th className="py-3.5 px-3 text-left font-bold text-slate-600 w-[40%]">KCD 질환명 (분류코드)</th>
+                        <th className="py-3.5 px-2 font-bold text-slate-500 w-[25%] border-l border-slate-200">기존 보장액</th>
+                        <th className="py-3.5 px-2 font-black text-blue-600 w-[25%] bg-blue-50 border-l border-blue-100 shadow-inner">권장 보장액</th>
+                        <th className="py-3.5 px-2 font-bold text-slate-500 w-[10%] border-l border-slate-200">★</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -1303,13 +1432,13 @@ return (
 
                         return (
                           <tr key={itemIdx} className={isUpgraded ? 'bg-blue-50/10 hover:bg-blue-50/30 transition-colors' : 'hover:bg-slate-50/50'}>
-                            <td className="py-1 px-3 text-left">
+                            <td className="py-2 px-4 text-left">
                               <div className="flex flex-col gap-0.5">
                                 <span className={`font-bold text-[13px] ${isUpgraded ? 'text-blue-900' : 'text-slate-800'}`}>
                                   {item.name}
                                 </span>
                                 <div className="flex items-center gap-1.5">
-                                  <span className="text-[11px] font-medium text-slate-400 tracking-wider">
+                                  <span className="text-[10px] font-medium text-slate-400 tracking-wider">
                                     {item.id}
                                   </span>
                                   {isHighlight && (
@@ -1320,10 +1449,10 @@ return (
                                 </div>
                               </div>
                             </td>
-                            <td className={`py-1 px-2 border-l border-slate-100 ${isZeroBefore ? 'text-red-400' : 'text-slate-600 font-bold'}`}>
+                            <td className={`py-2 px-2 border-l border-slate-100 ${isZeroBefore ? 'text-red-400' : 'text-slate-600 font-bold'}`}>
                               {isZeroBefore ? <X className="w-4 h-4 mx-auto" strokeWidth={3} /> : formatMoney(beforeAmt)}
                             </td>
-                            <td className={`py-1 px-2 border-l border-blue-100 bg-blue-50/30 font-black ${afterAmt > 0 ? 'text-blue-700' : 'text-slate-400'}`}>
+                            <td className={`py-2 px-2 border-l border-blue-100 bg-blue-50/30 font-black ${afterAmt > 0 ? 'text-blue-700' : 'text-slate-400'}`}>
                               {
                                 afterAmt > 0 ?  
                                   <div className="flex flex-col items-center justify-center gap-1">
@@ -1331,6 +1460,9 @@ return (
                                   </div>
                                 : '-'
                                }
+                            </td>
+                            <td className="py-2 px-2 border-l border-slate-100 text-center text-slate-300">
+                               {isHighlight ? <Star className="w-4 h-4 fill-amber-500 text-amber-500 mx-auto" /> : '-'}
                             </td>
                           </tr>
                         );
@@ -1591,391 +1723,21 @@ return (
 
       </div>
 
-      {/* ⭐️ 통합 세부 설정 모달 */}
-      {isSettingsModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
-          <div className="bg-slate-50 rounded-[2rem] w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
-            
-            <div className="bg-white px-6 py-5 border-b border-slate-200 flex justify-between items-center shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center">
-                  <Settings2 className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-black text-slate-900 text-lg">분석 리포트 세부 설정</h3>
-                  <p className="text-xs font-bold text-slate-500 mt-0.5">KCD 금액을 보정하거나 보장 금액표의 표시 항목을 자유롭게 편집하세요.</p>
-                </div>
-              </div>
-              <button onClick={() => setIsSettingsModalOpen(false)} className="cursor-pointer p-2 text-slate-400 hover:text-red-500 transition-colors">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="flex bg-white border-b border-slate-200 shrink-0 px-6 gap-6">
-              <button 
-                onClick={() => setSettingsTab('kcd')} 
-                className={`py-3.5 font-bold text-sm transition-colors border-b-2 outline-none ${settingsTab === 'kcd' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
-              >
-                KCD 금액 정밀 조정
-              </button>
-              <button 
-                onClick={() => setSettingsTab('coverage')} 
-                className={`py-3.5 font-bold text-sm transition-colors border-b-2 outline-none ${settingsTab === 'coverage' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
-              >
-                보장 금액 합계표 표시 설정
-              </button>
-            </div>
-
-            <div className="p-6 overflow-y-auto flex-1">
-              
-              {/* 탭 1: KCD 금액 조정 */}
-              {settingsTab === 'kcd' && (
-                <div className="space-y-8">
-                  {[...CIRCULATORY_CODES, ...CANCER_CODES].map((group, groupIdx) => (
-                    <div key={groupIdx} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-                          <h4 className="font-black text-slate-800 flex items-center gap-2 text-sm">
-                            <span className="w-1.5 h-3 bg-blue-500 rounded-full"></span>
-                            {group.group}
-                          </h4>
-                          {group.group.includes("순환계질환") && (
-                            <div className="flex items-center gap-4 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
-                              <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-600 hover:text-blue-600 transition-colors">
-                                <input
-                                  type="checkbox"
-                                  checked={tempIncludeSanjeong.brain}
-                                  onChange={(e) => setTempIncludeSanjeong(prev => ({ ...prev, brain: e.target.checked }))}
-                                  className="w-3.5 h-3.5 accent-blue-600 cursor-pointer"
-                                />
-                                뇌산정특례 적용
-                              </label>
-                              <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-600 hover:text-blue-600 transition-colors">
-                                <input
-                                  type="checkbox"
-                                  checked={tempIncludeSanjeong.heart}
-                                  onChange={(e) => setTempIncludeSanjeong(prev => ({ ...prev, heart: e.target.checked }))}
-                                  className="w-3.5 h-3.5 accent-blue-600 cursor-pointer"
-                                />
-                                심장산정특례 적용
-                              </label>
-                            </div>
-                          )}
-                        </div>
-                      
-                      <table className="w-full text-left text-sm border-collapse">
-                        <thead className="bg-slate-50">
-                          <tr>
-                            <th className="px-4 py-2.5 font-bold text-slate-500 border-y border-slate-200 w-[35%]">질병명 (KCD)</th>
-                            <th className="px-4 py-2.5 font-bold text-slate-500 border-y border-slate-200 w-[25%]">기존 보장액(만원)</th>
-                            <th className="px-4 py-2.5 font-bold text-slate-500 border-y border-slate-200 w-[25%]">권장 보장액(만원)</th>
-                            <th className="px-4 py-2.5 font-bold text-slate-500 border-y border-slate-200 w-[15%] text-center">핵심 강조</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {group.items.map((item) => {
-                            const overrideBefore = tempKcdOverrides[item.id]?.before;
-                            const overrideAfter = tempKcdOverrides[item.id]?.after;
-                            const autoBefore = calculateCodeCoverage(item.keywords, 'before', item.id, tempIncludeSanjeong, tempCoverageOverrides, tempCustomCoverages);
-                            const autoAfter = calculateCodeCoverage(item.keywords, 'after', item.id, tempIncludeSanjeong, tempCoverageOverrides, tempCustomCoverages);
-                            
-                            const displayBefore = overrideBefore !== undefined ? overrideBefore : autoBefore;
-                            const displayAfter = overrideAfter !== undefined ? overrideAfter : autoAfter;
-                            const isHighlight = tempKcdOverrides[item.id]?.highlight !== undefined ? tempKcdOverrides[item.id].highlight : item.highlight;
-
-                            return (
-                              <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
-                                <td className="px-4 py-3">
-                                  <p className="font-bold text-slate-700 text-[13px]">{item.name}</p>
-                                  <p className="text-[10px] text-slate-400 font-medium">{item.id}</p>
-                                </td>
-                                <td className="px-3 py-3">
-                                  <div className="relative flex items-center group">
-                                    <input 
-                                      type="text" 
-                                      value={displayBefore === 0 && overrideBefore === undefined ? "" : displayBefore.toLocaleString()} 
-                                      onChange={(e) => {
-                                        const numStr = e.target.value.replace(/[^0-9]/g, "");
-                                        const num = numStr === "" ? undefined : parseInt(numStr, 10);
-                                        handleTempKcdOverride(item.id, 'before', num);
-                                      }}
-                                      placeholder={autoBefore.toLocaleString()}
-                                      className={`w-full px-3 py-1.5 rounded-lg text-sm outline-none transition-all border ${overrideBefore !== undefined ? 'bg-amber-50 border-amber-300 text-amber-900 font-black focus:ring-2 focus:ring-amber-200' : 'bg-white border-slate-200 text-slate-800 font-semibold focus:border-blue-500 focus:ring-2 focus:ring-blue-100'}`}
-                                    />
-                                    {overrideBefore !== undefined && (
-                                      <button onClick={() => handleTempKcdOverride(item.id, 'before', undefined)} className="absolute right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-slate-200 hover:bg-slate-300 rounded-md text-slate-500 cursor-pointer" title="자동 계산으로 복구">
-                                        <RotateCcw className="w-3 h-3" />
-                                      </button>
-                                    )}
-                                  </div>
-                                </td>
-                                <td className="px-3 py-3">
-                                  <div className="relative flex items-center group">
-                                    <input 
-                                      type="text" 
-                                      value={displayAfter === 0 && overrideAfter === undefined ? "" : displayAfter.toLocaleString()} 
-                                      onChange={(e) => {
-                                        const numStr = e.target.value.replace(/[^0-9]/g, "");
-                                        const num = numStr === "" ? undefined : parseInt(numStr, 10);
-                                        handleTempKcdOverride(item.id, 'after', num);
-                                      }}
-                                      placeholder={autoAfter.toLocaleString()}
-                                      className={`w-full px-3 py-1.5 rounded-lg text-sm outline-none transition-all border ${overrideAfter !== undefined ? 'bg-amber-50 border-amber-300 text-amber-900 font-black focus:ring-2 focus:ring-amber-200' : 'bg-white border-slate-200 text-blue-700 font-black focus:border-blue-500 focus:ring-2 focus:ring-blue-100'}`}
-                                    />
-                                    {overrideAfter !== undefined && (
-                                      <button onClick={() => handleTempKcdOverride(item.id, 'after', undefined)} className="absolute right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-slate-200 hover:bg-slate-300 rounded-md text-slate-500 cursor-pointer" title="자동 계산으로 복구">
-                                        <RotateCcw className="w-3 h-3" />
-                                      </button>
-                                    )}
-                                  </div>
-                                </td>
-                                <td className="px-4 py-3 text-center">
-                                  <button
-                                    onClick={() => handleTempKcdOverride(item.id, 'highlight', !isHighlight)}
-                                    className={`p-2 rounded-xl transition-all shadow-sm cursor-pointer ${
-                                      isHighlight 
-                                        ? 'bg-amber-100 text-amber-500 border border-amber-200 hover:bg-amber-200' 
-                                        : 'bg-slate-50 border border-slate-200 text-slate-300 hover:bg-slate-100'
-                                    }`}
-                                  >
-                                    <Star className={`w-4 h-4 ${isHighlight ? 'fill-current' : ''}`} />
-                                  </button>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* 탭 2: 보장 항목 표시 설정 */}
-              {settingsTab === 'coverage' && (
-                <div className="space-y-6">
-                  {/* 전체 항목 가시성 토글 및 금액 조정 섹션 */}
-                  <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col flex-1 min-h-[500px]">
-                    <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-4 shrink-0 px-2">
-                      <div>
-                        <h4 className="font-black text-slate-800 flex items-center gap-2 text-sm">
-                          <span className="w-1.5 h-3 bg-blue-500 rounded-full"></span>
-                          기본 항목 금액 조정 및 추가
-                        </h4>
-                        <p className="text-[11px] text-slate-500 mt-1">체크된 항목만 분석 합계표에 강제 표시됩니다. 자동 금액을 수동으로 변경하거나 항목을 추가할 수 있습니다.</p>
-                      </div>
-                      <div className="relative">
-                        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                        <input 
-                          type="text" 
-                          placeholder="특약명 검색..." 
-                          value={searchCovItem}
-                          onChange={(e) => setSearchCovItem(e.target.value)}
-                          className="pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm w-full sm:w-64 outline-none focus:border-blue-500 focus:bg-white transition"
-                        />
-                      </div>
-                    </div>
-                    
-                    <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar pb-4 space-y-6">
-                      {(() => {
-                        const filteredOptions = COVERAGE_OPTIONS.filter(name => name !== "일반사망 진단비" && name.includes(searchCovItem));
-                        
-                        const groupedOptions = filteredOptions.reduce((acc, name) => {
-                          const cat = getCategory(name);
-                          if (!acc[cat]) acc[cat] = [];
-                          acc[cat].push(name);
-                          return acc;
-                        }, {} as Record<string, string[]>);
-
-                        return CATEGORY_ORDER.map(cat => {
-                          const items = groupedOptions[cat] || [];
-                          const customItems = tempCustomCoverages.filter(c => c.category === cat);
-                          
-                          if (items.length === 0 && customItems.length === 0) return null;
-                          
-                          return (
-                            <div key={cat} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm shrink-0">
-                              <div className="bg-slate-100 px-4 py-3 border-b border-slate-200 flex items-center gap-2">
-                                <span className="w-1.5 h-3 bg-slate-400 rounded-full"></span>
-                                <h5 className="font-bold text-slate-700 text-sm">{cat}</h5>
-                              </div>
-                              <div className="overflow-x-auto">
-                                <table className="w-full text-left text-sm border-collapse bg-white min-w-[500px]">
-                                  <thead className="bg-slate-50/50">
-                                    <tr>
-                                      <th className="px-4 py-2.5 text-xs font-bold text-slate-400 border-b border-slate-100 w-[35%]">보장 항목명</th>
-                                      <th className="px-3 py-2.5 text-xs font-bold text-slate-400 border-b border-slate-100 w-[25%]">기존 금액(만원)</th>
-                                      <th className="px-3 py-2.5 text-xs font-bold text-slate-400 border-b border-slate-100 w-[25%]">권장 금액(만원)</th>
-                                      <th className="px-4 py-2.5 text-xs font-bold text-slate-400 border-b border-slate-100 w-[15%] text-center">표시 여부</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody className="divide-y divide-slate-100">
-                                    {items.map(name => {
-                                      const isChecked = tempVisibleCoverages.includes(name);
-                                      const overrideBefore = tempCoverageOverrides[name]?.before;
-                                      const overrideAfter = tempCoverageOverrides[name]?.after;
-                                      
-                                      const itemData = analysisData.coverages.find(c => c.name === name);
-                                      const autoBefore = itemData ? itemData.before : 0;
-                                      const autoAfter = itemData ? itemData.after : 0;
-
-                                      const displayBefore = overrideBefore !== undefined ? overrideBefore : autoBefore;
-                                      const displayAfter = overrideAfter !== undefined ? overrideAfter : autoAfter;
-
-                                      return (
-                                        <tr key={name} className="hover:bg-blue-50/30 transition-colors">
-                                          <td className="px-4 py-3 font-bold text-[13px] text-slate-700 break-keep">
-                                            {name}
-                                          </td>
-                                          <td className="px-3 py-2.5">
-                                            <div className="relative flex items-center group">
-                                              <input 
-                                                type="text" 
-                                                value={displayBefore === 0 && overrideBefore === undefined ? "" : displayBefore.toLocaleString()} 
-                                                onChange={(e) => {
-                                                  const numStr = e.target.value.replace(/[^0-9]/g, "");
-                                                  const num = numStr === "" ? undefined : parseInt(numStr, 10);
-                                                  handleTempCoverageOverride(name, 'before', num);
-                                                }}
-                                                placeholder={autoBefore.toLocaleString()}
-                                                className={`w-full px-3 py-1.5 rounded-lg text-sm outline-none transition-all border ${overrideBefore !== undefined ? 'bg-emerald-50 border-emerald-300 text-emerald-900 font-black focus:ring-2 focus:ring-emerald-200' : 'bg-white border-slate-200 text-slate-600 font-semibold focus:border-blue-500 focus:ring-2 focus:ring-blue-100'}`}
-                                              />
-                                              {overrideBefore !== undefined && (
-                                                <button onClick={() => handleTempCoverageOverride(name, 'before', undefined)} className="absolute right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-slate-200 hover:bg-slate-300 rounded-md text-slate-500 cursor-pointer" title="자동 계산으로 복구">
-                                                  <RotateCcw className="w-3 h-3" />
-                                                </button>
-                                              )}
-                                            </div>
-                                          </td>
-                                          <td className="px-3 py-2.5">
-                                            <div className="relative flex items-center group">
-                                              <input 
-                                                type="text" 
-                                                value={displayAfter === 0 && overrideAfter === undefined ? "" : displayAfter.toLocaleString()} 
-                                                onChange={(e) => {
-                                                  const numStr = e.target.value.replace(/[^0-9]/g, "");
-                                                  const num = numStr === "" ? undefined : parseInt(numStr, 10);
-                                                  handleTempCoverageOverride(name, 'after', num);
-                                                }}
-                                                placeholder={autoAfter.toLocaleString()}
-                                                className={`w-full px-3 py-1.5 rounded-lg text-sm outline-none transition-all border ${overrideAfter !== undefined ? 'bg-emerald-50 border-emerald-300 text-emerald-900 font-black focus:ring-2 focus:ring-emerald-200' : 'bg-white border-slate-200 text-blue-600 font-black focus:border-blue-500 focus:ring-2 focus:ring-blue-100'}`}
-                                              />
-                                              {overrideAfter !== undefined && (
-                                                <button onClick={() => handleTempCoverageOverride(name, 'after', undefined)} className="absolute right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-slate-200 hover:bg-slate-300 rounded-md text-slate-500 cursor-pointer" title="자동 계산으로 복구">
-                                                  <RotateCcw className="w-3 h-3" />
-                                                </button>
-                                              )}
-                                            </div>
-                                          </td>
-                                          <td className="px-4 py-2.5 text-center">
-                                            <label className="inline-flex relative items-center cursor-pointer justify-center">
-                                              <input 
-                                                type="checkbox" 
-                                                checked={isChecked}
-                                                onChange={() => toggleVisibleCoverage(name)} 
-                                                className="sr-only peer"
-                                              />
-                                              <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                                            </label>
-                                          </td>
-                                        </tr>
-                                      );
-                                    })}
-                                    
-                                    {/* ⭐️ 수동 추가된 항목 리스트 */}
-                                    {customItems.map(custom => (
-                                      <tr key={custom.id} className="bg-emerald-50/20 hover:bg-emerald-50/50 transition-colors">
-                                        <td className="px-4 py-3 font-bold text-[13px] text-emerald-700 flex items-center gap-1.5">
-                                          <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1 py-0.5 rounded">수동추가</span>
-                                          {custom.name}
-                                        </td>
-                                        <td className="px-3 py-2.5 font-bold text-slate-600">
-                                          <div className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-right">
-                                            {custom.before === 0 ? '-' : custom.before.toLocaleString()}
-                                          </div>
-                                        </td>
-                                        <td className="px-3 py-2.5 font-bold text-blue-600">
-                                          <div className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-right">
-                                            {custom.after === 0 ? '-' : custom.after.toLocaleString()}
-                                          </div>
-                                        </td>
-                                        <td className="px-4 py-2.5 text-center">
-                                          <button onClick={() => handleDeleteCustomCoverage(custom.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition cursor-pointer">
-                                            <X className="w-4 h-4" />
-                                          </button>
-                                        </td>
-                                      </tr>
-                                    ))}
-
-                                    {/* ⭐️ 카테고리별 특약 직접 추가 폼 */}
-                                    <tr className="bg-slate-50/80 border-t-2 border-slate-200 border-dashed">
-                                      <td className="px-3 py-2.5">
-                                        <input 
-                                          type="text" 
-                                          placeholder="+ 이 항목에 특약 추가" 
-                                          value={customInputs[cat]?.name || ""}
-                                          onChange={(e) => handleCustomInputChange(cat, 'name', e.target.value)}
-                                          className="w-full px-3 py-1.5 rounded-lg text-xs font-semibold bg-white border border-slate-300 focus:border-emerald-500 outline-none placeholder:font-normal"
-                                        />
-                                      </td>
-                                      <td className="px-3 py-2.5">
-                                        <input 
-                                          type="text" 
-                                          placeholder="기존 금액(만원)" 
-                                          value={customInputs[cat]?.before || ""}
-                                          onChange={(e) => handleCustomInputChange(cat, 'before', formatDetailAmount(e.target.value))}
-                                          className="w-full px-3 py-1.5 rounded-lg text-xs bg-white border border-slate-300 focus:border-emerald-500 outline-none text-right font-bold"
-                                        />
-                                      </td>
-                                      <td className="px-3 py-2.5">
-                                        <input 
-                                          type="text" 
-                                          placeholder="권장 금액(만원)" 
-                                          value={customInputs[cat]?.after || ""}
-                                          onChange={(e) => handleCustomInputChange(cat, 'after', formatDetailAmount(e.target.value))}
-                                          className="w-full px-3 py-1.5 rounded-lg text-xs bg-white border border-slate-300 focus:border-emerald-500 outline-none text-right font-bold text-blue-600"
-                                        />
-                                      </td>
-                                      <td className="px-3 py-2.5 text-center">
-                                        <button 
-                                          onClick={() => handleAddCustomCoverage(cat)}
-                                          className="w-full bg-emerald-600 text-white py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-700 transition cursor-pointer shadow-sm"
-                                        >
-                                          추가
-                                        </button>
-                                      </td>
-                                    </tr>
-                                  </tbody>
-                                </table>
-                              </div>
-                            </div>
-                          );
-                        });
-                      })()}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-            </div>
-
-            <div className="bg-white px-6 py-4 border-t border-slate-200 shrink-0 flex justify-end items-center gap-3">
-              <button 
-                onClick={() => setIsSettingsModalOpen(false)} 
-                className="px-5 py-2.5 rounded-xl text-sm font-bold text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 transition-colors cursor-pointer"
-              >
-                취소
-              </button>
-              <button 
-                onClick={applySettingsOverrides} 
-                className="px-6 py-2.5 rounded-xl text-sm font-black text-white bg-blue-600 shadow-md shadow-blue-600/20 hover:bg-blue-700 transition-all flex items-center gap-2 cursor-pointer"
-              >
-                <Check className="w-4 h-4" />
-                적용 및 저장
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <div className="relative z-[99999] print:hidden">
+        <SettingsModal 
+          isOpen={isSettingsModalOpen}
+          onClose={() => setIsSettingsModalOpen(false)}
+          onSave={applySettingsOverrides}
+          analysisData={analysisData}
+          calculateCodeCoverage={calculateCodeCoverage}
+          initialKcdOverrides={kcdOverrides}
+          initialVisibleCoverages={visibleCoverages}
+          initialCustomCoverages={customCoverages}
+          initialCoverageOverrides={coverageOverrides}
+          initialIncludeSanjeong={includeSanjeong}
+          initialRadarTargets={radarTargets} 
+        />
+      </div>
 
     </>
   );

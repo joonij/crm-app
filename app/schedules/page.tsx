@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Clock, Loader2, Plus, Megaphone, Building2, Users, Edit2, Trash2, X, Trophy, Target, TrendingUp, DollarSign, AlertCircle, User, Building } from "lucide-react";
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Clock, Loader2, Plus, Megaphone, Building2, Users, Edit2, Trash2, X, Trophy, Target, TrendingUp, DollarSign, AlertCircle, User, Building, UserPlus } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import ScheduleModal from "./components/ScheduleModal"; 
 
@@ -45,6 +45,50 @@ type TeamMemberSchedule = {
   stats: MemberStats;
 };
 
+// ===== ⭐️ 여기서부터 복사해서 export default function SchedulePage() 바로 위에 붙여넣으세요! =====
+const RECRUITING_STEPS = [
+  { id: "rec01", label: "후보자 발굴" },
+  { id: "rec02", label: "비전 제시" },
+  { id: "rec03", label: "소득 설명" },
+  { id: "rec04", label: "제도 설명" },
+  { id: "rec05", label: "지점장/본부장 면접" },
+  { id: "rec06", label: "입사 지원" },
+  { id: "rec07", label: "보험연수원 40H 교육 연수" },
+  { id: "rec08", label: "생명보험 자격시험 접수" },
+  { id: "rec09", label: "생명보험 자격시험 합격" },
+  { id: "rec10", label: "손해보험 자격시험 접수" },
+  { id: "rec11", label: "손해보험 자격시험 합격" },
+  { id: "rec12", label: "변액보험 자격시험 접수" },
+  { id: "rec13", label: "변액보험 자격시험 합격" },
+  { id: "rec14", label: "제3보험 자격시험 접수" },
+  { id: "rec15", label: "제3보험 자격시험 합격" },
+  { id: "rec16", label: "위촉 필요 서류 안내" },
+  { id: "rec17", label: "협회 코드 발급 완료" },
+  { id: "rec18", label: "신입 교육 참석" },
+];
+
+const parseSteps = (statusString: string | null): string[] => {
+  if (!statusString) return [];
+  try {
+    const parsed = JSON.parse(statusString);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const getMonthString = (offsetMonths: number = 0) => {
+  const date = new Date();
+  date.setMonth(date.getMonth() - offsetMonths);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+};
+
+const formatMoney = (val: number) => {
+  if (val === 0) return "0원";
+  return `${val.toLocaleString()}원`;
+};
+// ===== ⭐️ 여기까지 복사 완료 =====
+
 export default function SchedulePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'weekly' | 'monthly'>('weekly');
@@ -72,6 +116,8 @@ export default function SchedulePage() {
 
   const [monthlyTarget, setMonthlyTarget] = useState(2000000);
 
+  const [myRecruitStats, setMyRecruitStats] = useState({ scheduleCount: 0, candidateCount: 0 });
+  
   const [highlightedClientId, setHighlightedClientId] = useState<number | null>(null);
   const [isScoreboardOpen, setIsScoreboardOpen] = useState(true);
 
@@ -182,12 +228,22 @@ export default function SchedulePage() {
         if (['SM', 'BM', 'RM'].includes(myRank)) membersQuery = membersQuery.eq('agency_id', myAgencyId);
         else membersQuery = membersQuery.eq('id', info.id);
 
-        const [{ data: members }, { data: schedules }] = await Promise.all([
+        const [{ data: members }, { data: schedules }, { data: myClients }] = await Promise.all([
           membersQuery,
           supabase.from("schedules").select("*, clients(name)").in("agency_id", corpAgencyIds).gte("date", startDate).lte("date", endDate).order('time', { ascending: true }),
+          supabase.from("clients").select("id, recruiting_status").eq("agent_id", info.id) 
         ]);
 
         if (!members || !schedules) return;
+
+        // ⭐️ 2. 여기서 리쿠르팅 통계를 계산해 상태에 저장합니다.
+        const thisMonthStr = formatDateStr(currentDate).slice(0, 7);
+        const myRecruitSchedules = schedules.filter(s => s.agent_id === info.id && s.category === '리쿠' && s.date.startsWith(thisMonthStr));
+        const activeCandidates = (myClients || []).filter(c => {
+          const steps = parseSteps(c.recruiting_status);
+          return steps.length > 0 && steps.length < RECRUITING_STEPS.length;
+        });
+        setMyRecruitStats({ scheduleCount: myRecruitSchedules.length, candidateCount: activeCandidates.length });
 
         const memberNames = members.map(m => m.name);
 
@@ -512,46 +568,78 @@ export default function SchedulePage() {
         <div className="absolute right-0 top-0 w-64 h-64 bg-blue-100 rounded-full filter blur-[80px] opacity-60 pointer-events-none"></div>
         <div className="absolute left-0 bottom-0 w-48 h-48 bg-teal-50 rounded-full filter blur-[80px] opacity-60 pointer-events-none"></div>
 
-        <div className="flex justify-between items-center md:hidden relative z-20">
+        <div className="flex justify-between items-center xl:hidden relative z-20">
           <span className="text-xs font-bold text-slate-500 flex items-center gap-1.5"><Trophy className="w-3.5 h-3.5" /> 이번 달 실적 요약</span>
           <button
             onClick={() => setIsScoreboardOpen(!isScoreboardOpen)}
-            className="text-blue-600 font-bold text-[11px] bg-blue-50 px-2.5 py-1.5 rounded-lg flex items-center gap-1 active:scale-95 transition-transform"
+            className="text-blue-600 font-bold text-[11px] bg-blue-50 px-2.5 py-1.5 rounded-lg flex items-center gap-1 active:scale-95 transition-transform cursor-pointer"
           >
             {isScoreboardOpen ? '접어두기 ▲' : '펼쳐보기 ▼'}
           </button>
         </div>
 
         {!isScoreboardOpen && (
-          <div className="md:hidden flex justify-between items-center px-3 py-2.5 bg-slate-50 rounded-xl border border-slate-100 animate-in fade-in relative z-20">
-            <span className="text-[11px] font-bold text-slate-600">나의 체결금액</span>
-            <span className="text-sm font-black text-blue-600">{myMonthlyStats.maintainAmt.toLocaleString()}원</span>
+          <div className="xl:hidden flex justify-between items-center px-3 py-2.5 bg-slate-50 rounded-xl border border-slate-100 animate-in fade-in relative z-20">
+            <span className="text-[11px] font-bold text-slate-600">나의 체결 / 진행 후보자</span>
+            <span className="text-sm font-black text-blue-600">{myMonthlyStats.maintainAmt.toLocaleString()}원 / {myRecruitStats.candidateCount}명</span>
           </div>
         )}
 
-        <div className={`${isScoreboardOpen ? 'flex' : 'hidden'} md:flex flex-col gap-5 relative overflow-hidden transition-all`}>
-          <div className="relative z-10 flex flex-col md:flex-row gap-6 md:items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center border border-blue-100 shadow-inner">
-                <Trophy className="w-6 h-6 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-slate-500 text-xs font-bold mb-1">나의 이번 달 실적 ({currentDate.getMonth() + 1}월)</p>
-                <div className="flex gap-4 sm:gap-6 items-center">
-                  <div className="flex flex-col">
-                    <span className="text-orange-500 text-xs font-bold mb-0.5">계약 예정 ({myMonthlyStats.newCnt}건)</span>
-                    <span className="text-xl sm:text-2xl font-black text-slate-800">{myMonthlyStats.newAmt.toLocaleString()}<span className="text-sm font-normal text-slate-500 ml-0.5">원</span></span>
+        <div className={`${isScoreboardOpen ? 'flex' : 'hidden'} xl:flex flex-col gap-5 relative overflow-hidden transition-all`}>
+          <div className="relative z-10 flex flex-col xl:flex-row gap-6 xl:items-center justify-between">
+            
+            {/* ⭐️ 실적 요약 + 리쿠르팅 요약을 나란히 배치 */}
+            <div className="flex flex-col md:flex-row gap-6 md:gap-8 items-start md:items-center">
+              
+              {/* ① 영업 실적 요약 */}
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center border border-blue-100 shadow-inner shrink-0">
+                  <Trophy className="w-6 h-6 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-slate-500 text-xs font-bold mb-1">나의 영업 실적 ({currentDate.getMonth() + 1}월)</p>
+                  <div className="flex gap-4 sm:gap-6 items-center">
+                    <div className="flex flex-col">
+                      <span className="text-orange-500 text-[11px] font-bold mb-0.5">계약 예정 ({myMonthlyStats.newCnt}건)</span>
+                      <span className="text-xl sm:text-2xl font-black text-slate-800">{myMonthlyStats.newAmt.toLocaleString()}<span className="text-sm font-normal text-slate-500 ml-0.5">원</span></span>
+                    </div>
+                    <div className="w-px h-8 bg-slate-200"></div>
+                    <div className="flex flex-col">
+                      <span className="text-blue-600 text-[11px] font-bold mb-0.5">체결 완료 ({myMonthlyStats.maintainCnt}건)</span>
+                      <span className="text-xl sm:text-2xl font-black text-blue-900">{myMonthlyStats.maintainAmt.toLocaleString()}<span className="text-sm font-normal text-slate-500 ml-0.5">원</span></span>
+                    </div>
                   </div>
-                  <div className="w-px h-8 bg-slate-200"></div>
-                  <div className="flex flex-col">
-                    <span className="text-blue-600 text-xs font-bold mb-0.5">체결 완료 ({myMonthlyStats.maintainCnt}건)</span>
-                    <span className="text-xl sm:text-2xl font-black text-blue-900">{myMonthlyStats.maintainAmt.toLocaleString()}<span className="text-sm font-normal text-slate-500 ml-0.5">원</span></span>
+                </div>
+              </div>
+
+              {/* 가로/세로 구분선 */}
+              <div className="hidden md:block w-px h-12 bg-slate-200"></div>
+              <div className="md:hidden w-full h-px bg-slate-100"></div>
+
+              {/* ② 리쿠르팅 현황 요약 */}
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-rose-50 rounded-2xl flex items-center justify-center border border-rose-100 shadow-inner shrink-0">
+                  <UserPlus className="w-6 h-6 text-rose-500" />
+                </div>
+                <div>
+                  <p className="text-slate-500 text-xs font-bold mb-1">나의 리쿠르팅 현황</p>
+                  <div className="flex gap-4 sm:gap-6 items-center">
+                    <div className="flex flex-col">
+                      <span className="text-rose-500 text-[11px] font-bold mb-0.5">이번 달 리쿠 일정</span>
+                      <span className="text-xl sm:text-2xl font-black text-slate-800">{myRecruitStats.scheduleCount}<span className="text-sm font-normal text-slate-500 ml-0.5">건</span></span>
+                    </div>
+                    <div className="w-px h-8 bg-slate-200"></div>
+                    <div className="flex flex-col">
+                      <span className="text-purple-600 text-[11px] font-bold mb-0.5">진행중 후보자</span>
+                      <span className="text-xl sm:text-2xl font-black text-purple-900">{myRecruitStats.candidateCount}<span className="text-sm font-normal text-slate-500 ml-0.5">명</span></span>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="flex flex-col w-full md:w-[40%] gap-2 relative z-10">
+            {/* ③ 월간 목표 달성률 바 */}
+            <div className="flex flex-col w-full xl:w-[35%] gap-2 relative z-10 bg-slate-50 xl:bg-transparent p-3 xl:p-0 rounded-xl">
               <div className="flex justify-between items-end">
                 <span className="text-xs font-bold text-slate-500 flex items-center gap-1">
                   <Target className="w-3.5 h-3.5 text-blue-500"/> 월간 목표: 
@@ -560,21 +648,23 @@ export default function SchedulePage() {
                   </button>
                 </span>
                 <span className="text-sm font-black text-blue-600 flex items-center gap-1">
-                  {progressPercent}% 달성 <TrendingUp className="w-4 h-4"/>
+                  {Math.min(100, Math.round((myMonthlyStats.maintainAmt / monthlyTarget) * 100)) || 0}% 달성 <TrendingUp className="w-4 h-4"/>
                 </span>
               </div>
-              <div className="w-full bg-slate-100 rounded-full h-3.5 border border-slate-200 overflow-hidden shadow-inner">
+              <div className="w-full bg-slate-200 xl:bg-slate-100 rounded-full h-3.5 border border-slate-300 xl:border-slate-200 overflow-hidden shadow-inner">
                 <div 
                   className="bg-gradient-to-r from-blue-400 to-blue-600 h-3.5 rounded-full transition-all duration-1000 relative" 
-                  style={{ width: `${progressPercent}%` }}
+                  style={{ width: `${Math.min(100, Math.round((myMonthlyStats.maintainAmt / monthlyTarget) * 100)) || 0}%` }}
                 >
                   <div className="absolute inset-0 bg-white/20 w-full animate-[shimmer_2s_infinite]"></div>
                 </div>
               </div>
             </div>
+            
           </div>
 
           {isSM && (
+            // ... 이 부분부터 기존 코드 그대로 유지됩니다.
             <div className="relative z-10 pt-4 border-t border-slate-100 flex flex-col gap-3">
               <div className="flex flex-col md:flex-row gap-4 md:gap-6 items-start md:items-center">
                 <div className="flex gap-4 bg-blue-50 px-5 py-3 rounded-2xl border border-blue-100 shadow-sm shrink-0">
