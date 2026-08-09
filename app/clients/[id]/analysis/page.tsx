@@ -116,7 +116,8 @@ const PolygonRadarChart = ({ categories, beforeData, afterData }: { categories: 
            let x = center + labelRadius * Math.cos(theta);
            let y = center + labelRadius * Math.sin(theta);
            
-           let anchor = "middle";
+            // ⭐️ TypeScript 에러 해결: anchor 변수가 가질 수 있는 정확한 타입을 명시합니다.
+           let anchor: "middle" | "start" | "end" = "middle";
            if (x > center + 10) anchor = "start";
            else if (x < center - 10) anchor = "end";
 
