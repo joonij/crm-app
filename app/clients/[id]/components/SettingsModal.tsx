@@ -127,7 +127,12 @@ export default function SettingsModal({
   const [tempVisibleCoverages, setTempVisibleCoverages] = useState(initialVisibleCoverages || []);
   const [tempCustomCoverages, setTempCustomCoverages] = useState(initialCustomCoverages || []);
   const [tempCoverageOverrides, setTempCoverageOverrides] = useState(initialCoverageOverrides || {});
-  const [tempIncludeSanjeong, setTempIncludeSanjeong] = useState(initialIncludeSanjeong || { brain: false, heart: false });
+  const [tempIncludeSanjeong, setTempIncludeSanjeong] = useState({
+      brain: initialIncludeSanjeong?.brain || false,
+      heart: initialIncludeSanjeong?.heart || false,
+      circAll: initialIncludeSanjeong?.circAll || false,
+      circExcl: initialIncludeSanjeong?.circExcl || false
+  });
   const [searchCovItem, setSearchCovItem] = useState("");
   const [customInputs, setCustomInputs] = useState<Record<string, { name: string, before: string, after: string }>>({});
   
@@ -265,23 +270,36 @@ export default function SettingsModal({
           {settingsTab === 'kcd' && (
             <div className="space-y-6">
               
+              {/* ⭐️ 산정특례 및 특정순환계 체크박스 영역 (4칸으로 확장) */}
               <div className="bg-white p-5 rounded-2xl border border-blue-100 shadow-sm">
                 <h4 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 text-blue-500" />
-                  산정특례 담보 합산 여부
+                  산정특례 및 특정순환계 KCD 합산 여부
                 </h4>
-                <div className="flex gap-4">
-                  <label className="flex items-center gap-2 cursor-pointer p-3 border border-slate-200 rounded-xl hover:bg-slate-50 flex-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label className="flex items-center gap-2 cursor-pointer p-3 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
                     <input type="checkbox" className="cursor-pointer w-4 h-4 rounded text-blue-600 border-slate-300"
                            checked={tempIncludeSanjeong.brain}
                            onChange={(e) => setTempIncludeSanjeong((p: any) => ({...p, brain: e.target.checked}))} />
                     <span className="text-sm font-bold text-slate-700">뇌혈관 산정특례 합산</span>
                   </label>
-                  <label className="flex items-center gap-2 cursor-pointer p-3 border border-slate-200 rounded-xl hover:bg-slate-50 flex-1">
+                  <label className="flex items-center gap-2 cursor-pointer p-3 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
                     <input type="checkbox" className="cursor-pointer w-4 h-4 rounded text-blue-600 border-slate-300"
                            checked={tempIncludeSanjeong.heart}
                            onChange={(e) => setTempIncludeSanjeong((p: any) => ({...p, heart: e.target.checked}))} />
                     <span className="text-sm font-bold text-slate-700">심혈관 산정특례 합산</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer p-3 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
+                    <input type="checkbox" className="cursor-pointer w-4 h-4 rounded text-emerald-600 border-slate-300"
+                           checked={tempIncludeSanjeong.circAll}
+                           onChange={(e) => setTempIncludeSanjeong((p: any) => ({...p, circAll: e.target.checked}))} />
+                    <span className="text-sm font-bold text-slate-700">특정순환계(전체) 합산</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer p-3 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
+                    <input type="checkbox" className="cursor-pointer w-4 h-4 rounded text-emerald-600 border-slate-300"
+                           checked={tempIncludeSanjeong.circExcl}
+                           onChange={(e) => setTempIncludeSanjeong((p: any) => ({...p, circExcl: e.target.checked}))} />
+                    <span className="text-sm font-bold text-slate-700">특정순환계(뇌/심 제외) 합산</span>
                   </label>
                 </div>
               </div>

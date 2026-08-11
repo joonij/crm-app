@@ -672,7 +672,7 @@ ${medicalMemo}`;
   }
 
   return (
-    <div className="w-full mx-auto max-w-[1400px] space-y-6 md:space-y-8 p-4 md:p-8 relative pb-20">
+    <div className="w-full mx-auto max-w-[1500px] space-y-6 md:space-y-8 p-4 md:p-8 relative pb-20">
       
       <section className="w-full rounded-2xl border border-gray-200 bg-white p-5 md:p-7 shadow-sm flex flex-col gap-5 md:gap-6">
         
@@ -807,7 +807,7 @@ ${medicalMemo}`;
             <thead className="bg-gray-50/80">
               <tr>
                 {/* ⭐️ '연락처' 헤더를 '최근 일정'으로 교체 */}
-                {["이름", "", "영업 진행률", "계약상태", "리쿠르팅 진행률", "최근 일정", "관리"].map((header, idx) => (
+                {["이름", "연락처", "", "영업 진행률", "계약상태", "리쿠르팅 진행률", "최근 일정", "관리"].map((header, idx) => (
                   <th key={idx} scope="col" className={`px-6 py-4 text-xs font-bold tracking-wider text-gray-500 uppercase ${header === "관리" ? "text-right" : "text-left"}`}>
                     {header}
                   </th>
@@ -866,6 +866,13 @@ ${medicalMemo}`;
                               </span>
                             )}
                           </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-3 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          {client.phone && (
+                            <span className="text-xs font-semibold text-gray-600">{client.phone}</span>
+                          )}
                         </div>
                       </td>
                       <td className="px-6 py-3 whitespace-nowrap">
@@ -1008,7 +1015,6 @@ ${medicalMemo}`;
                             {client.name}
                           </Link>
                         </div>
-                        
                         <button 
                           onClick={() => openKakaoRequestModal(client)}
                           className="bg-white border border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-900 px-2 py-1 rounded-md text-[10px] font-bold transition-colors shadow-sm ml-1 whitespace-nowrap cursor-pointer"

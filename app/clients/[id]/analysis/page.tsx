@@ -32,7 +32,7 @@ export const CHART_CONFIG = [
   {
     title: "상해",
     items: [
-      { label: "상해 후유장해3%↑", keywords: ["상해후유장해", "상해 후유장해", "상해후유장해3%"], defaultTarget: 10000 },
+      { label: "상해 후유장해3%↑", keywords: ["상해 후유장해3%", "상해후유장해3%", "재해 후유장해3%", "재해후유장해3%"], defaultTarget: 10000 },
       { label: "통합상해진단비(경증)", keywords: ["상해진단비(경증)", "통합상해진단비(경증)"], defaultTarget: 100 },
       { label: "통합상해진단비(중등증)", keywords: ["상해진단비(중등증)", "통합상해진단비(중등증)"], defaultTarget: 500 },
       { label: "상해수술비", keywords: ["상해수술비", "상해수술"], defaultTarget: 100 },
@@ -46,7 +46,8 @@ export const CHART_CONFIG = [
       { label: "장기요양 1~2등급 시설급여", keywords: ["시설급여", "장기요양시설"], defaultTarget: 100 },
       { label: "장기요양 1~5등급 진단비", keywords: ["장기요양진단", "장기요양진단비"], defaultTarget: 1000 },
       { label: "연금보험", keywords: ["연금"], defaultTarget: 100 },
-      { label: "종신보험", keywords: ["종신"], defaultTarget: 5000 },
+      { label: "질병사망", keywords: ["질병사망", "질병사망보험금"], defaultTarget: 10000 }, 
+      { label: "상해사망", keywords: ["상해사망", "상해사망보험금", "재해사망", "재해사망보험금"], defaultTarget: 10000 }, 
     ]
   }
 ];
@@ -369,7 +370,7 @@ export default function AnalysisPage() {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [kcdOverrides, setKcdOverrides] = useState<Record<string, { before?: number; after?: number; highlight?: boolean }>>({});
   const [coverageOverrides, setCoverageOverrides] = useState<Record<string, { before?: number; after?: number }>>({});
-  const [includeSanjeong, setIncludeSanjeong] = useState({ brain: false, heart: false });
+  const [includeSanjeong, setIncludeSanjeong] = useState({ brain: false, heart: false, circAll: false, circExcl: false });
   const [visibleCoverages, setVisibleCoverages] = useState<string[]>([]);
   const [customCoverages, setCustomCoverages] = useState<{id: string, name: string, before: number, after: number, category: string}[]>([]);
 
@@ -386,7 +387,14 @@ export default function AnalysisPage() {
         if (clientData.consulting_details.kcdOverrides) setKcdOverrides(clientData.consulting_details.kcdOverrides);
         if (clientData.consulting_details.selectedTop3) setSelectedTop3(clientData.consulting_details.selectedTop3);
         if (clientData.consulting_details.coverageOverrides) setCoverageOverrides(clientData.consulting_details.coverageOverrides);
-        if (clientData.consulting_details.includeSanjeong) setIncludeSanjeong(clientData.consulting_details.includeSanjeong);
+        if (clientData.consulting_details.includeSanjeong) {
+          setIncludeSanjeong({
+            brain: !!clientData.consulting_details.includeSanjeong.brain,
+            heart: !!clientData.consulting_details.includeSanjeong.heart,
+            circAll: !!clientData.consulting_details.includeSanjeong.circAll,
+            circExcl: !!clientData.consulting_details.includeSanjeong.circExcl
+          });
+        }
         // DB에서 설정한 타겟값 불러오기
         if (clientData.consulting_details.radarTargets) setRadarTargets(clientData.consulting_details.radarTargets);
       }
@@ -591,7 +599,7 @@ export default function AnalysisPage() {
     keywords: string[], 
     type: 'before' | 'after', 
     kcdId: string, 
-    sanjeongOpts: { brain: boolean, heart: boolean },
+    sanjeongOpts: { brain: boolean, heart: boolean, circAll?: boolean, circExcl?: boolean },
     currentOverrides?: Record<string, { before?: number; after?: number }>,
     currentCustoms?: any[]
   ) => {
@@ -643,15 +651,28 @@ export default function AnalysisPage() {
 
       if (isCirc) {
         if (isExcluded) {
-          if (CIRC_EXCL_NAMES.includes(cleanCurrentName)) return acc + amt;
+          // ⭐️ 특정순환계(제외) 버튼이 켜졌을 때만 KCD에 합산!
+          if (sanjeongOpts.circExcl && CIRC_EXCL_NAMES.includes(cleanCurrentName)) return acc + amt;
         } else {
-          if (CIRC_ALL_NAMES.includes(cleanCurrentName)) return acc + amt;
+          // ⭐️ 특정순환계(전체) 버튼이 켜졌을 때만 KCD에 합산!
+          if (sanjeongOpts.circAll && CIRC_ALL_NAMES.includes(cleanCurrentName)) return acc + amt;
         }
         return acc; 
       }
 
       const isNormalKeywordMatch = keywords.some(kw => cleanName.includes(kw.replace(/\s+/g, '')));
       if (isNormalKeywordMatch) {
+        
+        // ⭐️ 핵심 차단 로직: KCD 진단비 영역에서 수술비, 치료비, 입원비 등이 뻥튀기 합산되는 것을 완벽 차단!
+        if (
+            cleanName.includes("수술") || 
+            cleanName.includes("치료") || 
+            cleanName.includes("입원") || 
+            cleanName.includes("일당")
+        ) {
+            return acc; 
+        }
+
         const BRAIN_KCD_CODES = ["I60~I62", "I63", "I64", "I65~I66", "I67~I69"];
         const ISCHEMIC_HEART_CODES = ["I20", "I21~I23", "I24~I25"];
         
@@ -800,6 +821,29 @@ export default function AnalysisPage() {
 const getChartValue = (keywords: string[], type: 'before' | 'after', label: string = "") => {
   let total = 0;
   
+  // ⭐️ 핵심: '연금보험'은 보장금액이 아닌 "실제 연금 상품의 월납 보험료(만원 단위)"를 기준으로 합산합니다!
+  if (label === "연금보험") {
+      const pensionPremium = analysisData.rawPolicies
+          .filter(p => {
+              const status = p.policy_status || "maintain";
+              const isValidStatus = type === 'before' 
+                  ? (status === "maintain" || status === "cancel") 
+                  : (status === "maintain" || status === "new");
+              
+              const isPension = p.product_name?.replace(/\s/g, '').includes("연금") || 
+                                p.details?.some((d: any) => d.name?.replace(/\s/g, '').includes("연금"));
+              return isValidStatus && isPension;
+          })
+          .reduce((sum, p) => {
+              const amt = type === 'before' ? (p.remodeled_amount || p.monthly_premium || 0) : (p.monthly_premium || 0);
+              const cleanAmt = parseInt(String(amt).replace(/[^0-9]/g, ''), 10) || 0;
+              return sum + cleanAmt;
+          }, 0);
+      
+      // 월 보험료를 1만원 단위로 변환하여 더함 (예: 1,000,000원 -> 100 추가)
+      total += Math.floor(pensionPremium / 10000);
+  }
+
   const isMatch = (cleanName: string) => {
       if (cleanName.includes("의료비") || cleanName.includes("실비") || cleanName.includes("실손")) {
           return false;
@@ -836,13 +880,13 @@ const getChartValue = (keywords: string[], type: 'before' | 'after', label: stri
   return total;
 };
 
-// 4축 밸런스 점수 계산
+// 4축 밸런스 점수 계산 (이제 getChartValue가 다 알아서 하므로 코드가 아주 깔끔해집니다!)
 const chartDataGrouped = CHART_CONFIG.map(cat => {
   let catBeforeSum = 0;
   let catAfterSum = 0;
   
   cat.items.forEach(item => {
-     // ⭐️ getChartValue 호출 시 item.label을 넘겨서 진단비 여부를 판단하게 함
+     // ⭐️ BINGO: 여기서 getChartValue가 호출될 때 연금보험료까지 자동으로 계산해 옵니다.
      const bVal = getChartValue(item.keywords, 'before', item.label);
      const aVal = getChartValue(item.keywords, 'after', item.label);
      const target = radarTargets[item.label] !== undefined ? radarTargets[item.label] : item.defaultTarget;
@@ -851,7 +895,6 @@ const chartDataGrouped = CHART_CONFIG.map(cat => {
      catAfterSum += Math.min(100, (aVal / target) * 100);
   });
   
-  // 항목 수로 나누어 카테고리별 평균 달성률(%) 도출
   return {
      label: cat.title,
      before: Math.max(15, catBeforeSum / cat.items.length),
@@ -1360,10 +1403,10 @@ return (
                   <table className="w-full text-sm text-center border-collapse">
                     <thead className="bg-slate-100 border-b border-slate-200">
                       <tr>
-                        <th className="py-3.5 px-3 text-left font-bold text-slate-600 w-[40%]">KCD 질환명 (분류코드)</th>
-                        <th className="py-3.5 px-2 font-bold text-slate-500 w-[25%] border-l border-slate-200">기존 보장액</th>
-                        <th className="py-3.5 px-2 font-black text-blue-600 w-[25%] bg-blue-50 border-l border-blue-100 shadow-inner">권장 보장액</th>
-                        <th className="py-3.5 px-2 font-bold text-slate-500 w-[10%] border-l border-slate-200">★</th>
+                        <th className="py-3 px-3 text-left font-bold text-slate-600 w-[40%]">KCD 질환명 (분류코드)</th>
+                        <th className="py-3 px-2 font-bold text-slate-500 w-[25%] border-l border-slate-200">기존 보장액</th>
+                        <th className="py-3 px-2 font-black text-blue-600 w-[25%] bg-blue-50 border-l border-blue-100 shadow-inner">권장 보장액</th>
+                        <th className="py-3 px-2 font-bold text-slate-500 w-[10%] border-l border-slate-200">★</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -1425,7 +1468,7 @@ return (
 
         {/* I00 ~ I99 순환계 질환 상세 코드별 보장금액 진단 */}
         <section className="bg-white rounded-2xl p-6 md:p-8 border-2 border-slate-400 shadow-sm print:p-0 print:border-none print:break-inside-avoid print:shadow-none relative overflow-hidden mt-6">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-4 mb-6 print:border-slate-300">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-3 mb-3 print:border-slate-300">
             <div>
               <h2 className="text-lg font-black text-slate-800 flex items-center gap-2 uppercase tracking-widest">
                 <Stethoscope className="w-5 h-5 text-blue-600" />
@@ -1441,10 +1484,10 @@ return (
                   <table className="w-full text-sm text-center border-collapse">
                     <thead className="bg-slate-100 border-b border-slate-200">
                       <tr>
-                        <th className="py-3.5 px-3 text-left font-bold text-slate-600 w-[40%]">KCD 질환명 (분류코드)</th>
-                        <th className="py-3.5 px-2 font-bold text-slate-500 w-[25%] border-l border-slate-200">기존 보장액</th>
-                        <th className="py-3.5 px-2 font-black text-blue-600 w-[25%] bg-blue-50 border-l border-blue-100 shadow-inner">권장 보장액</th>
-                        <th className="py-3.5 px-2 font-bold text-slate-500 w-[10%] border-l border-slate-200">★</th>
+                        <th className="py-3 px-3 text-left font-bold text-slate-600 w-[40%]">KCD 질환명 (분류코드)</th>
+                        <th className="py-3 px-2 font-bold text-slate-500 w-[25%] border-l border-slate-200">기존 보장액</th>
+                        <th className="py-3 px-2 font-black text-blue-600 w-[25%] bg-blue-50 border-l border-blue-100 shadow-inner">권장 보장액</th>
+                        <th className="py-3 px-2 font-bold text-slate-500 w-[10%] border-l border-slate-200">★</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -1505,7 +1548,7 @@ return (
         
         {/* 리모델링 상세 내역 */}
         <section className="bg-white rounded-2xl p-6 md:p-8 border-2 border-slate-400 shadow-sm print:p-0 print:border-none print:break-inside-avoid print:shadow-none relative overflow-hidden mt-6">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-4 mb-6 print:border-slate-300">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-3 mb-3 print:border-slate-300">
             <h2 className="text-lg font-black text-slate-800 flex items-center gap-2 uppercase tracking-widest">
             <AlertCircle className="w-5 h-5 text-blue-600" />
             보험 상세 내역
