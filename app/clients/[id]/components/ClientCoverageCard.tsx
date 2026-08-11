@@ -1170,7 +1170,7 @@ const gapItems = useMemo(() => {
                                 <div className="flex justify-end gap-2 mt-2">
                                   {isDeleted ? (
                                     <>
-                                      <button onClick={() => handleToggleDetailDelete(cov.id, idx)} className="flex items-center gap-1 text-[10px] text-blue-600 font-semibold bg-blue-50 px-2 py-0.5 rounded"><RotateCcw className="w-3 h-3" /> 복구</button>
+                                      <button onClick={() => handleToggleDetailDelete(cov.id, idx)} className="flex items-center gap-1 text-[10px] text-blue-600 font-semibold bg-blue-50 px-2 py-0.5 rounded cursor-pointer"><RotateCcw className="w-3 h-3" /> 복구</button>
                                       <button onClick={() => handlePermanentlyDeleteDetail(cov.id, idx)} className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-red-500 px-1"><Trash2 className="w-3 h-3" /> 영구삭제</button>
                                     </>
                                   ) : (

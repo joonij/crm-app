@@ -121,18 +121,21 @@ export const COVERAGE_OPTIONS = [
     if (name.includes("납입") && (name.includes("면제"))) return "납입면제";
     if (name.includes("납입") && (name.includes("지원"))) return "납입지원";
       
+    if ((name.includes("처방") || name.includes("약제") || name.includes("조제")) && name.includes("상해")) return "상해약제 실손의료비";
+    if ((name.includes("처방") || name.includes("약제") || name.includes("조제")) && name.includes("질병")) return "질병약제 실손의료비";
+    if ((name.includes("실손") || name.includes("의료") || name.includes("외래")) && name.includes("상해")) return "상해통원 실손의료비";
+    if ((name.includes("실손") || name.includes("의료") || name.includes("외래")) && name.includes("질병")) return "질병통원 실손의료비";
     if (!name.includes("왜래") && !name.includes("통원") && (name.includes("실손") || name.includes("의료")) && name.includes("상해") && name.includes("입원")) return "상해입원 실손의료비";
     if (!name.includes("왜래") && !name.includes("통원") && (name.includes("실손") || name.includes("의료")) && name.includes("질병") && name.includes("입원")) return "질병입원 실손의료비";
-    if ((name.includes("실손") || name.includes("의료")) && (name.includes("처방") || name.includes("약제")) && name.includes("상해")) return "상해약제 실손의료비";
-    if ((name.includes("실손") || name.includes("의료")) && (name.includes("처방") || name.includes("약제")) && name.includes("질병")) return "질병약제 실손의료비";
-    if ((name.includes("실손") || name.includes("의료")) && name.includes("상해")) return "상해통원 실손의료비";
-    if ((name.includes("실손") || name.includes("의료")) && name.includes("질병")) return "질병통원 실손의료비";
     
     if (name.includes("특정") && (name.includes("후유") || name.includes("장해"))) return displayRawName;
     if (name.includes("교통") && (name.includes("후유") || name.includes("장해"))) return displayRawName;
     if (name.includes("고도") && name.includes("재해") && (name.includes("후유") || name.includes("장해"))) return "재해 후유장해80%↑";
+    if (name.includes("재해") && name.includes("고도") && (name.includes("후유") || name.includes("장해"))) return "재해 후유장해80%↑";
     if (name.includes("고도") && name.includes("상해") && (name.includes("후유") || name.includes("장해"))) return "상해 후유장해80%↑";
+    if (name.includes("상해") && name.includes("고도") && (name.includes("후유") || name.includes("장해"))) return "상해 후유장해80%↑";
     if (name.includes("고도") && name.includes("질병") && (name.includes("후유") || name.includes("장해"))) return "질병 후유장해80%↑";
+    if (name.includes("질병") && name.includes("고도") && (name.includes("후유") || name.includes("장해"))) return "질병 후유장해80%↑";
     if (name.includes("재해") && (name.includes("후유") || name.includes("장해")) && name.includes("80")) return "재해 후유장해80%↑";
     if (name.includes("상해") && (name.includes("후유") || name.includes("장해")) && name.includes("80")) return "상해 후유장해80%↑";
     if (name.includes("질병") && (name.includes("후유") || name.includes("장해")) && name.includes("80")) return "질병 후유장해80%↑";
@@ -143,6 +146,9 @@ export const COVERAGE_OPTIONS = [
     if (name.includes("상해") && (name.includes("후유") || name.includes("장해"))) return "상해 후유장해3%↑";
     if (name.includes("질병") && (name.includes("후유") || name.includes("장해"))) return "질병 후유장해3%↑";
 
+    if (name.includes("소아") && name.includes("암") && name.includes("진단")) return displayRawName;
+    if (name.includes("재진단") && name.includes("암") && name.includes("진단")) return displayRawName;
+    if (name.includes("특정") && name.includes("암") && name.includes("진단")) return displayRawName;
     if (name.includes("통합") && name.includes("암") && name.includes("진단")) return "통합암 진단비";
     // if (name.includes("유사암제외") && name.includes("소액암제외") && name.includes("암") && name.includes("진단")) return "일반암 진단비(소액암유사암제외)";
     // if (name.includes("소액암제외") && name.includes("암") && name.includes("진단")) return "일반암 진단비(유사암제외)";
@@ -156,10 +162,11 @@ export const COVERAGE_OPTIONS = [
     if (name.includes("암") && name.includes("진단")) return "일반암 진단비";
 
     if (name.includes("암") && name.includes("통원")) return "암통원 치료비";
-    if (name.includes("암") && name.includes("하이") && name.includes("치료")) return "하이클래스암 치료비";
-    if (name.includes("비급여") && name.includes("암") && name.includes("주요") && name.includes("치료")) return "비급여암주요 치료비";
-    if (name.includes("암") && name.includes("주요") && name.includes("치료")) return "암주요 치료비";
-    if (name.includes("암") && name.includes("통합") && name.includes("치료")) return "통합암 치료비";
+    if (name.includes("암") && name.includes("특정") && name.includes("치료")) return displayRawName;
+    if (name.includes("암") && name.includes("하이") && name.includes("치료")) return displayRawName;
+    if (name.includes("비급여") && name.includes("암") && name.includes("주요") && name.includes("치료")) return displayRawName;
+    if (name.includes("암") && name.includes("주요") && name.includes("치료")) return displayRawName;
+    if (name.includes("암") && name.includes("통합") && name.includes("치료")) return displayRawName;
 
     if (name.includes("방사선") && name.includes("약물") && name.includes("치료")) return "항암방사선약물 치료비";
 
@@ -189,7 +196,6 @@ export const COVERAGE_OPTIONS = [
     if (name.includes("대") && name.includes("순환") && name.includes("진단")) return displayRawName;
     if (name.includes("특정") && name.includes("혈관") && name.includes("진단")) return displayRawName;
     if (name.includes("특정") && name.includes("순환") && name.includes("진단")) return displayRawName;
-    if (name.includes("혈관") && name.includes("진단")) return "순환계질환 진단비";
     if (name.includes("순환") && name.includes("진단")) return "순환계질환 진단비";
 
     if (name.includes("특정") && name.includes("순환") && name.includes("통합") && name.includes("치료")) return displayRawName;
@@ -206,17 +212,6 @@ export const COVERAGE_OPTIONS = [
     if (name.includes("뇌졸중") && name.includes("진단")) return "뇌졸중 진단비";
     if (name.includes("뇌출혈") && name.includes("진단")) return "뇌출혈 진단비";
     
-    if (name.includes("뇌") && name.includes("통원") && name.includes("치료")) return "뇌혈관통원 치료비";
-    if (name.includes("뇌") && name.includes("통합") && name.includes("치료")) return "뇌혈관통합 치료비";
-    if (name.includes("뇌") && name.includes("주요") && name.includes("치료")) return "뇌혈관주요 치료비";
-    if (name.includes("뇌출") && name.includes("혈전") && name.includes("치료")) return "뇌출혈혈전용해 치료비";
-    if (name.includes("뇌졸") && name.includes("혈전") && name.includes("치료")) return "뇌졸중혈전용해 치료비";
-    if (name.includes("뇌") && name.includes("혈전") && name.includes("치료")) return "뇌혈관혈전용해 치료비";
-    if (name.includes("특정") && name.includes("뇌") && name.includes("수술")) return displayRawName;
-    if (name.includes("대") && name.includes("뇌") && name.includes("수술")) return displayRawName;
-    if (name.includes("뇌출") && name.includes("수술")) return "뇌출혈 수술비";
-    if (name.includes("뇌졸") && name.includes("수술")) return "뇌졸중 수술비";
-    if (name.includes("뇌") && name.includes("수술")) return "뇌혈관질환 수술비";
 
     if (name.includes("심") && (name.includes("산정") || name.includes("특례"))) return "심장산정특례대상 진단비";
     if (name.includes("특정") && name.includes("심") && name.includes("진단")) return displayRawName;
@@ -229,18 +224,6 @@ export const COVERAGE_OPTIONS = [
     if (name.includes("심부전") && name.includes("진단")) return "심부전 진단비";
     if (name.includes("심근염") && name.includes("진단")) return "심근염 진단비";
     if (name.includes("심") && name.includes("판막") && name.includes("진단")) return "심장판막증 진단비";
-
-    if (name.includes("심") && name.includes("통원") && name.includes("치료")) return "심혈관통원 치료비";
-    if (name.includes("심") && name.includes("통합") && name.includes("치료")) return "심혈관통합 치료비";
-    if (name.includes("심") && name.includes("주요") && name.includes("치료")) return "심혈관주요 치료비";
-    if (name.includes("급성") && name.includes("혈전") && name.includes("치료")) return "급성심근경색혈전용해 치료비";
-    if (name.includes("허혈") && name.includes("혈전") && name.includes("치료")) return "허혈성심장질환혈전용해 치료비";
-    if (name.includes("심") && name.includes("혈전") && name.includes("치료")) return "심혈관혈전용해 치료비";
-    if (name.includes("허혈") && name.includes("심") && name.includes("수술")) return "허혈성심장질환 수술비";
-    if (name.includes("특정") && name.includes("심") && name.includes("수술")) return displayRawName;
-    if (name.includes("대") && name.includes("심") && name.includes("수술")) return displayRawName;
-    if (name.includes("허혈") && name.includes("수술")) return "허혈성심장질환 수술비";
-    if (name.includes("심") && name.includes("수술")) return "심혈관질환 수술비";
 
     if (name.includes("특정") && name.includes("사망")) return displayRawName;
     if (name.includes("교통") && name.includes("사망")) return displayRawName;
@@ -261,10 +244,39 @@ export const COVERAGE_OPTIONS = [
     if (name.includes("복원") && name.includes("수술")) return displayRawName;
     if (name.includes("흉터") && name.includes("수술")) return displayRawName;
     if (name.includes("대") && name.includes("수술")) return displayRawName;
+    if (name.includes("관련") && name.includes("수술")) return displayRawName;
     if (name.includes("특정") && name.includes("수술")) return displayRawName;
+    if (name.includes("중대") && name.includes("수술")) return displayRawName;
+    if (name.includes("심한") && name.includes("수술")) return displayRawName;
+    if (name.includes("개흉") && name.includes("수술")) return displayRawName;
+    if (name.includes("개흉") && name.includes("수술")) return displayRawName;
     if (name.includes("철심") && name.includes("수술")) return "골절철심제거 수술비";
     if (name.includes("골절") && name.includes("수술")) return "골절 수술비";
     if (name.includes("화상") && name.includes("수술")) return "화상 수술비";
+    
+    if (name.includes("뇌") && name.includes("통원") && name.includes("치료")) return "뇌혈관통원 치료비";
+    if (name.includes("뇌") && name.includes("통합") && name.includes("치료")) return "뇌혈관통합 치료비";
+    if (name.includes("뇌") && name.includes("주요") && name.includes("치료")) return "뇌혈관주요 치료비";
+    if (name.includes("뇌출") && name.includes("혈전") && name.includes("치료")) return "뇌출혈혈전용해 치료비";
+    if (name.includes("뇌졸") && name.includes("혈전") && name.includes("치료")) return "뇌졸중혈전용해 치료비";
+    if (name.includes("뇌") && name.includes("혈전") && name.includes("치료")) return "뇌혈관혈전용해 치료비";
+    if (name.includes("특정") && name.includes("뇌") && name.includes("수술")) return displayRawName;
+    if (name.includes("대") && name.includes("뇌") && name.includes("수술")) return displayRawName;
+    if (name.includes("뇌출") && name.includes("수술")) return "뇌출혈 수술비";
+    if (name.includes("뇌졸") && name.includes("수술")) return "뇌졸중 수술비";
+    if (name.includes("뇌") && name.includes("수술")) return "뇌혈관질환 수술비";
+    
+    if (name.includes("심") && name.includes("통원") && name.includes("치료")) return "심혈관통원 치료비";
+    if (name.includes("심") && name.includes("통합") && name.includes("치료")) return "심혈관통합 치료비";
+    if (name.includes("심") && name.includes("주요") && name.includes("치료")) return "심혈관주요 치료비";
+    if (name.includes("급성") && name.includes("혈전") && name.includes("치료")) return "급성심근경색혈전용해 치료비";
+    if (name.includes("허혈") && name.includes("혈전") && name.includes("치료")) return "허혈성심장질환혈전용해 치료비";
+    if (name.includes("심") && name.includes("혈전") && name.includes("치료")) return "심혈관혈전용해 치료비";
+    if (name.includes("허혈") && name.includes("심") && name.includes("수술")) return "허혈성심장질환 수술비";
+    if (name.includes("특정") && name.includes("심") && name.includes("수술")) return displayRawName;
+    if (name.includes("대") && name.includes("심") && name.includes("수술")) return displayRawName;
+    if (name.includes("허혈") && name.includes("수술")) return "허혈성심장질환 수술비";
+    if (name.includes("심") && name.includes("수술")) return "심혈관질환 수술비";
     
     if (!name.includes("1~8") && !name.includes("1~7") && !name.includes("1~5") && !name.includes("8종") && !name.includes("7종") && name.includes("1종") && name.includes("재해")) return "재해1종 수술비";
     if (!name.includes("1~8") && !name.includes("1~7") && !name.includes("1~5") && !name.includes("8종") && !name.includes("7종") && name.includes("2종") && name.includes("재해")) return "재해2종 수술비";
@@ -321,8 +333,7 @@ export const COVERAGE_OPTIONS = [
     if (name.includes("부목") && name.includes("치료")) return "골절부목 치료비";
     if (name.includes("재활") && name.includes("치료")) return "상해재활 치료비";
     
-    if (name.includes("응급실") && name.includes("비응급")) return "응급실내원비(비응급)";
-    if (name.includes("응급실") && name.includes("응급")) return "응급실내원비(응급)";
+    if (name.includes("응급실")) return "응급실내원비";
 
     if (name.includes("요양") && name.includes("1~2") && name.includes("진단")) return "장기요양 1~2등급 진단비";
     if (name.includes("요양") && name.includes("1~3") && name.includes("진단")) return "장기요양 1~3등급 진단비";
