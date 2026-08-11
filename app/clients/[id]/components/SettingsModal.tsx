@@ -293,13 +293,13 @@ export default function SettingsModal({
                     <input type="checkbox" className="cursor-pointer w-4 h-4 rounded text-emerald-600 border-slate-300"
                            checked={tempIncludeSanjeong.circAll}
                            onChange={(e) => setTempIncludeSanjeong((p: any) => ({...p, circAll: e.target.checked}))} />
-                    <span className="text-sm font-bold text-slate-700">특정순환계(전체) 합산</span>
+                    <span className="text-sm font-bold text-slate-700">미래에셋생명 - 특정순환계 합산</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer p-3 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
                     <input type="checkbox" className="cursor-pointer w-4 h-4 rounded text-emerald-600 border-slate-300"
                            checked={tempIncludeSanjeong.circExcl}
                            onChange={(e) => setTempIncludeSanjeong((p: any) => ({...p, circExcl: e.target.checked}))} />
-                    <span className="text-sm font-bold text-slate-700">특정순환계(뇌/심 제외) 합산</span>
+                    <span className="text-sm font-bold text-slate-700">미래에셋생명 - 특정순환계(뇌/심 제외) 합산</span>
                   </label>
                 </div>
               </div>

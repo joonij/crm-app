@@ -1387,14 +1387,14 @@ return (
 
         {/* C00 ~ D09 신생물 질환 상세 코드별 보장금액 진단 */}
         <section className="bg-white rounded-2xl p-6 md:p-8 border-2 border-slate-400 shadow-sm print:p-0 print:border-none print:break-inside-avoid print:shadow-none relative overflow-hidden mt-6">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-4 mb-6 print:border-slate-300">
+          {/* <div className="flex items-center justify-between border-b border-slate-200 pb-4 mb-6 print:border-slate-300">
             <div>
               <h2 className="text-lg font-black text-slate-800 flex items-center gap-2 uppercase tracking-widest">
                 <Stethoscope className="w-5 h-5 text-blue-600" />
                 C00 ~ D09 (신생물/암 질환) 상세 코드별 보장금액 진단
               </h2>
             </div>
-          </div>
+          </div> */}
 
           <div className="space-y-8">
             {CANCER_CODES.map((group, groupIdx) => (
@@ -1403,7 +1403,7 @@ return (
                   <table className="w-full text-sm text-center border-collapse">
                     <thead className="bg-slate-100 border-b border-slate-200">
                       <tr>
-                        <th className="py-3 px-3 text-left font-bold text-slate-600 w-[40%]">KCD 질환명 (분류코드)</th>
+                        <th className="py-3 px-3 text-left font-bold text-slate-600 w-[40%]">신생물/암 질환 상세 코드별 보장금액</th>
                         <th className="py-3 px-2 font-bold text-slate-500 w-[25%] border-l border-slate-200">기존 보장액</th>
                         <th className="py-3 px-2 font-black text-blue-600 w-[25%] bg-blue-50 border-l border-blue-100 shadow-inner">권장 보장액</th>
                         <th className="py-3 px-2 font-bold text-slate-500 w-[10%] border-l border-slate-200">★</th>
@@ -1422,7 +1422,7 @@ return (
 
                         return (
                           <tr key={itemIdx} className={isUpgraded ? 'bg-blue-50/10 hover:bg-blue-50/30 transition-colors' : 'hover:bg-slate-50/50'}>
-                            <td className="py-2 px-4 text-left">
+                            <td className="py-1 px-4 text-left">
                               <div className="flex flex-col gap-0.5">
                                 <span className={`font-bold text-[13px] ${isUpgraded ? 'text-blue-900' : 'text-slate-800'}`}>
                                   {item.name}
@@ -1468,14 +1468,14 @@ return (
 
         {/* I00 ~ I99 순환계 질환 상세 코드별 보장금액 진단 */}
         <section className="bg-white rounded-2xl p-6 md:p-8 border-2 border-slate-400 shadow-sm print:p-0 print:border-none print:break-inside-avoid print:shadow-none relative overflow-hidden mt-6">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-3 mb-3 print:border-slate-300">
+          {/* <div className="flex items-center justify-between border-b border-slate-200 pb-3 mb-3 print:border-slate-300">
             <div>
               <h2 className="text-lg font-black text-slate-800 flex items-center gap-2 uppercase tracking-widest">
                 <Stethoscope className="w-5 h-5 text-blue-600" />
                 I00 ~ I99 (순환계 질환) 상세 코드별 보장금액 진단
               </h2>
             </div>
-          </div>
+          </div> */}
 
           <div className="space-y-8">
             {CIRCULATORY_CODES.map((group, groupIdx) => (
@@ -1484,7 +1484,7 @@ return (
                   <table className="w-full text-sm text-center border-collapse">
                     <thead className="bg-slate-100 border-b border-slate-200">
                       <tr>
-                        <th className="py-3 px-3 text-left font-bold text-slate-600 w-[40%]">KCD 질환명 (분류코드)</th>
+                        <th className="py-3 px-3 text-left font-bold text-slate-600 w-[40%]">순환계 질환 상세 코드별 보장금액</th>
                         <th className="py-3 px-2 font-bold text-slate-500 w-[25%] border-l border-slate-200">기존 보장액</th>
                         <th className="py-3 px-2 font-black text-blue-600 w-[25%] bg-blue-50 border-l border-blue-100 shadow-inner">권장 보장액</th>
                         <th className="py-3 px-2 font-bold text-slate-500 w-[10%] border-l border-slate-200">★</th>
@@ -1503,7 +1503,7 @@ return (
 
                         return (
                           <tr key={itemIdx} className={isUpgraded ? 'bg-blue-50/10 hover:bg-blue-50/30 transition-colors' : 'hover:bg-slate-50/50'}>
-                            <td className="py-2 px-4 text-left">
+                            <td className="py-1 px-4 text-left">
                               <div className="flex flex-col gap-0.5">
                                 <span className={`font-bold text-[13px] ${isUpgraded ? 'text-blue-900' : 'text-slate-800'}`}>
                                   {item.name}
