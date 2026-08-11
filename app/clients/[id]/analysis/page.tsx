@@ -26,7 +26,7 @@ export const CHART_CONFIG = [
       { label: "순환계질환통합치료비", keywords: ["순환계질환통합치료", "순환계통합치료"], defaultTarget: 5000 },
       { label: "질병수술비", keywords: ["질병수술비", "질병수술"], defaultTarget: 100 },
       { label: "질병5종수술비", keywords: ["질병5종", "1~5종", "1-5종", "종수술"], defaultTarget: 1000 },
-      { label: "질병입원비", keywords: ["질병입원비", "질병입원일당", "질병입원"], defaultTarget: 5 },
+      { label: "질병입원비", keywords: ["질병입원비", "질병입원일당", "질병입원급여"], defaultTarget: 5 }, 
     ]
   },
   {
@@ -36,7 +36,7 @@ export const CHART_CONFIG = [
       { label: "통합상해진단비(경증)", keywords: ["상해진단비(경증)", "통합상해진단비(경증)"], defaultTarget: 100 },
       { label: "통합상해진단비(중등증)", keywords: ["상해진단비(중등증)", "통합상해진단비(중등증)"], defaultTarget: 500 },
       { label: "상해수술비", keywords: ["상해수술비", "상해수술"], defaultTarget: 100 },
-      { label: "상해입원비", keywords: ["상해입원비", "상해입원일당", "상해입원"], defaultTarget: 5 },
+      { label: "상해입원비", keywords: ["상해입원비", "상해입원일당", "상해입원급여"], defaultTarget: 5 },
     ]
   },
   {
@@ -140,7 +140,7 @@ const PolygonRadarChart = ({ categories, beforeData, afterData }: { categories: 
              <text 
                key={label} x={x} y={y} 
                fill="currentColor" 
-               className="text-slate-800 text-[10px] sm:text-[11.5px] font-black" 
+               className="text-slate-800 text-[14px] sm:text-[14px] font-black" 
                textAnchor={anchor} 
                dominantBaseline="middle"
              >
@@ -796,43 +796,68 @@ export default function AnalysisPage() {
     return idxA - idxB;
   });
 
-  // 데이터 추출 헬퍼 함수
-  const getChartValue = (keywords: string[], type: 'before' | 'after') => {
-      let total = 0;
-      customCoverages.forEach(c => {
-          const cleanName = c.name.replace(/\s/g, '');
-          if (keywords.some(kw => cleanName.includes(kw.replace(/\s/g, '')))) total += c[type] || 0;
-      });
-      analysisData.coverages.forEach(c => {
-          const cleanName = c.name.replace(/\s/g, '');
-          const overridden = coverageOverrides[c.name] || {};
-          const val = overridden[type] !== undefined ? overridden[type] : c[type];
-          if (keywords.some(kw => cleanName.includes(kw.replace(/\s/g, '')))) total += val || 0;
-      });
-      return total;
+// ⭐️ 데이터 추출 헬퍼 함수 (label: string = "" 기본값 추가)
+const getChartValue = (keywords: string[], type: 'before' | 'after', label: string = "") => {
+  let total = 0;
+  
+  const isMatch = (cleanName: string) => {
+      if (cleanName.includes("의료비") || cleanName.includes("실비") || cleanName.includes("실손")) {
+          return false;
+      }
+      
+      if (label.includes("진단")) {
+          if (
+              cleanName.includes("수술") || 
+              cleanName.includes("치료") || 
+              cleanName.includes("산정") || 
+              cleanName.includes("특례") || 
+              cleanName.includes("입원") || 
+              cleanName.includes("일당")
+          ) {
+              return false;
+          }
+      }
+
+      return keywords.some(kw => cleanName.includes(kw.replace(/\s/g, '')));
   };
 
-  // 4축 밸런스 점수 계산
-  const chartDataGrouped = CHART_CONFIG.map(cat => {
-      let catBeforeSum = 0;
-      let catAfterSum = 0;
-      
-      cat.items.forEach(item => {
-         const bVal = getChartValue(item.keywords, 'before');
-         const aVal = getChartValue(item.keywords, 'after');
-         const target = radarTargets[item.label] !== undefined ? radarTargets[item.label] : item.defaultTarget;
-         
-         catBeforeSum += Math.min(100, (bVal / target) * 100);
-         catAfterSum += Math.min(100, (aVal / target) * 100);
-      });
-      
-      // 항목 수로 나누어 카테고리별 평균 달성률(%) 도출
-      return {
-         label: cat.title,
-         before: Math.max(15, catBeforeSum / cat.items.length),
-         after: Math.max(15, catAfterSum / cat.items.length)
-      };
+  customCoverages.forEach(c => {
+      const cleanName = c.name.replace(/\s/g, '');
+      if (isMatch(cleanName)) total += c[type] || 0;
   });
+  
+  analysisData.coverages.forEach(c => {
+      const cleanName = c.name.replace(/\s/g, '');
+      const overridden = coverageOverrides[c.name] || {};
+      const val = overridden[type] !== undefined ? overridden[type] : c[type];
+      if (isMatch(cleanName)) total += val || 0;
+  });
+  
+  return total;
+};
+
+// 4축 밸런스 점수 계산
+const chartDataGrouped = CHART_CONFIG.map(cat => {
+  let catBeforeSum = 0;
+  let catAfterSum = 0;
+  
+  cat.items.forEach(item => {
+     // ⭐️ getChartValue 호출 시 item.label을 넘겨서 진단비 여부를 판단하게 함
+     const bVal = getChartValue(item.keywords, 'before', item.label);
+     const aVal = getChartValue(item.keywords, 'after', item.label);
+     const target = radarTargets[item.label] !== undefined ? radarTargets[item.label] : item.defaultTarget;
+     
+     catBeforeSum += Math.min(100, (bVal / target) * 100);
+     catAfterSum += Math.min(100, (aVal / target) * 100);
+  });
+  
+  // 항목 수로 나누어 카테고리별 평균 달성률(%) 도출
+  return {
+     label: cat.title,
+     before: Math.max(15, catBeforeSum / cat.items.length),
+     after: Math.max(15, catAfterSum / cat.items.length)
+  };
+});
 
   chartDataGrouped.forEach(d => { if (d.after < d.before) d.after = d.before; });
   const beforePoints = chartDataGrouped.map(d => d.before);
@@ -1030,16 +1055,18 @@ return (
                     </h4>
                   </div>
                   
-                  {/* 2x2 그리드로 4개의 차트 렌더링 */}
+{/* 2x2 그리드로 4개의 차트 렌더링 */}
                   <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-y-12 print:gap-y-0 gap-x-4 w-full">
                     {CHART_CONFIG.map((config, idx) => {
                         const bData = config.items.map(item => {
-                            const val = getChartValue(item.keywords, 'before');
+                            // ⭐️ BINGO: 여기에 item.label 추가
+                            const val = getChartValue(item.keywords, 'before', item.label);
                             const target = radarTargets[item.label] !== undefined ? radarTargets[item.label] : item.defaultTarget;
                             return Math.max(15, Math.min(100, (val / target) * 100));
                         });
                         const aData = config.items.map(item => {
-                            const val = getChartValue(item.keywords, 'after');
+                            // ⭐️ BINGO: 여기에도 item.label 추가
+                            const val = getChartValue(item.keywords, 'after', item.label);
                             const target = radarTargets[item.label] !== undefined ? radarTargets[item.label] : item.defaultTarget;
                             return Math.max(15, Math.min(100, (val / target) * 100));
                         });
