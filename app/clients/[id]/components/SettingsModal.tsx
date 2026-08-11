@@ -122,7 +122,7 @@ export default function SettingsModal({
 }: any) {
   
 // ⭐️ TypeScript 에러 해결: 'radar' 탭 타입을 추가합니다.
-  const [settingsTab, setSettingsTab] = useState<'kcd' | 'coverage' | 'radar'>('kcd');
+  const [settingsTab, setSettingsTab] = useState<'kcd' | 'coverage' | 'radar'>('radar');
   const [tempKcdOverrides, setTempKcdOverrides] = useState(initialKcdOverrides || {});
   const [tempVisibleCoverages, setTempVisibleCoverages] = useState(initialVisibleCoverages || []);
   const [tempCustomCoverages, setTempCustomCoverages] = useState(initialCustomCoverages || []);
@@ -241,11 +241,11 @@ export default function SettingsModal({
         {/* 모달 탭 */}
         <div className="flex px-6 bg-white border-b border-slate-200 shrink-0">
           <button
-            onClick={() => setSettingsTab('kcd')}
-            className={`cursor-pointer px-4 py-3.5 text-sm font-black transition-colors relative ${settingsTab === 'kcd' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
+            onClick={() => setSettingsTab('radar')}
+            className={`cursor-pointer px-4 py-3.5 text-sm font-black transition-colors relative ${settingsTab === 'radar' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
           >
-            질환별 진단비 조정 (KCD)
-            {settingsTab === 'kcd' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 rounded-t-md" />}
+            차트 목표액 설정
+            {settingsTab === 'radar' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 rounded-t-md" />}
           </button>
           <button
             onClick={() => setSettingsTab('coverage')}
@@ -255,11 +255,11 @@ export default function SettingsModal({
             {settingsTab === 'coverage' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 rounded-t-md" />}
           </button>
           <button
-            onClick={() => setSettingsTab('radar')}
-            className={`cursor-pointer px-4 py-3.5 text-sm font-black transition-colors relative ${settingsTab === 'radar' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
+            onClick={() => setSettingsTab('kcd')}
+            className={`cursor-pointer px-4 py-3.5 text-sm font-black transition-colors relative ${settingsTab === 'kcd' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
           >
-            차트 목표액 설정
-            {settingsTab === 'radar' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 rounded-t-md" />}
+            질환별 진단비 조정 (KCD)
+            {settingsTab === 'kcd' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 rounded-t-md" />}
           </button>
         </div>
 
