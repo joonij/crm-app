@@ -1326,9 +1326,10 @@ return (
                 <div className="w-full">
                   <p className="text-sm font-bold text-slate-800 mb-1">Total Consulting Verdict</p>
                   <textarea
+                    maxLength={308}
                     value={briefingText}
                     onChange={(e) => setBriefingText(e.target.value)}
-                    className="w-full min-h-[180px] bg-transparent text-1xl text-slate-600 font-medium leading-relaxed outline-none resize-none focus:border-b focus:border-blue-300 transition-colors print:border-none print:p-0"
+                    className="w-full min-h-[190px] bg-transparent text-1xl text-slate-600 font-medium leading-relaxed outline-none resize-none focus:border-b focus:border-blue-300 transition-colors print:border-none print:p-0"
                     rows={briefingText ? briefingText.split('\n').length + 1 : 3}
                   />
                 </div>
