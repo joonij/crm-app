@@ -53,7 +53,6 @@ export const CHART_CONFIG = [
 ];
 
 // ⭐️ 5각형 폴리곤 차트 컴포넌트
-// ⭐️ 5각형 폴리곤 차트 컴포넌트 (웹/프린트 모두 밝은 테마로 가독성 완벽 적용)
 const PolygonRadarChart = ({ categories, beforeData, afterData }: { categories: string[], beforeData: number[], afterData: number[] }) => {
   const size = 320; 
   const center = size / 2;
@@ -77,12 +76,12 @@ const PolygonRadarChart = ({ categories, beforeData, afterData }: { categories: 
     <div className="relative w-full aspect-square max-w-[340px] print:max-w-[220px] mx-auto">
       <svg viewBox={`0 0 ${size} ${size}`} className="w-full h-full drop-shadow-sm overflow-visible">
         
-        {/* 거미줄(Grid) 배경 - 연한 회색으로 통일 */}
+        {/* 거미줄(Grid) 배경 */}
         {levels.map(level => (
           <polygon key={level} points={getPoints(Array(sides).fill(level))} fill="none" stroke="currentColor" className="text-slate-200" strokeWidth="1" />
         ))}
 
-        {/* 대각선 (Axes) - 연한 회색으로 통일 */}
+        {/* 대각선 (Axes) */}
         {Array(sides).fill(0).map((_, i) => {
            const theta = i * angleStep - Math.PI / 2;
            const x = center + radius * Math.cos(theta);
@@ -90,7 +89,7 @@ const PolygonRadarChart = ({ categories, beforeData, afterData }: { categories: 
            return <line key={i} x1={center} y1={center} x2={x} y2={y} stroke="currentColor" className="text-slate-200" strokeWidth="1" />
         })}
 
-        {/* 1. 리모델링 전 (기존 보장 - 진한 회색 점선) */}
+        {/* 1. 리모델링 전 (기존 보장) */}
         <polygon points={getPoints(beforeData)} fill="transparent" stroke="#64748b" strokeWidth="1.5" strokeDasharray="4,4" className="print:stroke-slate-400" />
         {beforeData.map((val, i) => {
            const r = (val / 100) * radius;
@@ -100,7 +99,7 @@ const PolygonRadarChart = ({ categories, beforeData, afterData }: { categories: 
            return <circle key={`before-${i}`} cx={x} cy={y} r="3" fill="#f8fafc" stroke="#64748b" strokeWidth="1.5" className="print:stroke-slate-400" />
         })}
 
-        {/* 2. 최적화 제안 후 (파란색 영역) */}
+        {/* 2. 최적화 제안 후 */}
         <polygon points={getPoints(afterData)} fill="rgba(59, 130, 246, 0.4)" stroke="#3b82f6" strokeWidth="2.5" />
         {afterData.map((val, i) => {
            const r = (val / 100) * radius;
@@ -110,14 +109,13 @@ const PolygonRadarChart = ({ categories, beforeData, afterData }: { categories: 
            return <circle key={`after-${i}`} cx={x} cy={y} r="3.5" fill="#60a5fa" stroke="#1e3a8a" strokeWidth="1.5" />
         })}
 
-        {/* 라벨 텍스트 - 진한 검정색(slate-800)으로 가독성 극대화 */}
+        {/* 라벨 텍스트 */}
         {categories.map((label, i) => {
            const labelRadius = radius + 32; 
            const theta = i * angleStep - Math.PI / 2;
            let x = center + labelRadius * Math.cos(theta);
            let y = center + labelRadius * Math.sin(theta);
            
-            // ⭐️ TypeScript 에러 해결: anchor 변수가 가질 수 있는 정확한 타입을 명시합니다.
            let anchor: "middle" | "start" | "end" = "middle";
            if (x > center + 10) anchor = "start";
            else if (x < center - 10) anchor = "end";
@@ -567,15 +565,13 @@ export default function AnalysisPage() {
         coverageOverrides: coverageOverrides,
         includeSanjeong: includeSanjeong,
         radarTargets: radarTargets,
-        radarRates: radarRates
+        // 🚀 BINGO 1: DB 저장 페이로드에 레이더 달성율 추가!
+        radarRates: radarRates 
       };
-      const { error } = await supabase
-        .from("clients")
-        .update({ consulting_details: payload })
-        .eq("id", clientId);
 
+      const { error } = await supabase.from("clients").update({ consulting_details: payload }).eq("id", clientId);
       if (error) throw error;
-      
+
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2000); 
     } catch (error: any) {
@@ -706,7 +702,6 @@ export default function AnalysisPage() {
         coverageOverrides: newSettings.coverageOverrides,
         includeSanjeong: newSettings.includeSanjeong,
         radarTargets: newSettings.radarTargets,
-        // 🚀 BINGO 1: DB 저장 페이로드에 레이더 달성율 추가!
         radarRates: newSettings.radarRates 
       };
 
@@ -1149,19 +1144,25 @@ return (
                 <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-y-12 print:gap-y-0 gap-x-4 w-full">
                     {CHART_CONFIG.map((config, idx) => {
                         const bData = config.items.map(item => {
-                            // 🚀 모달에서 입력한 기존 달성율이 있으면 최우선 적용
-                            if (radarRates[item.label]?.before !== undefined) return Math.max(15, Math.min(100, radarRates[item.label].before));
+                            // 🚀 TS 에러 해결: 변수에 담아서 확실하게 숫자(number)임을 보장합니다.
+                            const manualBefore = radarRates[item.label]?.before;
+                            if (manualBefore !== undefined) return Math.max(15, Math.min(100, manualBefore));
+                            
                             const val = getChartValue(item.keywords, 'before', item.label);
                             const target = radarTargets[item.label] !== undefined ? radarTargets[item.label] : item.defaultTarget;
                             return Math.max(15, Math.min(100, (val / target) * 100));
                         });
+
                         const aData = config.items.map(item => {
-                            // 🚀 모달에서 입력한 권장 달성율이 있으면 최우선 적용
-                            if (radarRates[item.label]?.after !== undefined) return Math.max(15, Math.min(100, radarRates[item.label].after));
+                            // 🚀 TS 에러 해결: 변수에 담아서 확실하게 숫자(number)임을 보장합니다.
+                            const manualAfter = radarRates[item.label]?.after;
+                            if (manualAfter !== undefined) return Math.max(15, Math.min(100, manualAfter));
+                            
                             const val = getChartValue(item.keywords, 'after', item.label);
                             const target = radarTargets[item.label] !== undefined ? radarTargets[item.label] : item.defaultTarget;
                             return Math.max(15, Math.min(100, (val / target) * 100));
                         });
+
                         aData.forEach((d, i) => { if (d < bData[i]) aData[i] = bData[i]; });
 
                         return (
