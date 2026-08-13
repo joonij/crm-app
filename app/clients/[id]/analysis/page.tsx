@@ -22,7 +22,7 @@ export const CHART_CONFIG = [
   {
     title: "치료비",
     items: [
-      { label: "암주요치료비", keywords: ["암주요치료", "암치료"], defaultTarget: 10000 },
+      { label: "암주요치료비", keywords: ["암주요치료", "암치료"], defaultTarget: 5000 },
       { label: "순환계질환통합치료비", keywords: ["순환계질환통합치료", "순환계통합치료"], defaultTarget: 5000 },
       { label: "질병수술비", keywords: ["질병수술비", "질병수술"], defaultTarget: 100 },
       { label: "질병5종수술비", keywords: ["질병5종", "1~5종", "1-5종", "종수술"], defaultTarget: 1000 },
@@ -346,10 +346,8 @@ export default function AnalysisPage() {
   const [client, setClient] = useState<any>(null);
   const [insuranceSearchTerm, setInsuranceSearchTerm] = useState("");
   const [selectedGaps, setSelectedGaps] = useState<string[]>([]);
-  
-  // ⭐️ 여기서만 선언됨
   const [radarTargets, setRadarTargets] = useState<Record<string, number>>({});
-  
+  const [radarRates, setRadarRates] = useState<Record<string, { before?: number, after?: number }>>({});
   const [analysisData, setAnalysisData] = useState({
     premium: { before: 0, after: 0 },
     totalPremium: { before: 0, after: 0 }, 
@@ -397,6 +395,7 @@ export default function AnalysisPage() {
         }
         // DB에서 설정한 타겟값 불러오기
         if (clientData.consulting_details.radarTargets) setRadarTargets(clientData.consulting_details.radarTargets);
+        if (clientData.consulting_details.radarRates) setRadarRates(clientData.consulting_details.radarRates);
       }
     }
 
@@ -480,12 +479,18 @@ export default function AnalysisPage() {
               }
             }
 
+            // 🚀 BINGO: "비급여", "암", "치료" 3단어가 들어가면 무조건 '암주요 치료비'로 강제 합산시킵니다.
+            if (normalizedName.includes("비급여") && normalizedName.includes("암") && normalizedName.includes("치료")) {
+              forceKeep = true;
+              forceDisplayName = "암주요 치료비";
+            }
+
             if (forceKeep) {
               const forceKey = forceDisplayName.replace(/\s+/g, "");
               applyCoverageToMap(forceKey, forceDisplayName, normalizedName, beforeVal, afterVal, isBefore, isAfter, coverageMap);
               return; 
             }
-
+            
             const standardInfo = getStandardCoverageInfo(normalizedName);
             if (!standardInfo) return; 
 
@@ -561,7 +566,8 @@ export default function AnalysisPage() {
         customCoverages: customCoverages,
         coverageOverrides: coverageOverrides,
         includeSanjeong: includeSanjeong,
-        radarTargets: radarTargets // ⭐️ 모달에서 수정된 타겟값 저장
+        radarTargets: radarTargets,
+        radarRates: radarRates
       };
       const { error } = await supabase
         .from("clients")
@@ -699,7 +705,9 @@ export default function AnalysisPage() {
         customCoverages: newSettings.customCoverages,
         coverageOverrides: newSettings.coverageOverrides,
         includeSanjeong: newSettings.includeSanjeong,
-        radarTargets: newSettings.radarTargets
+        radarTargets: newSettings.radarTargets,
+        // 🚀 BINGO 1: DB 저장 페이로드에 레이더 달성율 추가!
+        radarRates: newSettings.radarRates 
       };
 
       const { error } = await supabase.from("clients").update({ consulting_details: payload }).eq("id", clientId);
@@ -711,6 +719,9 @@ export default function AnalysisPage() {
       setCoverageOverrides(newSettings.coverageOverrides);
       setIncludeSanjeong(newSettings.includeSanjeong);
       setRadarTargets(newSettings.radarTargets);
+      // 🚀 BINGO 2: 모달에서 넘어온 달성율을 메인 화면 상태에 즉각 반영!
+      setRadarRates(newSettings.radarRates); 
+      
       setIsSettingsModalOpen(false);
     } catch (error: any) {
       alert(`저장 중 오류가 발생했습니다: ${error.message}`);
@@ -821,17 +832,13 @@ export default function AnalysisPage() {
 const getChartValue = (keywords: string[], type: 'before' | 'after', label: string = "") => {
   let total = 0;
   
-  // ⭐️ 핵심: '연금보험'은 보장금액이 아닌 "실제 연금 상품의 월납 보험료(만원 단위)"를 기준으로 합산합니다!
+  // 1️⃣ 연금보험 (보장금액 대신 월 보험료 1만원 단위 환산)
   if (label === "연금보험") {
       const pensionPremium = analysisData.rawPolicies
           .filter(p => {
               const status = p.policy_status || "maintain";
-              const isValidStatus = type === 'before' 
-                  ? (status === "maintain" || status === "cancel") 
-                  : (status === "maintain" || status === "new");
-              
-              const isPension = p.product_name?.replace(/\s/g, '').includes("연금") || 
-                                p.details?.some((d: any) => d.name?.replace(/\s/g, '').includes("연금"));
+              const isValidStatus = type === 'before' ? (status === "maintain" || status === "cancel") : (status === "maintain" || status === "new");
+              const isPension = p.product_name?.replace(/\s/g, '').includes("연금") || p.details?.some((d: any) => d.name?.replace(/\s/g, '').includes("연금"));
               return isValidStatus && isPension;
           })
           .reduce((sum, p) => {
@@ -839,29 +846,47 @@ const getChartValue = (keywords: string[], type: 'before' | 'after', label: stri
               const cleanAmt = parseInt(String(amt).replace(/[^0-9]/g, ''), 10) || 0;
               return sum + cleanAmt;
           }, 0);
-      
-      // 월 보험료를 1만원 단위로 변환하여 더함 (예: 1,000,000원 -> 100 추가)
-      total += Math.floor(pensionPremium / 10000);
+      return Math.floor(pensionPremium / 10000);
   }
 
-  const isMatch = (cleanName: string) => {
-      if (cleanName.includes("의료비") || cleanName.includes("실비") || cleanName.includes("실손")) {
-          return false;
-      }
-      
-      if (label.includes("진단")) {
-          if (
-              cleanName.includes("수술") || 
-              cleanName.includes("치료") || 
-              cleanName.includes("산정") || 
-              cleanName.includes("특례") || 
-              cleanName.includes("입원") || 
-              cleanName.includes("일당")
-          ) {
-              return false;
-          }
-      }
+  // 2️⃣ 뇌혈관질환진단비 (I67~I69 KCD 금액 연동)
+  if (label === "뇌혈관질환진단비") {
+      const kcdId = "I67~I69"; 
+      const kcdKeywords = ["특정순환계", "뇌혈관", "순환계질환통합", "순환계통합", "순환계질환", "순환계"];
+      const override = kcdOverrides[kcdId] || {};
+      if (override[type] !== undefined) return override[type] as number;
+      return calculateCodeCoverage(kcdKeywords, type, kcdId, includeSanjeong);
+  }
 
+  // 3️⃣ 허혈성심장질환진단비 (I24~I25 KCD 금액 연동)
+  if (label === "허혈성심장질환진단비") {
+      const kcdId = "I24~I25"; 
+      const kcdKeywords = ["특정순환계", "허혈성심장", "심혈관질환", "순환계질환통합", "순환계통합", "순환계질환", "순환계"];
+      const override = kcdOverrides[kcdId] || {};
+      if (override[type] !== undefined) return override[type] as number;
+      return calculateCodeCoverage(kcdKeywords, type, kcdId, includeSanjeong);
+  }
+
+  // 4️⃣ 순환계질환진단비 (I26~I50 KCD 평균 금액 연동)
+  if (label === "순환계질환진단비") {
+      const targetIds = ["I26~I28", "I30~I33", "I34~I37", "I38", "I39", "I40~I41", "I42~I43", "I44~I45", "I46", "I47~I48, ", "I49", "I50"];
+      const kcdKeywords = ["특정순환계", "순환계질환통합", "순환계통합", "순환계질환", "순환계"];
+      let sum = 0;
+      targetIds.forEach(id => {
+          const override = kcdOverrides[id] || {};
+          if (override[type] !== undefined) {
+              sum += override[type] as number;
+          } else {
+              sum += calculateCodeCoverage(kcdKeywords, type, id, includeSanjeong);
+          }
+      });
+      return Math.floor(sum / targetIds.length);
+  }
+
+  // 5️⃣ 기본 매칭 로직
+  const isMatch = (cleanName: string) => {
+      if (cleanName.includes("의료비") || cleanName.includes("실비") || cleanName.includes("실손")) return false;
+      if (label.includes("진단") && (cleanName.includes("수술") || cleanName.includes("치료") || cleanName.includes("산정") || cleanName.includes("특례") || cleanName.includes("입원") || cleanName.includes("일당"))) return false;
       return keywords.some(kw => cleanName.includes(kw.replace(/\s/g, '')));
   };
 
@@ -880,25 +905,47 @@ const getChartValue = (keywords: string[], type: 'before' | 'after', label: stri
   return total;
 };
 
-// 4축 밸런스 점수 계산 (이제 getChartValue가 다 알아서 하므로 코드가 아주 깔끔해집니다!)
+// 4축 밸런스 점수 계산
 const chartDataGrouped = CHART_CONFIG.map(cat => {
   let catBeforeSum = 0;
   let catAfterSum = 0;
   
   cat.items.forEach(item => {
-     // ⭐️ BINGO: 여기서 getChartValue가 호출될 때 연금보험료까지 자동으로 계산해 옵니다.
-     const bVal = getChartValue(item.keywords, 'before', item.label);
-     const aVal = getChartValue(item.keywords, 'after', item.label);
+     let bVal = getChartValue(item.keywords, 'before', item.label);
+     let aVal = getChartValue(item.keywords, 'after', item.label);
      const target = radarTargets[item.label] !== undefined ? radarTargets[item.label] : item.defaultTarget;
      
-     catBeforeSum += Math.min(100, (bVal / target) * 100);
-     catAfterSum += Math.min(100, (aVal / target) * 100);
+     // 🚀 최우선! 모달에서 달성율을 수동으로 입력했다면 입력값을 바로 점수에 꽂아버립니다.
+     const manualBeforeRate = radarRates[item.label]?.before;
+     const manualAfterRate = radarRates[item.label]?.after;
+
+     const finalBeforeScore = manualBeforeRate !== undefined ? manualBeforeRate : Math.min(100, (bVal / target) * 100);
+     const finalAfterScore = manualAfterRate !== undefined ? manualAfterRate : Math.min(100, (aVal / target) * 100);
+
+     catBeforeSum += finalBeforeScore;
+     catAfterSum += finalAfterScore;
   });
+  
+  const divisor = cat.items.length > 3 ? 2.5 : cat.items.length;
   
   return {
      label: cat.title,
-     before: Math.max(15, catBeforeSum / cat.items.length),
-     after: Math.max(15, catAfterSum / cat.items.length)
+     before: Math.max(15, Math.min(100, catBeforeSum / divisor)),
+     after: Math.max(15, Math.min(100, catAfterSum / divisor)),
+     itemsData: cat.items.map(item => {
+       const bVal = getChartValue(item.keywords, 'before', item.label);
+       const aVal = getChartValue(item.keywords, 'after', item.label);
+       const target = radarTargets[item.label] !== undefined ? radarTargets[item.label] : item.defaultTarget;
+       
+       const manualBeforeRate = radarRates[item.label]?.before;
+       const manualAfterRate = radarRates[item.label]?.after;
+
+       return {
+         label: item.label,
+         before: manualBeforeRate !== undefined ? Math.max(15, Math.min(100, manualBeforeRate)) : Math.max(15, Math.min(100, (bVal / target) * 100)),
+         after: manualAfterRate !== undefined ? Math.max(15, Math.min(100, manualAfterRate)) : Math.max(15, Math.min(100, (aVal / target) * 100)),
+       }
+     })
   };
 });
 
@@ -1098,17 +1145,19 @@ return (
                     </h4>
                   </div>
                   
-{/* 2x2 그리드로 4개의 차트 렌더링 */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-y-12 print:gap-y-0 gap-x-4 w-full">
+                {/* 2x2 그리드로 4개의 차트 렌더링 */}
+                <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-y-12 print:gap-y-0 gap-x-4 w-full">
                     {CHART_CONFIG.map((config, idx) => {
                         const bData = config.items.map(item => {
-                            // ⭐️ BINGO: 여기에 item.label 추가
+                            // 🚀 모달에서 입력한 기존 달성율이 있으면 최우선 적용
+                            if (radarRates[item.label]?.before !== undefined) return Math.max(15, Math.min(100, radarRates[item.label].before));
                             const val = getChartValue(item.keywords, 'before', item.label);
                             const target = radarTargets[item.label] !== undefined ? radarTargets[item.label] : item.defaultTarget;
                             return Math.max(15, Math.min(100, (val / target) * 100));
                         });
                         const aData = config.items.map(item => {
-                            // ⭐️ BINGO: 여기에도 item.label 추가
+                            // 🚀 모달에서 입력한 권장 달성율이 있으면 최우선 적용
+                            if (radarRates[item.label]?.after !== undefined) return Math.max(15, Math.min(100, radarRates[item.label].after));
                             const val = getChartValue(item.keywords, 'after', item.label);
                             const target = radarTargets[item.label] !== undefined ? radarTargets[item.label] : item.defaultTarget;
                             return Math.max(15, Math.min(100, (val / target) * 100));
@@ -1808,6 +1857,7 @@ return (
           initialCoverageOverrides={coverageOverrides}
           initialIncludeSanjeong={includeSanjeong}
           initialRadarTargets={radarTargets} 
+          initialRadarRates={radarRates} // 🚀 신규 추가
         />
       </div>
 

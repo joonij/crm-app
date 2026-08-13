@@ -256,8 +256,8 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
   };
 
   const handleAction = async (type: string) => {
-    if (needsInsuredSignature && !hasInsuredSignature) return alert("피보험자 서명을 기재해 주세요.");
-    if (needsBeneficiarySignature && !hasBeneficiarySignature) return alert("수익자(청구인) 서명을 기재해 주세요.");
+    // if (needsInsuredSignature && !hasInsuredSignature) return alert("피보험자 서명을 기재해 주세요.");
+    // if (needsBeneficiarySignature && !hasBeneficiarySignature) return alert("수익자(청구인) 서명을 기재해 주세요.");
     
     setIsLoading(true);
     try {

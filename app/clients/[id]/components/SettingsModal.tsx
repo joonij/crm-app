@@ -108,17 +108,11 @@ const formatDetailAmount = (val: string | number) => {
 };
 
 export default function SettingsModal({
-  isOpen,
-  onClose,
-  onSave,
-  analysisData,
-  calculateCodeCoverage,
-  initialKcdOverrides,
-  initialVisibleCoverages,
-  initialCustomCoverages,
-  initialCoverageOverrides,
-  initialIncludeSanjeong,
-  initialRadarTargets // 🚀 props 추가
+  isOpen, onClose, onSave, analysisData, calculateCodeCoverage,
+  initialKcdOverrides, initialVisibleCoverages, initialCustomCoverages,
+  initialCoverageOverrides, initialIncludeSanjeong,
+  initialRadarTargets,
+  initialRadarRates // 🚀 Props 추가
 }: any) {
   
 // ⭐️ TypeScript 에러 해결: 'radar' 탭 타입을 추가합니다.
@@ -127,6 +121,8 @@ export default function SettingsModal({
   const [tempVisibleCoverages, setTempVisibleCoverages] = useState(initialVisibleCoverages || []);
   const [tempCustomCoverages, setTempCustomCoverages] = useState(initialCustomCoverages || []);
   const [tempCoverageOverrides, setTempCoverageOverrides] = useState(initialCoverageOverrides || {});
+  const [tempRadarTargets, setTempRadarTargets] = useState<Record<string, number>>(initialRadarTargets || {});
+  const [tempRadarRates, setTempRadarRates] = useState<Record<string, { before?: number, after?: number }>>(initialRadarRates || {});
   const [tempIncludeSanjeong, setTempIncludeSanjeong] = useState({
       brain: initialIncludeSanjeong?.brain || false,
       heart: initialIncludeSanjeong?.heart || false,
@@ -135,9 +131,6 @@ export default function SettingsModal({
   });
   const [searchCovItem, setSearchCovItem] = useState("");
   const [customInputs, setCustomInputs] = useState<Record<string, { name: string, before: string, after: string }>>({});
-  
-  // 🚀 목표액 설정 상태 추가
-  const [tempRadarTargets, setTempRadarTargets] = useState<Record<string, number>>(initialRadarTargets || {});
 
   if (!isOpen) return null;
 
@@ -205,16 +198,29 @@ export default function SettingsModal({
       customCoverages: tempCustomCoverages,
       coverageOverrides: tempCoverageOverrides,
       includeSanjeong: tempIncludeSanjeong,
-      radarTargets: tempRadarTargets // 🚀 추가
+      radarTargets: tempRadarTargets,
+      radarRates: tempRadarRates // 🚀 추가
     });
   };
-  // 🚀 입력 변경 핸들러 추가 (handleSave 바로 위에)
   const handleTempRadarTarget = (label: string, value: string) => {
     const num = value === "" ? undefined : parseInt(value);
     setTempRadarTargets((prev: any) => {
       const next = { ...prev, [label]: num };
       if (num === undefined) delete next[label];
       return next;
+    });
+  };
+  const handleTempRadarRate = (label: string, field: 'before' | 'after', value: string) => {
+    const num = value === "" ? undefined : parseInt(value);
+    setTempRadarRates((prev: any) => {
+      const current = prev[label] || {};
+      const next = { ...current, [field]: num };
+      if (next.before === undefined && next.after === undefined) {
+         const newObj = { ...prev };
+         delete newObj[label];
+         return newObj;
+      }
+      return { ...prev, [label]: next };
     });
   };
 
@@ -553,28 +559,53 @@ export default function SettingsModal({
                   </div>
                   
                   <table className="w-full text-sm text-left">
-                    <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
+                    <thead className="bg-slate-50 text-slate-500 text-[11px] uppercase tracking-wider">
                       <tr>
-                        <th className="py-3 px-4 w-[60%]">보장 항목명</th>
-                        <th className="py-3 px-2 w-[40%] text-center border-l border-slate-100">100% 달성 목표액</th>
+                        <th className="py-3 px-4 w-[35%]">보장 항목명</th>
+                        <th className="py-3 px-2 w-[22%] text-center border-l border-slate-100">100% 목표액</th>
+                        <th className="py-3 px-2 w-[21%] text-center border-l border-slate-100">기존 달성율(%)</th>
+                        <th className="py-3 px-2 w-[22%] text-center border-l border-slate-100 text-blue-600">권장 달성율(%)</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {cat.items.map((item, itemIdx) => (
                         <tr key={itemIdx} className="hover:bg-slate-50/50 transition-colors">
                           <td className="py-2 px-4">
-                            <p className="font-bold text-slate-800 text-[13px]">{item.label}</p>
+                            <p className="font-bold text-slate-800 text-[12px]">{item.label}</p>
                           </td>
-                          <td className="py-2 px-4 border-l border-slate-100">
+                          <td className="py-2 px-2 border-l border-slate-100">
                             <div className="relative">
                               <input
                                 type="number"
                                 placeholder={item.defaultTarget.toString()}
                                 value={tempRadarTargets[item.label] !== undefined ? tempRadarTargets[item.label] : ""}
                                 onChange={(e) => handleTempRadarTarget(item.label, e.target.value)}
-                                className={`w-full text-right pr-6 py-1.5 px-2 rounded-md border text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none transition-colors ${tempRadarTargets[item.label] !== undefined ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-slate-200 bg-white text-slate-700'}`}
+                                className={`w-full text-right pr-5 py-1.5 px-2 rounded-md border text-sm font-bold outline-none transition-colors ${tempRadarTargets[item.label] !== undefined ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-slate-200 bg-white text-slate-700'}`}
                               />
-                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold pointer-events-none">만</span>
+                            </div>
+                          </td>
+                          <td className="py-2 px-2 border-l border-slate-100">
+                            <div className="relative">
+                              <input
+                                type="number"
+                                placeholder="자동"
+                                value={tempRadarRates[item.label]?.before !== undefined ? tempRadarRates[item.label].before : ""}
+                                onChange={(e) => handleTempRadarRate(item.label, 'before', e.target.value)}
+                                className={`w-full text-right pr-6 py-1.5 px-2 rounded-md border text-sm font-bold outline-none transition-colors ${tempRadarRates[item.label]?.before !== undefined ? 'border-indigo-400 bg-indigo-50 text-indigo-700' : 'border-slate-200 bg-slate-50/50 text-slate-500'}`}
+                              />
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold pointer-events-none">%</span>
+                            </div>
+                          </td>
+                          <td className="py-2 px-2 border-l border-slate-100">
+                            <div className="relative">
+                              <input
+                                type="number"
+                                placeholder="자동"
+                                value={tempRadarRates[item.label]?.after !== undefined ? tempRadarRates[item.label].after : ""}
+                                onChange={(e) => handleTempRadarRate(item.label, 'after', e.target.value)}
+                                className={`w-full text-right pr-6 py-1.5 px-2 rounded-md border text-sm font-bold outline-none transition-colors ${tempRadarRates[item.label]?.after !== undefined ? 'border-emerald-400 bg-emerald-50 text-emerald-700' : 'border-blue-200 bg-blue-50/30 text-blue-700'}`}
+                              />
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-blue-400 font-bold pointer-events-none">%</span>
                             </div>
                           </td>
                         </tr>

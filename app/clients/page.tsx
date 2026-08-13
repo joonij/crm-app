@@ -29,9 +29,11 @@ type Client = {
   registration_number?: string | null;
   telecom_carriers?: { telecom: string };
   driving_statuses?: { status: string };
-  // ⭐️ 일정 조인용 타입 추가
+  introducer?: { name: string } | null;
   schedules?: { date: string; category: string; content: string }[];
   lastSchedule?: { date: string; category: string; content: string } | null;
+  client_source_ref?: { source: string } | null;
+  introducerName?: string | null;
 };
 
 const contractStatusMap: Record<string, string> = {
@@ -159,9 +161,15 @@ export default function ClientsPage() {
     const managerAuth = !!agent.rank && agent.rank !== "FC";
     setIsManager(managerAuth);
 
-    // ⭐️ 조인(Join) 추가: schedules 테이블도 함께 불러옵니다.
-    let query = supabase.from("clients").select("*, agents(name), telecom_carriers(telecom), driving_statuses(status), schedules(date, category, content)");
-
+    // ⭐️ 말썽을 일으키던 introducer 조인을 지우고, source만 남깁니다.
+    let query = supabase.from("clients").select(`
+      *, 
+      agents(name), 
+      telecom_carriers(telecom), 
+      driving_statuses(status), 
+      schedules(date, category, content),
+      client_source_ref:client_source(source)
+    `);
     if (managerAuth) {
       const { data: members } = await supabase
         .from("agents")
@@ -185,11 +193,38 @@ export default function ClientsPage() {
     const { data, error } = await query;
 
     if (error) {
+      // ⭐️ 고객 목록이 안 뜰 때, 개발자 도구(F12) 콘솔창에서 정확한 원인을 알려줍니다.
+      console.log("❌ 데이터 불러오기 실패:", error.message); 
       setClients([]);
       return;
     }
 
     const fetchedData = data || [];
+
+    // 🚀 BINGO 1: 불러온 전체 고객 데이터를 이용해 'ID: 이름' 형태의 사전을 만듭니다.
+    const clientNameMap = fetchedData.reduce((acc, curr) => {
+      acc[curr.id] = curr.name;
+      return acc;
+    }, {} as Record<number, string>);
+
+    // 🚀 BINGO 2: 혹시 내 전체 목록에 없는 '타 담당자의 고객'이 소개자인 경우, 그 사람들의 이름만 DB에서 한 번 더 쏙 가져옵니다.
+    const missingIntroIds = fetchedData
+      .map(c => c.introduce_client)
+      .filter((id): id is number => id !== null && !clientNameMap[id]);
+
+    if (missingIntroIds.length > 0) {
+      const uniqueMissingIds = [...new Set(missingIntroIds)];
+      const { data: missingClients } = await supabase
+        .from("clients")
+        .select("id, name")
+        .in("id", uniqueMissingIds);
+        
+      if (missingClients) {
+        missingClients.forEach(mc => {
+          clientNameMap[mc.id] = mc.name;
+        });
+      }
+    }
 
     const introCounts = fetchedData.reduce((acc, curr) => {
       if (curr.introduce_client) {
@@ -210,14 +245,10 @@ export default function ClientsPage() {
         ...client,
         isKeyman: (introCounts[client.id] || 0) >= 3,
         is_favorite: !!client.is_favorite,
-        lastSchedule
+        lastSchedule,
+        // 🚀 BINGO 3: 사전에 꾹꾹 눌러담은 이름을 찾아내서 저장합니다!
+        introducerName: client.introduce_client ? clientNameMap[client.introduce_client] : null
       };
-    });
-
-    clientsWithKeyman.sort((a, b) => {
-      if (a.is_favorite && !b.is_favorite) return -1;
-      if (!a.is_favorite && b.is_favorite) return 1;
-      return a.name.localeCompare(b.name, 'ko-KR');
     });
 
     setClients(clientsWithKeyman);
@@ -807,7 +838,7 @@ ${medicalMemo}`;
             <thead className="bg-gray-50/80">
               <tr>
                 {/* ⭐️ '연락처' 헤더를 '최근 일정'으로 교체 */}
-                {["이름", "연락처", "", "영업 진행률", "계약상태", "리쿠르팅 진행률", "최근 일정", "관리"].map((header, idx) => (
+                {["이름", "접점", "", "영업 진행률", "계약상태", "리쿠르팅 진행률", "최근 일정", "관리"].map((header, idx) => (
                   <th key={idx} scope="col" className={`px-6 py-4 text-xs font-bold tracking-wider text-gray-500 uppercase ${header === "관리" ? "text-right" : "text-left"}`}>
                     {header}
                   </th>
@@ -848,10 +879,12 @@ ${medicalMemo}`;
                           </button>
                           
                           <div className="flex items-center gap-2">
-                            <Link href={`/clients/${client.id}`} className="block text-base font-bold text-gray-900 group-hover:text-blue-600 transition-colors py-1.5 flex items-center">
-                              {client.name}
-                            </Link>
                             
+                            <Link href={`/clients/${client.id}`} className="flex flex-col items-start group-hover:text-blue-600 transition-colors py-1.5">
+                              <span className="text-base font-bold text-gray-900">{client.name}</span>
+                              {/* ⭐️ 전화번호는 살짝 작고 연한 색으로 주면 훨씬 보기 좋습니다. */}
+                              <span className="text-xs font-semibold text-gray-600">{client.phone}</span>
+                            </Link>
                             <button 
                               onClick={() => openKakaoRequestModal(client)}
                               className="bg-white border border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-900 px-2.5 py-1 rounded-md text-[11px] font-bold transition-colors shadow-sm whitespace-nowrap cursor-pointer"
@@ -870,9 +903,12 @@ ${medicalMemo}`;
                       </td>
                       <td className="px-6 py-3 whitespace-nowrap">
                         <div className="flex items-center gap-2">
-                          {client.phone && (
-                            <span className="text-xs font-semibold text-gray-600">{client.phone}</span>
-                          )}
+                          <span className="text-xs font-semibold text-gray-600">
+                            {/* 🚀 BINGO 4: 프론트에서 완벽하게 매칭한 이름을 출력! */}
+                            {client.introduce_client 
+                              ? (client.introducerName || `${client.introduce_client} (삭제된 고객)`) 
+                              : (client.client_source_ref?.source || "경로 미상")}
+                          </span>
                         </div>
                       </td>
                       <td className="px-6 py-3 whitespace-nowrap">
@@ -1000,38 +1036,54 @@ ${medicalMemo}`;
                     <Trash2 className="w-4 h-4" />
                   </button>
 
-                  <div className="flex justify-between items-center pr-10">
-                    <div className="flex items-center gap-2">
+                  {/* 🚀 여기부터 변경: 모바일 카드 상단부 (이름 & 접점 위아래 배치) */}
+                  <div className="flex justify-between items-start pr-10">
+                    <div className="flex items-start gap-2">
+                      {/* 별 아이콘 위치 보정 (mt-0.5 추가) */}
                       <button 
                         onClick={(e) => handleToggleFavorite(e, client.id, !!client.is_favorite)}
-                        className="p-1 -ml-1 rounded-full hover:bg-gray-100 transition-colors"
+                        className="p-1 -ml-1 mt-0.5 rounded-full hover:bg-gray-100 transition-colors shrink-0"
                       >
                         <Star className={`w-5 h-5 transition-colors ${client.is_favorite ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`} />
                       </button>
 
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <div className="flex items-center gap-1.5">
+                      {/* 이름과 접점 뱃지를 위아래로 묶는 컨테이너 */}
+                      <div className="flex flex-col gap-2">
+                        {/* 1. 이름 및 각종 버튼/태그 영역 */}
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <Link href={`/clients/${client.id}`} className="text-lg font-extrabold text-gray-900 hover:text-blue-600">
                             {client.name}
                           </Link>
+                          <button 
+                            onClick={() => openKakaoRequestModal(client)}
+                            className="bg-white border border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-900 px-2 py-1 rounded-md text-[10px] font-bold transition-colors shadow-sm ml-1 whitespace-nowrap cursor-pointer"
+                          >
+                            고객등록요청
+                          </button>
+                          {client.introduce_client ? (
+                            <>
+                              <span className="flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 border-blue-200/80 text-[10px] font-black rounded border shadow-sm">{client.introducerName || `${client.introduce_client} (삭제된 고객)`}</span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 border-blue-200/80 text-[10px] font-black rounded border shadow-sm">{client.client_source_ref?.source || "경로 미상"}</span>
+                            </>
+                          )}
+                          {client.isKeyman && (
+                            <span className="flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 border-blue-200/80 text-[10px] font-black rounded border shadow-sm">
+                              <Crown className="w-3 h-3 text-amber-500" /> 키맨
+                            </span>
+                          )}
                         </div>
-                        <button 
-                          onClick={() => openKakaoRequestModal(client)}
-                          className="bg-white border border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-900 px-2 py-1 rounded-md text-[10px] font-bold transition-colors shadow-sm ml-1 whitespace-nowrap cursor-pointer"
-                        >
-                          고객등록요청
-                        </button>
 
+                        {/* 2. ⭐️ 모바일 뷰에 추가된 '접점(소개자/유입경로)' 뱃지 UI */}
                         {isManager && selectedAgentFilter !== "me" && client.agents?.name && (
-                          <span className="text-[10px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded border border-indigo-100 font-bold whitespace-nowrap">
+                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-gray-600 w-fit px-2 py-1 rounded-md ">
+                          {/* <span className="text-[10px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded border border-indigo-100 font-bold whitespace-nowrap"> */}
                             {client.agents.name}
-                          </span>
-                        )}
-                        {client.isKeyman && (
-                          <span className="flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 border-blue-200/80 text-[10px] font-black rounded border shadow-sm">
-                            <Crown className="w-3 h-3 text-amber-500" /> 키맨
-                          </span>
-                        )}
+                          {/* </span> */}
+                        </div>
+                      )}
                       </div>
                     </div>
                   </div>

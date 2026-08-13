@@ -121,8 +121,12 @@ export const COVERAGE_OPTIONS = [
     if (name.includes("납입") && (name.includes("면제"))) return "납입면제";
     if (name.includes("납입") && (name.includes("지원"))) return "납입지원";
       
+    if ((name.includes("실손") || name.includes("의료") || name.includes("외래")) && name.includes("해외") && name.includes("상해")) return "해외상해 실손의료비";
+    if ((name.includes("실손") || name.includes("의료") || name.includes("외래")) && name.includes("해외") && name.includes("질병")) return "해외질병 실손의료비";
     if ((name.includes("처방") || name.includes("약제") || name.includes("조제")) && name.includes("상해")) return "상해약제 실손의료비";
     if ((name.includes("처방") || name.includes("약제") || name.includes("조제")) && name.includes("질병")) return "질병약제 실손의료비";
+    if ((name.includes("실손") || name.includes("의료") || name.includes("외래")) && name.includes("입통원") && name.includes("상해")) return "상해입통원 실손의료비";
+    if ((name.includes("실손") || name.includes("의료") || name.includes("외래")) && name.includes("입통원") && name.includes("질병")) return "질병입통원 실손의료비";
     if ((name.includes("실손") || name.includes("의료") || name.includes("외래")) && name.includes("상해")) return "상해통원 실손의료비";
     if ((name.includes("실손") || name.includes("의료") || name.includes("외래")) && name.includes("질병")) return "질병통원 실손의료비";
     if (name.includes("입통원") && name.includes("상해")) return "상해입원 실손의료비";
