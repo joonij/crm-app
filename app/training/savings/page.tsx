@@ -1,4 +1,3 @@
-//savings/page.tsx
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -6,11 +5,12 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight, ArrowLeft, PenTool, MousePointer2, Trash2 } from "lucide-react";
 
 // 분리해 둔 슬라이드 컴포넌트들을 모두 불러옵니다.
+// ⭐️ 추가: NeedsProvider를 같이 불러옵니다.
 import { 
   SlideIntro, SlideCh1, SlideCh2, 
   SlideCh3_1, SlideCh3_2, SlideCh3_3, SlideCh3_4, SlideCh3_5, SlideCh3_6, SlideCh3_7,
   SlideCh4, SlideCh4_1, SlideCh4_2, SlideCh4_3, SlideCh4_4, 
-  SlideCh5, SlideAppendix1, SlideAppendix2 
+  SlideCh5, SlideAppendix1, SlideAppendix2, NeedsProvider
 } from "./components/SavingsSlides";
 
 export default function SavingsTrainingPage() {
@@ -174,121 +174,113 @@ export default function SavingsTrainingPage() {
   }, [nextSlide, prevSlide, isPenMode]);
 
   return (
-    <div className="w-full max-w-[1400px] mx-auto p-4 md:p-8 pb-24 relative select-none">
-      
-      {/* 메인 슬라이드 캔버스 컨테이너 */}
-      <div 
-        ref={containerRef}
-        className={`relative bg-white rounded-[2rem] border border-gray-200 shadow-2xl h-[780px] flex flex-col overflow-hidden ${isPenMode ? 'cursor-crosshair' : ''}`}
-      >
-        {/* 상단 진행률 바 */}
+    // ⭐️ 추가: 전체 슬라이드 영역을 NeedsProvider로 묶어줍니다!
+    <NeedsProvider>
+      <div className="w-full max-w-[1400px] mx-auto p-4 md:p-8 pb-24 relative select-none">
+        
+        {/* 메인 슬라이드 캔버스 컨테이너 */}
         <div 
-          className="absolute top-0 left-0 h-2 bg-blue-600 transition-all duration-500 ease-out z-10" 
-          style={{ width: `${((currentSlide + 1) / slides.length) * 100}%` }} 
-        />
+          ref={containerRef}
+          className={`relative bg-white rounded-[2rem] border border-gray-200 shadow-2xl h-[780px] flex flex-col overflow-hidden ${isPenMode ? 'cursor-crosshair' : ''}`}
+        >
+          {/* 상단 진행률 바 */}
+          <div 
+            className="absolute top-0 left-0 h-2 bg-blue-600 transition-all duration-500 ease-out z-10" 
+            style={{ width: `${((currentSlide + 1) / slides.length) * 100}%` }} 
+          />
 
-        {/* ⭐️ 그리기 캔버스 레이어 (z-40) */}
-        <canvas
-          ref={canvasRef}
-          onMouseDown={startDrawing}
-          onMouseMove={draw}
-          onMouseUp={stopDrawing}
-          onMouseLeave={stopDrawing}
-          onTouchStart={startDrawing}
-          onTouchMove={draw}
-          onTouchEnd={stopDrawing}
-          className="absolute inset-0 z-40 touch-none"
-          style={{ pointerEvents: isPenMode ? 'auto' : 'none' }} 
-        />
+          {/* ⭐️ 그리기 캔버스 레이어 (z-40) */}
+          <canvas
+            ref={canvasRef}
+            onMouseDown={startDrawing}
+            onMouseMove={draw}
+            onMouseUp={stopDrawing}
+            onMouseLeave={stopDrawing}
+            onTouchStart={startDrawing}
+            onTouchMove={draw}
+            onTouchEnd={stopDrawing}
+            className="absolute inset-0 z-40 touch-none"
+            style={{ pointerEvents: isPenMode ? 'auto' : 'none' }} 
+          />
 
-        {/* ⭐️ 통합된 상단 타이틀 & 툴바 영역 (z-50) */}
-        <div className="px-14 pt-10 pb-5 border-b border-gray-100 shrink-0 relative z-50 flex justify-between items-center bg-white/95 backdrop-blur-sm">
-          {/* 왼쪽: 슬라이드 제목 */}
-          <h2 className="text-4xl font-black text-gray-900 truncate pr-4 flex gap-2">
-            {/* 1. 교육 목차로 돌아가기 */}
-            <Link 
-              href="/training" 
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-gray-500 hover:text-gray-900 hover:bg-gray-200 transition-colors"
-              title="교육 목차로 돌아가기"
-            >
-              <ArrowLeft className="w-6 h-6" />
-            </Link>
-            {slides[currentSlide].title}
-          </h2>
-          
-          {/* 오른쪽: 가로형 통합 툴바 */}
-          <div className="flex items-center gap-2 bg-white p-1.5 rounded-2xl border border-gray-200 shadow-sm shrink-0">
+          {/* ⭐️ 통합된 상단 타이틀 & 툴바 영역 (z-50) */}
+          <div className="px-14 pt-10 pb-5 border-b border-gray-100 shrink-0 relative z-50 flex justify-between items-center bg-white/95 backdrop-blur-sm">
+            {/* 왼쪽: 슬라이드 제목 */}
+            <h2 className="text-4xl font-black text-gray-900 truncate pr-4 flex gap-2">
+              {/* 1. 교육 목차로 돌아가기 */}
+              <Link 
+                href="/training" 
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-gray-500 hover:text-gray-900 hover:bg-gray-200 transition-colors"
+                title="교육 목차로 돌아가기"
+              >
+                <ArrowLeft className="w-6 h-6" />
+              </Link>
+              {slides[currentSlide].title}
+            </h2>
             
+            {/* 오른쪽: 가로형 통합 툴바 */}
+            <div className="flex items-center gap-2 bg-white p-1.5 rounded-2xl border border-gray-200 shadow-sm shrink-0">
+              
+              {/* 3. 마우스 모드 */}
+              <button 
+                onClick={() => setIsPenMode(false)}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl transition-all border ${!isPenMode ? 'bg-gray-900 text-white border-gray-900 shadow-md scale-105' : 'bg-white text-gray-500 border-transparent hover:bg-gray-50'}`}
+                title="마우스 모드 (슬라이드 클릭 가능)"
+              >
+                <MousePointer2 className="w-4 h-4" />
+                <span className="text-[11px] font-bold">마우스</span>
+              </button>
 
-            {/* 2. 슬라이드 진행도 */}
-            {/* <div className="flex items-center gap-1.5 px-3 py-2 bg-blue-50 rounded-xl border border-blue-100 text-blue-700">
-              <span className="text-[10px] font-bold text-blue-400">SLIDE</span>
-              <span className="text-xs font-black">
-                {currentSlide + 1}<span className="text-blue-300 mx-0.5">/</span>{slides.length}
-              </span>
-            </div> */}
+              {/* 4. 펜 모드 */}
+              <button 
+                onClick={() => { setIsPenMode(true); setPenWidth(4); }}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl transition-all border ${isPenMode ? 'bg-blue-600 text-white border-blue-600 shadow-md scale-105' : 'bg-white text-gray-500 border-transparent hover:bg-gray-50'}`}
+                title="펜 모드 (화면에 그리기)"
+              >
+                <PenTool className="w-4 h-4" />
+                <span className="text-[11px] font-bold">판서펜</span>
+              </button>
 
-            {/* <div className="w-px h-5 bg-gray-200 mx-1"></div> 세로 구분선 */}
+              {/* 5. 펜 모드일 때만 나타나는 색상 팔레트 및 지우개 */}
+              {isPenMode && (
+                <div className="flex items-center gap-2.5 pl-3 ml-1 border-l border-gray-200 animate-in fade-in slide-in-from-right-2">
+                  <button onClick={() => { setPenColor("#ef4444"); setPenWidth(4); }} className={`w-5 h-5 rounded-full bg-red-500 border-2 transition-transform shadow-sm ${penColor === "#ef4444" ? 'border-gray-900 scale-125' : 'border-white hover:scale-110'}`} title="빨간색" />
+                  <button onClick={() => { setPenColor("#3b82f6"); setPenWidth(4); }} className={`w-5 h-5 rounded-full bg-blue-500 border-2 transition-transform shadow-sm ${penColor === "#3b82f6" ? 'border-gray-900 scale-125' : 'border-white hover:scale-110'}`} title="파란색" />
+                  <button onClick={() => { setPenColor("#fde047"); setPenWidth(20); }} className={`w-5 h-5 rounded-full bg-yellow-300 border-2 transition-transform shadow-sm ${penColor === "#fde047" ? 'border-gray-900 scale-125' : 'border-white hover:scale-110'}`} title="형광펜" />
+                  
+                  <button onClick={clearCanvas} className="p-1.5 ml-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer" title="모두 지우기">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
 
-            {/* 3. 마우스 모드 */}
+          {/* 슬라이드 본문 */}
+          <div className="flex-1 px-14 py-8 bg-white overflow-hidden relative z-0">
+            {slides[currentSlide].content}
+          </div>
+
+          {/* 하단 네비게이션 */}
+          <div className="px-12 py-6 border-t border-gray-100 flex justify-between items-center bg-gray-50/80 backdrop-blur-sm shrink-0 relative z-50">
             <button 
-              onClick={() => setIsPenMode(false)}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl transition-all border ${!isPenMode ? 'bg-gray-900 text-white border-gray-900 shadow-md scale-105' : 'bg-white text-gray-500 border-transparent hover:bg-gray-50'}`}
-              title="마우스 모드 (슬라이드 클릭 가능)"
+              onClick={triggerPrev}
+              disabled={currentSlide === 0}
+              className="flex items-center px-6 py-3 text-base font-black text-gray-700 bg-white border-2 border-gray-300 rounded-xl hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm cursor-pointer"
             >
-              <MousePointer2 className="w-4 h-4" />
-              <span className="text-[11px] font-bold">마우스</span>
+              <ChevronLeft className="w-5 h-5 mr-2" /> 이전 슬라이드
             </button>
-
-            {/* 4. 펜 모드 */}
+            
             <button 
-              onClick={() => { setIsPenMode(true); setPenWidth(4); }}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl transition-all border ${isPenMode ? 'bg-blue-600 text-white border-blue-600 shadow-md scale-105' : 'bg-white text-gray-500 border-transparent hover:bg-gray-50'}`}
-              title="펜 모드 (화면에 그리기)"
+              onClick={triggerNext}
+              disabled={currentSlide === slides.length - 1}
+              className="flex items-center px-6 py-3 text-base font-black text-white bg-gray-900 rounded-xl hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-md cursor-pointer"
             >
-              <PenTool className="w-4 h-4" />
-              <span className="text-[11px] font-bold">판서펜</span>
+              다음 슬라이드 <ChevronRight className="w-5 h-5 ml-2" />
             </button>
-
-            {/* 5. 펜 모드일 때만 나타나는 색상 팔레트 및 지우개 */}
-            {isPenMode && (
-              <div className="flex items-center gap-2.5 pl-3 ml-1 border-l border-gray-200 animate-in fade-in slide-in-from-right-2">
-                <button onClick={() => { setPenColor("#ef4444"); setPenWidth(4); }} className={`w-5 h-5 rounded-full bg-red-500 border-2 transition-transform shadow-sm ${penColor === "#ef4444" ? 'border-gray-900 scale-125' : 'border-white hover:scale-110'}`} title="빨간색" />
-                <button onClick={() => { setPenColor("#3b82f6"); setPenWidth(4); }} className={`w-5 h-5 rounded-full bg-blue-500 border-2 transition-transform shadow-sm ${penColor === "#3b82f6" ? 'border-gray-900 scale-125' : 'border-white hover:scale-110'}`} title="파란색" />
-                <button onClick={() => { setPenColor("#fde047"); setPenWidth(20); }} className={`w-5 h-5 rounded-full bg-yellow-300 border-2 transition-transform shadow-sm ${penColor === "#fde047" ? 'border-gray-900 scale-125' : 'border-white hover:scale-110'}`} title="형광펜" />
-                
-                <button onClick={clearCanvas} className="p-1.5 ml-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer" title="모두 지우기">
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            )}
           </div>
         </div>
-
-        {/* 슬라이드 본문 */}
-        <div className="flex-1 px-14 py-8 bg-white overflow-hidden relative z-0">
-          {slides[currentSlide].content}
-        </div>
-
-        {/* 하단 네비게이션 */}
-        <div className="px-12 py-6 border-t border-gray-100 flex justify-between items-center bg-gray-50/80 backdrop-blur-sm shrink-0 relative z-50">
-          <button 
-            onClick={triggerPrev}
-            disabled={currentSlide === 0}
-            className="flex items-center px-6 py-3 text-base font-black text-gray-700 bg-white border-2 border-gray-300 rounded-xl hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm cursor-pointer"
-          >
-            <ChevronLeft className="w-5 h-5 mr-2" /> 이전 슬라이드
-          </button>
-          
-          <button 
-            onClick={triggerNext}
-            disabled={currentSlide === slides.length - 1}
-            className="flex items-center px-6 py-3 text-base font-black text-white bg-gray-900 rounded-xl hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-md cursor-pointer"
-          >
-            다음 슬라이드 <ChevronRight className="w-5 h-5 ml-2" />
-          </button>
-        </div>
       </div>
-    </div>
+    </NeedsProvider>
   );
 }

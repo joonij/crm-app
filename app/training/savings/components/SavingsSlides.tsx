@@ -2,6 +2,50 @@
 
 import { useState, useEffect } from "react";
 import { Building2, TrendingUp, ShieldCheck, Landmark, Quote, Snowflake, Droplet, Coins, ReceiptText, Timer, TrendingDown, ShieldPlus, LineChart, Lock, ChevronRight, AlertCircle } from "lucide-react";
+import { createContext, useContext, ReactNode } from "react";
+
+// ⭐️ 1. 질문 데이터를 전역으로 빼줍니다. (Ch1과 Ch4에서 모두 쓰기 위함)
+// export const QUESTION_DATA = [
+//   { id: 1, type: "1", q: "월급을 받으면 '쓰고 남은 돈'을 저축하시나요, 아니면 '저축하고 남은 돈'을 쓰시나요?", opts: ["저축 먼저", "쓰고 남은 돈으로", "저축할 돈이 없어요"] },
+//   { id: 2, type: "2", q: "가장의 부재로 소득이 끊겨도, 우리 가족의 1년치 고정 생활비는 준비되어 있나요?", opts: ["거뜬해요", "어느정도는", "걱정돼요"] },
+//   { id: 3, type: "3", q: "인생에서 가장 많은 돈이 필요하지만, 당장 눈앞에 닥치지 않아 가장 준비가 미흡한 '0순위 자금'은 무엇일까요?", opts: ["결혼생활", "가족의 생활비", "은퇴 후 생활비"] },
+//   { id: 4, type: "4", q: "저축 및 투자한 돈을 회수할 때, 나라에 세금 안내는 통장이 있나요?", opts: ["있어요", "없어요", "잘 몰라요"] },
+//   { id: 5, type: "5", q: "내 돈이 자라나는 모습 중 어떤 모습으로 자라나길 바라시나요? ", opts: ["안 다치게! (안전형)", "꾸준하게! (적립형)", "과감하게! (공격형)"] },
+// ];
+// ⭐️ 1. 고객 스스로 필요성을 깨닫게 만드는 마법의 질문 세트
+export const QUESTION_DATA = [
+  { id: 1, type: "1", q: "월급을 받으면 '쓰고 남은 돈'을 저축하시나요, 아니면 '저축하고 남은 돈'을 쓰시나요?", opts: ["저축 먼저", "쓰고 남은 돈으로", "저축할 돈이 없어요"] },
+  { id: 2, type: "2", q: "내일 당장 나의 소득이 완전히 끊긴다면, 현재 모아둔 자산으로 몇 년을 버틸 수 있을까요?", opts: ["3년 이상 거뜬해요", "1년 정도는 버텨요", "다음달도 막막해요"] },
+  { id: 3, type: "3", q: "인생에서 가장 많은 돈이 필요하지만, 가장 준비가 미흡한 '0순위 자금'은 무엇일까요?", opts: ["자녀 교육 자금", "내 집 마련", "은퇴 이후 생활비"] },
+  { id: 4, type: "4", q: "수익률 1%를 더 올리는 것도 좋지만, 내가 번 돈의 안뺏어가는 '비과세 통장'을 가지고 계신가요?", opts: ["활용 중이에요", "있긴 한데 잘 몰라요", "그런거 없어요"] },
+  { id: 5, type: "5", q: "앞서 말씀하신 중요한 '0순위 자금'을 모을 때, 나의 자산이 어떤 방식으로 자라나길 원하시나요?", opts: ["안전하고 안다치게", "무조건 수익율 높게", "둘 다 적절하게"] },
+];
+
+// ⭐️ 2. 선택한 답변을 저장할 Context(전역 상태) 생성
+type NeedsContextType = {
+  answers: Record<number, number>;
+  setAnswer: (qId: number, aId: number) => void;
+};
+
+const NeedsContext = createContext<NeedsContextType | null>(null);
+
+export function NeedsProvider({ children }: { children: ReactNode }) {
+  const [answers, setAnswers] = useState<Record<number, number>>({});
+  const setAnswer = (qId: number, aId: number) => {
+    setAnswers(prev => ({ ...prev, [qId]: aId }));
+  };
+  return (
+    <NeedsContext.Provider value={{ answers, setAnswer }}>
+      {children}
+    </NeedsContext.Provider>
+  );
+}
+
+export const useNeeds = () => {
+  const context = useContext(NeedsContext);
+  if (!context) throw new Error("NeedsProvider 안에서 사용해야 합니다.");
+  return context;
+};
 
 // SLIDE 1: 대문
 export function SlideIntro() {
@@ -21,21 +65,12 @@ export function SlideIntro() {
 
 // SLIDE 2: 챕터 1
 export function SlideCh1() {
-  const [activeAnswers, setActiveAnswers] = useState<Record<number, number>>({});
-  const handleAnswerClick = (qId: number, aId: number) => {
-    setActiveAnswers(prev => ({ ...prev, [qId]: aId }));
-  };
+  // ⭐️ 로컬 useState 대신 Context를 사용합니다.
+  const { answers, setAnswer } = useNeeds();
 
   return (
     <div className="h-full flex flex-col justify-center gap-5">
-      
-      {[
-        { id: 1, type: "1", q: "월급을 받으면 '쓰고 남은 돈'을 저축하시나요, 아니면 '저축하고 남은 돈'을 쓰시나요?", opts: ["저축 먼저", "일단 쓰고 남은 돈을 저축", "저축할 돈이 없어요"] },// 비상금
-        { id: 2, type: "2", q: "가장의 부재로 소득이 끊겨도, 우리 가족의 1년치 고정 생활비는 준비되어 있나요?", opts: ["거뜬해요", "걱정돼요", "큰일 나요"] }, // 종신
-        { id: 3, type: "3", q: "결혼, 주택 마련, 노후 등 인생에서 가장 큰 목돈이 필요한 시기는 언제쯤으로 예상하시나요?", opts: ["10년이내", "아주 먼 미래", "계획은 없어요"] }, // 목적성
-        { id: 4, type: "4", q: "저축 및 투자한 돈을 회수할 때, 나라에 세금 안내는 통장이 있나요?", opts: ["있어요", "없어요", "잘 몰라요"] }, // 비과세여부
-        { id: 5, type: "5", q: "내 돈이 자라나는 모습 중 어떤 모습으로 자라나길 바라시나요? ", opts: ["안 다치게! (안전형)", "꾸준하게! (적립형)", "과감하게! (공격형)"] }, // 니즈
-      ].map((item) => (
+      {QUESTION_DATA.map((item) => (
         <div key={item.id} className="flex items-center justify-between bg-gray-50 p-4 rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
           <div className="flex items-center gap-6 w-[50%]">
             <span className="bg-blue-600 text-white text-xl font-bold py-1 rounded-xl whitespace-nowrap w-[50px] text-center">
@@ -47,10 +82,10 @@ export function SlideCh1() {
             {item.opts.map((opt, idx) => (
               <button
                 key={idx}
-                onClick={() => handleAnswerClick(item.id, idx)}
-                className={`flex-1 text-xl py-1 px-2 rounded-xl border-2 transition-all font-bold truncate ${
-                  activeAnswers[item.id] === idx 
-                  ? "bg-blue-600 border-blue-600 text-white shadow-md" 
+                onClick={() => setAnswer(item.id, idx)}
+                className={`cursor-pointer flex-1 text-xl py-1 px-2 rounded-xl border-2 transition-all font-bold truncate ${
+                  answers[item.id] === idx 
+                  ? "bg-blue-600 border-blue-600 text-white shadow-md transform scale-105" 
                   : "bg-white border-gray-300 text-gray-600 hover:border-blue-400"
                 }`}
               >
@@ -589,30 +624,6 @@ export function SlideCh3_6() {
 
 // SLIDE 10: 비과세 중요성
 export function SlideCh3_7() {
-  const [step, setStep] = useState(0);
-
-  // ⭐️ 방향키/스페이스바 이벤트 가로채기 (버튼 없이 키보드로 조작)
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "ArrowRight" || e.key === " ") {
-        if (step < 1) {
-          e.stopPropagation(); // 부모 슬라이드 이동 차단
-          e.preventDefault();  // 스크롤 방지
-          setStep((prev) => prev + 1);
-        }
-      } else if (e.key === "ArrowLeft") {
-        if (step > 0) {
-          e.stopPropagation();
-          e.preventDefault();
-          setStep((prev) => prev - 1);
-        }
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown, true);
-    return () => window.removeEventListener("keydown", handleKeyDown, true);
-  }, [step]);
-
   return (
     <div className="h-full flex flex-col justify-center gap-8 relative">
       <div className="flex bg-white items-center gap-16 transition-all duration-500 overflow-hidden relative px-8">
@@ -622,9 +633,9 @@ export function SlideCh3_7() {
         </div>
         
         <div className="w-full relative">
-          <h3 className="text-4xl font-black text-emerald-900 mb-4">부자들이 10년짜리 보험에 돈을 묶는 이유</h3>
+          <h3 className="text-2xl font-black text-emerald-900 mb-4">부자들이 10년짜리 보험에 돈을 묶는 이유</h3>
           
-          <div className={`text-gray-700 bg-emerald-50 px-6 py-6 rounded-3xl font-medium transition-all duration-700 ease-in-out ${step >= 1 ? 'opacity-30 grayscale blur-[3px]' : 'opacity-100'}`}>
+          <div className={`text-gray-700 bg-emerald-50 px-6 py-6 rounded-3xl font-medium transition-all duration-700 ease-in-out opacity-100`}>
             <p className="font-bold">소득세법 제16조(이자소득) 1항</p>
             <p className="text-gray-400">
             9. 대통령령으로 정하는 저축성보험의 보험차익. <strong className="text-black">다만, 다음 각 목의 어느 하나에 해당하는 보험의 보험차익은 제외</strong>한다.<br/>
@@ -641,30 +652,10 @@ export function SlideCh3_7() {
             나. 최초납입일부터 매월 납입하는 기본보험료가 균등하고, 기본보험료의 <strong className="text-2xl text-emerald-600">선납기간이 6개월</strong> 이내일 것<br/>
             다. 2017년 4월 1일부터 체결하는 보험계약 경우: 계약자 1명당 매월 납입하는 보험료 합계액이 <strong className="text-2xl text-emerald-600">150만원 이하</strong>일 것<br/>
             </p>
+            <p className="font-bold text-blue-900 leading-relaxed tracking-tight">
+              [종신보험은 '저축성상품'이 아닌 <span className="bg-blue-200 px-2.5 py-0.5 rounded shadow-sm inline-block transform -rotate-1">보장성상품</span>이므로 위 비과세 한도(1억 / 월 150만) 요건에서 완전히 제외]
+            </p>
           </div>
-
-          {/* ⭐️ 스티커(딱지) 효과 경고 박스 */}
-          <div 
-            className={`absolute top-1/2 left-1/2 w-[105%] bg-blue-50 border-[5px] border-blue-400 p-8 rounded-3xl transition-all duration-500 ease-[cubic-bezier(0.175,0.885,0.32,1.275)] ${
-              step >= 1 
-                ? 'opacity-100 transform -translate-x-1/2 -translate-y-1/2 scale-100 rotate-[-2deg]' 
-                : 'opacity-0 transform -translate-x-1/2 -translate-y-1/2 scale-[1.6] rotate-[10deg] pointer-events-none'
-            }`}
-          >
-            <div className="absolute -top-6 -right-6 bg-blue-500 text-white w-16 h-16 rounded-full flex items-center justify-center font-black text-4xl shadow-lg border-4 border-white transform rotate-12">
-              !
-            </div>
-            <div className="flex items-center gap-6">
-              <AlertCircle className="w-20 h-20 text-blue-500 shrink-0" strokeWidth={2.5} />
-              <div>
-                <p className="text-[22px] font-bold text-blue-900 leading-relaxed tracking-tight">
-                  종신보험은 '저축성상품'이 아닌 <span className="bg-blue-200 px-2.5 py-0.5 rounded shadow-sm inline-block transform -rotate-1">보장성상품</span>이므로<br/>
-                  위 비과세 한도(1억 / 월 150만) 요건에서 완전히 제외됩니다.
-                </p>
-              </div>
-            </div>
-          </div>
-          
         </div>
       </div>
     </div>
@@ -743,7 +734,7 @@ export function SlideCh4() {
               </tr>
               
               {/* 3. 보험 (항상 선명함, Step 1에서 하이라이트 효과) */}
-              <tr className={`border-b-4 border-emerald-200 transition-all duration-700 ${step >= 1 ? 'bg-emerald-100/80 shadow-inner' : 'transform shadow-sm relative z-10'}`}>
+              <tr className={`border-b transition-all duration-700 ${step >= 1 ? 'bg-emerald-100/80 shadow-inner' : 'transform shadow-sm relative z-10'}`}>
                 <td className="p-8 font-black text-emerald-900 text-2xl">보험 (저축/연금/종신)</td>
                 <td className="p-8 text-blue-700 font-black text-2xl">복리</td>
                 <td className="p-8 text-emerald-600 font-black text-2xl">
@@ -754,7 +745,7 @@ export function SlideCh4() {
               </tr>
 
               {/* 4. 변액 (항상 선명함, Step 1에서 하이라이트 효과) */}
-              <tr className={`border-b-4 border-emerald-200 transition-all duration-700 ${step >= 1 ? 'bg-emerald-100/80 shadow-inner' : 'transform shadow-sm relative z-10'}`}>
+              <tr className={`border-b transition-all duration-700 ${step >= 1 ? 'bg-emerald-100/80 shadow-inner' : 'transform shadow-sm relative z-10'}`}>
                 <td className="p-8 font-black text-emerald-900 text-2xl">보험 + 증권 (변액)</td>
                 <td className="p-8 text-blue-700 font-black text-2xl">복리</td>
                 <td className="p-8 text-emerald-600 font-black text-2xl">
@@ -990,38 +981,63 @@ export function SlideCh4_4() {
 
 // SLIDE 16: 결론
 export function SlideCh5() {
+  // ⭐️ 1챕터에서 선택한 고객의 니즈를 불러옵니다.
+  const { answers } = useNeeds();
+
   return (
-    <div className="flex flex-col h-full justify-center space-y-8">
-      <div className="bg-gray-900 text-white p-2 rounded-2xl text-center mb-6 shadow-md text-2xl font-medium">
-        <Quote className="inline-block w-8 h-8 text-gray-400 mb-2 mr-3"/>
-        어떤 상품이 '무조건' 좋다는 편견을 버리세요. 고객의 목표 시기와 투자 성향에 맞는 옷을 입혀야 합니다.
+    <div className="flex flex-col h-full justify-center space-y-2">
+      
+      {/* ⭐️ 상단: 메시지와 고객 니즈 리마인드 */}
+      <div className="flex flex-col gap-4">
+
+        {Object.keys(answers).length > 0 && (
+          <div className="bg-indigo-50 border-2 border-indigo-200 rounded-2xl p-4 flex flex-col gap-3 shadow-sm animate-in fade-in slide-in-from-top-4 duration-500 shrink-0">
+             <div className="flex items-center gap-2">
+               <ShieldCheck className="w-6 h-6 text-indigo-600" />
+               <span className="font-black text-indigo-900 text-xl">고객님의 금융 진단 키워드</span>
+             </div>
+             <div className="flex flex-wrap gap-2">
+                {QUESTION_DATA.map(q => {
+                   const ansIdx = answers[q.id];
+                   if (ansIdx === undefined) return null;
+                   return (
+                     <span key={q.id} className="bg-white text-indigo-700 border border-indigo-100 px-4 py-1.5 rounded-full text-lg font-bold shadow-sm">
+                       ✓ {q.opts[ansIdx]}
+                     </span>
+                   )
+                })}
+             </div>
+          </div>
+        )}
       </div>
 
-      <div className="grid grid-cols-2 gap-10">
-        <div className="border border-gray-200 p-4 rounded-3xl bg-white shadow-sm hover:border-blue-300 transition-colors">
-          <h3 className="text-xl font-bold text-gray-500 mb-3">단/중기 (1~5년) 목적자금</h3>
-          <p className="text-3xl font-black text-gray-900 mb-5">은행 예/적금 & 저축보험</p>
-          <p className="text-gray-600 text-xl leading-relaxed">복리나 비과세의 마법이 발휘되기엔 시간이 짧습니다. <strong>원금을 잃지 않고 안전하게 모으는 것이 최우선</strong>인 자금에 적합합니다.</p>
+      {/* ⭐️ 하단: 2x2 매칭 매트릭스 */}
+      <div className="grid grid-cols-2 gap-2 flex-1 min-h-0">
+        <div className="border border-gray-200 p-5 rounded-3xl bg-white shadow-sm hover:border-blue-300 transition-colors flex flex-col justify-center h-full">
+          <h3 className="text-xl font-bold text-gray-500 mb-2">단/중기 (1~5년) 목적자금</h3>
+          <p className="text-3xl font-black text-gray-900 mb-4">은행 예/적금 & 저축보험</p>
+          <p className="text-gray-600 text-lg leading-relaxed font-medium">복리나 비과세의 마법이 발휘되기엔 시간이 짧습니다. <strong>원금을 잃지 않고 안전하게 모으는 것이 최우선</strong>인 자금에 적합합니다.</p>
         </div>
 
-        <div className="border border-blue-200 p-4 rounded-3xl bg-blue-50 shadow-sm hover:border-blue-400 transition-colors">
-          <h3 className="text-xl font-bold text-blue-600 mb-3">비과세 & 안정성 추구</h3>
-          <p className="text-3xl font-black text-blue-900 mb-5">연금보험 / 종신보험</p>
-          <p className="text-blue-800 text-xl leading-relaxed">확정 금리와 안정적인 10년 차 환급률을 통해, 원금 손실 불안 없이 <strong className="text-blue-900">비과세 혜택과 복리 효과를 가장 마음 편하게</strong> 누릴 수 있습니다.</p>
+        <div className="border border-blue-200 p-5 rounded-3xl bg-blue-50 shadow-sm hover:border-blue-400 transition-colors flex flex-col justify-center h-full">
+          <h3 className="text-xl font-bold text-blue-600 mb-2">비과세 & 안정성 추구</h3>
+          <p className="text-3xl font-black text-blue-900 mb-4">연금보험 / 종신보험</p>
+          <p className="text-blue-800 text-lg leading-relaxed font-medium">확정 금리와 안정적인 10년 차 환급률을 통해, 원금 손실 불안 없이 <strong className="text-blue-900 font-bold">비과세 혜택과 복리 효과를 가장 마음 편하게</strong> 누릴 수 있습니다.</p>
         </div>
 
-        <div className="border border-gray-200 p-4 rounded-3xl bg-white shadow-sm hover:border-blue-300 transition-colors">
-          <h3 className="text-xl font-bold text-gray-500 mb-3">단/중기 & 공격적 투자</h3>
-          <p className="text-3xl font-black text-gray-900 mb-5">증권사 주식 / 펀드</p>
-          <p className="text-gray-600 text-xl leading-relaxed">물가 상승을 이기기 위해 적극적으로 투자합니다. 단, <strong>세금(과세)과 원금 손실 리스크를 고객이 명확히 인지</strong>해야 합니다.</p>
+        <div className="border border-gray-200 p-5 rounded-3xl bg-white shadow-sm hover:border-blue-300 transition-colors flex flex-col justify-center h-full">
+          <h3 className="text-xl font-bold text-gray-500 mb-2">단/중기 & 공격적 투자</h3>
+          <p className="text-3xl font-black text-gray-900 mb-4">증권사 주식 / 펀드</p>
+          <p className="text-gray-600 text-lg leading-relaxed font-medium">물가 상승을 이기기 위해 적극적으로 투자합니다. 단, <strong>세금(과세)과 원금 손실 리스크를 고객이 명확히 인지</strong>해야 합니다.</p>
         </div>
 
-        <div className="border border-emerald-200 p-4 rounded-3xl bg-emerald-50 shadow-sm hover:border-emerald-400 transition-colors">
-          <h3 className="text-xl font-bold text-emerald-600 mb-3">비과세 & 공격적 투자</h3>
-          <p className="text-3xl font-black text-emerald-900 mb-5">변액보험</p>
-          <p className="text-emerald-800 text-xl leading-relaxed">초반 사업비가 크지만, 주식/펀드 투자 수익률로 이를 상쇄합니다. <strong className="text-emerald-900">공격적인 장기 투자 수익에 비과세 혜택을 얹고 싶을 때</strong> 최고의 무기입니다.</p>
+        <div className="border border-emerald-200 p-5 rounded-3xl bg-emerald-50 shadow-sm hover:border-emerald-400 transition-colors flex flex-col justify-center h-full">
+          <h3 className="text-xl font-bold text-emerald-600 mb-2">비과세 & 공격적 투자</h3>
+          <p className="text-3xl font-black text-emerald-900 mb-4">변액보험</p>
+          <p className="text-emerald-800 text-lg leading-relaxed font-medium">초반 사업비가 크지만, 주식/펀드 투자 수익률로 이를 상쇄합니다. <strong className="text-emerald-900 font-bold">공격적인 장기 투자 수익에 비과세 혜택을 얹고 싶을 때</strong> 최고의 무기입니다.</p>
         </div>
       </div>
+      
     </div>
   );
 }
