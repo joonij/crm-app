@@ -24,6 +24,7 @@ type ScheduleEvent = {
   clients?: { name?: string; contractor_name?: string; insured_name?: string; };
   contractStatus?: 'new' | 'maintain' | null; 
   premium?: number;
+  companyName?: string; // ⭐️ 보험사별 통계를 위한 필드 추가
 };
 
 type MemberStats = {
@@ -45,7 +46,6 @@ type TeamMemberSchedule = {
   stats: MemberStats;
 };
 
-// ===== ⭐️ 여기서부터 복사해서 export default function SchedulePage() 바로 위에 붙여넣으세요! =====
 const RECRUITING_STEPS = [
   { id: "rec01", label: "후보자 발굴" },
   { id: "rec02", label: "비전 제시" },
@@ -83,12 +83,6 @@ const getMonthString = (offsetMonths: number = 0) => {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 };
 
-const formatMoney = (val: number) => {
-  if (val === 0) return "0원";
-  return `${val.toLocaleString()}원`;
-};
-// ===== ⭐️ 여기까지 복사 완료 =====
-
 export default function SchedulePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'weekly' | 'monthly'>('weekly');
@@ -113,10 +107,10 @@ export default function SchedulePage() {
 
   const [myMonthlyStats, setMyMonthlyStats] = useState({ newAmt: 0, newCnt: 0, maintainAmt: 0, maintainCnt: 0 });
   const [teamMonthlyStats, setTeamMonthlyStats] = useState({ newAmt: 0, newCnt: 0, maintainAmt: 0, maintainCnt: 0 });
-
   const [monthlyTarget, setMonthlyTarget] = useState(2000000);
-
   const [myRecruitStats, setMyRecruitStats] = useState({ scheduleCount: 0, candidateCount: 0 });
+  
+  const [companyStats, setCompanyStats] = useState<[string, number][]>([]);
   
   const [highlightedClientId, setHighlightedClientId] = useState<number | null>(null);
   const [isScoreboardOpen, setIsScoreboardOpen] = useState(true);
@@ -175,7 +169,7 @@ export default function SchedulePage() {
     if (category === "AP") return "bg-purple-100 text-purple-700 border border-purple-200";
     if (category === "상담") return "bg-blue-100 text-blue-700 border border-blue-200";
     if (category === "계약") return "bg-red-100 text-red-700 border border-red-200";
-    if (category === "리쿠") return "bg-rose-100 text-rose-700 border-rose-200";
+    if (category === "리쿠") return "bg-rose-100 text-rose-700 border border-rose-200";
     if (category === "청구") return "bg-orange-100 text-orange-700 border border-orange-200";
     if (category === "교육") return "bg-emerald-100 text-emerald-700 border border-emerald-200";
     if (category === "회의") return "bg-teal-100 text-teal-700 border border-teal-200";
@@ -236,7 +230,6 @@ export default function SchedulePage() {
 
         if (!members || !schedules) return;
 
-        // ⭐️ 2. 여기서 리쿠르팅 통계를 계산해 상태에 저장합니다.
         const thisMonthStr = formatDateStr(currentDate).slice(0, 7);
         const myRecruitSchedules = schedules.filter(s => s.agent_id === info.id && s.category === '리쿠' && s.date.startsWith(thisMonthStr));
         const activeCandidates = (myClients || []).filter(c => {
@@ -265,6 +258,7 @@ export default function SchedulePage() {
         });
 
         const currentMonthPrefix = formatDateStr(currentDate).slice(0, 7);
+        const compStatsMap: Record<string, number> = {};
 
         const contractEvents: ScheduleEvent[] = (contracts || []).filter(c => c.subscription_date).map(c => {
           const premium = Number(c.monthly_premium || 0);
@@ -286,6 +280,11 @@ export default function SchedulePage() {
                 statsMap[c.agent_name].monthMaintainCnt += 1;
                 teamMonthMaintain.amt += premium; teamMonthMaintain.cnt += 1;
                 if (c.agent_name === info.name) { myMonthMaintain.amt += premium; myMonthMaintain.cnt += 1; }
+                
+                if (['SM', 'BM', 'RM'].includes(myRank) || c.agent_name === info.name) {
+                  const compName = c.insurance_company || '기타';
+                  compStatsMap[compName] = (compStatsMap[compName] || 0) + premium;
+                }
               }
             }
             if (isThisWeek) {
@@ -305,7 +304,7 @@ export default function SchedulePage() {
             date: c.subscription_date,
             time: "23:59",
             content: `${c.insurance_company} ${c.product_name}`,
-            category: isMaintain ? "계약/체결" : "계약/예정",
+            category: isMaintain ? "계약체결" : "계약예정",
             schedule_type: "personal",
             color: isMaintain 
               ? "bg-gradient-to-r from-amber-50 to-yellow-50 border border-yellow-300"
@@ -316,9 +315,12 @@ export default function SchedulePage() {
             ownerName: c.agent_name,
             clients: { contractor_name: c.contractor_name || "고객", insured_name: c.insured_name || "고객" },
             contractStatus: c.policy_status as 'new' | 'maintain',
-            premium: premium
+            premium: premium,
+            companyName: c.insurance_company || '기타' // ⭐️ 보험사 정보 저장
           };
         });
+
+        setCompanyStats(Object.entries(compStatsMap).sort((a,b) => b[1] - a[1]));
 
         setMyMonthlyStats({ newAmt: myMonthNew.amt, newCnt: myMonthNew.cnt, maintainAmt: myMonthMaintain.amt, maintainCnt: myMonthMaintain.cnt });
         setTeamMonthlyStats({ newAmt: teamMonthNew.amt, newCnt: teamMonthNew.cnt, maintainAmt: teamMonthMaintain.amt, maintainCnt: teamMonthMaintain.cnt });
@@ -338,7 +340,6 @@ export default function SchedulePage() {
           const memberContracts = contractEvents.filter(ce => ce.ownerName === member.name);
           memberEvents = [...memberEvents, ...memberContracts];
           
-          // ⭐️ 달력 내부 이벤트 정렬: 1순위 시간, 2순위 피보험자명(가나다순)
           memberEvents.sort((a, b) => {
             if (a.time !== b.time) return a.time.localeCompare(b.time);
             const nameA = a.clients?.insured_name || a.clients?.contractor_name || a.clients?.name || "";
@@ -405,7 +406,8 @@ export default function SchedulePage() {
     }
   };
 
-  const renderEvent = (evt: ScheduleEvent, showOwner: boolean = false) => {
+  // ⭐️ [수정] 렌더링 함수: 월간 달력에서는 주간 뷰의 디자인 컨테이너(css)를 유지한 채 핵심 정보만 렌더링
+  const renderEvent = (evt: ScheduleEvent, isMonthlyView: boolean = false) => {
     const hasClient = !!evt.client_id;
     const isFaded = highlightedClientId !== null && (!hasClient || evt.client_id !== highlightedClientId);
     const isHighlighted = highlightedClientId !== null && hasClient && evt.client_id === highlightedClientId;
@@ -416,6 +418,58 @@ export default function SchedulePage() {
         ? 'ring-2 ring-blue-500 shadow-lg scale-[1.01] z-30 relative bg-opacity-100 transition-all duration-200' 
         : 'opacity-100 hover:shadow-md hover:z-20 relative transition-all duration-200';
 
+    const clientName = evt.clients?.insured_name || evt.clients?.contractor_name || evt.clients?.name || "";
+
+    // 🚀 [신규] 월간 뷰 전용 심플 UI (CSS 디자인은 주간 카드와 동일하게 유지)
+    if (isMonthlyView) {
+      let badgeText = evt.category || "일정";
+      if (evt.contractStatus === 'maintain') badgeText = "계약체결";
+      if (evt.contractStatus === 'new') badgeText = "계약예정";
+      
+      let badgeColor = getCategoryColor(evt.category);
+      if (evt.contractStatus === 'maintain') badgeColor = "bg-yellow-100 text-yellow-700 border-yellow-200";
+      if (evt.contractStatus === 'new') badgeColor = "bg-orange-100 text-orange-700 border-orange-200";
+
+      const displayTime = evt.time && evt.time !== "23:59" ? evt.time : "";
+      const isContract = evt.contractStatus === 'maintain' || evt.contractStatus === 'new';
+      const borderColorClass = evt.contractStatus === 'maintain' ? 'border-yellow-200/50' : evt.contractStatus === 'new' ? 'border-orange-200/50' : 'border-black/10';
+
+      return (
+        <div 
+          key={evt.id} 
+          onMouseEnter={() => hasClient && setHighlightedClientId(evt.client_id!)}
+          onMouseLeave={() => setHighlightedClientId(null)}
+          onClick={(e) => { e.stopPropagation(); setDetailModalEvent(evt); }}
+          className={`p-2 sm:p-2 rounded-xl sm:rounded-md border text-sm sm:text-xs flex flex-col gap-1.5 shadow-sm cursor-pointer ${evt.color} ${hoverEffectClass}`}
+        >
+          <div className={`flex items-center justify-between w-full`}>
+            <div className="flex items-center gap-1.5 sm:gap-1 min-w-0 overflow-hidden pr-1">
+              {isContract && evt.contractStatus === 'maintain' && <span className="shrink-0">🎉</span>}
+              {isContract && evt.contractStatus === 'new' && <AlertCircle className="w-3 h-3 text-orange-600 shrink-0" />}
+              
+              {displayTime && !isContract && <span className="font-black sm:font-extrabold text-[13px] sm:text-xs shrink-0">{displayTime}</span>}
+              
+              {(clientName || (!isContract && evt.content)) && (
+                <span className={`text-[10px] font-bold py-0.5 rounded ${isContract ? 'bg-white/60 px-1.5 text-slate-800' : 'text-slate-700'} truncate max-w-[80px]`}>
+                  {clientName || evt.content}
+                </span>
+              )}
+            </div>
+            <span className={`font-extrabold text-[10px] shrink-0 px-1.5 py-0.5 rounded ${badgeColor}`}>
+              {badgeText}
+            </span>
+          </div>
+          
+          {isSM && evt.ownerName && (
+            <div className="flex justify-between items-center mt-0.5">
+              <span className="text-[10px] opacity-70 truncate">{evt.ownerName} FC</span>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // --- 주간 뷰 및 모바일 리스트용 상세 UI ---
     if (evt.contractStatus === 'maintain') {
       return (
         <div 
@@ -426,20 +480,20 @@ export default function SchedulePage() {
           className={`p-2 rounded-xl sm:rounded-md border text-sm sm:text-xs flex flex-col gap-1.5 cursor-pointer shadow-sm ${evt.color} ${hoverEffectClass}`}
         >
           <div className="flex items-center justify-between border-b border-yellow-200/50 pb-1.5 sm:pb-1">
-            <span className="flex items-center gap-1">
+            <span className="flex items-center gap-1 truncate pr-1">
               🎉
               {evt.clients?.contractor_name === evt.clients?.insured_name ? (
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/60 text-yellow-800 whitespace-nowrap overflow-hidden text-ellipsis max-w-[80px]">
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/60 text-yellow-800 whitespace-nowrap overflow-hidden text-ellipsis">
                   {evt.clients?.insured_name}
                 </span>
               ) : (
-                <>
-                  {evt.clients?.insured_name && <span className="text-[10px] font-bold py-0.5 rounded bg-white/60 text-yellow-800 whitespace-nowrap overflow-hidden text-ellipsis max-w-[60px]">{evt.clients.insured_name}</span>}
-                  {evt.clients?.contractor_name && <span className="text-[10px] font-bold py-0.5 rounded bg-white/60 text-yellow-800 whitespace-nowrap overflow-hidden text-ellipsis max-w-[60px]">{evt.clients.contractor_name}</span>}
-                </>
+                <div className="flex items-center gap-1 truncate">
+                  {evt.clients?.insured_name && <span className="text-[10px] font-bold py-0.5 rounded bg-white/60 text-yellow-800 whitespace-nowrap overflow-hidden text-ellipsis">{evt.clients.insured_name}</span>}
+                  {evt.clients?.contractor_name && <span className="text-[10px] font-bold py-0.5 rounded bg-white/60 text-yellow-800 whitespace-nowrap overflow-hidden text-ellipsis">{evt.clients.contractor_name}</span>}
+                </div>
               )}
             </span>
-            <span className="font-extrabold text-[10px] text-yellow-900  px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 border border-yellow-200">
+            <span className="font-extrabold text-[10px] shrink-0 px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 border border-yellow-200">
               계약체결
             </span>
           </div>
@@ -469,20 +523,20 @@ export default function SchedulePage() {
           className={`p-2 rounded-xl sm:rounded-md border text-sm sm:text-xs flex flex-col gap-1.5 cursor-pointer shadow-sm ${evt.color} ${hoverEffectClass}`}
         >
           <div className="flex items-center justify-between border-b border-orange-200/50 pb-1.5 sm:pb-1">
-            <span className="flex items-center gap-1">
+            <span className="flex items-center gap-1 truncate pr-1">
               <AlertCircle className="w-3.5 h-3.5 sm:w-3 sm:h-3 text-orange-600 shrink-0" />
               {evt.clients?.contractor_name === evt.clients?.insured_name ? (
-                <span className="text-[10px] font-bold py-0.5 rounded bg-white/60 text-orange-800 whitespace-nowrap overflow-hidden text-ellipsis max-w-[80px]">
+                <span className="text-[10px] font-bold py-0.5 rounded bg-white/60 text-orange-800 whitespace-nowrap overflow-hidden text-ellipsis">
                   {evt.clients?.insured_name}
                 </span>
               ) : (
-                <>
-                  {evt.clients?.insured_name && <span className="text-[10px] font-bold py-0.5 rounded bg-white/60 text-orange-800 whitespace-nowrap overflow-hidden text-ellipsis max-w-[60px]">{evt.clients.insured_name}</span>}
-                  {evt.clients?.contractor_name && <span className="text-[10px] font-bold py-0.5 rounded bg-white/60 text-orange-800 whitespace-nowrap overflow-hidden text-ellipsis max-w-[60px]">{evt.clients.contractor_name}</span>}
-                </>
+                <div className="flex items-center gap-1 truncate">
+                  {evt.clients?.insured_name && <span className="text-[10px] font-bold py-0.5 rounded bg-white/60 text-orange-800 whitespace-nowrap overflow-hidden text-ellipsis">{evt.clients.insured_name}</span>}
+                  {evt.clients?.contractor_name && <span className="text-[10px] font-bold py-0.5 rounded bg-white/60 text-orange-800 whitespace-nowrap overflow-hidden text-ellipsis">{evt.clients.contractor_name}</span>}
+                </div>
               )}
             </span>
-            <span className="font-extrabold text-[10px] text-orange-900  px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 border border-orange-200">
+            <span className="font-extrabold text-[10px] shrink-0 px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 border border-orange-200">
               계약예정
             </span>
           </div>
@@ -553,7 +607,7 @@ export default function SchedulePage() {
         <div className="p-4 border-r border-slate-200/50 flex flex-col justify-center items-center text-center gap-1.5">{icon}<span className={`font-extrabold text-xs ${textColor}`}>{title}</span></div>
         {displayDays.map(({ date }) => (
           <div key={`${title}-${date}`} className="p-2 border-r border-slate-200/50 flex flex-col gap-2 min-h-[70px]">
-            {events.filter(e => e.date === date).map(evt => renderEvent(evt))}
+            {events.filter(e => e.date === date).map(evt => renderEvent(evt, false))}
           </div>
         ))}
         <div className="p-2 bg-black/5 border-l border-slate-200/50"></div>
@@ -586,51 +640,42 @@ export default function SchedulePage() {
         )}
 
         <div className={`${isScoreboardOpen ? 'flex' : 'hidden'} xl:flex flex-col gap-5 relative overflow-hidden transition-all`}>
-          <div className="relative z-10 flex flex-col xl:flex-row gap-6 xl:items-center justify-between">
+          <div className="relative z-10 flex flex-col xl:flex-row gap-4 xl:gap-6 xl:items-stretch justify-between">
             
-            {/* ⭐️ 실적 요약 + 리쿠르팅 요약을 나란히 배치 */}
-            <div className="flex flex-col md:flex-row gap-6 md:gap-8 items-start md:items-center">
-              
+            <div className="flex flex-col md:flex-row gap-4 md:gap-8 items-start md:items-center xl:w-[45%]">
               {/* ① 영업 실적 요약 */}
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center border border-blue-100 shadow-inner shrink-0">
-                  <Trophy className="w-6 h-6 text-blue-600" />
-                </div>
                 <div>
                   <p className="text-slate-500 text-xs font-bold mb-1">나의 영업 실적 ({currentDate.getMonth() + 1}월)</p>
                   <div className="flex gap-4 sm:gap-6 items-center">
                     <div className="flex flex-col">
-                      <span className="text-orange-500 text-[11px] font-bold mb-0.5">계약 예정 ({myMonthlyStats.newCnt}건)</span>
-                      <span className="text-xl sm:text-2xl font-black text-slate-800">{myMonthlyStats.newAmt.toLocaleString()}<span className="text-sm font-normal text-slate-500 ml-0.5">원</span></span>
+                      <span className="text-orange-500 text-[11px] font-bold mb-0.5 whitespace-nowrap">계약 예정 ({myMonthlyStats.newCnt}건)</span>
+                      <span className="text-xl sm:text-2xl font-black text-slate-800 whitespace-nowrap">{myMonthlyStats.newAmt.toLocaleString()}<span className="text-sm font-normal text-slate-500 ml-0.5">원</span></span>
                     </div>
                     <div className="w-px h-8 bg-slate-200"></div>
                     <div className="flex flex-col">
-                      <span className="text-blue-600 text-[11px] font-bold mb-0.5">체결 완료 ({myMonthlyStats.maintainCnt}건)</span>
-                      <span className="text-xl sm:text-2xl font-black text-blue-900">{myMonthlyStats.maintainAmt.toLocaleString()}<span className="text-sm font-normal text-slate-500 ml-0.5">원</span></span>
+                      <span className="text-blue-600 text-[11px] font-bold mb-0.5 whitespace-nowrap">체결 완료 ({myMonthlyStats.maintainCnt}건)</span>
+                      <span className="text-xl sm:text-2xl font-black text-blue-900 whitespace-nowrap">{myMonthlyStats.maintainAmt.toLocaleString()}<span className="text-sm font-normal text-slate-500 ml-0.5">원</span></span>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* 가로/세로 구분선 */}
               <div className="hidden md:block w-px h-12 bg-slate-200"></div>
               <div className="md:hidden w-full h-px bg-slate-100"></div>
 
               {/* ② 리쿠르팅 현황 요약 */}
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-rose-50 rounded-2xl flex items-center justify-center border border-rose-100 shadow-inner shrink-0">
-                  <UserPlus className="w-6 h-6 text-rose-500" />
-                </div>
                 <div>
-                  <p className="text-slate-500 text-xs font-bold mb-1">나의 리쿠르팅 현황</p>
+                  <p className="text-slate-500 text-xs font-bold mb-1">나의 리쿠르팅 현황 ({currentDate.getMonth() + 1}월)</p>
                   <div className="flex gap-4 sm:gap-6 items-center">
                     <div className="flex flex-col">
-                      <span className="text-rose-500 text-[11px] font-bold mb-0.5">이번 달 리쿠 일정</span>
+                      <span className="text-rose-500 text-[11px] font-bold mb-0.5 whitespace-nowrap">이번 달 리쿠 일정</span>
                       <span className="text-xl sm:text-2xl font-black text-slate-800">{myRecruitStats.scheduleCount}<span className="text-sm font-normal text-slate-500 ml-0.5">건</span></span>
                     </div>
                     <div className="w-px h-8 bg-slate-200"></div>
                     <div className="flex flex-col">
-                      <span className="text-purple-600 text-[11px] font-bold mb-0.5">진행중 후보자</span>
+                      <span className="text-purple-600 text-[11px] font-bold mb-0.5 whitespace-nowrap">진행중 후보자</span>
                       <span className="text-xl sm:text-2xl font-black text-purple-900">{myRecruitStats.candidateCount}<span className="text-sm font-normal text-slate-500 ml-0.5">명</span></span>
                     </div>
                   </div>
@@ -638,33 +683,53 @@ export default function SchedulePage() {
               </div>
             </div>
 
-            {/* ③ 월간 목표 달성률 바 */}
-            <div className="flex flex-col w-full xl:w-[35%] gap-2 relative z-10 bg-slate-50 xl:bg-transparent p-3 xl:p-0 rounded-xl">
-              <div className="flex justify-between items-end">
-                <span className="text-xs font-bold text-slate-500 flex items-center gap-1">
-                  <Target className="w-3.5 h-3.5 text-blue-500"/> 월간 목표: 
-                  <button onClick={handleTargetChange} className="underline underline-offset-2 text-blue-600 hover:text-blue-800 cursor-pointer">
-                    {monthlyTarget.toLocaleString()}원
-                  </button>
+            <div className="flex flex-col sm:flex-row xl:flex-row gap-4 w-full xl:w-[50%] xl:justify-end items-stretch">
+              {/* 월간 보험사별 체결 내역 박스 */}
+              <div className="flex flex-col w-full sm:w-[50%] xl:w-[260px] bg-slate-50/80 border border-slate-200 rounded-xl p-3 shadow-sm h-full max-h-[100px] overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <span className="text-[11px] font-bold text-slate-500 mb-1.5 flex items-center gap-1 sticky top-0 bg-slate-50/80 backdrop-blur-sm z-10 pb-0.5">
+                  <Building2 className="w-3 h-3 text-blue-500"/> 이번 달 보험사별 체결 (단위: 원)
                 </span>
-                <span className="text-sm font-black text-blue-600 flex items-center gap-1">
-                  {Math.min(100, Math.round((myMonthlyStats.maintainAmt / monthlyTarget) * 100)) || 0}% 달성 <TrendingUp className="w-4 h-4"/>
-                </span>
+                <div className="flex flex-col gap-1.5">
+                  {companyStats.length === 0 ? (
+                    <span className="text-[11px] text-slate-400 py-1 font-medium">아직 체결 내역이 없습니다.</span>
+                  ) : (
+                    companyStats.map(([comp, amt]) => (
+                      <div key={comp} className="flex justify-between items-center text-[11px]">
+                        <span className="font-bold text-slate-700 truncate pr-2">{comp}</span>
+                        <span className="font-black text-blue-600 shrink-0">{amt.toLocaleString()}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
-              <div className="w-full bg-slate-200 xl:bg-slate-100 rounded-full h-3.5 border border-slate-300 xl:border-slate-200 overflow-hidden shadow-inner">
-                <div 
-                  className="bg-gradient-to-r from-blue-400 to-blue-600 h-3.5 rounded-full transition-all duration-1000 relative" 
-                  style={{ width: `${Math.min(100, Math.round((myMonthlyStats.maintainAmt / monthlyTarget) * 100)) || 0}%` }}
-                >
-                  <div className="absolute inset-0 bg-white/20 w-full animate-[shimmer_2s_infinite]"></div>
+
+              {/* 월간 목표 달성률 바 */}
+              <div className="flex flex-col w-full sm:w-[50%] xl:w-[260px] gap-2 bg-slate-50/80 border border-slate-200 xl:border-none xl:bg-transparent p-3 xl:p-0 rounded-xl justify-center shadow-sm xl:shadow-none">
+                <div className="flex justify-between items-end">
+                  <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1">
+                    <Target className="w-3.5 h-3.5 text-blue-500"/> 월간 목표: 
+                    <button onClick={handleTargetChange} className="underline underline-offset-2 text-blue-600 hover:text-blue-800 cursor-pointer">
+                      {monthlyTarget.toLocaleString()}원
+                    </button>
+                  </span>
+                  <span className="text-xs font-black text-blue-600 flex items-center gap-0.5">
+                    {progressPercent}% 달성 <TrendingUp className="w-3.5 h-3.5"/>
+                  </span>
+                </div>
+                <div className="w-full bg-slate-200 rounded-full h-3.5 border border-slate-300 overflow-hidden shadow-inner">
+                  <div 
+                    className="bg-gradient-to-r from-blue-400 to-blue-600 h-3.5 rounded-full transition-all duration-1000 relative" 
+                    style={{ width: `${progressPercent}%` }}
+                  >
+                    <div className="absolute inset-0 bg-white/20 w-full animate-[shimmer_2s_infinite]"></div>
+                  </div>
                 </div>
               </div>
             </div>
-            
+
           </div>
 
           {isSM && (
-            // ... 이 부분부터 기존 코드 그대로 유지됩니다.
             <div className="relative z-10 pt-4 border-t border-slate-100 flex flex-col gap-3">
               <div className="flex flex-col md:flex-row gap-4 md:gap-6 items-start md:items-center">
                 <div className="flex gap-4 bg-blue-50 px-5 py-3 rounded-2xl border border-blue-100 shadow-sm shrink-0">
@@ -750,7 +815,7 @@ export default function SchedulePage() {
                       
                       {weekDays.map(({ date }) => (
                         <div key={date} className="group relative p-2 border-r border-slate-200 flex flex-col gap-2 min-h-[100px] bg-white/50 hover:bg-slate-50/50 transition-colors">
-                          {member.events.filter(e => e.date === date).map(evt => renderEvent(evt))}
+                          {member.events.filter(e => e.date === date).map(evt => renderEvent(evt, false))}
                         </div>
                       ))}
 
@@ -775,7 +840,7 @@ export default function SchedulePage() {
                   {["일", "월", "화", "수", "목", "금", "토"].map((d, i) => (
                     <div key={d} className={`p-3 text-center border-r border-slate-200 ${i===0?'text-red-500':i===6?'text-blue-500':''}`}>{d}</div>
                   ))}
-                  <div className="p-3 text-center bg-slate-100/80 shadow-inner border-l border-slate-200">주간 요약 (팀 전체)</div>
+                  <div className="p-3 text-center bg-slate-100/80 shadow-inner border-l border-slate-200">주간 요약 & 통계</div>
                 </div>
 
                 <div className="flex-1 bg-slate-200 flex flex-col gap-[1px] overflow-y-auto">
@@ -784,13 +849,27 @@ export default function SchedulePage() {
                     
                     const weekStats = teamSchedules.map(member => {
                       let nAmt = 0, nCnt = 0, mAmt = 0, mCnt = 0;
+                      const compStats: Record<string, number> = {}; // ⭐️ 개별 보험사 통계용 객체
+                      
                       member.events.forEach(e => {
                         if (weekDates.includes(e.date)) {
-                          if (e.contractStatus === 'new') { nAmt += (e.premium || 0); nCnt++; }
-                          if (e.contractStatus === 'maintain') { mAmt += (e.premium || 0); mCnt++; }
+                          if (e.contractStatus === 'new') { 
+                            nAmt += (e.premium || 0); 
+                            nCnt++; 
+                          }
+                          if (e.contractStatus === 'maintain') { 
+                            mAmt += (e.premium || 0); 
+                            mCnt++; 
+                            // ⭐️ 체결 건일 경우 해당 멤버의 보험사별 실적 누적
+                            const comp = e.companyName || '기타';
+                            compStats[comp] = (compStats[comp] || 0) + (e.premium || 0);
+                          }
                         }
                       });
-                      return { id: member.id, name: member.name, role: member.role, nAmt, nCnt, mAmt, mCnt };
+                      
+                      const sortedCompStats = Object.entries(compStats).sort((a,b) => b[1] - a[1]);
+                      
+                      return { id: member.id, name: member.name, role: member.role, nAmt, nCnt, mAmt, mCnt, sortedCompStats };
                     }).filter(m => m.nCnt > 0 || m.mCnt > 0);
 
                     return (
@@ -798,7 +877,6 @@ export default function SchedulePage() {
                         {week.map((day, idx) => {
                            const dayEvents = allEventsForMonth.filter(e => e.date === day.date);
                            
-                           // ⭐️ 모바일 달력(혹은 월간 달력) 렌더링 시 일별 이벤트를 피보험자 가나다순으로 한 번 더 정렬 보장
                            const sortedDayEvents = [...dayEvents].sort((a, b) => {
                              if (a.time !== b.time) return a.time.localeCompare(b.time);
                              const nameA = a.clients?.insured_name || a.clients?.contractor_name || a.clients?.name || "";
@@ -812,7 +890,7 @@ export default function SchedulePage() {
                                 <span className={`text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full ${day.date === formatDateStr(new Date()) ? 'bg-blue-600 text-white' : idx%7===0 ? 'text-red-500' : idx%7===6 ? 'text-blue-500' : ''}`}>{day.raw}</span>
                                 <button onClick={() => openModal(day.date)} className="opacity-0 group-hover:opacity-100 p-1 bg-white border border-blue-200 text-blue-600 rounded-full shadow-sm hover:bg-blue-600 hover:text-white transition-all cursor-pointer"><Plus className="w-3 h-3" /></button>
                               </div>
-                              <div className="flex-1 overflow-y-auto space-y-2 px-1 -mx-1 py-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                              <div className="flex-1 overflow-y-auto space-y-1.5 px-1 -mx-1 py-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                                 {sortedDayEvents.map(evt => renderEvent(evt, true))}
                               </div>
                             </div>
@@ -822,18 +900,38 @@ export default function SchedulePage() {
                         <div className="bg-slate-50/90 p-2.5 flex flex-col gap-2 overflow-y-auto shadow-inner border-l border-slate-200">
                           {weekStats.length > 0 ? (
                             weekStats.map(stat => (
-                              <div key={stat.id} className="bg-white rounded-lg p-2.5 border border-slate-200 shadow-sm flex flex-col gap-1">
-                                <span className="text-[12px] font-extrabold text-slate-800 border-b border-slate-100 pb-1 mb-0.5 truncate">{stat.name}</span>
-                                {(stat.nCnt > 0) && (
-                                  <div className="flex justify-between items-center text-[12px]">
-                                    <span className="text-orange-600 font-bold">예: {stat.nCnt}건</span>
-                                    <span className="font-black text-slate-700">{stat.nAmt.toLocaleString()}원</span>
-                                  </div>
+                              <div key={stat.id} className="bg-white rounded-lg p-2.5 border border-slate-200 shadow-sm flex flex-col gap-1.5">
+                                {/* 이름 부분 */}
+                                {isSM && (
+                                <span className="text-[12px] font-extrabold text-slate-800 border-b border-slate-100 pb-1 truncate">{stat.name}</span>
                                 )}
-                                {(stat.mCnt > 0) && (
-                                  <div className="flex justify-between items-center text-[12px]">
-                                    <span className="text-blue-600 font-bold">체: {stat.mCnt}건</span>
-                                    <span className="font-black text-slate-700">{stat.mAmt.toLocaleString()}원</span>
+                                {/* 총 예정/체결 요약 */}
+                                <div className="flex flex-col gap-1">
+                                  {(stat.nCnt > 0) && (
+                                    <div className="flex justify-between items-center text-[12px]">
+                                      <span className="text-orange-600 font-bold">예정 ({stat.nCnt}건)</span>
+                                      <span className="font-black text-slate-700">{stat.nAmt.toLocaleString()}원</span>
+                                    </div>
+                                  )}
+                                  {(stat.mCnt > 0) && (
+                                    <div className="flex justify-between items-center text-[12px]">
+                                      <span className="text-blue-600 font-bold">체결 ({stat.mCnt}건)</span>
+                                      <span className="font-black text-slate-700">{stat.mAmt.toLocaleString()}원</span>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* ⭐️ 개별 설계사의 보험사별 체결 내역 */}
+                                {stat.sortedCompStats.length > 0 && (
+                                  <div className="mt-1 pt-1.5 border-t border-slate-100 flex flex-col gap-1">
+                                    {stat.sortedCompStats.map(([comp, amt]) => (
+                                      <div key={comp} className="flex justify-between items-center text-[10px]">
+                                        <span className="font-bold text-slate-500 truncate pr-1 flex items-center gap-1">
+                                          <span className="w-1 h-1 rounded-full bg-blue-400"></span>{comp}
+                                        </span>
+                                        <span className="font-bold text-blue-600 shrink-0">{amt.toLocaleString()}</span>
+                                      </div>
+                                    ))}
                                   </div>
                                 )}
                               </div>
@@ -841,7 +939,7 @@ export default function SchedulePage() {
                           ) : (
                             <div className="flex-1 flex flex-col items-center justify-center text-[11px] font-bold text-slate-400 text-center gap-2">
                               <Trophy className="w-6 h-6 opacity-20" />
-                              예정 및 체결<br/>내역 없음
+                              예정/체결<br/>내역 없음
                             </div>
                           )}
                         </div>
@@ -914,26 +1012,25 @@ export default function SchedulePage() {
                 {companyNotices.filter(e => e.date === selectedMobileDate).length > 0 && (
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center gap-1.5 text-indigo-700 font-black text-xs px-1"><Megaphone className="w-3.5 h-3.5" /> 회사 공지</div>
-                    {companyNotices.filter(e => e.date === selectedMobileDate).map(evt => renderEvent(evt))}
+                    {companyNotices.filter(e => e.date === selectedMobileDate).map(evt => renderEvent(evt, false))}
                   </div>
                 )}
                 {agencyNotices.filter(e => e.date === selectedMobileDate).length > 0 && (
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center gap-1.5 text-purple-700 font-black text-xs px-1"><Building className="w-3.5 h-3.5" /> 지점 공지</div>
-                    {agencyNotices.filter(e => e.date === selectedMobileDate).map(evt => renderEvent(evt))}
+                    {agencyNotices.filter(e => e.date === selectedMobileDate).map(evt => renderEvent(evt, false))}
                   </div>
                 )}
                 {teamNotices.filter(e => e.date === selectedMobileDate).length > 0 && (
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center gap-1.5 text-emerald-700 font-black text-xs px-1"><Users className="w-3.5 h-3.5" /> 팀 공지</div>
-                    {teamNotices.filter(e => e.date === selectedMobileDate).map(evt => renderEvent(evt))}
+                    {teamNotices.filter(e => e.date === selectedMobileDate).map(evt => renderEvent(evt, false))}
                   </div>
                 )}
               </div>
 
               <div className="space-y-4">
                 {teamSchedules.map(member => {
-                  // ⭐️ 모바일 리스트에서도 피보험자 순으로 한 번 더 명확하게 정렬
                   const memberEvents = member.events.filter(e => e.date === selectedMobileDate).sort((a, b) => {
                     if (a.time !== b.time) return a.time.localeCompare(b.time);
                     const nameA = a.clients?.insured_name || a.clients?.contractor_name || a.clients?.name || "";
@@ -961,7 +1058,7 @@ export default function SchedulePage() {
                         )}
                       </div>
                       <div className="flex flex-col gap-2 mt-1">
-                        {memberEvents.map(evt => renderEvent(evt))}
+                        {memberEvents.map(evt => renderEvent(evt, false))}
                       </div>
                     </div>
                   )
@@ -986,9 +1083,8 @@ export default function SchedulePage() {
         </>
       )}
 
-      {/* ⭐️ 상세 모달 */}
       {detailModalEvent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm md:p-4 pt-24 animate-in fade-in">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm md:p-4 pt-24 animate-in fade-in">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md flex flex-col max-h-[90vh] overflow-hidden">
             <div className="flex items-center justify-between border-b px-5 py-4 shrink-0">
               <h3 className="font-black text-lg text-slate-800 flex items-center gap-2">
@@ -1008,7 +1104,7 @@ export default function SchedulePage() {
             <div className="space-y-3 text-sm px-5 py-4 overflow-y-auto flex-1 overscroll-contain pb-safe">
               <div className="flex justify-between bg-slate-50 p-3 rounded-xl border border-slate-100">
                 <span className="font-bold text-slate-500">일시</span>
-                <span className="font-bold text-slate-800">{detailModalEvent.date} {detailModalEvent.time}</span>
+                <span className="font-bold text-slate-800">{detailModalEvent.date} {detailModalEvent.time !== "23:59" ? detailModalEvent.time : ""}</span>
               </div>
               
               {detailModalEvent.contractStatus ? (
@@ -1031,7 +1127,6 @@ export default function SchedulePage() {
                 )
               )}
 
-              {/* ⭐️ 관련 고객 프로필 이동 버튼 추가 (모달에서도 피보험자 우선 표시) */}
               {(detailModalEvent.clients?.name || detailModalEvent.clients?.contractor_name || detailModalEvent.clients?.insured_name) && (
                 <div className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-100">
                   <span className="font-bold text-slate-500">관련 고객</span>

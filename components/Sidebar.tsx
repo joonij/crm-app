@@ -43,21 +43,20 @@ export default function Sidebar() {
   const [userRole, setUserRole] = useState<string>("user");
   const [userName, setUserName] = useState<string>(""); 
   const [userRank, setUserRank] = useState<string>(""); 
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null); // ⭐️ 아바타 URL 추가
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [agencyId, setAgencyId] = useState<string>("");
   const [companyName, setCompanyName] = useState<string>("");
   const [branchName, setBranchName] = useState<string>("");
   const [teamNumber, setTeamNumber] = useState<string>("");
   const [agentCode, setAgentCode] = useState<string>("");
   
-  // 알림 상태
+  // 🚀 순수 알림 개수 상태 (이제 서버 로봇이 넣어주는 진짜 알림만 카운트합니다)
   const [unreadCount, setUnreadCount] = useState(0);
 
   // 1. 유저 정보 조회 및 인증 상태 감지
   useEffect(() => {
     const fetchUserProfile = async (userId: string) => {
       setIsLoading(true);
-      // ⭐️ avatar_url 도 불러오기
       const { data: agentData, error } = await supabase
         .from("agents")
         .select(`
@@ -91,13 +90,11 @@ export default function Sidebar() {
       setIsLoading(false);
     };
 
-    // 초기 데이터 로드
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user?.id) fetchUserProfile(user.id);
       else setIsLoading(false);
     });
 
-    // 세션 변경 감지
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user?.id) {
         fetchUserProfile(session.user.id);
@@ -115,7 +112,7 @@ export default function Sidebar() {
     return () => subscription.unsubscribe();
   }, [router]); 
 
-  // 2. 알림 개수 조회 및 실시간 연동
+  // 2. 알림 개수 실시간 연동 (오직 notifications 테이블만 바라봅니다)
   useEffect(() => {
     if (!agentId) return;
 
@@ -198,6 +195,7 @@ export default function Sidebar() {
             const active = isActivePath(pathname, href);
             const isLocked = String(requiredRole) === "admin" && userRole !== "admin";
             const Icon = isLocked ? Lock : OriginalIcon;
+            
             const isNotificationMenu = label === "알림 센터";
             const hasUnread = isNotificationMenu && unreadCount > 0;
 
@@ -224,12 +222,14 @@ export default function Sidebar() {
 
                   {hasUnread && (
                     isOpen ? (
+                      // 열려있을 때는 예쁜 숫자 뱃지
                       <div className="ml-auto flex items-center justify-center">
                         <span className="inline-flex items-center justify-center rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm ring-2 ring-gray-950">
                           {unreadCount > 99 ? '99+' : unreadCount}
                         </span>
                       </div>
                     ) : (
+                      // 닫혀있을 때는 깜빡이는 예쁜 빨간 점
                       <div className="absolute top-2 right-2 flex h-2 w-2 items-center justify-center">
                         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"></span>
                         <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500 ring-2 ring-gray-950"></span>
@@ -243,7 +243,7 @@ export default function Sidebar() {
         </ul>
       </nav>
 
-      {/* ⭐️ 마이페이지 이동 링크로 변경된 하단 유저 프로필 영역 */}
+      {/* 마이페이지 이동 링크로 변경된 하단 유저 프로필 영역 */}
       <div className={`mt-auto shrink-0 border-t border-gray-800 ${isOpen ? "p-3" : "flex justify-center p-3"}`}>
         {isLoading ? (
           <div className="animate-pulse flex flex-col gap-3 w-full px-1 py-2">
@@ -262,7 +262,6 @@ export default function Sidebar() {
             href="/mypage" 
             className="group flex flex-col gap-3 p-3 rounded-xl hover:bg-gray-900 transition-colors border border-transparent hover:border-gray-800 relative cursor-pointer"
           >
-            {/* 상단: 프로필 사진 및 이름/직급 */}
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 bg-gray-800 border border-gray-700 flex items-center justify-center relative">
                 {avatarUrl ? (
@@ -286,11 +285,9 @@ export default function Sidebar() {
                 </span>
               </div>
               
-              {/* 설정 이동 화살표 아이콘 */}
               <Settings className="w-4 h-4 text-gray-600 group-hover:text-blue-400 transition-colors shrink-0" />
             </div>
             
-            {/* 하단: 사번 박스 */}
             {agentId && (
               <div className="flex flex-col gap-1.5 rounded-lg bg-gray-950/50 p-2.5 border border-gray-800/80 group-hover:border-gray-700/80 transition-colors mt-1">
                 <div className="flex justify-between items-center text-[11px]">

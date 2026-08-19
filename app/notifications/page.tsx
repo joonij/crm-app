@@ -5,29 +5,6 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Bell, UserPlus, Calendar, Info, CheckCircle2, ChevronRight, Clock, Gift } from "lucide-react";
 
-// ⭐️ 상령일 계산 헬퍼 함수
-const calculateSangryungDDay = (birthDateStr: string | null) => {
-  if (!birthDateStr) return null;
-  
-  let cleanStr = birthDateStr.replace(/\./g, '-').replace(/\s/g, '');
-  if (cleanStr.endsWith('-')) cleanStr = cleanStr.slice(0, -1);
-
-  const birth = new Date(cleanStr);
-  if (isNaN(birth.getTime())) return null;
-
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-  let sangryung = new Date(today.getFullYear(), birth.getMonth() + 6, birth.getDate());
-
-  if (sangryung.getTime() < today.getTime()) {
-    sangryung = new Date(today.getFullYear() + 1, birth.getMonth() + 6, birth.getDate());
-  }
-
-  const diffTime = sangryung.getTime() - today.getTime();
-  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-};
-
 type Notification = {
   id: string;
   agent_id: number;
@@ -37,15 +14,15 @@ type Notification = {
   link_url: string;
   is_read: boolean;
   created_at: string;
-  is_local?: boolean; // ⭐️ 대시보드에서 계산된 로컬 알림 여부 구분
 };
 
 const getIcon = (type: string) => {
   switch (type) {
     case 'referral': return <UserPlus className="w-5 h-5 text-indigo-500" />;
     case 'schedule': return <Calendar className="w-5 h-5 text-amber-500" />;
-    case 'retouch': return <Clock className="w-5 h-5 text-rose-500" />;     // ⭐️ 추가
-    case 'sangryung': return <Gift className="w-5 h-5 text-purple-500" />; // ⭐️ 추가
+    case 'retouch': return <Clock className="w-5 h-5 text-rose-500" />;
+    case 'sangryung': return <Gift className="w-5 h-5 text-purple-500" />;
+    case 'contract_delay': return <Info className="w-5 h-5 text-orange-500" />; // ⭐️ 계약 지연 아이콘 추가
     default: return <Info className="w-5 h-5 text-blue-500" />;
   }
 };
@@ -71,8 +48,8 @@ export default function NotificationsPage() {
 
       const { data: agentData, error: agentError } = await supabase
         .from('agents')
-        .select('id, name')
-        .eq('email', user.email)
+        .select('id')
+        .eq('auth_id', user.id) // ⭐️ email 대신 auth_id로 정확히 매칭
         .single();
 
       if (agentError || !agentData) {
@@ -81,89 +58,17 @@ export default function NotificationsPage() {
       }
 
       const currentAgentId = agentData.id;
-      const currentAgentName = agentData.name;
       setAgentId(currentAgentId);
 
-      // 데이터 불러오기 및 ⭐️ 대시보드 알림 병합 함수
+      // 🚀 가짜 로컬 알림 계산 로직을 전부 삭제하고, 순수하게 DB 알림만 불러옵니다.
       const fetchNotifications = async () => {
-        const readNotiIds = JSON.parse(localStorage.getItem('readNotis') || '[]');
-
-        // 1. 기존 DB 알림 불러오기
         const { data: dbData } = await supabase
           .from('notifications')
           .select('*')
           .eq('agent_id', currentAgentId)
           .order('created_at', { ascending: false });
 
-        // 2. 고객 및 스케줄, 보험 데이터를 불러와 재터치/상령일 알림 계산
-        const [clientsRes, insRes, schedulesRes] = await Promise.all([
-          supabase.from("clients").select("*").eq("agent_id", currentAgentId),
-          supabase.from("subscription_insurance").select("*").eq("agent_name", currentAgentName),
-          supabase.from("schedules").select("*") 
-        ]);
-
-        const myClients = clientsRes.data || [];
-        const myInsurances = insRes.data || [];
-        const myClientIds = myClients.map(c => Number(c.id));
-        const mySchedules = (schedulesRes.data || []).filter(sch => sch.agent_id === currentAgentId || myClientIds.includes(Number(sch.client_id)));
-
-        const generatedNotis: Notification[] = [];
-        const todayIso = new Date().toISOString();
-
-        // [계산] 재터치 알림
-        myClients.forEach(c => {
-          const clientInsurances = myInsurances.filter(ins => Number(ins.client_id) === Number(c.id));
-          const clientSchedules = mySchedules.filter(sch => Number(sch.client_id) === Number(c.id));
-
-          const insDates = clientInsurances.map(i => new Date(i.created_at || 0).getTime());
-          const schDates = clientSchedules.map(s => new Date(s.schedule_date || s.created_at || 0).getTime()); 
-          const allDates = [new Date(c.created_at || 0).getTime(), ...insDates, ...schDates];
-          
-          const lastUpdate = new Date(Math.max(...allDates)); 
-          const daysSinceUpdate = Math.floor((new Date().getTime() - lastUpdate.getTime()) / (1000 * 3600 * 24));
-          
-          if (daysSinceUpdate >= 30) {
-            let bucket = daysSinceUpdate >= 180 ? 180 : daysSinceUpdate >= 90 ? 90 : daysSinceUpdate >= 60 ? 60 : 30;
-            const notiId = `retouch_${c.id}_${bucket}`;
-            generatedNotis.push({
-              id: notiId,
-              agent_id: currentAgentId,
-              title: `재터치 알림 (${bucket}일 경과)`,
-              message: `${c.name} 고객님과 마지막 활동 후 ${daysSinceUpdate}일이 지났습니다.`,
-              type: 'retouch',
-              link_url: `/clients/${c.id}`,
-              is_read: readNotiIds.includes(notiId),
-              created_at: todayIso,
-              is_local: true // 로컬 알림 표시
-            });
-          }
-        });
-
-        // [계산] 상령일 알림
-        myClients.forEach(c => {
-          const dDay = calculateSangryungDDay(c.birth_date);
-          if (dDay !== null && dDay >= 0 && dDay <= 30) {
-            const notiId = `sangryung_${c.id}_${new Date().getFullYear()}`;
-            generatedNotis.push({
-              id: notiId,
-              agent_id: currentAgentId,
-              title: `상령일 임박 (D-${dDay})`,
-              message: `${c.name} 고객님의 보험나이가 곧 인상됩니다.`,
-              type: 'sangryung',
-              link_url: `/clients/${c.id}`,
-              is_read: readNotiIds.includes(notiId),
-              created_at: todayIso,
-              is_local: true // 로컬 알림 표시
-            });
-          }
-        });
-
-        // 3. DB 알림과 로컬(자동계산) 알림을 합치고 시간순(최신순) 정렬
-        const allNotifications = [...(dbData || []), ...generatedNotis].sort(
-          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        );
-
-        setNotifications(allNotifications);
+        setNotifications(dbData || []);
       };
 
       await fetchNotifications();
@@ -200,19 +105,11 @@ export default function NotificationsPage() {
     if (!noti.is_read) {
       setNotifications(prev => prev.map(n => n.id === noti.id ? { ...n, is_read: true } : n));
       
-      // 2. 백그라운드 처리 (로컬 vs DB)
-      if (noti.is_local) {
-        const readNotiIds = JSON.parse(localStorage.getItem('readNotis') || '[]');
-        if (!readNotiIds.includes(noti.id)) {
-          readNotiIds.push(noti.id);
-          localStorage.setItem('readNotis', JSON.stringify(readNotiIds));
-        }
-      } else {
-        await supabase
-          .from('notifications')
-          .update({ is_read: true })
-          .eq('id', noti.id);
-      }
+      // 2. DB 알림 완벽하게 읽음 처리 (로컬 스토리지 삭제)
+      await supabase
+        .from('notifications')
+        .update({ is_read: true })
+        .eq('id', noti.id);
     }
 
     // 3. 페이지 이동
@@ -227,14 +124,7 @@ export default function NotificationsPage() {
     // 화면 즉시 반영
     setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
 
-    // 1. 로컬 알림들 모두 읽음 처리
-    const localNotis = notifications.filter(n => n.is_local);
-    const localIds = localNotis.map(n => n.id);
-    const readNotiIds = JSON.parse(localStorage.getItem('readNotis') || '[]');
-    const mergedLocalIds = Array.from(new Set([...readNotiIds, ...localIds]));
-    localStorage.setItem('readNotis', JSON.stringify(mergedLocalIds));
-
-    // 2. DB 알림들 모두 읽음 처리
+    // DB 알림들 모두 읽음 처리
     await supabase
       .from('notifications')
       .update({ is_read: true })
@@ -290,8 +180,7 @@ export default function NotificationsPage() {
                     {noti.title}
                   </h3>
                   <span className="text-xs text-slate-400 font-medium whitespace-nowrap ml-auto">
-                    {/* 당일 생성된 로컬 알림은 "오늘"로 표시하거나 날짜로 표시합니다. */}
-                    {noti.is_local ? '오늘' : new Date(noti.created_at).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    {new Date(noti.created_at).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>
                 <p className="text-sm text-slate-600 font-medium leading-relaxed">{noti.message}</p>
