@@ -38,8 +38,51 @@ type TeamMember = {
   phone: string;
   avatar_url: string | null;
 };
+const INSURANCE_PORTALS: Record<string, string> = {
+  "ABL생명": "https://ga.abllife.co.kr/",
+  "AIA생명": "https://imap.aia.co.kr/",
+  "BNP파리바카디프생명": "http://ga.cardif.co.kr/",
+  "DB생명": "http://etopia.dongbulife.com/",
+  "IM라이프": "https://fgs.imlifeins.co.kr:8443/",
+  "KB라이프": "https://sfa.kblife.co.kr/",
+  "KDB생명": "http://kss.kdblife.co.kr/",
+  "NH농협생명": "https://sfa.nhlife.co.kr:8443/websquare/websquare.jsp#w2xPath=/ui/sf/sc/SFSC0100M00.xml",
+  "교보생명": "https://ga.kyobo.com/",
+  "라이나생명": "https://ga.lina.co.kr/",
+  "메트라이프": "http://metplus.metlife.co.kr/",
+  "미래에셋생명" : "http://www.loveageplan.com/",
+  "삼성생명": "https://connectplus.samsunglife.com:10443/gasso/login?contextType=external",
+  "수호천사동양생명": "https://1004.myangel.co.kr/",
+  "신한라이프": "https://ga.shinhanlife.co.kr/",
+  "처브라이프": "https://esmart.chubblife.co.kr/index.do",
+  "푸르덴셜생명": "https://ga2.prudential.co.kr/",
+  "푸본현대생명": "https://ez.fubonhyundai.com/wsOnl/main.jsp",
+  "하나생명": "https://ga.hanalife.co.kr/",
+  "한화생명": "https://hmp.hanwhalife.com/online/ga",
+  "흥국생명": "https://sales.heungkuklife.co.kr/login.html",
+
+  "AIG손해": "https://aigen-ga.aig.co.kr/",
+  "DB손해": "https://www.mdbins.com/",
+  "KB손해": "http://sales.kbinsure.co.kr/",
+  "MG손해": "https://mganet.mggeneralins.com/",
+  "NH농협손해": "http://ss.nhfire.co.kr/",
+  "라이나손해": "https://ga.linagi.com/",
+  "롯데손해": "http://lottero.lotteins.co.kr/",
+  "메리츠화재": "http://sales.meritzfire.com/",
+  "삼성화재": "https://erp.samsungfire.com/irj/servlet/prt/portal/prtroot/logon.LogonPage",
+  "하나손해": "https://sfa.saleshana.com/",
+  "한화손해": "http://portal.hwgeneralins.com/",
+  "현대해상": "https://sp.hi.co.kr/",
+  "흥국화재": "https://salesup.heungkukfire.co.kr/",
+
+  "IBK연금보험": "https://sf.ibki.co.kr/",
+};
 
 export default function MyPage() {
+  const handleOpenPortal = (companyName: string) => {
+    const url = INSURANCE_PORTALS[companyName] || `https://www.google.com//search?q=${companyName}+영업지원시스템`;
+    window.open(url, '_blank');
+  };
   const [profile, setProfile] = useState<AgentProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -350,9 +393,17 @@ export default function MyPage() {
 
   const inputClass = "w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all";
 
-  const managers = teamMembers.filter(m => ["BM", "RM", "본부장", "지점장"].includes(m.rank.toUpperCase()));
-  const teamLeaders = teamMembers.filter(m => ["SM", "팀장"].includes(m.rank.toUpperCase()));
-  const members = teamMembers.filter(m => !["BM", "RM", "본부장", "지점장", "SM", "팀장"].includes(m.rank.toUpperCase()));
+  const managers = teamMembers
+    .filter(m => ["BM", "RM", "본부장", "지점장"].includes(m.rank.toUpperCase()))
+    .sort((a, b) => a.name.localeCompare(b.name, 'ko-KR'));
+    
+  const teamLeaders = teamMembers
+    .filter(m => ["SM", "팀장"].includes(m.rank.toUpperCase()))
+    .sort((a, b) => a.name.localeCompare(b.name, 'ko-KR'));
+    
+  const members = teamMembers
+    .filter(m => !["BM", "RM", "본부장", "지점장", "SM", "팀장"].includes(m.rank.toUpperCase()))
+    .sort((a, b) => a.name.localeCompare(b.name, 'ko-KR'));
 
   const getCompanyTypePriority = (companyName: string) => {
     const company = insuranceCompanies.find(c => c.company_name === companyName);
@@ -690,8 +741,14 @@ export default function MyPage() {
                       <div key={company} className="flex items-center justify-between bg-white border border-slate-200 p-3 rounded-xl shadow-sm hover:border-blue-300 transition-colors">
                         <div className="flex flex-col overflow-hidden pr-2 gap-0.5">
                           <div className="flex items-center gap-1.5">
-                            <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border ${badgeClass}`}>{badgeText}</span>
-                            <span className="text-[11px] font-bold text-gray-500 truncate">{company}</span>
+                            <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border whitespace-nowrap ${badgeClass}`}>{badgeText}</span>
+                            <span 
+                              onClick={() => handleOpenPortal(company)}
+                              className="text-[11px] font-bold text-gray-500 truncate cursor-pointer hover:text-blue-600 hover:underline flex items-center gap-0.5"
+                              title={`${company} 전산 열기`}
+                            >
+                              {company} <ExternalLink className="w-2.5 h-2.5 opacity-70" />
+                            </span>
                           </div>
                           <span className="text-sm font-black text-gray-900 tracking-wide truncate mt-0.5">{data.code}</span>
                           {data.password && (
@@ -906,7 +963,13 @@ export default function MyPage() {
                       modalSortedCompanyCodes.map(([company, data]) => (
                         <div key={company} className="flex items-center justify-between bg-white border border-slate-200 p-2.5 rounded-lg shadow-sm">
                           <div className="flex flex-col pr-2">
-                            <span className="text-[11px] font-bold text-gray-500">{company}</span>
+                            <span 
+                              onClick={() => handleOpenPortal(company)}
+                              className="text-[11px] font-bold text-gray-500 cursor-pointer hover:text-blue-600 hover:underline flex items-center gap-0.5"
+                              title={`${company} 전산 열기`}
+                            >
+                              {company} <ExternalLink className="w-2.5 h-2.5 opacity-70" />
+                            </span>
                             <span className="text-sm font-black text-gray-900">{data.code}</span>
                             {data.password && <span className="text-[10px] text-gray-400 flex items-center gap-1 mt-0.5"><KeyRound className="w-2.5 h-2.5" /> {data.password}</span>}
                           </div>
