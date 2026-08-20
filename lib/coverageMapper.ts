@@ -233,6 +233,7 @@ export const COVERAGE_OPTIONS = [
     if (name.includes("상해") && name.includes("사망")) return "상해사망 진단비";
     if (name.includes("질병") && name.includes("사망")) return "질병사망 진단비";
     
+    if (name.includes("척추") && name.includes("수술")) return displayRawName;
     if (name.includes("질환") && name.includes("수술")) return displayRawName;
     if (name.includes("이식") && name.includes("수술")) return displayRawName;
     if (name.includes("중증") && name.includes("수술")) return displayRawName;

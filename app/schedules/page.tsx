@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Clock, Loader2, Plus, Megaphone, Building2, Users, Edit2, Trash2, X, Trophy, Target, TrendingUp, DollarSign, AlertCircle, User, Building, UserPlus } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import ScheduleModal from "./components/ScheduleModal"; 
+import PendingContractsModal from "./components/PendingContractsModal"; // ⭐️ 새로 추가된 임포트
 
 type ScheduleType = 'company' | 'agency' | 'team' | 'personal';
 
@@ -84,6 +85,11 @@ const getMonthString = (offsetMonths: number = 0) => {
 };
 
 export default function SchedulePage() {
+  // 기존 상태들 아래에 추가
+  const [pendingModalState, setPendingModalState] = useState<{ isOpen: boolean; events: any[]; date: string }>({
+    isOpen: false, events: [], date: ""
+  });
+  const openPendingModal = (events: any[], date: string) => setPendingModalState({ isOpen: true, events, date });
   const [isLoading, setIsLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'weekly' | 'monthly'>('weekly');
   
@@ -585,6 +591,67 @@ export default function SchedulePage() {
       </div>
     );
   };
+  // ⭐️ 여러 개의 이벤트를 받아 '계약예정'만 추출해 요약 카드로 만들어주는 함수
+  const renderDayEvents = (dayEvents: ScheduleEvent[], isMonthlyView: boolean, date: string, ownerNameForWeekly?: string) => {
+    const normalEvents = dayEvents.filter(e => e.contractStatus !== 'new');
+    const pendingEvents = dayEvents.filter(e => e.contractStatus === 'new');
+
+    const renderedNormal = normalEvents.map(evt => renderEvent(evt, isMonthlyView));
+
+    let renderedPending = null;
+    if (pendingEvents.length > 0) {
+      const totalPremium = pendingEvents.reduce((sum, e) => sum + (e.premium || 0), 0);
+      
+      if (isMonthlyView) {
+        renderedPending = (
+          <div 
+            key={`pending-${date}`}
+            onClick={(e) => { e.stopPropagation(); openPendingModal(pendingEvents, date); }}
+            className="p-1.5 rounded-lg border border-orange-300 bg-gradient-to-r from-orange-50 to-amber-50 flex flex-col gap-1 cursor-pointer shadow-sm hover:ring-2 hover:ring-orange-400 transition-all mb-1"
+          >
+            <div className="flex items-center justify-between gap-1 w-full overflow-hidden">
+              <span className="text-[11px] font-black text-orange-800 flex items-center gap-1 shrink-0"><AlertCircle className="w-3 h-3 text-orange-600"/>예정 건보기</span>
+              <span className="text-[10px] font-bold text-orange-600 bg-white px-1 py-0.5 rounded border border-orange-200 shrink-0">{pendingEvents.length}건</span>
+            </div>
+            <div className="flex justify-between items-center mt-0.5">
+              <span className="text-[11px] font-black text-orange-700">{totalPremium.toLocaleString()}원</span>
+            </div>
+          </div>
+        );
+      } else {
+        renderedPending = (
+          <div 
+            key={`pending-${date}-${ownerNameForWeekly}`}
+            onClick={(e) => { e.stopPropagation(); openPendingModal(pendingEvents, date); }}
+            className="p-2 rounded-xl sm:rounded-md border border-orange-300 bg-gradient-to-r from-orange-50 to-amber-50 flex flex-col gap-1.5 cursor-pointer shadow-sm hover:shadow-md hover:ring-2 hover:ring-orange-400 transition-all mb-1"
+          >
+            <div className="flex items-center justify-between border-b border-orange-200/60 pb-1.5 sm:pb-1">
+              <span className="flex items-center gap-1 text-[11px] font-extrabold text-orange-800">
+                <AlertCircle className="w-3.5 h-3.5" /> 계약 예정 ({pendingEvents.length}건)
+              </span>
+            </div>
+            <div className="flex flex-col gap-1 min-w-0">
+              <span className="font-bold text-orange-900 block truncate w-full">
+                총 <span className="font-black text-sm text-orange-700 tracking-tight">{totalPremium.toLocaleString()}원</span>
+              </span>
+              <div className="flex justify-between items-end pt-1">
+                <span className="text-[10px] opacity-80 text-orange-800 truncate">{ownerNameForWeekly || '팀 전체'}</span>
+                <span className="text-white font-bold text-[11px] bg-orange-500 hover:bg-orange-600 px-2 py-0.5 rounded shadow-xs shrink-0 transition-colors">상세보기</span>
+
+              </div>
+            </div>
+          </div>
+        );
+      }
+    }
+
+    return (
+      <>
+        {renderedPending}
+        {renderedNormal}
+      </>
+    );
+  };
 
   const isSM = ['SM', 'BM', 'RM'].includes(myInfo?.rank.toUpperCase() || '');
 
@@ -593,7 +660,20 @@ export default function SchedulePage() {
     monthlyWeeks.push(monthDays.slice(i, i + 7));
   }
 
-  const allEventsForMonth = [...companyNotices, ...agencyNotices, ...teamNotices, ...teamSchedules.flatMap(m => m.events)];
+  // ⭐️ 1. 설계사 선택 상태 및 필터링 적용
+  const [selectedAgentId, setSelectedAgentId] = useState<number | 'ALL'>('ALL');
+
+  const displayMembers = selectedAgentId === 'ALL' 
+    ? teamSchedules 
+    : teamSchedules.filter(m => m.id === selectedAgentId);
+
+  const allEventsForMonth = [
+    ...companyNotices, 
+    ...agencyNotices, 
+    ...teamNotices, 
+    ...displayMembers.flatMap(m => m.events)
+  ];
+  
   const progressPercent = Math.min(Math.round((myMonthlyStats.maintainAmt / monthlyTarget) * 100) || 0, 100);
 
   const currentMonthOnlyDays = monthDays.filter(d => d.isCurrentMonth);
@@ -762,9 +842,25 @@ export default function SchedulePage() {
       </div>
 
       <div className="shrink-0 flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 sm:p-0 bg-white sm:bg-transparent z-10 border-b sm:border-0 border-slate-100">
-        <div className="flex items-center gap-3 md:gap-4 justify-between w-full md:w-auto">
+      <div className="flex items-center gap-3 md:gap-4 justify-between w-full md:w-auto">
           <h1 className="text-xl sm:text-2xl font-black text-slate-800 flex items-center gap-2"><CalendarIcon className="w-5 h-5 text-blue-600" /> 스케줄 보드</h1>
           <div className="flex items-center gap-2 sm:gap-3">
+            
+            {/* ⭐️ 2. 설계사 필터링 셀렉트박스 추가 */}
+            {teamSchedules.length > 1 && (
+              <select
+                value={selectedAgentId}
+                onChange={(e) => setSelectedAgentId(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
+                className="text-xs font-bold border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-700 outline-none cursor-pointer hover:bg-slate-50 transition-colors"
+              >
+                <option value="ALL">전체 보기</option>
+                {teamSchedules.map(m => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
+              </select>
+            )}
+
+            
             <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
               <button onClick={() => setViewMode('weekly')} className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded text-xs font-bold transition-all cursor-pointer ${viewMode === 'weekly' ? 'bg-white shadow text-blue-600' : 'text-slate-500 hover:text-slate-800'}`}>주간</button>
               <button onClick={() => setViewMode('monthly')} className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded text-xs font-bold transition-all cursor-pointer ${viewMode === 'monthly' ? 'bg-white shadow text-blue-600' : 'text-slate-500 hover:text-slate-800'}`}>월간</button>
@@ -800,7 +896,7 @@ export default function SchedulePage() {
                     </div>
                   ))}
                   <div className="p-4 bg-slate-100/80 flex items-center justify-center border-l border-slate-200 shadow-inner">
-                    <span className="text-slate-700">주간 요약</span>
+                    <span className="text-slate-700">주간 요약 & 통계</span>
                   </div>
                 </div>
                 
@@ -809,29 +905,95 @@ export default function SchedulePage() {
                   {renderNoticeRowWeekly("지점 공지", <Building2 className="w-5 h-5 text-purple-600" />, agencyNotices, "bg-purple-50/40", "text-purple-800")}
                   {renderNoticeRowWeekly("팀 공지", <Users className="w-5 h-5 text-emerald-600" />, teamNotices, "bg-emerald-50/40", "text-emerald-800")}
                   
-                  {teamSchedules.map(member => (
-                    <div key={member.id} className="grid hover:bg-slate-50 transition-colors" style={desktopGridStyle}>
-                      <div className="p-4 border-r border-slate-200 flex flex-col justify-center bg-white"><span className="font-bold text-sm text-center">{member.name}</span></div>
-                      
-                      {weekDays.map(({ date }) => (
-                        <div key={date} className="group relative p-2 border-r border-slate-200 flex flex-col gap-2 min-h-[100px] bg-white/50 hover:bg-slate-50/50 transition-colors">
-                          {member.events.filter(e => e.date === date).map(evt => renderEvent(evt, false))}
-                        </div>
-                      ))}
+                  {displayMembers.map(member => {
+                    // ⭐️ 주간 뷰: 현재 보고 있는 주(weekDays)에 해당하는 통계만 실시간 계산
+                    const weekDates = weekDays.map(d => d.date);
+                    const compStats: Record<string, { newAmt: number, maintainAmt: number }> = {}; 
+                    
+                    member.events.forEach(e => {
+                      if (weekDates.includes(e.date)) {
+                        if (e.contractStatus === 'new' || e.contractStatus === 'maintain') {
+                          const comp = e.companyName || '기타';
+                          if (!compStats[comp]) compStats[comp] = { newAmt: 0, maintainAmt: 0 };
 
-                      <div className="p-3 bg-slate-50/80 flex flex-col justify-center gap-2 border-l border-slate-200 shadow-inner min-w-[160px]">
-                        <div className="bg-orange-100 text-orange-900 rounded-lg p-2 flex flex-col border border-orange-200">
-                          <span className="text-[10px] font-bold mb-0.5">예정 ({member.stats.weekNewCnt}건)</span>
-                          <span className="font-black text-sm">{member.stats.weekNewAmt.toLocaleString()}원</span>
+                          if (e.contractStatus === 'new') { 
+                            compStats[comp].newAmt += (e.premium || 0);
+                          }
+                          if (e.contractStatus === 'maintain') { 
+                            compStats[comp].maintainAmt += (e.premium || 0);
+                          }
+                        }
+                      }
+                    });
+                    
+                    const sortedCompStats = Object.entries(compStats).sort((a,b) => (b[1].maintainAmt + b[1].newAmt) - (a[1].maintainAmt + a[1].newAmt));
+
+                    return (
+                      <div key={member.id} className="grid hover:bg-slate-50 transition-colors" style={desktopGridStyle}>
+                        <div className="p-4 border-r border-slate-200 flex flex-col justify-center bg-white"><span className="font-bold text-sm text-center">{member.name}</span></div>
+                        
+                        {weekDays.map(({ date }) => (
+                          <div key={date} className="group relative p-2 border-r border-slate-200 flex flex-col gap-2 min-h-[100px] bg-white/50 hover:bg-slate-50/50 transition-colors">
+                            {renderDayEvents(member.events.filter(e => e.date === date), false, date, member.name)}
+                          </div>
+                        ))}
+
+                        {/* ⭐️ 주간 요약 & 통계 렌더링 영역 */}
+                        <div className="p-3 bg-slate-50/80 flex flex-col gap-2 border-l border-slate-200 shadow-inner min-w-[160px]">
+                          {(member.stats.weekNewCnt > 0 || member.stats.weekMaintainCnt > 0) ? (
+                            <div className="flex flex-col h-full">
+                              {/* 총 예정/체결 요약 */}
+                              <div className="flex flex-col gap-1.5 mb-2">
+                                {member.stats.weekNewCnt > 0 && (
+                                  <div className="bg-orange-100 text-orange-900 rounded-lg p-2 flex flex-col border border-orange-200">
+                                    <span className="text-[10px] font-bold mb-0.5">예정 ({member.stats.weekNewCnt}건)</span>
+                                    <span className="font-black text-sm">{member.stats.weekNewAmt.toLocaleString()}원</span>
+                                  </div>
+                                )}
+                                {member.stats.weekMaintainCnt > 0 && (
+                                  <div className="bg-blue-50 text-blue-900 rounded-lg p-2 flex flex-col border border-blue-200">
+                                    <span className="text-[10px] font-bold mb-0.5">체결 ({member.stats.weekMaintainCnt}건)</span>
+                                    <span className="font-black text-sm">{member.stats.weekMaintainAmt.toLocaleString()}원</span>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* ⭐️ 예정/체결 통합 보험사 통계 */}
+                              {sortedCompStats.length > 0 && (
+                                <div className="pt-2 border-t border-slate-200 flex flex-col gap-1.5">
+                                  {sortedCompStats.map(([comp, amts]) => (
+                                    <div key={comp} className="flex flex-col gap-0.5 mb-1 border-b border-slate-200/50 pb-1.5 last:mb-0 last:pb-0 last:border-0">
+                                      <span className="font-bold text-slate-500 text-[10px] truncate pr-1 flex items-center gap-1">
+                                        <span className="w-1 h-1 rounded-full bg-slate-400"></span>{comp}
+                                      </span>
+                                      {amts.newAmt > 0 && (
+                                        <div className="flex justify-between items-center text-[10px] pl-2">
+                                          <span className="text-orange-500 font-bold">예정</span>
+                                          <span className="text-slate-600 font-bold">{amts.newAmt.toLocaleString()}</span>
+                                        </div>
+                                      )}
+                                      {amts.maintainAmt > 0 && (
+                                        <div className="flex justify-between items-center text-[10px] pl-2">
+                                          <span className="text-blue-600 font-bold">체결</span>
+                                          <span className="font-black text-blue-600">{amts.maintainAmt.toLocaleString()}</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="flex-1 flex flex-col items-center justify-center text-[11px] font-bold text-slate-400 text-center gap-2 py-4">
+                              <Trophy className="w-6 h-6 opacity-20" />
+                              예정/체결<br/>내역 없음
+                            </div>
+                          )}
                         </div>
-                        <div className="bg-blue-50 text-blue-900 rounded-lg p-2 flex flex-col border border-blue-200">
-                          <span className="text-[10px] font-bold mb-0.5">체결 ({member.stats.weekMaintainCnt}건)</span>
-                          <span className="font-black text-sm">{member.stats.weekMaintainAmt.toLocaleString()}원</span>
-                        </div>
+
                       </div>
-
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ) : (
@@ -847,27 +1009,30 @@ export default function SchedulePage() {
                   {monthlyWeeks.map((week, wIdx) => {
                     const weekDates = week.map(d => d.date);
                     
-                    const weekStats = teamSchedules.map(member => {
+                    // ⭐️ displayMembers 사용 및 예정/체결 동시 집계 적용
+                    const weekStats = displayMembers.map(member => {
                       let nAmt = 0, nCnt = 0, mAmt = 0, mCnt = 0;
-                      const compStats: Record<string, number> = {}; // ⭐️ 개별 보험사 통계용 객체
+                      const compStats: Record<string, { newAmt: number, maintainAmt: number }> = {}; 
                       
                       member.events.forEach(e => {
                         if (weekDates.includes(e.date)) {
-                          if (e.contractStatus === 'new') { 
-                            nAmt += (e.premium || 0); 
-                            nCnt++; 
-                          }
-                          if (e.contractStatus === 'maintain') { 
-                            mAmt += (e.premium || 0); 
-                            mCnt++; 
-                            // ⭐️ 체결 건일 경우 해당 멤버의 보험사별 실적 누적
+                          if (e.contractStatus === 'new' || e.contractStatus === 'maintain') {
                             const comp = e.companyName || '기타';
-                            compStats[comp] = (compStats[comp] || 0) + (e.premium || 0);
+                            if (!compStats[comp]) compStats[comp] = { newAmt: 0, maintainAmt: 0 };
+
+                            if (e.contractStatus === 'new') { 
+                              nAmt += (e.premium || 0); nCnt++; 
+                              compStats[comp].newAmt += (e.premium || 0);
+                            }
+                            if (e.contractStatus === 'maintain') { 
+                              mAmt += (e.premium || 0); mCnt++; 
+                              compStats[comp].maintainAmt += (e.premium || 0);
+                            }
                           }
                         }
                       });
                       
-                      const sortedCompStats = Object.entries(compStats).sort((a,b) => b[1] - a[1]);
+                      const sortedCompStats = Object.entries(compStats).sort((a,b) => (b[1].maintainAmt + b[1].newAmt) - (a[1].maintainAmt + a[1].newAmt));
                       
                       return { id: member.id, name: member.name, role: member.role, nAmt, nCnt, mAmt, mCnt, sortedCompStats };
                     }).filter(m => m.nCnt > 0 || m.mCnt > 0);
@@ -891,7 +1056,7 @@ export default function SchedulePage() {
                                 <button onClick={() => openModal(day.date)} className="opacity-0 group-hover:opacity-100 p-1 bg-white border border-blue-200 text-blue-600 rounded-full shadow-sm hover:bg-blue-600 hover:text-white transition-all cursor-pointer"><Plus className="w-3 h-3" /></button>
                               </div>
                               <div className="flex-1 overflow-y-auto space-y-1.5 px-1 -mx-1 py-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                                {sortedDayEvents.map(evt => renderEvent(evt, true))}
+                                {renderDayEvents(sortedDayEvents, true, day.date)}
                               </div>
                             </div>
                            )
@@ -901,11 +1066,8 @@ export default function SchedulePage() {
                           {weekStats.length > 0 ? (
                             weekStats.map(stat => (
                               <div key={stat.id} className="bg-white rounded-lg p-2.5 border border-slate-200 shadow-sm flex flex-col gap-1.5">
-                                {/* 이름 부분 */}
-                                {isSM && (
                                 <span className="text-[12px] font-extrabold text-slate-800 border-b border-slate-100 pb-1 truncate">{stat.name}</span>
-                                )}
-                                {/* 총 예정/체결 요약 */}
+                                
                                 <div className="flex flex-col gap-1">
                                   {(stat.nCnt > 0) && (
                                     <div className="flex justify-between items-center text-[12px]">
@@ -921,15 +1083,26 @@ export default function SchedulePage() {
                                   )}
                                 </div>
 
-                                {/* ⭐️ 개별 설계사의 보험사별 체결 내역 */}
+                                {/* ⭐️ 예정/체결 통합 보험사 통계 */}
                                 {stat.sortedCompStats.length > 0 && (
-                                  <div className="mt-1 pt-1.5 border-t border-slate-100 flex flex-col gap-1">
-                                    {stat.sortedCompStats.map(([comp, amt]) => (
-                                      <div key={comp} className="flex justify-between items-center text-[10px]">
-                                        <span className="font-bold text-slate-500 truncate pr-1 flex items-center gap-1">
-                                          <span className="w-1 h-1 rounded-full bg-blue-400"></span>{comp}
+                                  <div className="mt-1 pt-1.5 border-t border-slate-100 flex flex-col gap-1.5">
+                                    {stat.sortedCompStats.map(([comp, amts]) => (
+                                      <div key={comp} className="flex flex-col gap-0.5 mb-1 border-b border-slate-50 pb-1.5 last:mb-0 last:pb-0 last:border-0">
+                                        <span className="font-bold text-slate-500 text-[10px] truncate pr-1 flex items-center gap-1">
+                                          <span className="w-1 h-1 rounded-full bg-slate-400"></span>{comp}
                                         </span>
-                                        <span className="font-bold text-blue-600 shrink-0">{amt.toLocaleString()}</span>
+                                        {amts.newAmt > 0 && (
+                                          <div className="flex justify-between items-center text-[10px] pl-2">
+                                            <span className="text-orange-500 font-bold">예정</span>
+                                            <span className="text-slate-600 font-bold">{amts.newAmt.toLocaleString()}</span>
+                                          </div>
+                                        )}
+                                        {amts.maintainAmt > 0 && (
+                                          <div className="flex justify-between items-center text-[10px] pl-2">
+                                            <span className="text-blue-600 font-bold">체결</span>
+                                            <span className="font-black text-blue-600">{amts.maintainAmt.toLocaleString()}</span>
+                                          </div>
+                                        )}
                                       </div>
                                     ))}
                                   </div>
@@ -1030,7 +1203,7 @@ export default function SchedulePage() {
               </div>
 
               <div className="space-y-4">
-                {teamSchedules.map(member => {
+                {displayMembers.map(member => {
                   const memberEvents = member.events.filter(e => e.date === selectedMobileDate).sort((a, b) => {
                     if (a.time !== b.time) return a.time.localeCompare(b.time);
                     const nameA = a.clients?.insured_name || a.clients?.contractor_name || a.clients?.name || "";
@@ -1058,7 +1231,7 @@ export default function SchedulePage() {
                         )}
                       </div>
                       <div className="flex flex-col gap-2 mt-1">
-                        {memberEvents.map(evt => renderEvent(evt, false))}
+                        {renderDayEvents(memberEvents, false, selectedMobileDate, member.name)}
                       </div>
                     </div>
                   )
@@ -1188,7 +1361,12 @@ export default function SchedulePage() {
           </div>
         </div>
       )}
-
+      <PendingContractsModal 
+        isOpen={pendingModalState.isOpen}
+        onClose={() => setPendingModalState({ ...pendingModalState, isOpen: false })}
+        events={pendingModalState.events}
+        date={pendingModalState.date}
+      />
       <ScheduleModal 
         isOpen={modalState.isOpen} 
         onClose={() => setModalState({ ...modalState, isOpen: false })} 

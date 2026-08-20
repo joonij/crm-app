@@ -44,7 +44,7 @@ const isHeaderOrJunk = (line: string) => {
 
 // 초기 폼 상태
 const initialFormState = {
-  policy_status: "new",
+  policy_status: "maintain",
   company: "",
   product: "",
   premium: "", 
@@ -149,7 +149,7 @@ export default function InsuranceModal({
         beneficiary_id: currentClientId,
         agent_name: agentName,
         subscriptionDate: today,
-        policy_status: "new"
+        policy_status: "maintain"
       }));
     };
 
@@ -364,8 +364,8 @@ export default function InsuranceModal({
             <p className="text-sm font-semibold text-gray-700">리모델링 상태 분류</p>
             <div className="flex gap-2">
               {[
-                { id: "maintain", label: "유지하는 보험", color: "bg-blue-600 border-blue-600" },
-                { id: "cancel", label: "해지할 보험", color: "bg-red-600 border-red-600" },
+                { id: "maintain", label: "기존 보험", color: "bg-blue-600 border-blue-600" },
+                // { id: "cancel", label: "해지할 보험", color: "bg-red-600 border-red-600" },
                 { id: "new", label: "새로 제안할 보험", color: "bg-green-600 border-green-600" },
               ].map((status) => (
                 <button 
@@ -494,7 +494,6 @@ export default function InsuranceModal({
                     <input 
                       type="checkbox" 
                       className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                      checked={isCurrentUserAgent}
                       onChange={(e) => {
                         const checked = e.target.checked;
                         setIsCurrentUserAgent(checked);

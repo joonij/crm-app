@@ -14,16 +14,16 @@ export const CHART_CONFIG = [
     items: [
       { label: "일반암진단비", keywords: ["일반암"], defaultTarget: 5000 },
       { label: "유사암진단비", keywords: ["유사암"], defaultTarget: 1000 },
-      { label: "순환계질환진단비", keywords: ["순환계질환진단", "특정순환계"], defaultTarget: 5000 },
-      { label: "뇌혈관질환진단비", keywords: ["뇌혈관질환진단", "뇌혈관"], defaultTarget: 3000 },
-      { label: "허혈성심장질환진단비", keywords: ["허혈성심장질환진단", "허혈성"], defaultTarget: 3000 },
+      { label: "순환계질환진단비", keywords: ["순환계질환진단", "특정순환계"], defaultTarget: 2000 },
+      { label: "뇌혈관질환진단비", keywords: ["뇌혈관질환진단", "뇌혈관"], defaultTarget: 2000 },
+      { label: "허혈성심장질환진단비", keywords: ["허혈성심장질환진단", "허혈성"], defaultTarget: 2000 },
     ]
   },
   {
     title: "치료비",
     items: [
       { label: "암주요치료비", keywords: ["암주요치료", "암치료"], defaultTarget: 5000 },
-      { label: "순환계질환통합치료비", keywords: ["순환계질환통합치료", "순환계통합치료"], defaultTarget: 5000 },
+      { label: "순환계질환통합치료비", keywords: ["순환계질환통합치료", "순환계통합치료"], defaultTarget: 3000 },
       { label: "질병수술비", keywords: ["질병수술비", "질병수술"], defaultTarget: 100 },
       { label: "질병5종수술비", keywords: ["질병5종", "1~5종", "1-5종", "종수술"], defaultTarget: 1000 },
       { label: "질병입원비", keywords: ["질병입원비", "질병입원일당", "질병입원급여"], defaultTarget: 5 }, 
@@ -33,8 +33,8 @@ export const CHART_CONFIG = [
     title: "상해",
     items: [
       { label: "상해 후유장해3%↑", keywords: ["상해 후유장해3%", "상해후유장해3%", "재해 후유장해3%", "재해후유장해3%"], defaultTarget: 10000 },
-      { label: "통합상해진단비(경증)", keywords: ["상해진단비(경증)", "통합상해진단비(경증)"], defaultTarget: 100 },
-      { label: "통합상해진단비(중등증)", keywords: ["상해진단비(중등증)", "통합상해진단비(중등증)"], defaultTarget: 500 },
+      { label: "통합상해진단비(경증)", keywords: ["상해진단비(경증)", "통합상해진단비(경증)"], defaultTarget: 5 },
+      { label: "통합상해진단비(중등증)", keywords: ["상해진단비(중등증)", "통합상해진단비(중등증)"], defaultTarget: 50 },
       { label: "상해수술비", keywords: ["상해수술비", "상해수술"], defaultTarget: 100 },
       { label: "상해입원비", keywords: ["상해입원비", "상해입원일당", "상해입원급여"], defaultTarget: 5 },
     ]
@@ -765,12 +765,12 @@ export default function AnalysisPage() {
   const agentCorp = Array.isArray(agentInfo?.agencies) ? agentInfo.agencies[0]?.corporation_name : agentInfo?.agencies?.corporation_name;
 
   const baseGapItems = [
-    { condition: scores.cancer.before < 5000, title: "암 보장 공백 발견", desc: `현재 암 보장금액이 ${formatMoney(scores.cancer.before)}으로 안정권보다 부족한 상태입니다.`, action: "일반암 진단비 증액 권장" },
-    { condition: scores.similarCancer.before < 1000, title: "유사암 보장 공백", desc: `현재 유사암 보장금액이 ${formatMoney(scores.similarCancer.before)}으로 권장 기준보다 부족합니다.`, action: "유사암 진단비 보완 권장" }, 
-    { condition: scores.brain.before < 2000, title: "뇌혈관 보장 공백 발견", desc: `현재 뇌혈관 보장금액이 ${formatMoney(scores.brain.before)}으로 권장 기준보다 부족한 상태입니다.`, action: "뇌혈관 진단/수술비 보완 요망" },
-    { condition: scores.heart.before < 2000, title: "심장 보장 공백 발견", desc: `현재 허혈성/심장 보장금액이 ${formatMoney(scores.heart.before)}으로 권장 기준보다 부족합니다.`, action: "심혈관 특정진단비 보완 권장" },
-    { condition: scores.circulatory.before < 2000, title: "순환계질환 보장 공백", desc: `현재 순환계질환 보장금액이 ${formatMoney(scores.circulatory.before)}으로 부족합니다. (뇌/심장 광범위 커버 필요)`, action: "순환계질환 진단비 보완 요망" }, 
-    { condition: scores.death.before < 3000, title: "사망보장 자산 부족", desc: `현재 사망 보장 자산이 ${formatMoney(scores.death.before)}으로 가족을 위한 최소 대비가 부족합니다.`, action: "정기/종신 사망보험금 확보" }, 
+    { condition: scores.cancer.before < 5000, title: "암 보장 공백 발견", desc: `현재 암 보장금액이 안정권보다 부족한 상태입니다.`, action: "일반암 진단비 증액 권장" },
+    { condition: scores.similarCancer.before < 1000, title: "유사암 보장 공백", desc: `현재 유사암 보장금액이 권장 기준보다 부족합니다.`, action: "유사암 진단비 보완 권장" }, 
+    { condition: scores.brain.before < 2000, title: "뇌혈관 보장 공백 발견", desc: `현재 뇌혈관 보장금액이 권장 기준보다 부족한 상태입니다.`, action: "뇌혈관 진단/수술비 보완 요망" },
+    { condition: scores.heart.before < 2000, title: "심장 보장 공백 발견", desc: `현재 허혈성/심장 보장금액이 권장 기준보다 부족합니다.`, action: "심혈관 특정진단비 보완 권장" },
+    { condition: scores.circulatory.before < 2000, title: "순환계질환 보장 공백", desc: `현재 순환계질환 보장금액이 부족합니다. (뇌/심장 광범위 커버 필요)`, action: "순환계질환 진단비 보완 요망" }, 
+    { condition: scores.death.before < 3000, title: "사망보장 자산 부족", desc: `현재 사망 보장 자산이 가족을 위한 최소 대비가 부족합니다.`, action: "정기/종신 사망보험금 확보" }, 
     { condition: scores.pension.before === 0, title: "노후 연금 자산 부재", desc: "은퇴 후를 대비할 수 있는 연금 관련 보장 자산이 전혀 없습니다.", action: "노후 대비 연금저축/보험 가 가입" }, 
     { condition: scores.surgery.before === 0 || !scores.hasJongSurgery, title: "질병/종수술비 보장 부재", desc: scores.surgery.before === 0 ? "포트폴리오에 수술비 특약이 전혀 확인되지 않습니다." : "질병 강도에 비례해 지급되는 '종수술비'가 빠져있습니다.", action: "질병 및 1-5종 수술비 장착" },
     { condition: scores.homeCare.before === 0, title: "치매 리스크 노출", desc: "장기요양등급 판정 시 매월 생활비를 받는 재가급여 자산이 비어있습니다.", action: "장기요양 재가급여 특약 추가" },

@@ -283,8 +283,9 @@ export default function ClientReportPage() {
 
   const handleShareReferral = async () => {
     const { client, agent } = data;
-    const shareText = `[무료 보장분석]\n\n제가 이번에 ${agent.name} ${agent.rank}님께 보장분석을 받았는데, 불필요하게 새는 보험료도 줄이고 보장도 훨씬 좋아졌어요!\n\n제 지인들에게만 특별히 '무료 정밀 분석'을 해주신다고 하니, 보험료 낭비하고 계신 건 없는지 아래 번호로 꼭 연락해서 점검 받아보세요.\n\n👨‍💼 담당자: ${agent.name} ${agent.rank}\n📞 연락처: ${agent.phone || "번호 미등록"}\n🏢 소속: ${Array.isArray(agent.agencies) ? agent.agencies[0]?.corporation_name : agent.agencies?.corporation_name}`;
-
+    // const shareText = `[무료 보장분석]\n\n제가 이번에 ${agent.name} 님께 보장분석을 받았는데, 불필요하게 새는 보험료도 줄이고 보장도 훨씬 좋아졌어요!\n\n제 지인들에게만 특별히 '무료 정밀 분석'을 해주신다고 하니, 보험료 낭비하고 계신 건 없는지 아래 번호로 꼭 연락해서 점검 받아보세요.\n\n👨‍💼 담당자: ${agent.name} ${agent.rank}\n📞 연락처: ${agent.phone || "번호 미등록"}\n🏢 소속: ${Array.isArray(agent.agencies) ? agent.agencies[0]?.corporation_name : agent.agencies?.corporation_name}`;
+    const cardUrl = `https://insucarelink.vercel.app/card/${agent.id}`; 
+    const shareText = `[지인에게공유]\n\n최근에 ${agent.name} 님 통해서 숨은 보험금 청구할 거 찾고, 중복으로 나가는 보험료들 깔끔하게 정리했어요.\n\n우리 지인들에게는 가입 권유 없이 '내 보험 한눈에 보기' 리포트를 무료로 만들어주신다고 합니다.\n\n나중에 병원 갈 때 어떤 걸 청구할 수 있는지 알기 위해서라도 아래 링크를 통해 점검 한번 받아보세요. 추천합니다!\n\n👨‍💼 담당자: ${agent.name}\n📞 연락처: ${agent.phone}\n🏢 소속: ${Array.isArray(agent.agencies) ? agent.agencies[0]?.corporation_name : agent.agencies?.corporation_name}\n\n🔗 모바일 명함:\n${cardUrl}`;
     if (navigator.share) {
       try { await navigator.share({ title: '스마트 보장분석 초대장', text: shareText }); } catch (err) {}
     } else {
@@ -410,12 +411,12 @@ export default function ClientReportPage() {
 
   // 1. 기본 시스템 공백 진단
   const baseGapItems = [
-    { condition: scores.cancer.after < 5000, title: "암 보장 공백 발견", desc: `현재 암 보장금액이 ${formatMoney(scores.cancer.after)}으로 안정권보다 부족한 상태입니다.`, action: "일반암 진단비 증액 권장" },
-    { condition: scores.similarCancer.after < 1000, title: "유사암 보장 공백", desc: `현재 유사암 보장금액이 ${formatMoney(scores.similarCancer.after)}으로 권장 기준보다 부족합니다.`, action: "유사암 진단비 보완 권장" }, // ⭐️ 추가
-    { condition: scores.brain.after < 2000, title: "뇌혈관 보장 공백 발견", desc: `현재 뇌혈관 보장금액이 ${formatMoney(scores.brain.after)}으로 권장 기준보다 부족한 상태입니다.`, action: "뇌혈관 진단/수술비 보완 요망" },
-    { condition: scores.heart.after < 2000, title: "심장 보장 공백 발견", desc: `현재 허혈성/심장 보장금액이 ${formatMoney(scores.heart.after)}으로 권장 기준보다 부족합니다.`, action: "심혈관 특정진단비 보완 권장" },
-    { condition: scores.circulatory.after < 2000, title: "순환계질환 보장 공백", desc: `현재 순환계질환 보장금액이 ${formatMoney(scores.circulatory.after)}으로 부족합니다. (혈관질환 커버 필요)`, action: "순환계질환 진단비 보완 요망" }, // ⭐️ 추가
-    { condition: scores.death.after < 3000, title: "사망보장 자산 부족", desc: `현재 사망 보장 자산이 ${formatMoney(scores.death.after)}으로 가족을 위한 최소 대비가 부족합니다.`, action: "정기/종신 사망보험금 확보" }, // ⭐️ 추가
+    { condition: scores.cancer.after < 5000, title: "암 보장 공백 발견", desc: `현재 암 보장금액이 안정권보다 부족한 상태입니다.`, action: "일반암 진단비 증액 권장" },
+    { condition: scores.similarCancer.after < 1000, title: "유사암 보장 공백", desc: `현재 유사암 보장금액이 권장 기준보다 부족합니다.`, action: "유사암 진단비 보완 권장" }, // ⭐️ 추가
+    { condition: scores.brain.after < 2000, title: "뇌혈관 보장 공백 발견", desc: `현재 뇌혈관 보장금액이 권장 기준보다 부족한 상태입니다.`, action: "뇌혈관 진단/수술비 보완 요망" },
+    { condition: scores.heart.after < 2000, title: "심장 보장 공백 발견", desc: `현재 허혈성/심장 보장금액이 권장 기준보다 부족합니다.`, action: "심혈관 특정진단비 보완 권장" },
+    { condition: scores.circulatory.after < 2000, title: "순환계질환 보장 공백", desc: `현재 순환계질환 보장금액이 부족합니다. (혈관질환 커버 필요)`, action: "순환계질환 진단비 보완 요망" }, // ⭐️ 추가
+    { condition: scores.death.after < 3000, title: "사망보장 자산 부족", desc: `현재 사망 보장 자산이 가족을 위한 최소 대비가 부족합니다.`, action: "정기/종신 사망보험금 확보" }, // ⭐️ 추가
     { condition: scores.pension.after === 0, title: "노후 연금 자산 부재", desc: "은퇴 후를 대비할 수 있는 연금 관련 보장 자산 부족합니다.", action: "노후 대비 연금저축/보험 가입" }, // ⭐️ 추가
     { condition: scores.surgery.after === 0 || !scores.hasJongSurgery, title: "질병/종수술비 보장 부재", desc: scores.surgery.after === 0 ? "포트폴리오에 수술비 특약이 전혀 확인되지 않습니다." : "질병 강도에 비례해 지급되는 '종수술비'가 빠져있습니다.", action: "질병 및 1-5종 수술비 장착" },
     { condition: scores.homeCare.after === 0, title: "치매 리스크 노출", desc: "장기요양등급 판정 시 매월 생활비를 받는 재가급여 자산이 비어있습니다.", action: "장기요양 재가급여 특약 추가" },
