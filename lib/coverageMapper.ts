@@ -158,7 +158,7 @@ export const COVERAGE_OPTIONS = [
     if (name.includes("특정") && name.includes("암") && name.includes("진단")) return displayRawName;
     if (name.includes("통합") && name.includes("암") && name.includes("진단")) return "통합암 진단비";
     if (name.includes("제외") && name.includes("암") && name.includes("진단")) return "일반암 진단비";
-    if (name.includes("고액암") && name.includes("진단")) return "고액암 진단비";
+    if (name.includes("고액") && name.includes("암") && name.includes("진단")) return "고액암 진단비";
     if (name.includes("소액암") && name.includes("진단")) return "유사암 진단비";
     if (name.includes("유사암") && name.includes("진단")) return "유사암 진단비";
     if (name.includes("암") && name.includes("진단")) return "일반암 진단비";
@@ -190,6 +190,7 @@ export const COVERAGE_OPTIONS = [
     if (name.includes("다빈치") && name.includes("수술")) return "다빈치로봇암 수술비";
     if (name.includes("로봇") && name.includes("수술")) return "로봇암 수술비";
     if (name.includes("제외") && name.includes("암") && name.includes("수술")) return "일반암 수술비";
+    if (name.includes("통합") && name.includes("암") && name.includes("수술")) return displayRawName;
     if (name.includes("소액암") && name.includes("수술")) return "유사암 수술비";
     if (name.includes("유사암") && name.includes("수술")) return "유사암 수술비";
     if (name.includes("암") && name.includes("수술")) return "암 수술비";
@@ -233,6 +234,7 @@ export const COVERAGE_OPTIONS = [
     if (name.includes("상해") && name.includes("사망")) return "상해사망 진단비";
     if (name.includes("질병") && name.includes("사망")) return "질병사망 진단비";
     
+    if (name.includes("부인과") && name.includes("수술")) return displayRawName;
     if (name.includes("척추") && name.includes("수술")) return displayRawName;
     if (name.includes("질환") && name.includes("수술")) return displayRawName;
     if (name.includes("이식") && name.includes("수술")) return displayRawName;

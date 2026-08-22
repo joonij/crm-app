@@ -339,8 +339,8 @@ export default function ClientsPage() {
           };
 
           return {
-            agent_id: agent.id, 
-            agency_id: agent.agency_id,
+            agent_id: parseNum(row[0]), 
+            agency_id:  parseNum(row[15]),
             name: rawName,
             phone: rawPhone,
             registration_number: encryptedReg,

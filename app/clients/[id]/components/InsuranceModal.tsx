@@ -496,7 +496,7 @@ export default function InsuranceModal({
                       className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                       onChange={(e) => {
                         const checked = e.target.checked;
-                        setIsCurrentUserAgent(checked);
+                        // setIsCurrentUserAgent(checked);
                         setCovForm(prev => ({ ...prev, agent_name: checked ? loggedInAgentName : "" }));
                       }}
                     />

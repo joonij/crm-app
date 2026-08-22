@@ -39,6 +39,7 @@ type TeamMember = {
   avatar_url: string | null;
 };
 const INSURANCE_PORTALS: Record<string, string> = {
+  // "ㅋ": "https://gaworld.kr/t-fs",
   "ABL생명": "https://ga.abllife.co.kr/",
   "AIA생명": "https://imap.aia.co.kr/",
   "BNP파리바카디프생명": "http://ga.cardif.co.kr/",
