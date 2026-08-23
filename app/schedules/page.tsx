@@ -892,7 +892,7 @@ export default function SchedulePage() {
                   {weekDays.map(day => (
                     <div key={day.date} className="group relative p-4 border-r border-slate-200 text-center flex justify-center items-center gap-2 hover:bg-blue-50 transition-colors">
                       <span className={`${day.label.includes('일') ? 'text-red-500' : day.label.includes('토') ? 'text-blue-500' : ''}`}>{day.label}</span>
-                      <button onClick={() => openModal(day.date)} className="opacity-0 group-hover:opacity-100 absolute right-2 p-1 bg-white border border-blue-200 text-blue-600 rounded-full shadow-sm hover:bg-blue-600 hover:text-white transition-all cursor-pointer"><Plus className="w-3 h-3" /></button>
+                      <button onClick={() => openModal(day.date)} className="absolute right-2 p-1 bg-white border border-blue-200 text-blue-600 rounded-full shadow-sm hover:bg-blue-600 hover:text-white transition-all cursor-pointer"><Plus className="w-3 h-3" /></button>
                     </div>
                   ))}
                   <div className="p-4 bg-slate-100/80 flex items-center justify-center border-l border-slate-200 shadow-inner">
@@ -1053,7 +1053,7 @@ export default function SchedulePage() {
                             <div key={day.date} className={`group relative bg-white p-2 flex flex-col hover:bg-slate-50 ${day.isCurrentMonth ? '' : 'opacity-60 bg-slate-50'}`}>
                               <div className="flex justify-between items-start mb-2">
                                 <span className={`text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full ${day.date === formatDateStr(new Date()) ? 'bg-blue-600 text-white' : idx%7===0 ? 'text-red-500' : idx%7===6 ? 'text-blue-500' : ''}`}>{day.raw}</span>
-                                <button onClick={() => openModal(day.date)} className="opacity-0 group-hover:opacity-100 p-1 bg-white border border-blue-200 text-blue-600 rounded-full shadow-sm hover:bg-blue-600 hover:text-white transition-all cursor-pointer"><Plus className="w-3 h-3" /></button>
+                                <button onClick={() => openModal(day.date)} className="p-1 bg-white border border-blue-200 text-blue-600 rounded-full shadow-sm hover:bg-blue-600 hover:text-white transition-all cursor-pointer"><Plus className="w-3 h-3" /></button>
                               </div>
                               <div className="flex-1 overflow-y-auto space-y-1.5 px-1 -mx-1 py-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                                 {renderDayEvents(sortedDayEvents, true, day.date)}

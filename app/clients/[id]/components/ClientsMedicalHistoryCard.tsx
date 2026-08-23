@@ -187,7 +187,7 @@ export default function ClientsMedicalHistoryCard({ clientId, initialHistory }: 
             let date = match[1] || match[4];
             let hospital = (match[5] || "").trim();
             let middleText = match[6] || "";
-            detailData.push({ date, hospital, treatDetails: middleText.replace(/\s/g, '') });
+            detailData.push({ date, hospital, treatDetails: middleText.replace(/\s/g, ''), rawMiddle: middleText });
             if (++detailLoopCount % 50 === 0) await new Promise(resolve => setTimeout(resolve, 10));
           }
         }
@@ -197,7 +197,9 @@ export default function ClientsMedicalHistoryCard({ clientId, initialHistory }: 
 
       // ⭐️ 3. 데이터 필터링 및 구분자(·)를 적용한 메모 작성
       let results = { q3M: false, q1Y: false, q5YSurg: false, q5YHosp: false, q5Y7D: false, q5Y30D: false };
-      let memoLines: string[] = ["■ 심평원 자동 분석 기반 주요 병력 (알릴 의무 대상)"];
+      
+      const todayStr = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
+      let memoLines: string[] = [`■ 심평원 자동 분석 기반 주요 병력 (분석일: ${todayStr})`];
 
       // ① 3개월 내 다녀온 병원 이력 (약국 포함)
       const rule1 = basicData.filter(r => getDiffDays(r.date) <= 90);
@@ -206,7 +208,6 @@ export default function ClientsMedicalHistoryCard({ clientId, initialHistory }: 
         memoLines.push("\n[3개월 내 다녀온 병원 및 약국 이력]");
         const r1_printed = new Set<string>();
         rule1.forEach(r => {
-          // ⭐️ 지능형 약국 숨김: 같은 날짜에 다녀온 병원이 있으면, 약국은 굳이 출력하지 않음!
           if (r.hospital.includes("약국")) {
             const hasHospital = rule1.some(b => b.date === r.date && !b.hospital.includes("약국"));
             if (hasHospital) return; 
@@ -233,20 +234,41 @@ export default function ClientsMedicalHistoryCard({ clientId, initialHistory }: 
       }
 
       // ③ 5년 내 수술 의심 (세부PDF 4열 '처치' -> 기본PDF 교차검증 -> 9열 5만원 이상)
-      const rule3_matched: any[] = [];
+      const rule3_map = new Map();
       detailData.filter(d => getDiffDays(d.date) <= 1825 && d.treatDetails.includes("처치")).forEach(d => {
+        let codeName = "";
+        if (d.rawMiddle.includes('|')) {
+            let parts = d.rawMiddle.split('|').map((s: string) => s.trim()).filter(Boolean);
+            codeName = parts.length > 1 ? parts.slice(1).join(' / ') : parts[0]; // ⭐️ 쉼표 대신 ' / ' 로 수정
+        } else {
+            codeName = d.rawMiddle.replace(/^.*?(?:\(양방\)|\(한방\)|조제료등|회송료 등|회송료등|료등)\s*/, '').trim();
+        }
+        if (!codeName) codeName = "확인필요";
+
         const matched = basicData.filter(b => 
           b.date === d.date && 
           (b.hospital.substring(0, 2) === d.hospital.substring(0, 2)) && 
           b.cost >= 50000
         );
-        rule3_matched.push(...matched);
+        
+        matched.forEach(b => {
+          const key = `${b.date}_${b.hospital}_${b.kcd}`;
+          if (!rule3_map.has(key)) {
+            rule3_map.set(key, { ...b, detailCodeName: codeName });
+          } else {
+            const existing = rule3_map.get(key);
+            if (!existing.detailCodeName.includes(codeName)) {
+              existing.detailCodeName += ` / ${codeName}`; // ⭐️ 쉼표 대신 ' / ' 로 수정
+            }
+          }
+        });
       });
-      const uniqueRule3 = Array.from(new Set(rule3_matched));
+      
+      const uniqueRule3 = Array.from(rule3_map.values());
       if (uniqueRule3.length > 0) {
         results.q5YSurg = true;
         memoLines.push("\n[5년 내 수술 의심 (처치/수술 & 진료비 5만원↑)]");
-        uniqueRule3.forEach(r => memoLines.push(`- ${r.date} · ${r.hospital} · ${r.kcd} · ${r.disease}`));
+        uniqueRule3.forEach((r: any) => memoLines.push(`- ${r.date} · ${r.hospital} · ${r.kcd} · ${r.disease} · 코드명: ${r.detailCodeName}`));
       }
 
       // ④ 5년 내 입원 이력
@@ -270,51 +292,60 @@ export default function ClientsMedicalHistoryCard({ clientId, initialHistory }: 
         }
       }
 
-      // ⑥ 5년 내 같은 약품으로 30일 이상 투약
+      // ⑥ ⭐️ 로직 전면 개편: 5년 내 같은 질병코드(KCD)로 30일 이상 투약
       const rule6_rows = rxData.filter(r => getDiffDays(r.date) <= 1825);
       const r6_groups: Record<string, any[]> = {};
-      rule6_rows.forEach(r => { if (!r6_groups[r.drugName]) r6_groups[r.drugName] = []; r6_groups[r.drugName].push(r); });
+      
+      rule6_rows.forEach(r => {
+        // 처방전 날짜를 기준으로 기본데이터에서 병원 및 KCD 질병코드 매칭
+        let matchedHospital = basicData.find(b => b.date === r.date && (r.hospital.includes(b.hospital) || b.hospital.includes(r.hospital)) && b.kcd !== "코드없음" && !b.hospital.includes("약국"));
+        if (!matchedHospital) {
+          matchedHospital = basicData.find(b => b.date === r.date && b.kcd !== "코드없음" && !b.hospital.includes("약국"));
+        }
+        if (!matchedHospital) {
+          matchedHospital = basicData.find(b => b.date === r.date && b.kcd !== "코드없음");
+        }
+        
+        let kcd = matchedHospital ? matchedHospital.kcd : "코드없음";
+        let disease = matchedHospital ? matchedHospital.disease : "질병코드없음";
+        let displayHospital = matchedHospital ? matchedHospital.hospital : r.hospital;
+
+        if (kcd !== "코드없음") {
+          if (!r6_groups[kcd]) r6_groups[kcd] = [];
+          r6_groups[kcd].push({ ...r, displayHospital, kcd, disease });
+        }
+      });
+
       let r6_found = false;
-      const r6_printed = new Set<string>(); // 동일한 날 여러 번 찍히는 것 방지
-      for (const [drug, rows] of Object.entries(r6_groups)) {
-        const totalDays = rows.reduce((sum, curr) => sum + curr.days, 0);
+      const r6_printed = new Set<string>(); 
+      
+      // 질병코드(KCD) 그룹별로 합산
+      for (const [kcd, rows] of Object.entries(r6_groups)) {
+        // ⭐️ 핵심: 같은 날(date) 약을 여러 개 처방받아도, 치료 목적의 일수는 그 중 최대 일수 1번만 합산
+        const dateGroups: Record<string, number> = {};
+        rows.forEach(r => {
+          if (!dateGroups[r.date] || dateGroups[r.date] < r.days) {
+            dateGroups[r.date] = r.days;
+          }
+        });
+        
+        const totalDays = Object.values(dateGroups).reduce((sum, days) => sum + days, 0);
+        
         if (totalDays >= 30) {
           results.q5Y30D = true;
-          if (!r6_found) { memoLines.push("\n[5년 내 같은 약품으로 30일 이상 투약]"); r6_found = true; }
-          rows.forEach(r => {
-            
-            // ⭐️ 지능형 매칭: 이름이 달라도(약국/병원) 같은 날짜에 KCD 코드가 있는 '병원(약국 제외)' 내역을 무조건 빌려옴
-            // 1순위: 병원 이름이 겹치고 + KCD 코드가 있음 + 병원/의원임
-            let matchedHospital = basicData.find(b => b.date === r.date && (r.hospital.includes(b.hospital) || b.hospital.includes(r.hospital)) && b.kcd !== "코드없음" && !b.hospital.includes("약국"));
-            
-            // 2순위: 병원 이름이 달라도(약국에서 약을 타도) + 해당 날짜에 진료 본 병원(KCD 있음) 내역을 찾아냄!
-            if (!matchedHospital) {
-              matchedHospital = basicData.find(b => b.date === r.date && b.kcd !== "코드없음" && !b.hospital.includes("약국"));
-            }
-            
-            // 3순위: 병원 기록 자체가 아예 없으면 어쩔 수 없이 약국이라도 가져옴
-            if (!matchedHospital) {
-              matchedHospital = basicData.find(b => b.date === r.date && b.kcd !== "코드없음");
-            }
-            
-            let lineText = "";
-            if (matchedHospital) {
-              // ⭐️ 약국 이름(r.hospital) 대신 진료받은 병원 이름(matchedHospital.hospital)으로 덮어씀 -> 동일 날짜 약국/병원 중복 출력 제거 완료
-              lineText = `- ${r.date} · ${matchedHospital.hospital} · ${matchedHospital.kcd} · ${matchedHospital.disease} (${r.days}일 투약)`;
-            } else {
-              lineText = `- ${r.date} · ${r.hospital} · 질병코드없음 (${r.days}일 투약)`;
-            }
-
+          if (!r6_found) { memoLines.push("\n[5년 내 같은 질병(코드)으로 30일 이상 투약]"); r6_found = true; }
+          
+          for (const [date, maxDays] of Object.entries(dateGroups)) {
+            const repRow = rows.find(r => r.date === date);
+            let lineText = `- ${date} · ${repRow.displayHospital} · ${repRow.kcd} · ${repRow.disease} (${maxDays}일 투약)`;
             if (!r6_printed.has(lineText)) {
               memoLines.push(lineText);
               r6_printed.add(lineText);
             }
-          });
-
+          }
         }
       }
 
-      // 최종 상태 업데이트
       const newChecklist = {
         q3Month_hospital: results.q3M,
         q1Year_same_disease: results.q1Y,
@@ -324,7 +355,7 @@ export default function ClientsMedicalHistoryCard({ clientId, initialHistory }: 
         q5Year_30days_medication: results.q5Y30D,
       };
 
-      const newMemo = memoLines.length > 1 ? memoLines.join("\n") : "■ 분석 결과 특이사항(알릴의무 위반 소지)이 발견되지 않았습니다.";
+      const newMemo = memoLines.length > 1 ? memoLines.join("\n") : `■ 심평원 자동 분석 기반 주요 병력 (분석일: ${todayStr})\n\n분석 결과 특이사항(알릴의무 위반 소지)이 발견되지 않았습니다.`;
 
       setChecklist(newChecklist);
       setMedicalMemo(newMemo);
