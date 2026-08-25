@@ -8,10 +8,11 @@ const trainingModules = [
   { id: 4, title: "보장성 상품", desc: "보장성 상담의 거절처리", icon: ShieldCheck, isReady: true, href: "/training/rejection" },
   { id: 5, title: "보장성 상품", desc: "실손의료비 변천사 및 세일즈 패러다임", icon: ShieldCheck, isReady: true, href: "/training/silbi" },
   { id: 6, title: "보장성 상품", desc: "상황별 보험상품군", icon: ShieldCheck, isReady: false },
-  { id: 7, title: "계약 전 알릴의무", desc: "고지의무 및 분쟁사례", icon: GraduationCap, isReady: false },
+  { id: 7, title: "계약 전 알릴의무", desc: "고지의무 및 분쟁사례", icon: GraduationCap, isReady: false, href: "/training/informduty" },
   { id: 8, title: "계약 전 알릴의무", desc: "보험심사평가원 분석 가이드", icon: GraduationCap, isReady: true, href: "/training/Hira" },
   { id: 9, title: "세일즈 프로세스", desc: "7단계 프로세스", icon: Workflow, isReady: true, href: "/training/sales-process" },
   { id: 10, title: "리쿠르팅", desc: "리쿠르팅", icon: Users, isReady: false },
+  { id: 11, title: "기타", desc: "경정청구", icon: Users, isReady: false },
 ];
 
 export default function TrainingDashboard() {
@@ -21,7 +22,7 @@ export default function TrainingDashboard() {
       <section className="bg-gradient-to-r from-blue-900 to-indigo-800 rounded-2xl p-6 md:p-8 text-white shadow-lg">
         <h1 className="text-2xl md:text-3xl font-bold mb-2 flex items-center gap-3">
           <GraduationCap className="w-8 h-8" />
-          바른금융파트너스 세일즈 마스터 교육
+          바른금융파트너스 세일즈 마스터
         </h1>
         <p className="text-blue-100 text-sm md:text-base">
           [내부자료]외부 유출은 형사처벌에 처합니다

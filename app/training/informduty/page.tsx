@@ -3,15 +3,14 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, ArrowLeft, PenTool, MousePointer2, Trash2 } from "lucide-react";
-
 import { 
-  SlideIntro, SlideCh1, SlideCh2, SlideCh3, 
-  SlideCh4, SlideCh5, SlideCh6, SlideCh7, SlideClosing 
-} from "./components/SilbiSlides"; // 경로를 폴더 구조에 맞게 수정해주세요
+  SlideIntro, SlideCh1, SlideCh2_1, SlideCh2_2, SlideCh2_3, SlideCh2_4, SlideCh3_1, SlideCh3_2, SlideCh6, SlideCh7, SlideCh8
+} from "./components/InformDutySlides";
 
-export default function SilbiTrainingPage() {
+export default function SavingsTrainingPage() {
   const [currentSlide, setCurrentSlide] = useState(0);
 
+  // ⭐️ 펜 그리기 관련 상태 (State)
   const [isPenMode, setIsPenMode] = useState(false);
   const [penColor, setPenColor] = useState("#ef4444"); // 기본색: 빨강
   const [penWidth, setPenWidth] = useState(4);
@@ -19,17 +18,20 @@ export default function SilbiTrainingPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const isDrawing = useRef(false);
-  // 컴포넌트로 분리한 슬라이드 배열 매핑
+
+  // 불러온 컴포넌트들을 순서대로 배열에 매핑합니다.
   const slides = [
     { id: "intro", title: "", content: <SlideIntro /> },
-    { id: "ch1", title: "Chapter 1. 실손의료보험 탄생 배경과 역사", content: <SlideCh1 /> },
-    { id: "ch2", title: "Chapter 2. 실손의료보험 세대별 변천사", content: <SlideCh2 /> },
-    { id: "ch3", title: "Chapter 3. 실비의 딜레마와 시스템의 붕괴", content: <SlideCh3 /> },
-    { id: "ch4", title: "Chapter 4. 보상의 사각지대와 도수치료의 최후", content: <SlideCh4 /> },
-    { id: "ch5", title: "Chapter 5. 거대 리스크의 등장과 정액보장의 당위성", content: <SlideCh5 /> },
-    { id: "ch6", title: "Chapter 6. 실손보장 축소와 정액보장 포트폴리오 리빌딩 전략", content: <SlideCh6 /> },
-    { id: "ch7", title: "Chapter 7. 해외사례 / 노후·간편 실손 기본", content: <SlideCh7 /> },
-    { id: "ch8", title: "", content: <SlideClosing /> }
+    { id: "agenda", title: "교육 목차", content: <SlideCh1 /> },
+    { id: "part1-1", title: "PART 1-1. 상법 & 서면주의", content: <SlideCh2_1 /> },
+    { id: "part1-2", title: "PART 1-2. 표준사업방법서 일반계약 질문표", content: <SlideCh2_2 /> },
+    { id: "part1-3", title: "PART 1-3. 표준사업방법서 핵심 고지 규정", content: <SlideCh2_3 /> },
+    { id: "part1-4", title: "PART 1-4. 표준사업방법서 핵심 규정", content: <SlideCh2_4 /> },
+    { id: "part2-1", title: "PART 2-1. 고지의무는 왜 중요한가? (3대 관점)", content: <SlideCh3_1 /> },
+    { id: "part2-2", title: "PART 2-2. 고지의무 위반과 사고 간의 인과관계(상법 제655조)", content: <SlideCh3_2 /> },
+    { id: "part3", title: "PART 3. 금융감독원 실제 분쟁사례 분석", content: <SlideCh6 /> },
+    { id: "part4-1", title: "PART 4. 3.N.5 간편가입보험 맞춤 인수 전략", content: <SlideCh7 /> },
+    { id: "part4-2", title: "PART 4. 현장 영업 성공 체크리스트", content: <SlideCh8 /> }
   ];
 
    // ⭐️ 캔버스 사이즈 초기화 함수

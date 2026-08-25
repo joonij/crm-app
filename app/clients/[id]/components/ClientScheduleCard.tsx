@@ -12,15 +12,38 @@ type Schedule = {
   time: string; 
   content: string; 
   repeat: boolean; 
-  category?: string; // ⭐️ 카테고리 필드 추가
+  category?: string; 
+};
+
+// ⭐️ 오늘 날짜(YYYY-MM-DD)를 구하는 헬퍼 함수
+const getDefaultDate = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+// ⭐️ 현재 시간의 정각(HH:00)을 구하는 헬퍼 함수
+const getDefaultTime = () => {
+  const now = new Date();
+  const hour = String(now.getHours()).padStart(2, '0');
+  return `${hour}:00`;
 };
 
 export default function ClientScheduleCard({ clientId, agentId }: { clientId: string, agentId: number }) {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
-  // ⭐️ 폼 상태에 category 추가
-  const [scheduleForm, setScheduleForm] = useState({ content: "", date: "", time: "", repeat: false, category: "AP" });
+  
+  // ⭐️ 초기 폼 상태에 당일 날짜와 현재 시간 정각 적용
+  const [scheduleForm, setScheduleForm] = useState({ 
+    content: "", 
+    date: getDefaultDate(), 
+    time: getDefaultTime(), 
+    repeat: false, 
+    category: "AP" 
+  });
+  
   const [isSaving, setIsSaving] = useState(false);
-
   const [editingId, setEditingId] = useState<number | null>(null);
   const [expandedIds, setExpandedIds] = useState<number[]>([]);
 
@@ -31,7 +54,6 @@ export default function ClientScheduleCard({ clientId, agentId }: { clientId: st
 
   useEffect(() => { void fetchSchedules(); }, [clientId]);
 
-  // ⭐️ 카테고리별 색상 헬퍼 함수
   const getCategoryColor = (category: string | undefined) => {
     if (category === "AP") return "bg-purple-100 text-purple-700 border-purple-200";
     if (category === "상담") return "bg-blue-100 text-blue-700 border-blue-200";
@@ -52,13 +74,14 @@ export default function ClientScheduleCard({ clientId, agentId }: { clientId: st
       date: schedule.date,
       time: schedule.time || "",
       repeat: schedule.repeat || false,
-      category: schedule.category || "", // ⭐️ 수정 시 카테고리 불러오기
+      category: schedule.category || "AP",
     });
   };
 
   const handleCancelEdit = () => {
     setEditingId(null);
-    setScheduleForm({ content: "", date: "", time: "", repeat: false, category: "AP" });
+    // ⭐️ 취소 시 다시 기본 날짜/시간으로 초기화
+    setScheduleForm({ content: "", date: getDefaultDate(), time: getDefaultTime(), repeat: false, category: "AP" });
   };
 
   const handleSaveSchedule = async () => {
@@ -70,7 +93,6 @@ export default function ClientScheduleCard({ clientId, agentId }: { clientId: st
 
     try {
       if (editingId) {
-        // ⭐️ 기존 일정 수정 (UPDATE) - 카테고리 포함
         const { error } = await supabase
           .from("schedules")
           .update({
@@ -83,7 +105,6 @@ export default function ClientScheduleCard({ clientId, agentId }: { clientId: st
 
         if (error) throw error;
       } else {
-        // ⭐️ 신규 일정 추가 (INSERT) - 카테고리 포함
         const { data: agentData, error: agentError } = await supabase
           .from("agents")
           .select("agency_id")
@@ -108,7 +129,8 @@ export default function ClientScheduleCard({ clientId, agentId }: { clientId: st
         if (error) throw error;
       }
 
-      setScheduleForm({ content: "", date: "", time: "", repeat: false, category: "AP" });
+      // ⭐️ 저장 완료 후 다시 기본 날짜/시간으로 초기화
+      setScheduleForm({ content: "", date: getDefaultDate(), time: getDefaultTime(), repeat: false, category: "AP" });
       setEditingId(null); 
       fetchSchedules(); 
       
@@ -152,10 +174,9 @@ export default function ClientScheduleCard({ clientId, agentId }: { clientId: st
       {/* 입력 폼 영역 */}
       <div className="mb-4 flex flex-col gap-2 shrink-0">
         
-        {/* ⭐️ 모바일과 데스크탑에서 모두 예쁘게 떨어지는 Grid 레이아웃 적용 */}
         <div className="grid grid-cols-2 sm:grid-cols-12 gap-2">
           
-          {/* 1. 카테고리 (모바일: 전체 차지 / 데스크탑: 3칸 차지) */}
+          {/* 1. 카테고리 */}
           <div className="col-span-2 sm:col-span-3 relative">
             <select
               value={scheduleForm.category}
@@ -175,7 +196,7 @@ export default function ClientScheduleCard({ clientId, agentId }: { clientId: st
             <ChevronDown className="w-4 h-4 text-gray-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
           
-          {/* 2. 날짜 (모바일: 1칸(50%) 차지 / 데스크탑: 5칸 차지) */}
+          {/* 2. 날짜 */}
           <div className="col-span-1 sm:col-span-5">
             <input 
               type="date" 
@@ -186,7 +207,7 @@ export default function ClientScheduleCard({ clientId, agentId }: { clientId: st
             />
           </div>
 
-          {/* 3. 시간 (모바일: 1칸(50%) 차지 / 데스크탑: 4칸 차지) */}
+          {/* 3. 시간 */}
           <div className="col-span-1 sm:col-span-4">
             <input 
               type="time" 

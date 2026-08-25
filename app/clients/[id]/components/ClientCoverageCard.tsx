@@ -256,9 +256,9 @@ const gapItems = useMemo(() => {
     { condition: s.surgery.after === 0 || !s.hasJongSurgery, title: "질병/종수술비 보장 부재", action: "질병 및 1-5종 수술비 장착" },
     { condition: s.homeCare.after === 0, title: "치매 리스크 노출", action: "장기요양 재가급여 특약 추가" },
     { condition: s.injury.after === 0, title: "통합상해진단비 공백", action: "통합상해진단비 보완 권장" },
-    { condition: s.hospitalization.after === 0, title: "일당 입원비 보장 부재", action: "간병인/입원일당 확보 고려" },
-    { condition: !s.hasDriver, title: "운전자 핵심 비용 부재", action: "형사합의금 지원 플랜 마련" },
-    { condition: !s.hasDental, title: "치아 보장 자산 부재", action: "치과 전문 덴탈 케어 안내" }
+    { condition: s.hospitalization.after === 0, title: "입원비 보장 부재", action: "간병인/입원일당 확보 고려" },
+    { condition: !s.hasDriver, title: "운전자 비용 부재", action: "형사합의금 지원 플랜 마련" },
+    { condition: !s.hasDental, title: "치아 보장 부재", action: "치과 전문 덴탈 케어 안내" }
   ];
 }, [coverages]);
 
@@ -701,7 +701,7 @@ const gapItems = useMemo(() => {
               </div>
             )}
             
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5">
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5">
               {/* 1. 자동 검출된 카드 */}
               {gapItems.map(gap => {
                 const isSelected = selectedGaps.includes(gap.title);

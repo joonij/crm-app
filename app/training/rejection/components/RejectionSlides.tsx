@@ -7,7 +7,7 @@ export function SlideIntro() {
   return (
     <div className="flex flex-col items-center justify-center h-full text-center space-y-10 relative overflow-hidden">
       <div className="px-6 py-2 bg-blue-50 text-blue-700 rounded-full font-bold tracking-widest text-xl z-10">
-        마스터 교육 과정 (바른금융파트너스)
+        마스터 과정 (바른금융파트너스)
       </div>
       <h1 className="text-7xl font-black text-gray-900 leading-tight tracking-tight z-10">
         보험 가입 전<br />
@@ -196,7 +196,7 @@ export function SlideSection4() {
       </div>
 
       <div className="text-center text-gray-400 font-medium text-sm mt-8 flex items-center justify-center gap-2">
-        <Info className="w-4 h-4"/> 본 자료는 보험 가입 전 이해를 돕기 위한 교육 목적의 요약 자료입니다.
+        <Info className="w-4 h-4"/> 본 자료는 보험 가입 전 이해를 돕기 위한 목적의 요약 자료입니다.
       </div>
     </div>
   );

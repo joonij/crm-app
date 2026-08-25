@@ -267,8 +267,8 @@ export default function ClientsMedicalHistoryCard({ clientId, initialHistory }: 
       const uniqueRule3 = Array.from(rule3_map.values());
       if (uniqueRule3.length > 0) {
         results.q5YSurg = true;
-        memoLines.push("\n[5년 내 수술 의심 (처치/수술 & 진료비 5만원↑)]");
-        uniqueRule3.forEach((r: any) => memoLines.push(`- ${r.date} · ${r.hospital} · ${r.kcd} · ${r.disease} · 코드명: ${r.detailCodeName}`));
+        memoLines.push("\n[5년 내 수술 의심]");
+        uniqueRule3.forEach((r: any) => memoLines.push(`- ${r.date} · ${r.hospital} · ${r.kcd} · ${r.disease} · 처치명: ${r.detailCodeName}`));
       }
 
       // ④ 5년 내 입원 이력

@@ -205,7 +205,7 @@ export default function BasicsTrainingPage() {
             <Link 
               href="/training" 
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-gray-500 hover:text-gray-900 hover:bg-gray-200 transition-colors"
-              title="교육 목차로 돌아가기"
+              title="목차로 돌아가기"
             >
               <ArrowLeft className="w-6 h-6" />
             </Link>

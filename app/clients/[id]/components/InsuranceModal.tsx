@@ -91,7 +91,7 @@ export default function InsuranceModal({
   const [focusedClientField, setFocusedClientField] = useState<'contractor' | 'insured' | 'beneficiary' | null>(null);
 
   // 담당자(본인) 여부 체크박스 상태
-  const [isCurrentUserAgent, setIsCurrentUserAgent] = useState(true);
+  const [isCurrentUserAgent, setIsCurrentUserAgent] = useState(false);
   const [loggedInAgentName, setLoggedInAgentName] = useState("");
 
   useEffect(() => {
@@ -112,7 +112,7 @@ export default function InsuranceModal({
         if (agentData) {
           agentName = agentData.name;
           setLoggedInAgentName(agentData.name);
-          setIsCurrentUserAgent(true);
+          setIsCurrentUserAgent(false);
 
           const { data: myClients } = await supabase
             .from("clients")
@@ -496,7 +496,7 @@ export default function InsuranceModal({
                       className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                       onChange={(e) => {
                         const checked = e.target.checked;
-                        // setIsCurrentUserAgent(checked);
+                        setIsCurrentUserAgent(checked);
                         setCovForm(prev => ({ ...prev, agent_name: checked ? loggedInAgentName : "" }));
                       }}
                     />
@@ -507,7 +507,6 @@ export default function InsuranceModal({
                   type="text" 
                   className={`${inputClassName} ${isCurrentUserAgent ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''} font-bold`} 
                   onChange={(e) => setCovForm({ ...covForm, agent_name: e.target.value })} 
-                  value={covForm.agent_name}
                   readOnly={isCurrentUserAgent}
                   placeholder={isCurrentUserAgent ? "본인 담당" : "다른 담당자 이름 직접 입력"}
                 />

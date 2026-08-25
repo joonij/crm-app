@@ -52,10 +52,10 @@ export function SlideIntro() {
   return (
     <div className="flex flex-col items-center justify-center h-full text-center space-y-10 relative overflow-hidden">
       <div className="px-10 py-4 bg-blue-50 text-blue-700 rounded-full font-bold text-xl tracking-widest z-10">
-        마스터 교육 과정 (바른금융파트너스)
+        마스터 과정 (바른금융파트너스)
       </div>
       <h1 className="text-7xl font-black text-gray-900 leading-tight mb-8 z-10 tracking-tight">
-        저축성 상품 교육<br />
+        저축성 상품<br />
         <span className="text-blue-600">금융 건강검진을 통한 자산 극대화 전략</span>
       </h1>
       <p className="text-3xl text-gray-500 mt-6 font-medium z-10">금융기관의 상품과 복리/비과세 이해</p>

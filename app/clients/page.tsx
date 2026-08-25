@@ -161,7 +161,6 @@ export default function ClientsPage() {
     const managerAuth = !!agent.rank && agent.rank !== "FC";
     setIsManager(managerAuth);
 
-    // ⭐️ 말썽을 일으키던 introducer 조인을 지우고, source만 남깁니다.
     let query = supabase.from("clients").select(`
       *, 
       agents(name), 
@@ -193,7 +192,6 @@ export default function ClientsPage() {
     const { data, error } = await query;
 
     if (error) {
-      // ⭐️ 고객 목록이 안 뜰 때, 개발자 도구(F12) 콘솔창에서 정확한 원인을 알려줍니다.
       console.log("❌ 데이터 불러오기 실패:", error.message); 
       setClients([]);
       return;
@@ -201,13 +199,11 @@ export default function ClientsPage() {
 
     const fetchedData = data || [];
 
-    // 🚀 BINGO 1: 불러온 전체 고객 데이터를 이용해 'ID: 이름' 형태의 사전을 만듭니다.
     const clientNameMap = fetchedData.reduce((acc, curr) => {
       acc[curr.id] = curr.name;
       return acc;
     }, {} as Record<number, string>);
 
-    // 🚀 BINGO 2: 혹시 내 전체 목록에 없는 '타 담당자의 고객'이 소개자인 경우, 그 사람들의 이름만 DB에서 한 번 더 쏙 가져옵니다.
     const missingIntroIds = fetchedData
       .map(c => c.introduce_client)
       .filter((id): id is number => id !== null && !clientNameMap[id]);
@@ -234,7 +230,6 @@ export default function ClientsPage() {
     }, {} as Record<number, number>);
 
     const clientsWithKeyman = fetchedData.map(client => {
-      // ⭐️ 고객의 일정 중 가장 최신(미래 포함) 일정을 추출합니다.
       let lastSchedule = null;
       if (client.schedules && client.schedules.length > 0) {
         const sortedSchedules = [...client.schedules].sort((a, b) => b.date.localeCompare(a.date));
@@ -246,7 +241,6 @@ export default function ClientsPage() {
         isKeyman: (introCounts[client.id] || 0) >= 3,
         is_favorite: !!client.is_favorite,
         lastSchedule,
-        // 🚀 BINGO 3: 사전에 꾹꾹 눌러담은 이름을 찾아내서 저장합니다!
         introducerName: client.introduce_client ? clientNameMap[client.introduce_client] : null
       };
     });
@@ -254,7 +248,6 @@ export default function ClientsPage() {
     setClients(clientsWithKeyman);
   }, [selectedAgentFilter]);
 
-  // ⭐️ CSV 파일 업로드 및 주민번호 자동 암호화 처리 함수
   const handleCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -927,12 +920,10 @@ ${medicalMemo}`;
                           onClick={() => setProgressModalClient(client)}
                           title="영업 진행률 체크리스트 열기"
                         >
-                          <div className="w-28 bg-gray-100 rounded-full h-2.5 overflow-hidden border border-gray-200/50">
+                          <div className="w-24 bg-gray-100 rounded-full h-2.5 overflow-hidden border border-gray-200/50">
                             <div className={`h-2.5 rounded-full transition-all duration-500 ${progressPercent === 100 ? "bg-green-500" : "bg-blue-600"}`} style={{ width: `${progressPercent}%` }}></div>
                           </div>
-                          <span className="text-xs font-semibold text-gray-600 group-hover/progress:text-blue-600 w-12">
-                            {completedSteps.length} / {SALES_STEPS.length}
-                          </span>
+                          <span className="text-[11px] font-bold text-gray-700 group-hover/progress:text-blue-600">{progressPercent}%</span>
                         </div>
                       </td>
 
@@ -965,16 +956,14 @@ ${medicalMemo}`;
                       
                       <td className="px-6 py-3 whitespace-nowrap">
                         <div 
-                          className="flex items-center gap-3 cursor-pointer group/recruiting p-1 -ml-1 rounded-lg hover:bg-purple-50 transition-colors"
+                          className="flex items-center gap-3 cursor-pointer group/progress p-1 -ml-1 rounded-lg hover:bg-gray-50 transition-colors"
                           onClick={() => setRecruitingModalClient(client)}
                           title="리쿠르팅 진행률 체크리스트 열기"
                         >
-                          <div className="w-28 bg-purple-100/50 rounded-full h-2.5 overflow-hidden border border-purple-200/50">
+                          <div className="w-24 bg-gray-100 rounded-full h-2.5 overflow-hidden border border-gray-200/50">
                             <div className={`h-2.5 rounded-full transition-all duration-500 ${recPercent === 100 ? "bg-green-500" : "bg-purple-600"}`} style={{ width: `${recPercent}%` }}></div>
                           </div>
-                          <span className="text-xs font-semibold text-gray-600 group-hover/recruiting:text-purple-600 w-12">
-                            {completedRecSteps.length} / {RECRUITING_STEPS.length}
-                          </span>
+                          <span className="text-[11px] font-bold text-gray-700 group-hover/recruiting:text-purple-600">{recPercent}%</span>
                         </div>
                       </td>
 
@@ -1137,7 +1126,7 @@ ${medicalMemo}`;
                     >
                       <div className="flex justify-between items-end">
                         <span className="text-[11px] font-semibold text-gray-500 group-hover:text-blue-600">영업 진행률</span>
-                        <span className="text-xs font-bold text-gray-700 group-hover:text-blue-600">{completedSteps.length}/{SALES_STEPS.length}</span>
+                        <span className="text-xs font-bold text-gray-700 group-hover:text-blue-600">{progressPercent}%</span>
                       </div>
                       <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden border border-gray-200/50">
                         <div className={`h-2.5 rounded-full transition-all duration-500 ${progressPercent === 100 ? "bg-green-500" : "bg-blue-600"}`} style={{ width: `${progressPercent}%` }}></div>
@@ -1150,7 +1139,7 @@ ${medicalMemo}`;
                     >
                       <div className="flex justify-between items-end">
                         <span className="text-[11px] font-semibold text-gray-500 group-hover:text-purple-600">도입 진행률</span>
-                        <span className="text-xs font-bold text-gray-700 group-hover:text-purple-600">{completedRecSteps.length}/{RECRUITING_STEPS.length}</span>
+                        <span className="text-xs font-bold text-gray-700 group-hover:text-purple-600">{recPercent}%</span>
                       </div>
                       <div className="w-full bg-purple-100/50 rounded-full h-2.5 overflow-hidden border border-purple-200/50">
                         <div className={`h-2.5 rounded-full transition-all duration-500 ${recPercent === 100 ? "bg-green-500" : "bg-purple-600"}`} style={{ width: `${recPercent}%` }}></div>
