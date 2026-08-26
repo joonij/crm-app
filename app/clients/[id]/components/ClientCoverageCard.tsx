@@ -1,11 +1,14 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
-import Link from "next/link";
-import { Shield, Trash2, ChevronDown, ChevronUp, Plus, BarChart3, Edit2, RotateCcw, MinusCircle, TrendingDown, Undo, Check, X, Banknote, Search, AlertCircle, ShieldCheck, Save, Loader2, CheckCircle2, PenTool } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
+import { Shield, X, Plus, Sparkles, FileText, Loader2, CheckSquare, Trash2, AlertCircle, Check, PenTool, CheckCircle2, Save, Undo, Banknote, TrendingDown, Edit2, ChevronUp, ChevronDown, Search, MinusCircle, RotateCcw } from "lucide-react";
+import { COVERAGE_OPTIONS, mapToStandardCoverage } from "@/lib/coverageMapper"; 
+import { analyzeInsuranceEngine, formatAmountWithComma } from "@/lib/insuranceParser";
 import InsuranceModal from "@/app/clients/[id]/components/InsuranceModal";
 import QuickClaimModal from "@/components/QuickClaimModal";
+import Link from "next/link";
+import { BarChart3 } from "lucide-react";
 
 const SUPPORTED_COMPANIES = ["메리츠화재", "현대해상", "DB손해", "삼성화재"];
 
@@ -43,32 +46,6 @@ const extractNumber = (str: string | undefined | null) => {
   }
   return total;
 };
-
-const COVERAGE_OPTIONS = [
-  "일반사망 진단비", "재해사망 진단비", "상해사망 진단비", "질병사망 진단비", 
-  "재해 후유장해3%↑", "상해 후유장해3%↑", "질병 후유장해3%↑", 
-  "재해 후유장해80%↑", "상해 후유장해80%↑", "질병 후유장해80%↑", 
-  "일반암 진단비", "고액암 진단비", "소액암 진단비", "유사암 진단비", "통합암 진단비",
-  "항암방사선약물 치료비", "암주요 치료비", "암통합 치료비", 
-  "순환계질환통합 진단비",
-  "뇌산정특례대상 진단비", "뇌혈관질환 진단비", "뇌졸증 진단비", "뇌출혈 진단비",
-  "심장산정특례대상 진단비", "허혈성심장질환 진단비", "급성심근경색 진단비",
-  "순환계질환통합 치료비",
-  "재해 수술비", "재해1종 수술비", "재해2종 수술비", "재해3종 수술비", "재해4종 수술비", "재해5종 수술비",
-  "상해 수술비", "상해1종 수술비", "상해2종 수술비", "상해3종 수술비", "상해4종 수술비", "상해5종 수술비",
-  "질병 수술비", "질병1종 수술비", "질병2종 수술비", "질병3종 수술비", "질병4종 수술비", "질병5종 수술비",
-  "상해 입원비", "질병 입원비", "상해중환자실 입원비", "질병중환자실 입원비",
-  "골절철심제거 수술비", "5대골절 수술비", "골절 수술비", "화상 수술비", "깁스 치료비", "골절부목 치료비(치아파절제외)",
-  "통합상해 진단비", "골절 진단비", "화상 진단비",
-  "장기요양 1~2등급 진단비", "장기요양 1~3등급 진단비", "장기요양 1~4등급 진단비", "장기요양 1~5등급 진단비", "장기요양 1~인지지원등급 진단비", 
-  "장기요양 1~2등급 재가급여", "장기요양 1~3등급 재가급여", "장기요양 1~4등급 재가급여", "장기요양 1~5등급 재가급여", "장기요양 1~인지지원등급 재가급여", 
-  "장기요양 1~2등급 시설급여", "장기요양 1~3등급 시설급여", "장기요양 1~4등급 시설급여", "장기요양 1~5등급 시설급여", "장기요양 1~인지지원등급 시설급여", 
-  "응급실내원비(비응급)", "응급실내원비(응급)",
-  "간병인 사용비", "간병인 지원비",
-  "레진", "인레이", "크라운", "임플란트", "보존치료", "보철치료",
-  "실손의료비 상해입원", "실손의료비 질병입원", "실손의료비 상해통원", "실손의료비 질병통원", "실손의료비 상해약제", "실손의료비 질병약제",
-  "상해급여 의료비", "질병급여 의료비", "중증상해비급여 의료비", "중증질병비급여 의료비", "중증3대비급여 의료비", "비중증상해비급여 의료비", "비중증질병비급여 의료비", "비중증3대비급여 의료비"
-];
 
 type CoverageDetail = { 
   name: string; 
@@ -191,76 +168,74 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
   }, [clientId]);
 
   // 보장 공백 자동 검출 로직
-// 보장 공백 자동 검출 로직
-const gapItems = useMemo(() => {
-  const s = {
-    cancer: { after: 0 }, 
-    similarCancer: { after: 0 }, // ⭐️ 추가
-    brain: { after: 0 }, 
-    heart: { after: 0 },
-    circulatory: { after: 0 },  // ⭐️ 추가
-    death: { after: 0 },        // ⭐️ 추가
-    pension: { after: 0 },      // ⭐️ 추가
-    surgery: { after: 0 }, 
-    hasJongSurgery: false, 
-    homeCare: { after: 0 },
-    hospitalization: { after: 0 }, 
-    injury: { after: 0 }, 
-    hasDriver: false, 
-    hasDental: false
-  };
-  
+  const gapItems = useMemo(() => {
+    const s = {
+      cancer: { after: 0 }, 
+      similarCancer: { after: 0 }, 
+      brain: { after: 0 }, 
+      heart: { after: 0 },
+      circulatory: { after: 0 },  
+      death: { after: 0 },        
+      pension: { after: 0 },      
+      surgery: { after: 0 }, 
+      hasJongSurgery: false, 
+      homeCare: { after: 0 },
+      hospitalization: { after: 0 }, 
+      injury: { after: 0 }, 
+      hasDriver: false, 
+      hasDental: false
+    };
+    
+    coverages.forEach(ins => {
+      const isAfter = ins.policy_status === "maintain" || ins.policy_status === "new";
+      if (!isAfter) return;
 
-  coverages.forEach(ins => {
-    const isAfter = ins.policy_status === "maintain" || ins.policy_status === "new";
-    if (!isAfter) return;
+      const prodName = ins.product_name || "";
+      if (prodName.includes("운전자")) s.hasDriver = true;
+      if (prodName.includes("치아") || prodName.includes("덴탈") || prodName.includes("치과")) s.hasDental = true;
 
-    const prodName = ins.product_name || "";
-    if (prodName.includes("운전자")) s.hasDriver = true;
-    if (prodName.includes("치아") || prodName.includes("덴탈") || prodName.includes("치과")) s.hasDental = true;
+      if (ins.details) {
+        ins.details.forEach((d: any) => {
+          const afterVal = d.is_deleted ? 0 : extractNumber(d.original_amount || d.amount);
+          const name = d.name || "";
 
-    if (ins.details) {
-      ins.details.forEach((d: any) => {
-        const afterVal = d.is_deleted ? 0 : extractNumber(d.original_amount || d.amount);
-        const name = d.name || "";
+          if (name.includes("암") && !name.includes("유사") && !name.includes("고액")) s.cancer.after += afterVal;
+          if (name.includes("유사암") || name.includes("소액암")) s.similarCancer.after += afterVal; 
+          if (name.includes("뇌")) s.brain.after += afterVal;
+          if (name.includes("허혈") || name.includes("심장") || name.includes("급성심근")) s.heart.after += afterVal;
+          if (name.includes("순환계")) s.circulatory.after += afterVal; 
+          if (name.includes("사망")) s.death.after += afterVal;         
+          if (name.includes("연금")) s.pension.after += afterVal;       
 
-        if (name.includes("암") && !name.includes("유사") && !name.includes("고액")) s.cancer.after += afterVal;
-        if (name.includes("유사암") || name.includes("소액암")) s.similarCancer.after += afterVal; // ⭐️ 추가
-        if (name.includes("뇌")) s.brain.after += afterVal;
-        if (name.includes("허혈") || name.includes("심장") || name.includes("급성심근")) s.heart.after += afterVal;
-        if (name.includes("순환계")) s.circulatory.after += afterVal; // ⭐️ 추가
-        if (name.includes("사망")) s.death.after += afterVal;         // ⭐️ 추가
-        if (name.includes("연금")) s.pension.after += afterVal;       // ⭐️ 추가
+          if (name.includes("수술")) {
+            s.surgery.after += afterVal;
+            if (name.includes("종") || name.includes("1-5종") || name.includes("1-6종") || name.includes("1-9종")) s.hasJongSurgery = true;
+          }
+          if (name.includes("재가") || name.includes("치매")) s.homeCare.after += afterVal;
+          if (name.includes("입원") && !name.includes("진단") && !name.includes("제외") && !name.includes("실손") && !name.includes("의료비")) s.hospitalization.after += afterVal;
+          if (name.includes("통합상해") || (name.includes("상해") && name.includes("진단"))) s.injury.after += afterVal;
+          if (name.includes("교통사고처리") || name.includes("변호사선임") || name.includes("자동차부상")) s.hasDriver = true;
+          if (name.includes("임플란트") || name.includes("크라운") || name.includes("보철")) s.hasDental = true;
+        });
+      }
+    });
 
-        if (name.includes("수술")) {
-          s.surgery.after += afterVal;
-          if (name.includes("종") || name.includes("1-5종") || name.includes("1-6종") || name.includes("1-9종")) s.hasJongSurgery = true;
-        }
-        if (name.includes("재가") || name.includes("치매")) s.homeCare.after += afterVal;
-        if (name.includes("입원") && !name.includes("진단") && !name.includes("제외") && !name.includes("실손") && !name.includes("의료비")) s.hospitalization.after += afterVal;
-        if (name.includes("통합상해") || (name.includes("상해") && name.includes("진단"))) s.injury.after += afterVal;
-        if (name.includes("교통사고처리") || name.includes("변호사선임") || name.includes("자동차부상")) s.hasDriver = true;
-        if (name.includes("임플란트") || name.includes("크라운") || name.includes("보철")) s.hasDental = true;
-      });
-    }
-  });
-
-  return [
-    { condition: s.cancer.after < 5000, title: "암 보장 공백 발견", action: "일반암 진단비 증액 권장" },
-    { condition: s.similarCancer.after < 1000, title: "유사암 보장 공백", action: "유사암 진단비 보완 권장" }, // ⭐️ 추가
-    { condition: s.brain.after < 2000, title: "뇌혈관 보장 공백 발견", action: "뇌혈관 진단/수술비 보완 요망" },
-    { condition: s.heart.after < 2000, title: "심장 보장 공백 발견", action: "심혈관 특정진단비 보완 권장" },
-    { condition: s.circulatory.after < 2000, title: "순환계질환 보장 공백", action: "순환계질환 진단비 보완 요망" }, // ⭐️ 추가
-    { condition: s.death.after < 3000, title: "사망보장 자산 부족", action: "정기/종신 사망보험금 확보" }, // ⭐️ 추가
-    { condition: s.pension.after === 0, title: "노후 연금 자산 부재", action: "노후 대비 연금저축/보험 가입" }, // ⭐️ 추가
-    { condition: s.surgery.after === 0 || !s.hasJongSurgery, title: "질병/종수술비 보장 부재", action: "질병 및 1-5종 수술비 장착" },
-    { condition: s.homeCare.after === 0, title: "치매 리스크 노출", action: "장기요양 재가급여 특약 추가" },
-    { condition: s.injury.after === 0, title: "통합상해진단비 공백", action: "통합상해진단비 보완 권장" },
-    { condition: s.hospitalization.after === 0, title: "입원비 보장 부재", action: "간병인/입원일당 확보 고려" },
-    { condition: !s.hasDriver, title: "운전자 비용 부재", action: "형사합의금 지원 플랜 마련" },
-    { condition: !s.hasDental, title: "치아 보장 부재", action: "치과 전문 덴탈 케어 안내" }
-  ];
-}, [coverages]);
+    return [
+      { condition: s.cancer.after < 5000, title: "암 보장 공백 발견", action: "일반암 진단비 증액 권장" },
+      { condition: s.similarCancer.after < 1000, title: "유사암 보장 공백", action: "유사암 진단비 보완 권장" }, 
+      { condition: s.brain.after < 2000, title: "뇌혈관 보장 공백 발견", action: "뇌혈관 진단/수술비 보완 요망" },
+      { condition: s.heart.after < 2000, title: "심장 보장 공백 발견", action: "심혈관 특정진단비 보완 권장" },
+      { condition: s.circulatory.after < 2000, title: "순환계질환 보장 공백", action: "순환계질환 진단비 보완 요망" }, 
+      { condition: s.death.after < 3000, title: "사망보장 자산 부족", action: "정기/종신 사망보험금 확보" }, 
+      { condition: s.pension.after === 0, title: "노후 연금 자산 부재", action: "노후 대비 연금저축/보험 가입" }, 
+      { condition: s.surgery.after === 0 || !s.hasJongSurgery, title: "질병/종수술비 보장 부재", action: "질병 및 1-5종 수술비 장착" },
+      { condition: s.homeCare.after === 0, title: "치매 리스크 노출", action: "장기요양 재가급여 특약 추가" },
+      { condition: s.injury.after === 0, title: "통합상해진단비 공백", action: "통합상해진단비 보완 권장" },
+      { condition: s.hospitalization.after === 0, title: "입원비 보장 부재", action: "간병인/입원일당 확보 고려" },
+      { condition: !s.hasDriver, title: "운전자 비용 부재", action: "형사합의금 지원 플랜 마련" },
+      { condition: !s.hasDental, title: "치아 보장 부재", action: "치과 전문 덴탈 케어 안내" }
+    ];
+  }, [coverages]);
 
   // ⭐️ 2. DB 데이터 불러오기 (보험 데이터가 완료된 후에만 세팅하도록 조건 강화)
   useEffect(() => {
@@ -657,25 +632,25 @@ const gapItems = useMemo(() => {
         
         <div className="flex-1 overflow-y-auto pr-2 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-thumb]:rounded-full">
           
-          {/* 고객 리포트용 보장 공백 컨트롤 패널 (커스텀 작성 가능) */}
-          <div className="mb-4 bg-white border-2 border-indigo-100 rounded-2xl p-4 sm:p-5 shadow-sm">
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4 border-b border-indigo-50 pb-3">
+          {/* 고객 리포트용 보장 공백 컨트롤 패널 (커스텀 작성 가능) - ⭐️ 붉은색 테마 적용 */}
+          <div className="mb-4 bg-white border-2 border-red-100 rounded-2xl p-4 sm:p-5 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4 border-b border-red-50 pb-3">
               <div>
-                <h3 className="text-sm font-black text-indigo-900 flex items-center gap-1.5">
-                  <ShieldCheck className="w-4 h-4 text-indigo-600"/> 고객페이지 '보장 공백 카드' 노출 설정
+                <h3 className="text-sm font-black text-red-800 flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 text-red-600"/> 기존 보장 공백 진단 결과 (고객페이지 노출 설정)
                 </h3>
               </div>
               <div className="flex items-center gap-2">
                 <button 
                   onClick={() => setIsAddingCustomGap(!isAddingCustomGap)}
-                  className="text-xs font-bold px-3 py-2 sm:py-1.5 rounded-xl flex items-center justify-center gap-1 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors cursor-pointer"
+                  className="text-xs font-bold px-3 py-2 sm:py-1.5 rounded-xl flex items-center justify-center gap-1 text-red-600 bg-red-50 hover:bg-red-100 transition-colors cursor-pointer"
                 >
                   <PenTool className="w-3.5 h-3.5"/> 직접 카드 생성
                 </button>
                 <button 
                   onClick={handleSaveGaps} 
                   disabled={isSavingGaps || gapSaveSuccess} 
-                  className={`text-xs font-bold px-4 py-2 sm:py-1.5 rounded-xl flex items-center justify-center gap-1.5 transition-colors shadow-sm cursor-pointer disabled:opacity-70 ${gapSaveSuccess ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+                  className={`text-xs font-bold px-4 py-2 sm:py-1.5 rounded-xl flex items-center justify-center gap-1.5 transition-colors shadow-sm cursor-pointer disabled:opacity-70 ${gapSaveSuccess ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-red-600 text-white hover:bg-red-700'}`}
                 >
                   {isSavingGaps ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : gapSaveSuccess ? <CheckCircle2 className="w-3.5 h-3.5"/> : <Save className="w-3.5 h-3.5"/>}
                   {gapSaveSuccess ? "저장 완료" : "설정 저장"}
@@ -685,17 +660,17 @@ const gapItems = useMemo(() => {
 
             {/* 커스텀 카드 작성 폼 */}
             {isAddingCustomGap && (
-              <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 mb-4 animate-in fade-in slide-in-from-top-2">
+              <div className="bg-red-50/50 p-4 rounded-xl border border-red-100 mb-4 animate-in fade-in slide-in-from-top-2">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-bold text-indigo-800">카드 추가</span>
+                  <span className="text-xs font-bold text-red-800">카드 추가</span>
                   <button onClick={() => setIsAddingCustomGap(false)} className="text-slate-400 hover:text-red-500 cursor-pointer"><X className="w-4 h-4"/></button>
                 </div>
                 <div className="space-y-2.5">
-                  <input type="text" placeholder="제목 (예: 가족력 대비 가족암 보완 필요)" value={newCustomGap.title} onChange={e => setNewCustomGap({...newCustomGap, title: e.target.value})} className="w-full text-xs p-2 rounded-lg border border-slate-200 outline-none focus:border-indigo-400 font-bold text-slate-800" />
-                  <textarea placeholder="설명 (예: 어머니의 암 이력이 있으시므로 일반암 진단비를 현재 3천만원에서 5천만원 수준으로 보완을 권장합니다.)" value={newCustomGap.desc} onChange={e => setNewCustomGap({...newCustomGap, desc: e.target.value})} className="w-full text-xs p-2 rounded-lg border border-slate-200 outline-none focus:border-indigo-400 text-slate-700 resize-none h-16 leading-relaxed" />
+                  <input type="text" placeholder="제목 (예: 가족력 대비 가족암 보완 필요)" value={newCustomGap.title} onChange={e => setNewCustomGap({...newCustomGap, title: e.target.value})} className="w-full text-xs p-2 rounded-lg border border-slate-200 outline-none focus:border-red-400 font-bold text-slate-800" />
+                  <textarea placeholder="설명 (예: 어머니의 암 이력이 있으시므로 일반암 진단비를 현재 3천만원에서 5천만원 수준으로 보완을 권장합니다.)" value={newCustomGap.desc} onChange={e => setNewCustomGap({...newCustomGap, desc: e.target.value})} className="w-full text-xs p-2 rounded-lg border border-slate-200 outline-none focus:border-red-400 text-slate-700 resize-none h-16 leading-relaxed" />
                   <div className="flex gap-2">
-                    <input type="text" placeholder="제안 버튼명 (예: 일반암 진단비 증액 권장)" value={newCustomGap.action} onChange={e => setNewCustomGap({...newCustomGap, action: e.target.value})} className="flex-1 text-xs p-2 rounded-lg border border-slate-200 outline-none focus:border-indigo-400 text-indigo-700 font-bold" />
-                    <button onClick={handleAddCustomGap} className="px-4 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer">추가</button>
+                    <input type="text" placeholder="제안 버튼명 (예: 일반암 진단비 증액 권장)" value={newCustomGap.action} onChange={e => setNewCustomGap({...newCustomGap, action: e.target.value})} className="flex-1 text-xs p-2 rounded-lg border border-slate-200 outline-none focus:border-red-400 text-red-700 font-bold" />
+                    <button onClick={handleAddCustomGap} className="px-4 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer">추가</button>
                   </div>
                 </div>
               </div>
@@ -715,17 +690,17 @@ const gapItems = useMemo(() => {
                     }}
                     className={`text-left p-2.5 sm:p-3 rounded-xl border transition-all cursor-pointer ${
                       isSelected 
-                        ? 'border-indigo-400 bg-indigo-50/50 ring-1 ring-indigo-400 shadow-sm' 
+                        ? 'border-red-300 bg-red-50/50 ring-1 ring-red-300 shadow-sm' 
                         : isDetected 
-                          ? 'border-slate-200 bg-white hover:border-indigo-200' 
-                          : 'opacity-50 hover:opacity-100 border-slate-200 bg-slate-50 hover:border-indigo-200 hover:bg-white'
+                          ? 'border-slate-200 bg-white hover:border-red-200' 
+                          : 'opacity-50 hover:opacity-100 border-slate-200 bg-slate-50 hover:border-red-200 hover:bg-white'
                     }`}
                   >
                     <div className="flex items-center gap-2">
-                      <div className={`w-4 h-4 rounded flex items-center justify-center border transition-colors shrink-0 ${isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 bg-white'}`}>
+                      <div className={`w-4 h-4 rounded flex items-center justify-center border transition-colors shrink-0 ${isSelected ? 'bg-red-500 border-red-500 text-white' : 'border-slate-300 bg-white'}`}>
                         {isSelected && <Check className="w-3 h-3" strokeWidth={3} />}
                       </div>
-                      <span className={`text-[12px]  font-bold truncate ${isSelected ? 'text-indigo-900' : 'text-slate-700'}`}>
+                      <span className={`text-[12px] font-bold truncate ${isSelected ? 'text-red-900' : 'text-slate-700'}`}>
                         {gap.title}
                       </span>
                     </div>
@@ -738,16 +713,16 @@ const gapItems = useMemo(() => {
                 const isSelected = selectedGaps.includes(custom.title);
                 
                 return (
-                  <div key={custom.id} className={`relative flex flex-col text-left p-2.5 sm:p-3 rounded-xl border transition-all ${isSelected ? 'border-indigo-400 bg-indigo-50/50 ring-1 ring-indigo-400 shadow-sm' : 'border-slate-200 bg-white'}`}>
+                  <div key={custom.id} className={`relative flex flex-col text-left p-2.5 sm:p-3 rounded-xl border transition-all ${isSelected ? 'border-red-300 bg-red-50/50 ring-1 ring-red-300 shadow-sm' : 'border-slate-200 bg-white'}`}>
                     <button 
                       onClick={() => setSelectedGaps(prev => prev.includes(custom.title) ? prev.filter(t => t !== custom.title) : [...prev, custom.title])}
                       className="flex-1 cursor-pointer text-left w-full"
                     >
                       <div className="flex items-center gap-2 mb-1.5 pr-6">
-                        <div className={`w-4 h-4 rounded flex items-center justify-center border transition-colors shrink-0 ${isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 bg-white'}`}>
+                        <div className={`w-4 h-4 rounded flex items-center justify-center border transition-colors shrink-0 ${isSelected ? 'bg-red-500 border-red-500 text-white' : 'border-slate-300 bg-white'}`}>
                           {isSelected && <Check className="w-3 h-3" strokeWidth={3} />}
                         </div>
-                        <span className={`text-[12px] sm:text-[13px] font-bold ${isSelected ? 'text-indigo-900' : 'text-slate-700'} truncate`}>
+                        <span className={`text-[12px] sm:text-[13px] font-bold ${isSelected ? 'text-red-900' : 'text-slate-700'} truncate`}>
                           <span className="text-orange-500 mr-1">★</span>{custom.title}
                         </span>
                       </div>

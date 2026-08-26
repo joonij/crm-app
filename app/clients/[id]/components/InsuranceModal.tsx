@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { Shield, X, Plus, Sparkles, FileText, Loader2, CheckSquare, Trash2 } from "lucide-react";
-// 👇 새로 추가할 임포트 문!
 import { COVERAGE_OPTIONS, mapToStandardCoverage } from "@/lib/coverageMapper"; 
 import { analyzeInsuranceEngine, formatAmountWithComma } from "@/lib/insuranceParser";
 
@@ -20,8 +19,6 @@ type InsuranceCompany = {
   company_type: string;
   company_name: string;
 };
-
-// ✂️✂️✂️ (여기에 있던 기존 COVERAGE_OPTIONS 배열과 mapToStandardCoverage 함수는 전체 통째로 싹 지워주세요!) ✂️✂️✂️
 
 const POLICY_PERIOD_OPTIONS = ["전기납", "일시납", "5년납", "7년납", "10년납", "15년납", "20년납", "25년납", "30년납"];
 const RENEWAL_OPTIONS = ["전기납", "일시납", "비갱신", "1년 갱신", "3년 갱신", "5년 갱신", "10년 갱신", "15년 갱신", "20년 갱신", "30년 갱신"];
@@ -101,7 +98,6 @@ export default function InsuranceModal({
 
     const fetchInitialData = async () => {
       let currentClientName = "";
-      let agentName = "";
 
       // 1. 현재 로그인한 유저 정보 확인
       const { data: { user } } = await supabase.auth.getUser();
@@ -110,7 +106,6 @@ export default function InsuranceModal({
         const { data: agentData } = await supabase.from("agents").select("id, name").eq("auth_id", user.id).single();
         
         if (agentData) {
-          agentName = agentData.name;
           setLoggedInAgentName(agentData.name);
           setIsCurrentUserAgent(false);
 
@@ -147,7 +142,7 @@ export default function InsuranceModal({
         insured_id: currentClientId,
         beneficiary_name: currentClientName,
         beneficiary_id: currentClientId,
-        agent_name: agentName,
+        agent_name: "", // ⭐️ 담당설계사 기본값을 빈 값으로 고정!
         subscriptionDate: today,
         policy_status: "maintain"
       }));
@@ -156,7 +151,7 @@ export default function InsuranceModal({
     fetchInitialData();
   }, [clientId]);
 
-  // ⭐️ 독립된 파싱 엔진을 호출하도록 완전히 슬림해진 로직!
+  // ⭐️ 독립된 파싱 엔진 호출
   const handleAnalyzeText = async () => {
     if (!pasteText.trim()) return alert("분석할 텍스트를 입력해주세요.");
     setIsAnalyzing(true);
@@ -164,10 +159,8 @@ export default function InsuranceModal({
     try {
       await new Promise((resolve) => setTimeout(resolve, 800));
 
-      // 1. 방금 만든 엔진에 텍스트를 던지면 모든 결과를 한 번에 받아옵니다.
       const result = analyzeInsuranceEngine(pasteText, covForm.contractor_name);
 
-      // 2. 받아온 결과를 화면(State)에 바로 꽂아줍니다.
       setCovForm(prev => ({
         ...prev,
         company: result.company || prev.company,
@@ -365,7 +358,6 @@ export default function InsuranceModal({
             <div className="flex gap-2">
               {[
                 { id: "maintain", label: "기존 보험", color: "bg-blue-600 border-blue-600" },
-                // { id: "cancel", label: "해지할 보험", color: "bg-red-600 border-red-600" },
                 { id: "new", label: "새로 제안할 보험", color: "bg-green-600 border-green-600" },
               ].map((status) => (
                 <button 
@@ -494,6 +486,7 @@ export default function InsuranceModal({
                     <input 
                       type="checkbox" 
                       className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      checked={isCurrentUserAgent}
                       onChange={(e) => {
                         const checked = e.target.checked;
                         setIsCurrentUserAgent(checked);
@@ -506,6 +499,7 @@ export default function InsuranceModal({
                 <input 
                   type="text" 
                   className={`${inputClassName} ${isCurrentUserAgent ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''} font-bold`} 
+                  value={covForm.agent_name}
                   onChange={(e) => setCovForm({ ...covForm, agent_name: e.target.value })} 
                   readOnly={isCurrentUserAgent}
                   placeholder={isCurrentUserAgent ? "본인 담당" : "다른 담당자 이름 직접 입력"}
