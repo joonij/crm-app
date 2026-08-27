@@ -376,7 +376,7 @@ export default function ClientsMedicalHistoryCard({ clientId, initialHistory }: 
   const handleManualSave = () => saveToSupabase(checklist, medicalMemo);
 
   return (
-    <div className="w-full flex h-full flex-col rounded-2xl border border-gray-200 bg-white p-5 md:p-6 shadow-sm min-h-0">
+    <div className="w-full flex h-full flex-col md:rounded-2xl border border-gray-200 bg-white p-5 md:p-6 shadow-sm min-h-0">
       
       {/* 상단 헤더 영역 */}
       <div className="mb-4 flex items-center justify-between shrink-0">

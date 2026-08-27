@@ -606,7 +606,7 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
 
   return (
     <>
-      <div className="w-full h-full flex flex-col rounded-2xl border border-gray-200 bg-white p-5 md:p-6 shadow-sm min-h-0 relative overflow-x-hidden">
+      <div className="w-full h-full flex flex-col md:rounded-2xl border border-gray-200 bg-white p-5 md:p-6 shadow-sm min-h-0 relative overflow-x-hidden">
         
         {/* 상단 헤더 영역 */}
         <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0 border-b border-gray-100 pb-4">
@@ -616,7 +616,6 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
             </div>
             <div>
               <h2 className="text-lg font-semibold text-gray-900">보장 분석 내역</h2>
-              <p className="text-xs text-gray-500 mt-0.5">보험과 특약을 감액, 삭제하여 비교하세요.</p>
             </div>
           </div>
           

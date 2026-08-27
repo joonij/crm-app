@@ -537,7 +537,9 @@ export default function AnalysisPage() {
       } as any);
 
       let savedVisible = clientData.consulting_details?.visibleCoverages;
-      if (!savedVisible) {
+      
+      // 🚀 핵심 수정: DB에 실수로 빈 배열([])이 저장되어 화면이 백지로 나오는 현상 완벽 차단!
+      if (!savedVisible || savedVisible.length === 0) {
         savedVisible = fullCoveragesArray
           .filter(c => (c.before > 0 || c.after > 0) && c.name !== "일반사망 진단비" && !HIDDEN_IN_SUMMARY.includes(c.name))
           .map(c => c.name);
@@ -992,48 +994,51 @@ return (
           }
         }
       `}} />
-      <div className="w-full max-w-5xl mx-auto p-4 md:p-8 space-y-6 print:p-1 print:m-0 print:max-w-none print:bg-white">
+      <div className="w-full max-w-5xl mx-auto md:p-4 md:p-8 space-y-6 print:p-1 print:m-0 print:max-w-none print:bg-white">
         
         {/* 헤더 바 */}
-        <div className="sticky top-0 z-50 bg-white/80 backdrop-blur-md py-4 -mt-4 flex flex-col sm:flex-row items-start sm:items-center justify-between border-b-2 border-gray-900 gap-4 print:hidden">
-          <div className="flex items-center gap-3">
-            <button onClick={() => router.back()} className="cursor-pointer p-2 hover:bg-gray-100 rounded-full transition">
-              <ArrowLeft className="w-6 h-6 text-gray-600" />
+        <div className="sticky top-0 z-50 bg-white/80 backdrop-blur-md py-3 pr-4 pl-4 md:py-4 -mt-4 flex items-center justify-between border-b-2 border-gray-900 gap-2 md:gap-4 print:hidden w-full">
+          
+          <div className="flex items-center gap-1.5 md:gap-3 min-w-0">
+            <button onClick={() => router.back()} className="cursor-pointer p-1.5 md:p-2 hover:bg-gray-100 rounded-full transition shrink-0">
+              <ArrowLeft className="w-5 h-5 md:w-6 md:h-6 text-gray-600" />
             </button>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                <ShieldCheck className="w-7 h-7 text-blue-600" />
-                보장 분석 및 비교 분석표
+            <div className="min-w-0">
+              <h1 className="text-[13px] sm:text-base md:text-2xl font-bold text-gray-900 flex items-center gap-1.5 md:gap-2 truncate">
+                <ShieldCheck className="w-5 h-5 md:w-7 md:h-7 text-blue-600 shrink-0" />
+                <span className="truncate">비교 분석표</span>
               </h1>
             </div>
           </div>
           
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1.5 md:gap-3 shrink-0">
             <button 
               onClick={openSettingsModal}
-              className="cursor-pointer flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-bold bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 transition-all shadow-sm"
+              className="cursor-pointer flex items-center gap-1 md:gap-1.5 px-2.5 py-1.5 md:px-4 md:py-2.5 rounded-md md:rounded-lg text-[11px] md:text-sm font-bold bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 transition-all shadow-sm shrink-0"
             >
-              <Settings2 className="w-4 h-4 text-blue-600" /> 세부 설정 및 조정
+              <Settings2 className="w-3.5 h-3.5 md:w-4 md:h-4 text-blue-600" /> 세부설정
             </button>
 
             <button 
               onClick={handleSaveConsulting}
               disabled={isSavingConsulting || saveSuccess}
-              className={`cursor-pointer flex items-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-bold transition-all  ${
+              className={`cursor-pointer flex items-center gap-1 md:gap-1.5 px-2.5 py-1.5 md:px-5 md:py-2.5 rounded-md md:rounded-lg text-[11px] md:text-sm font-bold transition-all shrink-0 ${
                 saveSuccess ? "bg-emerald-100 text-emerald-700 border border-emerald-200" : "bg-white border border-slate-300 text-slate-700"
               }`}
             >
-              {isSavingConsulting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : saveSuccess ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Save className="w-3.5 h-3.5" />}
-              {isSavingConsulting ? "저장 중..." : saveSuccess ? "저장 완료" : "내용 저장"}
+              {isSavingConsulting ? <Loader2 className="w-3.5 h-3.5 md:w-3.5 md:h-3.5 animate-spin" /> : saveSuccess ? <CheckCircle2 className="w-3.5 h-3.5 md:w-3.5 md:h-3.5" /> : <Save className="w-3 h-3 md:w-3.5 md:h-3.5" />}
+              {isSavingConsulting ? "저장중..." : saveSuccess ? "저장완료" : "내용저장"}
             </button>
-            <button onClick={handlePrint} className="cursor-pointer flex items-center gap-1.5 bg-gray-900 text-white px-5 py-2.5 rounded-lg text-sm font-bold hover:bg-gray-800 transition shadow-md">
-              <Printer className="w-4 h-4" /> 제안서 출력
+            
+            {/* ⭐️ 출력 버튼은 모바일 화면에서는 숨김 (sm 크기 이상부터 노출) */}
+            <button onClick={handlePrint} className="cursor-pointer hidden sm:flex items-center gap-1.5 bg-gray-900 text-white px-5 py-2.5 rounded-lg text-sm font-bold hover:bg-gray-800 transition shadow-md">
+              <Printer className="w-4 h-4" /> 출력
             </button>
           </div>
         </div>
 
         {/* 메인 커버 페이지 */}
-        <section className="relative flex flex-col justify-between bg-white border border-slate-400 w-full rounded-3xl p-10 md:p-16 mb-8 cover-page print:break-after-page overflow-hidden">
+        <section className="relative flex flex-col justify-between bg-white border border-slate-400 w-full md:rounded-3xl p-4 md:p-16 mb-8 cover-page print:break-after-page overflow-hidden">
           <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-600 rounded-full mix-blend-overlay filter blur-[120px] opacity-40 translate-x-1/4 -translate-y-1/4"></div>
           <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-emerald-500 rounded-full mix-blend-overlay filter blur-[120px] opacity-20 -translate-x-1/4 translate-y-1/4"></div>
 
@@ -1057,7 +1062,7 @@ return (
           <div className="relative z-10 flex justify-between items-end border-t border-slate-700/50 pt-10">
             <div>
               <p className="text-sm text-slate-600 mb-2 uppercase tracking-wider">Prepared for</p>
-              <p className="text-4xl font-bold text-slate-900">{client.name} <span className="text-2xl font-normal text-slate-600">고객님</span></p>
+              <p className="text-2xl md:text-4xl font-bold text-slate-900">{client.name} <span className="text-2xl font-normal text-slate-600">고객님</span></p>
             </div>
             <div className="text-right">
               <p className="text-sm text-slate-400 mb-2 uppercase tracking-wider">Financial Consultant</p>
@@ -1068,7 +1073,7 @@ return (
           </div>
         </section>
 
-        <section className="bg-white rounded-2xl p-6 md:p-8 border border-gray-400 shadow-sm print:p-0 print:border-none print:break-inside-avoid print:shadow-none relative overflow-hidden flex flex-col gap-6">
+        <section className="bg-white md:rounded-2xl p-4 md:p-8 border border-gray-400 shadow-sm print:p-0 print:border-none print:break-inside-avoid print:shadow-none relative overflow-hidden flex flex-col gap-6">
           <div className="flex items-center justify-between border-b border-slate-200 pb-4 shrink-0 print:border-slate-300">
             <h2 className="text-xl font-black text-slate-800 flex items-center gap-2 uppercase tracking-widest">
               <ShieldCheck className="w-6 h-6 text-blue-600" /> 보장 리포트
@@ -1086,11 +1091,6 @@ return (
                       {displayGaps.length > 0 ? <AlertCircle className="w-5 h-5 text-red-500"/> : <ShieldCheck className="w-5 h-5 text-emerald-600"/>} 
                       기존 보장 공백 진단 결과
                     </h4>
-                    {displayGaps.length > 0 && (
-                      <span className="text-xs font-bold px-3 py-1 rounded-full bg-red-100 text-red-600 w-fit">
-                        미흡 보장 {displayGaps.length}건 발견
-                      </span>
-                    )}
                   </div>
 
                   {displayGaps.length > 0 ? (
@@ -1389,7 +1389,7 @@ return (
         </section>
 
         {/* 보장 금액 합산 페이지 */}
-        <section className="bg-white rounded-2xl p-6 md:p-8 border border-slate-400 shadow-sm print:p-0 print:border-none print:break-inside-avoid print:shadow-none relative overflow-hidden">
+        <section className="bg-white md:rounded-2xl p-4 md:p-8 border border-slate-400 shadow-sm print:p-0 print:border-none print:break-inside-avoid print:shadow-none relative overflow-hidden">
           <div className="flex items-center justify-between border-b border-slate-200 pb-4 mb-6 print:border-slate-300">
             <h2 className="text-lg font-black text-slate-800 flex items-center gap-2 uppercase tracking-widest">
             <AlertCircle className="w-5 h-5 text-blue-600" />
@@ -1400,10 +1400,10 @@ return (
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-white">
               <tr>
-                <th className="px-4 py-4 text-left font-bold text-gray-900 w-3/9">담보 항목</th>
-                <th className="px-4 py-4 text-right text-gray-500 w-2/9">기존</th>
-                <th className="px-4 py-4 text-right font-bold text-blue-600 bg-blue-50/20 w-2/9">권장</th>
-                <th className="px-4 py-4 text-right font-bold text-gray-900 w-2/9">증감</th>
+                <th className="md:px-4 py-4 text-left font-bold text-gray-900 w-3/9">담보 항목</th>
+                <th className="md:px-4 py-4 text-right text-gray-500 w-2/9">기존</th>
+                <th className="md:px-4 py-4 text-right font-bold text-blue-600 bg-blue-50/20 w-2/9">권장</th>
+                <th className="hidden md:table-cell px-4 py-4 text-right font-bold text-gray-900 w-2/9">증감</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -1411,16 +1411,16 @@ return (
                 const gap = item.after - item.before;
                 return (
                   <tr key={index} className="print:break-inside-avoid">
-                    <td className="px-4 py-2 font-semibold text-gray-800 flex items-center gap-1.5">
+                    <td className="md:px-4 py-2 font-semibold text-gray-800 flex items-center gap-1.5">
                       {item.name}
                     </td>
-                    <td className={`px-4 py-2 text-right ${item.before === 0 ? 'text-red-400' : 'text-gray-500 font-bold'}`}>
+                    <td className={`md:px-4 py-2 text-right ${item.before === 0 ? 'text-red-400' : 'text-gray-500 font-bold'}`}>
                       {item.before === 0 ? '-' : formatMoney(item.before)}
                     </td>
-                    <td className={`px-4 py-2 text-right ${item.after === 0 ? 'text-gray-800' : 'text-blue-600 font-bold'}`}>
+                    <td className={`md:px-4 py-2 text-right ${item.after === 0 ? 'text-gray-800' : 'text-blue-600 font-bold'}`}>
                       {item.after === 0 ? '-' : formatMoney(item.after)}
                     </td>
-                    <td className="px-4 py-2 text-right font-bold">
+                    <td className="hidden md:table-cell px-4 py-2 text-right font-bold">
                       {gap > 0 ? (
                         <span className="text-blue-600">+{formatMoney(gap)}</span>
                       ) : gap < 0 ? (
@@ -1437,7 +1437,7 @@ return (
         </section>
 
         {/* C00 ~ D09 신생물 질환 상세 코드별 보장금액 진단 */}
-        <section className="bg-white rounded-2xl p-6 md:p-8 border-2 border-slate-400 shadow-sm print:p-0 print:border-none print:break-inside-avoid print:shadow-none relative overflow-hidden mt-6">
+        <section className="bg-white md:rounded-2xl p-4 md:p-8 border-2 border-slate-400 shadow-sm print:p-0 print:border-none print:break-inside-avoid print:shadow-none relative overflow-hidden mt-6">
           {/* <div className="flex items-center justify-between border-b border-slate-200 pb-4 mb-6 print:border-slate-300">
             <div>
               <h2 className="text-lg font-black text-slate-800 flex items-center gap-2 uppercase tracking-widest">
@@ -1450,14 +1450,14 @@ return (
           <div className="space-y-8">
             {CANCER_CODES.map((group, groupIdx) => (
               <div key={groupIdx} className="bg-slate-50/50 rounded-2xl p-1 print:p-0 print:bg-transparent">
-                <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                <div className="bg-white md:border border-slate-200 md:rounded-xl overflow-hidden md:shadow-sm">
                   <table className="w-full text-sm text-center border-collapse">
-                    <thead className="bg-slate-100 border-b border-slate-200">
+                    <thead className="md:bg-slate-100 md:border-b border-slate-200">
                       <tr>
-                        <th className="py-3 px-3 text-left font-bold text-slate-600 w-[40%]">신생물/암 질환 상세 코드별 보장금액</th>
-                        <th className="py-3 px-2 font-bold text-slate-500 w-[25%] border-l border-slate-200">기존 보장액</th>
-                        <th className="py-3 px-2 font-black text-blue-600 w-[25%] bg-blue-50 border-l border-blue-100 shadow-inner">권장 보장액</th>
-                        <th className="py-3 px-2 font-bold text-slate-500 w-[10%] border-l border-slate-200">★</th>
+                        <th className="py-3 md:px-3 text-left font-bold text-slate-600 w-[40%]">신생물/암 질환 상세 코드별 보장금액</th>
+                        <th className="py-3 md:px-2 font-bold text-slate-500 w-[25%] md:border-l border-slate-200">기존 보장액</th>
+                        <th className="py-3 md:px-2 font-black text-blue-600 w-[25%] md:bg-blue-50 md:border-l border-blue-100 shadow-inner">권장 보장액</th>
+                        <th className="hidden md:table-cell py-3 px-2 font-bold text-slate-500 w-[10%] md:border-l border-slate-200">★</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -1472,8 +1472,8 @@ return (
                         const isZeroBefore = beforeAmt === 0;
 
                         return (
-                          <tr key={itemIdx} className={isUpgraded ? 'bg-blue-50/10 hover:bg-blue-50/30 transition-colors' : 'hover:bg-slate-50/50'}>
-                            <td className="py-1 px-4 text-left">
+                          <tr key={itemIdx} className={isUpgraded ? 'md:bg-blue-50/10 hover:bg-blue-50/30 transition-colors' : 'hover:bg-slate-50/50'}>
+                            <td className="py-1 md:px-4 text-left">
                               <div className="flex flex-col gap-0.5">
                                 <span className={`font-bold text-[13px] ${isUpgraded ? 'text-blue-900' : 'text-slate-800'}`}>
                                   {item.name}
@@ -1490,10 +1490,10 @@ return (
                                 </div>
                               </div>
                             </td>
-                            <td className={`py-2 px-2 border-l border-slate-100 ${isZeroBefore ? 'text-red-400' : 'text-slate-600 font-bold'}`}>
+                            <td className={`py-2 md:px-2 md:border-l border-slate-100 ${isZeroBefore ? 'text-red-400' : 'text-slate-600 font-bold'}`}>
                               {isZeroBefore ? <X className="w-4 h-4 mx-auto" strokeWidth={3} /> : formatMoney(beforeAmt)}
                             </td>
-                            <td className={`py-2 px-2 border-l border-blue-100 bg-blue-50/30 font-black ${afterAmt > 0 ? 'text-blue-700' : 'text-slate-400'}`}>
+                            <td className={`py-2 md:x-2 md:border-l border-blue-100 md:bg-blue-50/30 font-black ${afterAmt > 0 ? 'text-blue-700' : 'text-slate-400'}`}>
                               {
                                 afterAmt > 0 ? 
                                 <div className="flex flex-col items-center justify-center gap-1">
@@ -1503,7 +1503,7 @@ return (
                                 '-'
                               }
                             </td>
-                            <td className="py-2 px-2 border-l border-slate-100 text-center text-slate-300">
+                            <td className="hidden md:table-cell py-2 px-2 border-l border-slate-100 text-center text-slate-300">
                                {isHighlight ? <Star className="w-4 h-4 fill-amber-500 text-amber-500 mx-auto" /> : '-'}
                             </td>
                           </tr>
@@ -1518,7 +1518,7 @@ return (
         </section>
 
         {/* I00 ~ I99 순환계 질환 상세 코드별 보장금액 진단 */}
-        <section className="bg-white rounded-2xl p-6 md:p-8 border-2 border-slate-400 shadow-sm print:p-0 print:border-none print:break-inside-avoid print:shadow-none relative overflow-hidden mt-6">
+        <section className="bg-white md:rounded-2xl p-4 md:p-8 border-2 border-slate-400 shadow-sm print:p-0 print:border-none print:break-inside-avoid print:shadow-none relative overflow-hidden mt-6">
           {/* <div className="flex items-center justify-between border-b border-slate-200 pb-3 mb-3 print:border-slate-300">
             <div>
               <h2 className="text-lg font-black text-slate-800 flex items-center gap-2 uppercase tracking-widest">
@@ -1531,14 +1531,14 @@ return (
           <div className="space-y-8">
             {CIRCULATORY_CODES.map((group, groupIdx) => (
               <div key={groupIdx} className="bg-slate-50/50 rounded-2xl p-1 print:p-0 print:bg-transparent">
-                <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                <div className="bg-white md:border border-slate-200 md:rounded-xl overflow-hidden md:shadow-sm">
                   <table className="w-full text-sm text-center border-collapse">
-                    <thead className="bg-slate-100 border-b border-slate-200">
+                    <thead className="md:bg-slate-100 md:border-b border-slate-200">
                       <tr>
-                        <th className="py-3 px-3 text-left font-bold text-slate-600 w-[40%]">순환계 질환 상세 코드별 보장금액</th>
-                        <th className="py-3 px-2 font-bold text-slate-500 w-[25%] border-l border-slate-200">기존 보장액</th>
-                        <th className="py-3 px-2 font-black text-blue-600 w-[25%] bg-blue-50 border-l border-blue-100 shadow-inner">권장 보장액</th>
-                        <th className="py-3 px-2 font-bold text-slate-500 w-[10%] border-l border-slate-200">★</th>
+                        <th className="py-3 md:px-3 text-left font-bold text-slate-600 w-[40%]">순환계 질환 상세 코드별 보장금액</th>
+                        <th className="py-3 md:px-2 font-bold text-slate-500 w-[25%] md:border-l border-slate-200">기존 보장액</th>
+                        <th className="py-3 md:px-2 font-black text-blue-600 w-[25%] md:bg-blue-50 md:border-l border-blue-100 shadow-inner">권장 보장액</th>
+                        <th className="hidden md:table-cell py-3 px-2 font-bold text-slate-500 w-[10%] md:border-l border-slate-200">★</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -1553,8 +1553,8 @@ return (
                         const isZeroBefore = beforeAmt === 0;
 
                         return (
-                          <tr key={itemIdx} className={isUpgraded ? 'bg-blue-50/10 hover:bg-blue-50/30 transition-colors' : 'hover:bg-slate-50/50'}>
-                            <td className="py-1 px-4 text-left">
+                          <tr key={itemIdx} className={isUpgraded ? 'md:bg-blue-50/10 hover:bg-blue-50/30 transition-colors' : 'hover:bg-slate-50/50'}>
+                            <td className="py-1 md:px-4 text-left">
                               <div className="flex flex-col gap-0.5">
                                 <span className={`font-bold text-[13px] ${isUpgraded ? 'text-blue-900' : 'text-slate-800'}`}>
                                   {item.name}
@@ -1571,10 +1571,10 @@ return (
                                 </div>
                               </div>
                             </td>
-                            <td className={`py-2 px-2 border-l border-slate-100 ${isZeroBefore ? 'text-red-400' : 'text-slate-600 font-bold'}`}>
+                            <td className={`py-2 md:px-2 md:border-l border-slate-100 ${isZeroBefore ? 'text-red-400' : 'text-slate-600 font-bold'}`}>
                               {isZeroBefore ? <X className="w-4 h-4 mx-auto" strokeWidth={3} /> : formatMoney(beforeAmt)}
                             </td>
-                            <td className={`py-2 px-2 border-l border-blue-100 bg-blue-50/30 font-black ${afterAmt > 0 ? 'text-blue-700' : 'text-slate-400'}`}>
+                            <td className={`py-2 md:px-2 md:border-l border-blue-100 md:bg-blue-50/30 font-black ${afterAmt > 0 ? 'text-blue-700' : 'text-slate-400'}`}>
                               {
                                 afterAmt > 0 ?  
                                   <div className="flex flex-col items-center justify-center gap-1">
@@ -1583,7 +1583,7 @@ return (
                                 : '-'
                                }
                             </td>
-                            <td className="py-2 px-2 border-l border-slate-100 text-center text-slate-300">
+                            <td className="hidden md:table-cell py-2 px-2 border-l border-slate-100 text-center text-slate-300">
                                {isHighlight ? <Star className="w-4 h-4 fill-amber-500 text-amber-500 mx-auto" /> : '-'}
                             </td>
                           </tr>
@@ -1598,7 +1598,7 @@ return (
         </section>
         
         {/* 리모델링 상세 내역 */}
-        <section className="bg-white rounded-2xl p-6 md:p-8 border-2 border-slate-400 shadow-sm print:p-0 print:border-none print:break-inside-avoid print:shadow-none relative overflow-hidden mt-6">
+        <section className="bg-white md:rounded-2xl p-4 md:p-8 border-2 border-slate-400 shadow-sm print:p-0 print:border-none print:break-inside-avoid print:shadow-none relative overflow-hidden mt-6">
           <div className="flex items-center justify-between border-b border-slate-200 pb-3 mb-3 print:border-slate-300">
             <h2 className="text-lg font-black text-slate-800 flex items-center gap-2 uppercase tracking-widest">
             <AlertCircle className="w-5 h-5 text-blue-600" />
@@ -1609,7 +1609,7 @@ return (
           <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-200 print:grid-cols-2 print:divide-y-0 print:divide-x">
             
             {/* 왼쪽: 리모델링 전 */}
-            <div className="p-4 md:p-6 border-0 print:pl-0 print:pt-0">
+            <div className="md:p-6 border-0 print:pl-0 print:pt-0">
               <h3 className="font-bold text-slate-700 mb-5 flex items-center gap-2 border-b border-slate-200 pb-3 text-lg">
                 기존 보험내역
               </h3>
@@ -1676,7 +1676,7 @@ return (
             </div>
 
             {/* 오른쪽: 리모델링 후 */}
-            <div className="p-4 md:p-6 border-0 print:pr-0 print:pt-0">
+            <div className="pt-6 md:p-6 border-0 print:pr-0 print:pt-0">
               <h3 className="font-bold text-blue-700 mb-5 flex items-center gap-2 border-b border-blue-200 pb-3 text-lg">
                 권장 보험내역
               </h3>
@@ -1774,7 +1774,7 @@ return (
         </section>
 
         {/* 건강 분석 페이지 */}
-        <section className="bg-white rounded-2xl p-6 md:p-8 border border-slate-400 shadow-sm print:p-0 print:border-none print:break-inside-avoid print:shadow-none relative overflow-hidden">
+        <section className="bg-white md:rounded-2xl p-4 md:p-8 border border-slate-400 shadow-sm print:p-0 print:border-none print:break-inside-avoid print:shadow-none relative overflow-hidden">
             <div className="flex items-center justify-between border-b border-slate-200 pb-4 mb-6 print:border-slate-300">
               <h2 className="text-lg font-black text-slate-800 flex items-center gap-2 uppercase tracking-widest">
                 <Stethoscope className="w-6 h-6 text-blue-600" />

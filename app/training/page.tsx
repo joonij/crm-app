@@ -43,7 +43,7 @@ export default function TrainingDashboard() {
                   </div>
                   <Lock className="w-5 h-5 text-gray-400" />
                 </div>
-                <h3 className="text-lg font-bold text-gray-700 mb-1">0{module.id}. {module.title}</h3>
+                <h3 className="text-lg font-bold text-gray-700 mb-1">{module.id}. {module.title}</h3>
                 <p className="text-sm text-gray-500">{module.desc}</p>
                 <div className="mt-4 inline-block px-3 py-1 bg-gray-200 text-gray-600 text-xs font-semibold rounded-full">
                   준비 중
@@ -59,7 +59,7 @@ export default function TrainingDashboard() {
                   <Icon className="h-6 w-6" />
                 </div>
               </div>
-              <h3 className="text-lg font-bold text-gray-900 mb-1">0{module.id}. {module.title}</h3>
+              <h3 className="text-lg font-bold text-gray-900 mb-1">{module.id}. {module.title}</h3>
               <p className="text-sm text-gray-500">{module.desc}</p>
               <div className="mt-4 inline-block px-3 py-1 bg-blue-50 text-blue-600 text-xs font-semibold rounded-full border border-blue-200">
                 학습하기

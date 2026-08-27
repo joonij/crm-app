@@ -102,7 +102,6 @@ type Client = {
   referrer?: { id: number; name: string } | null;
   report_uuid?: string | null;
   
-  // ⭐️ 추가된 진행률 필드
   progress_status?: string | null;
   recruiting_status?: string | null;
   decrypted_reg?: string | null;
@@ -122,12 +121,10 @@ export default function ClientDetailPage() {
 
   const [kakaoRequestData, setKakaoRequestData] = useState<{ isOpen: boolean, text: string, clientName: string }>({ isOpen: false, text: "", clientName: "" });
 
-  // ⭐️ 상태 변경 모달용 State
   const [isEditingContract, setIsEditingContract] = useState(false);
   const [isProgressModalOpen, setIsProgressModalOpen] = useState(false);
   const [isRecruitingModalOpen, setIsRecruitingModalOpen] = useState(false);
 
-  // ⭐️ 주민등록번호 기반 나이/성별 계산 함수
   const getAgeAndGender = (rrn: string) => {
     if (!rrn || rrn.length < 7) return null;
     const cleanStr = rrn.replace(/[^0-9]/g, "");
@@ -238,11 +235,9 @@ export default function ClientDetailPage() {
     }
   };
 
-  // ⭐️ 상태 변경 처리 핸들러 (계약 상태, 영업 진행률, 도입 진행률)
   const handleStatusChange = async (newStatusId: string) => {
     if (!client) return;
     
-    // 로컬 상태 먼저 업데이트
     const updatedStatus = { id: parseInt(newStatusId), status: contractStatusMap[newStatusId] };
     setClient({ ...client, contract_status: updatedStatus });
     setIsEditingContract(false);
@@ -385,7 +380,7 @@ export default function ClientDetailPage() {
         if (r1y) resultParts.push(`[1년 내 같은 질병(코드) 병원 이력]\n${r1y}`);
 
         if (admissions.length > 0) resultParts.push(`[5년 내 입원 이력]\n${admissions.join('\n')}`);
-        if (surgeries.length > 0) resultParts.push(`[5년 내 수술 의심]\n${surgeries.join('\n')}`);
+        if (surgeries.length > 0) resultParts.push(`[5년 내 수술 의심 (처치/수술 & 진료비 5만원↑)]\n${surgeries.join('\n')}`);
 
         const v7 = renderGrouped(grouped.visit7, '회');
         if (v7) resultParts.push(`[5년 내 같은 코드로 7번 이상 병원 이력]\n${v7}`);
@@ -409,8 +404,8 @@ export default function ClientDetailPage() {
   const openKakaoRequestModal = async () => {
     if (!client) return;
     const medicalMemo = formatMedicalHistory(client.medical_history);
-    const telecomLabel = client.telecom_carriers?.telecom || (typeof client.telecom_carriers === 'string' ? client.telecom_carriers : '미입력');
-    const drivingLabel = client.driving_statuses?.status || (typeof client.driving_statuses === 'string' ? client.driving_statuses : '미입력');
+    const telecomLabel = client.telecom_carriers?.telecom || '미입력';
+    const drivingLabel = client.driving_statuses?.status || '미입력';
 
     const template = `고객등록 및 설계 요청드립니다.
 
@@ -470,127 +465,143 @@ ${medicalMemo}`;
   const clientStatusId = client.contract_status?.id ? String(client.contract_status.id) : "";
 
   return (
-    <div className="w-full max-w-[1500px] mx-auto max-w-7xl flex flex-col h-auto lg:h-[calc(100vh-1rem)] p-4 md:p-6 overflow-visible lg:overflow-hidden bg-gray-50/30">
-      
-      <div className="shrink-0 mb-4">
-        <Link href="/clients" className="inline-flex items-center gap-1 text-sm font-medium text-gray-500 transition-colors hover:text-gray-900">
+    <div className="w-full max-w-[1500px] mx-auto flex flex-col h-auto lg:h-[calc(100vh-1rem)] p-0 md:p-6 overflow-visible lg:overflow-hidden bg-gray-50/30">
+      <div className="shrink-0 md:mb-4">
+        <Link href="/clients" className="hidden md:inline-flex items-center gap-1 text-sm font-medium text-gray-500 transition-colors hover:text-gray-900">
           <ChevronLeft className="h-4 w-4" strokeWidth={2} /> 고객 목록으로 돌아가기
         </Link>
       </div>
 
-      <section className="w-full rounded-2xl border border-gray-200 bg-white p-5 md:p-6 shadow-sm shrink-0 flex flex-col md:flex-row justify-between items-start gap-4">
-        <div className="flex flex-col gap-2.5 w-full md:w-auto">
+      <section className="flex flex-col lg:flex-row gap-6 w-full flex-1 min-h-0">
+        
+        {/* ================================================================= */}
+        {/* 좌측 영역 (프로필 요약 + 탭 컨텐츠) */}
+        {/* ================================================================= */}
+        <div className="w-full lg:w-[32%] xl:w-[28%] flex flex-col gap-4 h-full min-h-0 shrink-0">
           
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <h1 
-              className="text-3xl font-bold tracking-tight text-gray-900 cursor-pointer hover:text-blue-600 transition-colors"
-              onClick={() => setIsDetailModalOpen(true)}
-            >
-              {client.name}
-            </h1>
+          {/* 1. 새로운 형태의 고객 프로필 요약 카드 (우측에 액션 버튼 세로 배치) */}
+          <div className="w-full md:rounded-2xl border border-gray-200 bg-white p-5 shadow-sm shrink-0 flex items-stretch justify-between gap-4">
             
-            {clientDemo && (
-              <span className="flex items-center px-2.5 py-1 text-sm font-bold bg-slate-100 text-slate-700 rounded-lg shadow-sm">
-                {clientDemo.gender} / 만 {clientDemo.age}세
-              </span>
-            )}
+            {/* 좌측 정보 영역 */}
+            <div className="flex-1 flex flex-col justify-between gap-4 min-w-0">
+              
+              {/* 이름 및 정보 */}
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <h1 
+                    className="text-2xl font-black tracking-tight text-gray-900 cursor-pointer hover:text-blue-600 transition-colors"
+                    onClick={() => setIsDetailModalOpen(true)}
+                    title="상세 프로필 보기"
+                  >
+                    {client.name}
+                  </h1>
+                  
+                  {clientDemo && (
+                    <span className="flex items-center px-2 py-0.5 text-[11px] font-bold bg-slate-100 text-slate-600 rounded-md shrink-0">
+                      {clientDemo.gender} / 만 {clientDemo.age}세
+                    </span>
+                  )}
+                  {isKeyman && (
+                    <span className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-black rounded border border-amber-200 bg-amber-50 text-amber-600 shrink-0">
+                      <Crown className="w-3 h-3 text-amber-500" /> 키맨
+                    </span>
+                  )}
+                </div>
+                {client.phone ? (
+                  <a 
+                    href={`tel:${client.phone}`} 
+                    className="text-sm font-bold text-blue-600 hover:text-blue-800 hover:underline transition-colors w-fit flex items-center gap-1"
+                    title="클릭하여 전화 걸기"
+                  >
+                    {client.phone}
+                  </a>
+                ) : (
+                  <p className="text-sm font-bold text-gray-400">연락처 미등록</p>
+                )}
+              </div>
 
-            <span className="flex items-center px-2.5 py-1 text-sm font-bold bg-blue-50 text-blue-700 rounded-lg shadow-sm border border-blue-100">
-              {client.phone ?? "연락처 미등록"}
-            </span>
+              {/* 계약 상태 및 진행률 (그리드 형태) */}
+              <div className="grid grid-cols-2 gap-2.5 pt-3 border-t border-gray-100">
+                <div className="col-span-2 h-8 mt-1">
+                  {isEditingContract ? (
+                    <select
+                      value={clientStatusId}
+                      onChange={(e) => handleStatusChange(e.target.value)}
+                      onBlur={() => setIsEditingContract(false)}
+                      className="w-full h-full rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs font-bold text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none"
+                      autoFocus
+                    >
+                      <option value="">계약 상태 선택</option>
+                      {Object.entries(contractStatusMap).map(([idKey, label]) => (
+                        <option key={idKey} value={idKey}>{label}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span
+                      onClick={() => setIsEditingContract(true)}
+                      className={`w-full h-full inline-flex items-center justify-center rounded-lg border text-xs font-bold cursor-pointer transition-all shadow-sm ${contractStatusStyleMap[clientStatusId] || "bg-gray-50 text-gray-400 border-gray-200 border-dashed hover:bg-gray-100"}`}
+                    >
+                      {contractStatusMap[clientStatusId] || "계약 상태 지정"}
+                    </span>
+                  )}
+                </div>
 
-            {isKeyman && (
-              <span className="flex items-center gap-1 px-2.5 py-1 h-7 text-xs font-black rounded-lg border border-amber-200 shadow-sm bg-amber-50 text-amber-600">
-                <Crown className="w-3.5 h-3.5 text-amber-500" />
-                키맨
-              </span>
-            )}
-            {/* 1. 계약 상태 변경 */}
-            <div className="h-8 w-28 shrink-0 mt-1">
-              {isEditingContract ? (
-                <select
-                  value={clientStatusId}
-                  onChange={(e) => handleStatusChange(e.target.value)}
-                  onBlur={() => setIsEditingContract(false)}
-                  className="w-full h-8 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-bold text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none"
-                  autoFocus
+                <div 
+                  className="flex flex-col gap-1.5 cursor-pointer group/progress p-2 rounded-xl bg-gray-50 border border-gray-100 hover:border-blue-200 hover:bg-blue-50 transition-colors w-full"
+                  onClick={() => setIsProgressModalOpen(true)}
                 >
-                  <option value="">선택 안함</option>
-                  {Object.entries(contractStatusMap).map(([idKey, label]) => (
-                    <option key={idKey} value={idKey}>{label}</option>
-                  ))}
-                </select>
-              ) : (
-                <span
-                  onClick={() => setIsEditingContract(true)}
-                  className={`w-full h-8 inline-flex items-center justify-center rounded-md border text-xs font-bold cursor-pointer transition-all shadow-sm ${contractStatusStyleMap[clientStatusId] || "bg-gray-50 text-gray-400 border-gray-200 border-dashed hover:bg-gray-100"}`}
+                  <div className="flex justify-between items-end px-0.5">
+                    <span className="text-[10px] font-bold text-gray-500 group-hover/progress:text-blue-600">영업</span>
+                    <span className="text-[10px] font-black text-gray-700 group-hover/progress:text-blue-600">{progressPercent}%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                    <div className={`h-1.5 rounded-full transition-all duration-500 ${progressPercent === 100 ? "bg-green-500" : "bg-blue-600"}`} style={{ width: `${progressPercent}%` }}></div>
+                  </div>
+                </div>
+
+                <div 
+                  className="flex flex-col gap-1.5 cursor-pointer group/recruiting p-2 rounded-xl bg-gray-50 border border-gray-100 hover:border-purple-200 hover:bg-purple-50 transition-colors w-full"
+                  onClick={() => setIsRecruitingModalOpen(true)}
                 >
-                  {contractStatusMap[clientStatusId] || "미지정"}
-                </span>
-              )}
+                  <div className="flex justify-between items-end px-0.5">
+                    <span className="text-[10px] font-bold text-gray-500 group-hover/recruiting:text-purple-600">도입</span>
+                    <span className="text-[10px] font-black text-gray-700 group-hover/recruiting:text-purple-600">{recPercent}%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                    <div className={`h-1.5 rounded-full transition-all duration-500 ${recPercent === 100 ? "bg-green-500" : "bg-purple-600"}`} style={{ width: `${recPercent}%` }}></div>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            {/* 2. 영업 진행률 */}
-            <div 
-              className="flex flex-col gap-1.5 cursor-pointer group/progress p-2 -ml-2 rounded-lg hover:bg-gray-50 transition-colors w-32"
-              onClick={() => setIsProgressModalOpen(true)}
-            >
-              <div className="flex justify-between items-end px-0.5">
-                <span className="text-[11px] font-semibold text-gray-500 group-hover/progress:text-blue-600">영업</span>
-                <span className="text-[11px] font-bold text-gray-700 group-hover/progress:text-blue-600">{progressPercent}%</span>
-              </div>
-              <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden border border-gray-200/50">
-                <div className={`h-2.5 rounded-full transition-all duration-500 ${progressPercent === 100 ? "bg-green-500" : "bg-blue-600"}`} style={{ width: `${progressPercent}%` }}></div>
-              </div>
-            </div>
-
-            {/* 3. 리쿠르팅 진행률 */}
-            <div 
-              className="flex flex-col gap-1.5 cursor-pointer group/recruiting p-2 -ml-2 rounded-lg hover:bg-purple-50 transition-colors w-32"
-              onClick={() => setIsRecruitingModalOpen(true)}
-            >
-              <div className="flex justify-between items-end px-0.5">
-                <span className="text-[11px] font-semibold text-gray-500 group-hover/recruiting:text-purple-600">도입</span>
-                <span className="text-[11px] font-bold text-gray-700 group-hover/recruiting:text-purple-600">{recPercent}%</span>
-              </div>
-              <div className="w-full bg-purple-100/50 rounded-full h-2.5 overflow-hidden border border-purple-200/50">
-                <div className={`h-2.5 rounded-full transition-all duration-500 ${recPercent === 100 ? "bg-green-500" : "bg-purple-600"}`} style={{ width: `${recPercent}%` }}></div>
-              </div>
+            {/* ⭐️ 우측 액션 버튼 영역 (세로 배치) */}
+            <div className="flex flex-col gap-2 w-[84px] sm:w-[92px] shrink-0 border-l border-gray-100 pl-3 sm:pl-4">
+              <button 
+                onClick={() => openKakaoRequestModal()}
+                className="cursor-pointer flex flex-col items-center justify-center gap-1 py-2 bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] sm:text-[11px] font-bold rounded-xl hover:bg-indigo-100 transition-colors shadow-sm h-full"
+              >
+                <Send className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> 등록요청
+              </button>
+              <button 
+                onClick={handleCopyReportLink} 
+                className="cursor-pointer flex flex-col items-center justify-center gap-1 py-2 bg-blue-50 text-blue-700 border border-blue-200 text-[10px] sm:text-[11px] font-bold rounded-xl hover:bg-blue-100 transition-colors shadow-sm h-full"
+              >
+                <MessageCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> 리포트공유
+              </button>
+              <button 
+                onClick={() => setIsDetailModalOpen(true)}
+                className="cursor-pointer flex flex-col items-center justify-center gap-1 py-2 bg-gray-900 text-white text-[10px] sm:text-[11px] font-bold rounded-xl hover:bg-gray-800 transition-colors shadow-sm h-full"
+              >
+                <User className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> 상세 정보
+              </button>
             </div>
           </div>
-        </div>
-        
-        <div className="flex w-full md:w-auto items-center gap-2 flex-wrap sm:flex-nowrap shrink-0 mt-2 md:mt-0">
-          <button 
-            onClick={() => openKakaoRequestModal()}
-            className="cursor-pointer flex-1 md:flex-none flex items-center justify-center gap-1.5 px-4 py-2 bg-indigo-50 text-indigo-600 border border-indigo-200 text-sm font-bold rounded-xl hover:bg-indigo-100 transition-colors shadow-sm"
-          >
-            고객등록요청
-          </button>
-          
-          <button 
-            onClick={handleCopyReportLink} 
-            className="cursor-pointer flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 border border-blue-200 text-sm font-bold rounded-xl hover:bg-blue-100 transition-colors shadow-sm"
-          >
-            리포트링크
-          </button>
-          
-          <button 
-            onClick={() => setIsDetailModalOpen(true)}
-            className="cursor-pointer flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-gray-900 text-white text-sm font-bold rounded-xl hover:bg-gray-800 transition-colors shadow-sm"
-          >
-            상세프로필
-          </button>
-        </div>
-      </section>
 
-      <section className="flex flex-col lg:flex-row gap-6 w-full mt-6 flex-1 min-h-0">
-        
-        <div className="w-full lg:w-[35%] xl:w-[32%] flex flex-col gap-4 h-full min-h-0 shrink-0">
-          <div className="flex bg-gray-200/60 p-1.5 rounded-xl shrink-0">
+          {/* 2. 탭 메뉴 */}
+          <div className="flex bg-gray-200/60 p-1.5 md:rounded-xl shrink-0">
             <button
               onClick={() => setActiveTab("memo")}
-              className={`cursor-pointer flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-bold rounded-lg transition-all ${
+              className={`cursor-pointer flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[13px] font-bold rounded-lg transition-all ${
                 activeTab === "memo" ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700 hover:bg-gray-200/50"
               }`}
             >
@@ -598,7 +609,7 @@ ${medicalMemo}`;
             </button>
             <button
               onClick={() => setActiveTab("medical")}
-              className={`cursor-pointer flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-bold rounded-lg transition-all ${
+              className={`cursor-pointer flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[13px] font-bold rounded-lg transition-all ${
                 activeTab === "medical" ? "bg-white shadow-sm text-red-600" : "text-gray-500 hover:text-gray-700 hover:bg-gray-200/50"
               }`}
             >
@@ -606,7 +617,7 @@ ${medicalMemo}`;
             </button>
             <button
               onClick={() => setActiveTab("schedule")}
-              className={`cursor-pointer flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-bold rounded-lg transition-all ${
+              className={`cursor-pointer flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[13px] font-bold rounded-lg transition-all ${
                 activeTab === "schedule" ? "bg-white shadow-sm text-blue-600" : "text-gray-500 hover:text-gray-700 hover:bg-gray-200/50"
               }`}
             >
@@ -614,6 +625,7 @@ ${medicalMemo}`;
             </button>
           </div>
 
+          {/* 3. 탭 컨텐츠 */}
           <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden">
             <div className="h-full *:h-full">
               {activeTab === "memo" && <ClientMemoCard clientId={id} initialNote={client.notes} />}
@@ -623,12 +635,16 @@ ${medicalMemo}`;
           </div>
         </div>
 
-        <div className="w-full lg:w-[65%] xl:w-[68%] lg:h-full min-h-0">
+        {/* ================================================================= */}
+        {/* 우측 영역 (보장 분석 리스트) */}
+        {/* ================================================================= */}
+        <div className="w-full lg:w-[68%] xl:w-[72%] lg:h-full min-h-0">
           <ClientCoverageCard clientId={id} />
         </div>
 
       </section>
 
+      {/* 팝업 모달들 */}
       {isDetailModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <ClientDetailModal 
@@ -642,7 +658,6 @@ ${medicalMemo}`;
         </div>
       )}
 
-      {/* 🟢 설계 요청 폼 모달 */}
       {kakaoRequestData.isOpen && (
         <div 
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm md:p-4 pt-24 animate-in fade-in"
@@ -691,7 +706,6 @@ ${medicalMemo}`;
         </div>
       )}
 
-      {/* 🔵 영업 진행 상황 모달 */}
       {isProgressModalOpen && (
         <div 
           className="fixed inset-0 z-[100] flex items-end md:items-center justify-center bg-black/60 md:p-4 transition-opacity animate-in fade-in"
@@ -721,6 +735,7 @@ ${medicalMemo}`;
 
             <div className="px-4 md:px-6 py-4 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 pb-safe">
               {SALES_STEPS.map((step, index) => {
+                const completedSteps = parseSteps(client.progress_status || null);
                 const isChecked = completedSteps.includes(step.id);
                 
                 return (
@@ -753,7 +768,6 @@ ${medicalMemo}`;
         </div>
       )}
 
-      {/* 🟣 리쿠르팅 진행 상황 모달 */}
       {isRecruitingModalOpen && (
         <div 
           className="fixed inset-0 z-[100] flex items-end md:items-center justify-center bg-black/60 md:p-4 transition-opacity animate-in fade-in"
@@ -783,6 +797,7 @@ ${medicalMemo}`;
 
             <div className="px-4 md:px-6 py-4 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 pb-safe">
               {RECRUITING_STEPS.map((step, index) => {
+                const completedRecSteps = parseSteps(client.recruiting_status || null);
                 const isChecked = completedRecSteps.includes(step.id);
                 
                 return (
