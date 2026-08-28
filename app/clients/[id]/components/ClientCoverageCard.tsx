@@ -413,44 +413,6 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     await supabase.from("subscription_insurance").update({ policy_status: newStatus }).eq("id", covId);
   };
 
-  const handleCompletePolicy = async (covId: number) => {
-    const cov = coverages.find(c => c.id === covId);
-    if (!cov) return;
-
-    if (!window.confirm("이 제안을 최종 체결 처리하시겠습니까?\n가입일이 오늘로 설정되며 만기일도 동일하게 연장됩니다.")) return;
-    
-    const today = new Date();
-    const formattedToday = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-    
-    let newMaturityDate = cov.maturity_date;
-
-    if (cov.subscription_date && cov.maturity_date && cov.maturity_date !== '9999-12-31') {
-      const oldSub = new Date(cov.subscription_date);
-      const oldMat = new Date(cov.maturity_date);
-      
-      if (!isNaN(oldSub.getTime()) && !isNaN(oldMat.getTime())) {
-        const diffYears = oldMat.getFullYear() - oldSub.getFullYear();
-        const diffMonths = oldMat.getMonth() - oldSub.getMonth();
-        const diffDays = oldMat.getDate() - oldSub.getDate();
-
-        const newMat = new Date(today.getFullYear() + diffYears, today.getMonth() + diffMonths, today.getDate() + diffDays);
-        newMaturityDate = `${newMat.getFullYear()}-${String(newMat.getMonth() + 1).padStart(2, '0')}-${String(newMat.getDate()).padStart(2, '0')}`;
-      }
-    }
-
-    const { error } = await supabase.from("subscription_insurance").update({ 
-      policy_status: "maintain",
-      subscription_date: formattedToday,
-      maturity_date: newMaturityDate
-    }).eq("id", covId);
-
-    if (error) {
-      alert("체결 처리에 실패했습니다.");
-    } else {
-      fetchCoverages(); 
-    }
-  };
-
   const updateCoverageDetailsInDB = async (covId: number, newDetails: CoverageDetail[]) => {
     const { error } = await supabase.from("subscription_insurance").update({ details: newDetails }).eq("id", covId);
     if (error) { alert("업데이트 실패"); }
@@ -877,17 +839,7 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                         <div className="flex justify-between items-start gap-2">
                           <div className="flex items-center gap-2 min-w-0 pr-2">
                             <p className="font-bold text-gray-900 truncate text-base" title={cov.insurance_company}>{cov.insurance_company}</p>
-                            
-                            {currentStatus === 'new' && (
-                              <button 
-                                onClick={(e) => { e.stopPropagation(); handleCompletePolicy(cov.id); }}
-                                className="cursor-pointer flex items-center gap-1 text-[10px] font-black bg-emerald-100 hover:bg-emerald-200 text-emerald-700 border border-emerald-300 px-2 py-0.5 rounded shadow-sm transition-colors animate-pulse whitespace-nowrap shrink-0"
-                                title="이 제안을 체결로 확정하고 가입일을 오늘로 지정합니다."
-                              >
-                              체결
-                              </button>
-                            )}
-                            
+                                                        
                             <select
                               value={currentStatus}
                               onChange={(e) => updatePolicyStatus(cov.id, e.target.value)}
@@ -1154,14 +1106,14 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                                           <Undo className="w-3 h-3" /> 감액 취소
                                         </button>
                                       )}
-                                      <button onClick={() => setEditingDetail({ covId: cov.id, idx, tempName: detail.name, tempAmount: detail.amount, tempRenewalType: detail.renewal_type || '비갱신', mode: 'edit' })} className="cursor-pointer flex items-center gap-1 text-[10px] text-gray-500 hover:text-blue-600 px-1">
-                                        <Edit2 className="w-3 h-3" /> 수정
-                                      </button>
                                       <button onClick={() => setEditingDetail({ covId: cov.id, idx, tempName: detail.name, tempAmount: detail.amount, tempRenewalType: detail.renewal_type || '비갱신', mode: 'reduce' })} className="cursor-pointer flex items-center gap-1 text-[10px] text-gray-500 hover:text-purple-600 px-1">
                                         <TrendingDown className="w-3 h-3" /> 감액
                                       </button>
                                       <button onClick={() => handleToggleDetailDelete(cov.id, idx)} className="cursor-pointer flex items-center gap-1 text-[10px] text-gray-500 hover:text-orange-500 px-1">
                                         <MinusCircle className="w-3 h-3" /> 부분해지
+                                      </button>
+                                      <button onClick={() => setEditingDetail({ covId: cov.id, idx, tempName: detail.name, tempAmount: detail.amount, tempRenewalType: detail.renewal_type || '비갱신', mode: 'edit' })} className="cursor-pointer flex items-center gap-1 text-[10px] text-gray-500 hover:text-blue-600 px-1">
+                                        <Edit2 className="w-3 h-3" /> 수정
                                       </button>
                                       <button onClick={() => handlePermanentlyDeleteDetail(cov.id, idx)} className="cursor-pointer flex items-center gap-1 text-[10px] text-gray-500 hover:text-red-500 px-1">
                                         <Trash2 className="w-3 h-3" /> 삭제

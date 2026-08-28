@@ -208,7 +208,7 @@ export default function ClientDetailModal({ client, onClose, onRefresh }: { clie
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/10 backdrop-blur-sm p-0 md:p-4 transition-opacity"
+      className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4 transition-opacity"
       onClick={!isEditing ? onClose : undefined}
     >
       <div 

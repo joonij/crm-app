@@ -659,10 +659,7 @@ ${medicalMemo}`;
       )}
 
       {kakaoRequestData.isOpen && (
-        <div 
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm md:p-4 pt-24 animate-in fade-in"
-          onClick={() => setKakaoRequestData({ ...kakaoRequestData, isOpen: false })}
-        >
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm md:p-4 pt-24 animate-in fade-in">
           <div 
             className="bg-white w-full md:max-w-[900px] md:max-h-[900px] h-full md:rounded-2xl md:shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
