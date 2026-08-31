@@ -13,7 +13,7 @@ const supabase = createClient(
 );
 
 // ⭐️ 분리해둔 보험사별 모듈 불러오기
-import { fillMeritzHealth } from "./handlers/MeritzHealth";
+import { fillMeritzPropertyHealth } from "./handlers/MeritzPropertyHealth";
 import { fillHyundaiMarineHealth } from "./handlers/HyundaiMarineHealth";
 import { fillDbPropertyHealth } from "./handlers/DbPropertyHealth";
 import { fillSamsungFireHealth } from "./handlers/SamsungFireHealth";
@@ -66,8 +66,8 @@ export async function POST(req: NextRequest) {
     let fillFunction: any = null; 
 
     if (claimData.insuranceCompany.includes("메리츠화재")) {
-      fileName = "meritzfire_health.pdf";
-      fillFunction = fillMeritzHealth;
+      fileName = "meritzproperty_health.pdf";
+      fillFunction = fillMeritzPropertyHealth;
     } 
     if (claimData.insuranceCompany.includes("현대해상")) {
       fileName = "hyundaimarine_health.pdf";
@@ -84,10 +84,6 @@ export async function POST(req: NextRequest) {
     if (claimData.insuranceCompany.includes("흥국생명")) {
       fileName = "hanwhaproperty_health.pdf";
       fillFunction = fillHanwhaPropertyHealth;
-    } 
-    if (claimData.insuranceCompany.includes("흥국생명")) {
-      fileName = "heungkuklife_health.pdf";
-      fillFunction = fillHeungkukLifeHealth;
     } 
 
     if (!fileName || !fillFunction) {
