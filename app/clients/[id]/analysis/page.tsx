@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { Check, X, ArrowLeft, Umbrella, TrendingDown, ShieldCheck, Printer, AlertCircle, Stethoscope, CheckCircle2, Info, FileText, AlertTriangle, Save, Loader2, Settings2, Star, RotateCcw, ShieldAlert, Share2, Target, Phone, MessageCircle, ArrowRight, UserPlus, ChevronDown, ChevronUp, Search, LineChart, Gem, Plus } from "lucide-react";
+import { Trash2, Check, X, ArrowLeft, Umbrella, TrendingDown, ShieldCheck, Printer, AlertCircle, Stethoscope, CheckCircle2, Info, FileText, AlertTriangle, Save, Loader2, Settings2, Star, RotateCcw, ShieldAlert, Share2, Target, Phone, MessageCircle, ArrowRight, UserPlus, ChevronDown, ChevronUp, Search, LineChart, Gem, Plus } from "lucide-react";
 import { COVERAGE_OPTIONS, ALLOWED_COVERAGES, calculateCoverageScores, getStandardCoverageInfo, applyCoverageToMap } from "@/lib/coverageMapper";
 import SettingsModal from '../components/SettingsModal';
 
@@ -315,9 +315,9 @@ const CANCER_CODES = [
     group: "악성 신생물 [일반암, 제자리암, 경계성종양]",
     items: [
       { id: "C00~C14", name: "입술, 구강 및 인두의 악성 신생물", keywords: ["일반암 진단비", "통합암 진단비"] },
-      { id: "C15", name: "식도 악성 신생물 (위암, 대장암 등)", keywords: ["일반암 진단비", "고액암 진단비", "통합암 진단비"]},
+      { id: "C15", name: "식도 악성 신생물", keywords: ["일반암 진단비", "고액암 진단비", "통합암 진단비"]},
       { id: "C16~C22", name: "소화기관 악성 신생물 (위암, 대장암 등)", keywords: ["일반암 진단비", "통합암 진단비"]},
-      { id: "C23~C25", name: "담낭, 담도, 췌장 악성 신생물 (위암, 대장암 등)", keywords: ["일반암 진단비", "고액암 진단비", "통합암 진단비"]},
+      { id: "C23~C25", name: "담낭, 담도, 췌장 악성 신생물", keywords: ["일반암 진단비", "고액암 진단비", "통합암 진단비"]},
       { id: "C30~C39", name: "호흡기 및 흉곽내기관 악성 신생물 (폐암 등)", keywords: ["일반암 진단비", "통합암 진단비"]},
       { id: "C40~C41", name: "뼈 악성 신생물", keywords: ["일반암 진단비",  "고액암 진단비", "통합암 진단비"] },
       { id: "C43", name: "관절연골, 흑색종 등", keywords: ["일반암 진단비",  "통합암 진단비"] },
@@ -1038,7 +1038,7 @@ return (
         </div>
 
         {/* 메인 커버 페이지 */}
-        <section className="relative flex flex-col justify-between bg-white border border-slate-400 w-full md:rounded-3xl p-4 md:p-16 mb-8 cover-page print:break-after-page overflow-hidden">
+        <section className="relative flex flex-col justify-between bg-white border border-slate-400 w-full md:rounded-3xl p-4 md:p-16 print:p-16 mb-8 cover-page print:break-after-page overflow-hidden">
           <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-600 rounded-full mix-blend-overlay filter blur-[120px] opacity-40 translate-x-1/4 -translate-y-1/4"></div>
           <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-emerald-500 rounded-full mix-blend-overlay filter blur-[120px] opacity-20 -translate-x-1/4 translate-y-1/4"></div>
 
@@ -1054,7 +1054,7 @@ return (
 
           <div className="relative z-10 my-24 print:my-auto">
             <p className="text-blue-400 font-semibold tracking-widest mb-6 border-l-4 border-blue-500 pl-4">COMPREHENSIVE INSURANCE ANALYSIS</p>
-            <h1 className="text-5xl md:text-6xl lg:text-7xl font-black leading-tight mb-8 text-slate-900">
+            <h1 className="text-5xl md:text-6xl print:text-6xl lg:text-7xl font-black leading-tight mb-8 text-slate-900">
               보장 분석 및<br />비교 분석표
             </h1>
           </div>
@@ -1062,7 +1062,7 @@ return (
           <div className="relative z-10 flex justify-between items-end border-t border-slate-700/50 pt-10">
             <div>
               <p className="text-sm text-slate-600 mb-2 uppercase tracking-wider">Prepared for</p>
-              <p className="text-2xl md:text-4xl font-bold text-slate-900">{client.name} <span className="text-2xl font-normal text-slate-600">고객님</span></p>
+              <p className="text-2xl md:text-4xl print:text-4xl font-bold text-slate-900">{client.name} <span className="text-2xl font-normal text-slate-600">고객님</span></p>
             </div>
             <div className="text-right">
               <p className="text-sm text-slate-400 mb-2 uppercase tracking-wider">Financial Consultant</p>
@@ -1400,10 +1400,10 @@ return (
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-white">
               <tr>
-                <th className="md:px-4 py-4 text-left font-bold text-gray-900 w-3/9">담보 항목</th>
-                <th className="md:px-4 py-4 text-right text-gray-500 w-2/9">기존</th>
-                <th className="md:px-4 py-4 text-right font-bold text-blue-600 bg-blue-50/20 w-2/9">권장</th>
-                <th className="hidden md:table-cell px-4 py-4 text-right font-bold text-gray-900 w-2/9">증감</th>
+                <th className="md:px-4 print:px-4 py-4 text-left font-bold text-gray-900 w-3/9">담보 항목</th>
+                <th className="md:px-4 print:px-4 py-4 text-right text-gray-500 w-2/9">기존 보장액</th>
+                <th className="md:px-4 print:px-4 py-4 text-right font-bold text-blue-600 bg-blue-50/20 w-2/9">권장 보장액</th>
+                <th className="hidden md:table-cell print:table-cell px-4 py-4 text-right font-bold text-gray-900 w-2/9">증감 보장액</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -1411,16 +1411,16 @@ return (
                 const gap = item.after - item.before;
                 return (
                   <tr key={index} className="print:break-inside-avoid">
-                    <td className="md:px-4 py-2 font-semibold text-gray-800 flex items-center gap-1.5">
+                    <td className="md:px-4 print:px-4 py-2 font-semibold text-gray-800 flex items-center gap-1.5">
                       {item.name}
                     </td>
-                    <td className={`md:px-4 py-2 text-right ${item.before === 0 ? 'text-red-400' : 'text-gray-500 font-bold'}`}>
+                    <td className={`md:px-4 print:px-4 py-2 text-right ${item.before === 0 ? 'text-red-400' : 'text-gray-500 font-bold'}`}>
                       {item.before === 0 ? '-' : formatMoney(item.before)}
                     </td>
-                    <td className={`md:px-4 py-2 text-right ${item.after === 0 ? 'text-gray-800' : 'text-blue-600 font-bold'}`}>
+                    <td className={`md:px-4 print:px-4 py-2 text-right ${item.after === 0 ? 'text-gray-800' : 'text-blue-600 font-bold'}`}>
                       {item.after === 0 ? '-' : formatMoney(item.after)}
                     </td>
-                    <td className="hidden md:table-cell px-4 py-2 text-right font-bold">
+                    <td className="hidden md:table-cell print:table-cell px-4 py-2 text-right font-bold">
                       {gap > 0 ? (
                         <span className="text-blue-600">+{formatMoney(gap)}</span>
                       ) : gap < 0 ? (
@@ -1438,80 +1438,69 @@ return (
 
         {/* C00 ~ D09 신생물 질환 상세 코드별 보장금액 진단 */}
         <section className="bg-white md:rounded-2xl p-4 md:p-8 border-2 border-slate-400 shadow-sm print:p-0 print:border-none print:break-inside-avoid print:shadow-none relative overflow-hidden mt-6">
-          {/* <div className="flex items-center justify-between border-b border-slate-200 pb-4 mb-6 print:border-slate-300">
-            <div>
-              <h2 className="text-lg font-black text-slate-800 flex items-center gap-2 uppercase tracking-widest">
-                <Stethoscope className="w-5 h-5 text-blue-600" />
-                C00 ~ D09 (신생물/암 질환) 상세 코드별 보장금액 진단
-              </h2>
-            </div>
-          </div> */}
-
-          <div className="space-y-8">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-4 mb-6 print:border-slate-300">
+            <h2 className="text-lg font-black text-slate-800 flex items-center gap-2 uppercase tracking-widest">
+              <AlertCircle className="w-5 h-5 text-blue-600" />
+              신생물/암 질환 상세 코드별 보장금액
+            </h2>
+          </div>
+          <div className="">
             {CANCER_CODES.map((group, groupIdx) => (
-              <div key={groupIdx} className="bg-slate-50/50 rounded-2xl p-1 print:p-0 print:bg-transparent">
-                <div className="bg-white md:border border-slate-200 md:rounded-xl overflow-hidden md:shadow-sm">
-                  <table className="w-full text-sm text-center border-collapse">
-                    <thead className="md:bg-slate-100 md:border-b border-slate-200">
-                      <tr>
-                        <th className="py-3 md:px-3 text-left font-bold text-slate-600 w-[40%]">신생물/암 질환 상세 코드별 보장금액</th>
-                        <th className="py-3 md:px-2 font-bold text-slate-500 w-[25%] md:border-l border-slate-200">기존 보장액</th>
-                        <th className="py-3 md:px-2 font-black text-blue-600 w-[25%] md:bg-blue-50 md:border-l border-blue-100 shadow-inner">권장 보장액</th>
-                        <th className="hidden md:table-cell py-3 px-2 font-bold text-slate-500 w-[10%] md:border-l border-slate-200">★</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {group.items.map((item, itemIdx) => {
-                        const override = kcdOverrides[item.id] || {};
-                        const beforeAmt = override.before !== undefined ? override.before : calculateCodeCoverage(item.keywords, 'before', item.id, includeSanjeong);
-                        const afterAmt = override.after !== undefined ? override.after : calculateCodeCoverage(item.keywords, 'after', item.id, includeSanjeong);
-                        const isHighlight = override.highlight !== undefined ? override.highlight : item.highlight;
+              <div key={groupIdx}>
+                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                  <thead className="bg-white">
+                    <tr>
+                      <th className="md:px-4 print:px-4 py-2 text-left font-bold text-gray-900 w-3/9">보장항목</th>
+                      <th className="md:px-4 print:px-4 py-2 text-right text-gray-500 w-2/9">기존 보장액</th>
+                      <th className="md:px-4 print:px-4 py-2 text-right font-bold text-blue-600 bg-blue-50/20 w-2/9">권장 보장액</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {group.items.map((item, itemIdx) => {
+                      const override = kcdOverrides[item.id] || {};
+                      const beforeAmt = override.before !== undefined ? override.before : calculateCodeCoverage(item.keywords, 'before', item.id, includeSanjeong);
+                      const afterAmt = override.after !== undefined ? override.after : calculateCodeCoverage(item.keywords, 'after', item.id, includeSanjeong);
+                      const isHighlight = override.highlight !== undefined ? override.highlight : item.highlight;
 
-                        const gap = afterAmt - beforeAmt;
-                        const isUpgraded = gap > 0;
-                        const isZeroBefore = beforeAmt === 0;
+                      const gap = afterAmt - beforeAmt;
+                      const isUpgraded = gap > 0;
+                      const isZeroBefore = beforeAmt === 0;
 
-                        return (
-                          <tr key={itemIdx} className={isUpgraded ? 'md:bg-blue-50/10 hover:bg-blue-50/30 transition-colors' : 'hover:bg-slate-50/50'}>
-                            <td className="py-1 md:px-4 text-left">
-                              <div className="flex flex-col gap-0.5">
-                                <span className={`font-bold text-[13px] ${isUpgraded ? 'text-blue-900' : 'text-slate-800'}`}>
-                                  {item.name}
+                      return (
+                        <tr key={itemIdx} className="print:break-inside-avoid">
+                          <td className="md:px-4 print:px-4 py-1 font-semibold text-gray-800 flex items-center gap-1.5">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-bold text-[13px] text-slate-800">
+                                {item.name}
+                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] font-medium text-slate-400 tracking-wider">
+                                  {item.id}
                                 </span>
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-[10px] font-medium text-slate-400 tracking-wider">
-                                    {item.id}
+                                {isHighlight && (
+                                  <span className="bg-amber-100 text-amber-700 border border-amber-200 text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm">
+                                    ★ 핵심질환
                                   </span>
-                                  {isHighlight && (
-                                    <span className="bg-amber-100 text-amber-700 border border-amber-200 text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm">
-                                      ★ 핵심질환
-                                    </span>
-                                  )}
-                                </div>
+                                )}
                               </div>
-                            </td>
-                            <td className={`py-2 md:px-2 md:border-l border-slate-100 ${isZeroBefore ? 'text-red-400' : 'text-slate-600 font-bold'}`}>
-                              {isZeroBefore ? <X className="w-4 h-4 mx-auto" strokeWidth={3} /> : formatMoney(beforeAmt)}
-                            </td>
-                            <td className={`py-2 md:x-2 md:border-l border-blue-100 md:bg-blue-50/30 font-black ${afterAmt > 0 ? 'text-blue-700' : 'text-slate-400'}`}>
-                              {
-                                afterAmt > 0 ? 
-                                <div className="flex flex-col items-center justify-center gap-1">
-                                  <span className="font-black text-blue-600">{formatMoney(afterAmt)}</span>
-                                </div>
-                                 : 
-                                '-'
-                              }
-                            </td>
-                            <td className="hidden md:table-cell py-2 px-2 border-l border-slate-100 text-center text-slate-300">
-                               {isHighlight ? <Star className="w-4 h-4 fill-amber-500 text-amber-500 mx-auto" /> : '-'}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                            </div>
+                          </td>
+                          <td className={`md:px-4 print:px-4 py-2 text-right ${isZeroBefore ? 'text-red-400' : 'text-slate-600 font-bold'}`}>
+                            {isZeroBefore ? '-' : formatMoney(beforeAmt)}
+                          </td>
+                          <td className="hidden md:table-cell print:table-cell px-4 py-2 text-right font-bold">
+                            {
+                              afterAmt > 0 ? 
+                                <span className="font-black text-blue-600">{formatMoney(afterAmt)}</span>
+                                : 
+                                <span className="text-gray-300">-</span>
+                            }
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             ))}
           </div>
@@ -1519,79 +1508,69 @@ return (
 
         {/* I00 ~ I99 순환계 질환 상세 코드별 보장금액 진단 */}
         <section className="bg-white md:rounded-2xl p-4 md:p-8 border-2 border-slate-400 shadow-sm print:p-0 print:border-none print:break-inside-avoid print:shadow-none relative overflow-hidden mt-6">
-          {/* <div className="flex items-center justify-between border-b border-slate-200 pb-3 mb-3 print:border-slate-300">
-            <div>
-              <h2 className="text-lg font-black text-slate-800 flex items-center gap-2 uppercase tracking-widest">
-                <Stethoscope className="w-5 h-5 text-blue-600" />
-                I00 ~ I99 (순환계 질환) 상세 코드별 보장금액 진단
-              </h2>
-            </div>
-          </div> */}
-
+          <div className="flex items-center justify-between border-b border-slate-200 pb-4 mb-6 print:border-slate-300">
+            <h2 className="text-lg font-black text-slate-800 flex items-center gap-2 uppercase tracking-widest">
+            <AlertCircle className="w-5 h-5 text-blue-600" />
+            순환계 질환 상세 코드별 보장금액
+            </h2>
+          </div>
           <div className="space-y-8">
             {CIRCULATORY_CODES.map((group, groupIdx) => (
-              <div key={groupIdx} className="bg-slate-50/50 rounded-2xl p-1 print:p-0 print:bg-transparent">
-                <div className="bg-white md:border border-slate-200 md:rounded-xl overflow-hidden md:shadow-sm">
-                  <table className="w-full text-sm text-center border-collapse">
-                    <thead className="md:bg-slate-100 md:border-b border-slate-200">
-                      <tr>
-                        <th className="py-3 md:px-3 text-left font-bold text-slate-600 w-[40%]">순환계 질환 상세 코드별 보장금액</th>
-                        <th className="py-3 md:px-2 font-bold text-slate-500 w-[25%] md:border-l border-slate-200">기존 보장액</th>
-                        <th className="py-3 md:px-2 font-black text-blue-600 w-[25%] md:bg-blue-50 md:border-l border-blue-100 shadow-inner">권장 보장액</th>
-                        <th className="hidden md:table-cell py-3 px-2 font-bold text-slate-500 w-[10%] md:border-l border-slate-200">★</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {group.items.map((item, itemIdx) => {
-                        const override = kcdOverrides[item.id] || {};
-                        const beforeAmt = override.before !== undefined ? override.before : calculateCodeCoverage(item.keywords, 'before', item.id, includeSanjeong);
-                        const afterAmt = override.after !== undefined ? override.after : calculateCodeCoverage(item.keywords, 'after', item.id, includeSanjeong);
-                        const isHighlight = override.highlight !== undefined ? override.highlight : item.highlight;
-                        
-                        const gap = afterAmt - beforeAmt;
-                        const isUpgraded = gap > 0;
-                        const isZeroBefore = beforeAmt === 0;
+              <div key={groupIdx}>
+                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                  <thead className="bg-white">
+                    <tr>
+                      <th className="md:px-4 print:px-4 py-4 text-left font-bold text-gray-900 w-3/9">보장항목</th>
+                      <th className="md:px-4 print:px-4 py-4 text-right text-gray-500 w-2/9">기존 보장액</th>
+                      <th className="md:px-4 print:px-4 py-4 text-right font-bold text-blue-600 bg-blue-50/20 w-2/9">권장 보장액</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {group.items.map((item, itemIdx) => {
+                      const override = kcdOverrides[item.id] || {};
+                      const beforeAmt = override.before !== undefined ? override.before : calculateCodeCoverage(item.keywords, 'before', item.id, includeSanjeong);
+                      const afterAmt = override.after !== undefined ? override.after : calculateCodeCoverage(item.keywords, 'after', item.id, includeSanjeong);
+                      const isHighlight = override.highlight !== undefined ? override.highlight : item.highlight;
+                      
+                      const gap = afterAmt - beforeAmt;
+                      const isUpgraded = gap > 0;
+                      const isZeroBefore = beforeAmt === 0;
 
-                        return (
-                          <tr key={itemIdx} className={isUpgraded ? 'md:bg-blue-50/10 hover:bg-blue-50/30 transition-colors' : 'hover:bg-slate-50/50'}>
-                            <td className="py-1 md:px-4 text-left">
-                              <div className="flex flex-col gap-0.5">
-                                <span className={`font-bold text-[13px] ${isUpgraded ? 'text-blue-900' : 'text-slate-800'}`}>
-                                  {item.name}
+                      return (
+                        <tr key={itemIdx} className="print:break-inside-avoid">
+                          <td className="md:px-4 print:px-4 py-1 font-semibold text-gray-800 flex items-center gap-1.5">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-bold text-[13px] text-slate-800">
+                                {item.name}
+                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] font-medium text-slate-400 tracking-wider">
+                                  {item.id}
                                 </span>
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-[10px] font-medium text-slate-400 tracking-wider">
-                                    {item.id}
+                                {isHighlight && (
+                                  <span className="bg-amber-100 text-amber-700 border border-amber-200 text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm">
+                                    ★ 핵심질환
                                   </span>
-                                  {isHighlight && (
-                                    <span className="bg-amber-100 text-amber-700 border border-amber-200 text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm">
-                                      ★ 핵심질환
-                                    </span>
-                                  )}
-                                </div>
+                                )}
                               </div>
-                            </td>
-                            <td className={`py-2 md:px-2 md:border-l border-slate-100 ${isZeroBefore ? 'text-red-400' : 'text-slate-600 font-bold'}`}>
-                              {isZeroBefore ? <X className="w-4 h-4 mx-auto" strokeWidth={3} /> : formatMoney(beforeAmt)}
-                            </td>
-                            <td className={`py-2 md:px-2 md:border-l border-blue-100 md:bg-blue-50/30 font-black ${afterAmt > 0 ? 'text-blue-700' : 'text-slate-400'}`}>
-                              {
-                                afterAmt > 0 ?  
-                                  <div className="flex flex-col items-center justify-center gap-1">
-                                    <span className="font-black text-blue-700">{formatMoney(afterAmt)}</span>
-                                  </div>
-                                : '-'
-                               }
-                            </td>
-                            <td className="hidden md:table-cell py-2 px-2 border-l border-slate-100 text-center text-slate-300">
-                               {isHighlight ? <Star className="w-4 h-4 fill-amber-500 text-amber-500 mx-auto" /> : '-'}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                            </div>
+                          </td>
+                          <td className={`md:px-4 print:px-4 py-2 text-right ${isZeroBefore ? 'text-red-400' : 'text-slate-600 font-bold'}`}>
+                            {isZeroBefore ? '-' : formatMoney(beforeAmt)}
+                          </td>
+                          <td className="hidden md:table-cell print:table-cell px-4 py-2 text-right font-bold">
+                            {
+                              afterAmt > 0 ?  
+                              <span className="font-black text-blue-600">{formatMoney(afterAmt)}</span>
+                              : 
+                              <span className="text-gray-300">-</span>
+                              }
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             ))}
           </div>
@@ -1599,17 +1578,10 @@ return (
         
         {/* 리모델링 상세 내역 */}
         <section className="bg-white md:rounded-2xl p-4 md:p-8 border-2 border-slate-400 shadow-sm print:p-0 print:border-none print:break-inside-avoid print:shadow-none relative overflow-hidden mt-6">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-3 mb-3 print:border-slate-300">
-            <h2 className="text-lg font-black text-slate-800 flex items-center gap-2 uppercase tracking-widest">
-            <AlertCircle className="w-5 h-5 text-blue-600" />
-            보험 상세 내역
-            </h2>
-          </div>
-          
           <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-200 print:grid-cols-2 print:divide-y-0 print:divide-x">
-            
+    
             {/* 왼쪽: 리모델링 전 */}
-            <div className="md:p-6 border-0 print:pl-0 print:pt-0">
+            <div className="md:p-6 print:p-2 border-0 print:pl-0 print:pt-0">
               <h3 className="font-bold text-slate-700 mb-5 flex items-center gap-2 border-b border-slate-200 pb-3 text-lg">
                 기존 보험내역
               </h3>
@@ -1619,7 +1591,7 @@ return (
                   .sort((a, b) => compareEnglishKorean(a.insurance_company || "", b.insurance_company || ""))
                   .map(cov => (
                   <div key={cov.id} className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm print:break-inside-avoid">
-                    <div className="flex justify-between items-start mb-3">
+                    <div className="flex justify-between items-start mb-2">
                       <div>
                         <p className="text-xs font-bold text-slate-500 mb-1">{cov.insurance_company}</p>
                         <p className="font-bold text-slate-900 text-base leading-tight pr-2">{cov.product_name}</p>
@@ -1641,7 +1613,7 @@ return (
                     </div>
                     
                     {cov.details && (
-                      <div className="space-y-2 mt-4 pt-4 border-t border-dashed border-slate-200">
+                      <div className="space-y-2 pt-2 border-t border-dashed border-slate-200">
                         {cov.details.map((d: any, i: number) => {
                           const badgeText = d.renewal_type || "비갱신";
 
@@ -1676,7 +1648,7 @@ return (
             </div>
 
             {/* 오른쪽: 리모델링 후 */}
-            <div className="pt-6 md:p-6 border-0 print:pr-0 print:pt-0">
+            <div className="pt-6 md:p-6 print:p-2 border-0 print:pr-0 print:pt-0">
               <h3 className="font-bold text-blue-700 mb-5 flex items-center gap-2 border-b border-blue-200 pb-3 text-lg">
                 권장 보험내역
               </h3>
@@ -1697,70 +1669,107 @@ return (
                     const afterPremium = cov.monthly_premium;
                     const isPremiumReduced = afterPremium < beforePremium;
 
+                    const isMaintained = cov.policy_status === 'maintain';
+                    const isModified = isMaintained && (
+                      isPremiumReduced || 
+                      (cov.details && cov.details.some((d: any) => d.is_deleted || (d.original_amount !== undefined && extractNumber(d.amount) !== extractNumber(d.original_amount))))
+                    );
+                    const isUnchanged = isMaintained && !isModified;
+                    
+                    // 💡 [핵심] 블러(Blur) 오버레이가 필요한 상태인지 통합 체크
+                    const needsBlur = isUnchanged || isCanceled;
+
                     return (
-                      <div key={cov.id} className={`bg-white rounded-xl border p-5 shadow-sm print:break-inside-avoid ${isNew ? 'border-emerald-300 bg-emerald-50/20' : isCanceled ? 'border-red-200 bg-red-50/20 opacity-80' : 'border-blue-200'}`}>
-                        <div className="flex justify-between items-start mb-3">
-                          <div>
-                            <div className="flex items-center gap-1.5 mb-1">
-                              {isNew && <span className="bg-emerald-600 text-white text-[10px] px-1.5 py-0.5 rounded font-bold tracking-wider">신규</span>}
-                              {isCanceled && <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded font-bold tracking-wider">해지</span>}
-                              <p className="text-xs font-bold text-slate-500">{cov.insurance_company}</p>
-                            </div>
-                            <p className={`font-bold text-base leading-tight pr-2 ${isCanceled ? 'text-slate-400 line-through' : 'text-slate-900'}`}>{cov.product_name}</p>
-                          </div>
-                          <div className="text-right shrink-0 w-26">
-                            {cov.payment_period && <p className="text-xs text-slate-400 mb-0.5">{cov.payment_period}</p>}
-                            {isCanceled ? (
-                              <p className="font-black text-red-500/60 text-base line-through">{formatPremium(beforePremium)}</p>
-                            ) : (
-                              <p className={`font-black text-base ${isPremiumReduced ? 'text-red-600' : (isNew ? 'text-emerald-700' : '')}`}>
-                                {formatPremium(afterPremium)}
-                              </p>
+                      <div key={cov.id} className={`relative bg-white rounded-xl border p-5 shadow-sm print:break-inside-avoid overflow-hidden ${
+                        isNew ? 'border-emerald-300 bg-emerald-50/20' : 
+                        isCanceled ? 'border-red-300 bg-red-50/10' : 
+                        isUnchanged ? 'border-slate-200' : 
+                        'border-blue-300 bg-blue-50/10'
+                      }`}>
+                        
+                        {/* ⭐️ [추가됨] 변경없음 & 해지 카드를 덮는 반투명 블러 오버레이 */}
+                        {needsBlur && (
+                          <div className={`absolute inset-0 z-10 flex items-center justify-center backdrop-blur-[3px] print:backdrop-blur-none ${isCanceled ? 'bg-red-50/40 print:bg-red-50/80' : 'bg-white/50 print:bg-slate-50/80'}`}>
+                            {isUnchanged && (
+                              <span className="bg-slate-700/90 text-white text-[12px] px-4 py-2 rounded-xl font-black tracking-widest shadow-lg flex items-center gap-2">
+                                유지권장
+                              </span>
+                            )}
+                            {isCanceled && (
+                              <span className="bg-red-600/90 text-white text-[12px] px-4 py-2 rounded-xl font-black tracking-widest shadow-lg flex items-center gap-2">
+                                해지권장
+                              </span>
                             )}
                           </div>
-                        </div>
-                        <div className={`rounded-lg p-2.5 mb-2 text-[11px] gap-2 ${isCanceled ? 'bg-red-50/50 border border-red-100' : 'bg-slate-50 border border-slate-100'}`}>
-                           <div className="flex items-center gap-1.5">
-                             <span className={`${isCanceled ? 'text-red-400' : 'text-slate-400'} font-medium`}>계약자/피보험자</span>
-                             <span className={`${isCanceled ? 'text-red-700' : 'text-slate-700'} font-bold`}>{cov.contractor_name || '-'} / {cov.insured_name || client?.name || '-'}</span>
-                           </div>
-                           <div className="flex items-center gap-1.5">
-                             <span className={`${isCanceled ? 'text-red-400' : 'text-slate-400'} font-medium`}>가입일 / 만기일</span>
-                             <span className={`${isCanceled ? 'text-red-700' : 'text-slate-700'} font-bold`}>{cov.subscription_date || '-'} ~ {cov.maturity_date || '-'}</span>
-                           </div>
-                        </div>
-                        
-                        {cov.details && (
-                          <div className="space-y-2 mt-4 pt-4 border-t border-dashed border-slate-200">
-                            {cov.details.map((d: any, i: number) => {
-                              const isEffectivelyDeleted = isCanceled || d.is_deleted;
-                              const beforeDetailAmt = extractNumber(d.original_amount || d.amount);
-                              const afterDetailAmt = extractNumber(d.amount);
-                              const isDetailReduced = d.original_amount && afterDetailAmt < beforeDetailAmt;
-                              const badgeText = d.renewal_type || "비갱신";
+                        )}
 
-                              return (
-                                <div key={i} className={`flex justify-between text-xs ${isEffectivelyDeleted ? 'text-red-400/60 line-through' : 'text-slate-700'}`}>
-                                  <span className="truncate pr-2 flex items-center gap-1.5 leading-relaxed">
-                                    {badgeText === "비갱신" ? (
-                                      <span className={`text-[9px] px-1.5 py-0.5 rounded border shrink-0 font-medium ${isEffectivelyDeleted ? 'bg-red-50 text-red-400 border-red-100' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
-                                        {badgeText}
-                                      </span>
-                                      ) : (
-                                        <span className={`text-[9px] px-1.5 py-0.5 rounded border shrink-0 font-medium ${isEffectivelyDeleted ? 'bg-red-50 text-red-400 border-red-100' : 'bg-amber-100 text-amber-700 border-amber-200'}`}>
+                        {/* ⭐️ 오버레이 아래에 깔릴 실제 내용들 (블러 대상일 땐 투명하게) */}
+                        <div className={needsBlur ? 'opacity-40 select-none pointer-events-none' : ''}>
+                          <div className="flex justify-between items-start mb-2">
+                            <div>
+                              <div className="flex items-center gap-1.5 mb-1">
+                                {isNew && <span className="bg-emerald-600 text-white text-[10px] px-1.5 py-0.5 rounded font-bold tracking-wider">신규</span>}
+                                {isCanceled && <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded font-bold tracking-wider">해지</span>}
+                                {isModified && <span className="bg-blue-500 text-white text-[10px] px-1.5 py-0.5 rounded font-bold tracking-wider">부분 변경</span>}
+                                
+                                <p className="text-xs font-bold text-slate-500">{cov.insurance_company}</p>
+                              </div>
+                              <p className={`font-bold text-base leading-tight pr-2 ${isCanceled ? 'text-slate-400 line-through' : 'text-slate-900'}`}>{cov.product_name}</p>
+                            </div>
+                            <div className="text-right shrink-0 w-26">
+                              {cov.payment_period && <p className="text-xs text-slate-400 mb-0.5">{cov.payment_period}</p>}
+                              {isCanceled ? (
+                                <p className="font-black text-red-500/60 text-base line-through">{formatPremium(beforePremium)}</p>
+                              ) : (
+                                <p className={`font-black text-base ${isPremiumReduced ? 'text-red-600' : (isNew ? 'text-emerald-700' : '')}`}>
+                                  {formatPremium(afterPremium)}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <div className={`rounded-lg p-2.5 mb-2 text-[11px] gap-2 ${isCanceled ? 'bg-red-50/50 border border-red-100' : 'bg-slate-50 border border-slate-100'}`}>
+                            <div className="flex items-center gap-1.5">
+                              <span className={`${isCanceled ? 'text-red-400' : 'text-slate-400'} font-medium`}>계약자/피보험자</span>
+                              <span className={`${isCanceled ? 'text-red-700' : 'text-slate-700'} font-bold`}>{cov.contractor_name || '-'} / {cov.insured_name || client?.name || '-'}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className={`${isCanceled ? 'text-red-400' : 'text-slate-400'} font-medium`}>가입일 / 만기일</span>
+                              <span className={`${isCanceled ? 'text-red-700' : 'text-slate-700'} font-bold`}>{cov.subscription_date || '-'} ~ {cov.maturity_date || '-'}</span>
+                            </div>
+                          </div>
+                          
+                          {cov.details && (
+                            <div className="space-y-2 pt-2 border-t border-dashed border-slate-200">
+                              {cov.details.map((d: any, i: number) => {
+                                const isEffectivelyDeleted = isCanceled || d.is_deleted;
+                                const beforeDetailAmt = extractNumber(d.original_amount || d.amount);
+                                const afterDetailAmt = extractNumber(d.amount);
+                                const isDetailReduced = d.original_amount !== undefined && afterDetailAmt < beforeDetailAmt;
+                                const badgeText = d.renewal_type || "비갱신";
+
+                                return (
+                                  <div key={i} className={`flex justify-between text-xs ${isEffectivelyDeleted ? 'text-red-400/60 line-through' : 'text-slate-700'}`}>
+                                    <span className="truncate pr-2 flex items-center gap-1.5 leading-relaxed">
+                                      {badgeText === "비갱신" ? (
+                                        <span className={`text-[9px] px-1.5 py-0.5 rounded border shrink-0 font-medium ${isEffectivelyDeleted ? 'bg-red-50 text-red-400 border-red-100' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
                                           {badgeText}
                                         </span>
-                                      )}
-                                    {d.name}
-                                  </span>
-                                  <span className={`font-bold shrink-0 ${isEffectivelyDeleted ? '' : (isDetailReduced ? 'text-red-600' : (d.original_amount ? 'text-blue-600' : 'text-slate-800'))}`}>
-                                    {isCanceled ? '해지됨' : (d.is_deleted ? '삭제됨' : `${formatDetailAmount(d.amount)}만원`)}
-                                  </span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
+                                        ) : (
+                                          <span className={`text-[9px] px-1.5 py-0.5 rounded border shrink-0 font-medium ${isEffectivelyDeleted ? 'bg-red-50 text-red-400 border-red-100' : 'bg-amber-100 text-amber-700 border-amber-200'}`}>
+                                            {badgeText}
+                                          </span>
+                                        )}
+                                      {d.name}
+                                    </span>
+                                    <span className={`font-bold shrink-0 ${isEffectivelyDeleted ? '' : (isDetailReduced ? 'text-red-600' : (d.original_amount !== undefined && afterDetailAmt !== beforeDetailAmt ? 'text-blue-600' : 'text-slate-800'))}`}>
+                                      {isCanceled ? '해지됨' : (d.is_deleted ? '삭제됨' : `${formatDetailAmount(d.amount)}만원`)}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
