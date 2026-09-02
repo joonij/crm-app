@@ -3,9 +3,10 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { Trash2, Check, X, ArrowLeft, Umbrella, TrendingDown, ShieldCheck, Printer, AlertCircle, Stethoscope, CheckCircle2, Info, FileText, AlertTriangle, Save, Loader2, Settings2, Star, RotateCcw, ShieldAlert, Share2, Target, Phone, MessageCircle, ArrowRight, UserPlus, ChevronDown, ChevronUp, Search, LineChart, Gem, Plus } from "lucide-react";
+import { Scale, Coins, Activity, Trash2, Check, X, ArrowLeft, Umbrella, TrendingDown, ShieldCheck, Printer, AlertCircle, Stethoscope, CheckCircle2, Info, FileText, AlertTriangle, Save, Loader2, Settings2, Star, RotateCcw, ShieldAlert, Share2, Target, Phone, MessageCircle, ArrowRight, UserPlus, ChevronDown, ChevronUp, Search, LineChart, Gem, Plus } from "lucide-react";
 import { COVERAGE_OPTIONS, ALLOWED_COVERAGES, calculateCoverageScores, getStandardCoverageInfo, applyCoverageToMap } from "@/lib/coverageMapper";
 import SettingsModal from '../components/SettingsModal';
+import { decryptRegNumber } from "@/app/actions/crypto";
 
 // ⭐️ 4대 핵심 보장 카테고리 및 세부 목표 설정
 export const CHART_CONFIG = [
@@ -90,13 +91,13 @@ const PolygonRadarChart = ({ categories, beforeData, afterData }: { categories: 
         })}
 
         {/* 1. 리모델링 전 (기존 보장) */}
-        <polygon points={getPoints(beforeData)} fill="transparent" stroke="#64748b" strokeWidth="1.5" strokeDasharray="4,4" className="print:stroke-slate-400" />
+        <polygon points={getPoints(beforeData)} fill="transparent" stroke="#64748b" strokeWidth="1.5" strokeDasharray="4,4" className="print:stroke-slate-800" />
         {beforeData.map((val, i) => {
            const r = (val / 100) * radius;
            const theta = i * angleStep - Math.PI / 2;
            const x = center + r * Math.cos(theta);
            const y = center + r * Math.sin(theta);
-           return <circle key={`before-${i}`} cx={x} cy={y} r="3" fill="#f8fafc" stroke="#64748b" strokeWidth="1.5" className="print:stroke-slate-400" />
+           return <circle key={`before-${i}`} cx={x} cy={y} r="3" fill="#d8dadc" stroke="#44546b" strokeWidth="1.5" className="print:stroke-slate-800" />
         })}
 
         {/* 2. 최적화 제안 후 */}
@@ -346,6 +347,7 @@ export default function AnalysisPage() {
   const [selectedGaps, setSelectedGaps] = useState<string[]>([]);
   const [radarTargets, setRadarTargets] = useState<Record<string, number>>({});
   const [radarRates, setRadarRates] = useState<Record<string, { before?: number, after?: number }>>({});
+  const [pensionOverrides, setPensionOverrides] = useState<Record<string, number>>({}); // 🚀 연금 설정 상태 추가
   const [analysisData, setAnalysisData] = useState({
     premium: { before: 0, after: 0 },
     totalPremium: { before: 0, after: 0 }, 
@@ -375,6 +377,14 @@ export default function AnalysisPage() {
 
     const { data: clientData } = await supabase.from("clients").select("*").eq("id", clientId).single();
     if (clientData) {
+      if (clientData.registration_number && clientData.registration_number.includes(':')) {
+        try {
+          const decrypted = await decryptRegNumber(clientData.registration_number);
+          clientData.registration_number = decrypted;
+        } catch (e) {
+          console.error("주민번호 복호화 실패:", e);
+        }
+      }
       setClient(clientData);
       setMedicalHistory(clientData.medical_history || { checklist: {}, memo: "" });
       
@@ -391,9 +401,9 @@ export default function AnalysisPage() {
             circExcl: !!clientData.consulting_details.includeSanjeong.circExcl
           });
         }
-        // DB에서 설정한 타겟값 불러오기
         if (clientData.consulting_details.radarTargets) setRadarTargets(clientData.consulting_details.radarTargets);
         if (clientData.consulting_details.radarRates) setRadarRates(clientData.consulting_details.radarRates);
+        if (clientData.consulting_details.pensionOverrides) setPensionOverrides(clientData.consulting_details.pensionOverrides); // 🚀 DB 연금 설정 로드
       }
     }
 
@@ -477,7 +487,6 @@ export default function AnalysisPage() {
               }
             }
 
-            // 🚀 BINGO: "비급여", "암", "치료" 3단어가 들어가면 무조건 '암주요 치료비'로 강제 합산시킵니다.
             if (normalizedName.includes("비급여") && normalizedName.includes("암") && normalizedName.includes("치료")) {
               forceKeep = true;
               forceDisplayName = "암주요 치료비";
@@ -538,7 +547,6 @@ export default function AnalysisPage() {
 
       let savedVisible = clientData.consulting_details?.visibleCoverages;
       
-      // 🚀 핵심 수정: DB에 실수로 빈 배열([])이 저장되어 화면이 백지로 나오는 현상 완벽 차단!
       if (!savedVisible || savedVisible.length === 0) {
         savedVisible = fullCoveragesArray
           .filter(c => (c.before > 0 || c.after > 0) && c.name !== "일반사망 진단비" && !HIDDEN_IN_SUMMARY.includes(c.name))
@@ -567,8 +575,8 @@ export default function AnalysisPage() {
         coverageOverrides: coverageOverrides,
         includeSanjeong: includeSanjeong,
         radarTargets: radarTargets,
-        // 🚀 BINGO 1: DB 저장 페이로드에 레이더 달성율 추가!
-        radarRates: radarRates 
+        radarRates: radarRates,
+        pensionOverrides: pensionOverrides // 🚀 연금 설정 저장
       };
 
       const { error } = await supabase.from("clients").update({ consulting_details: payload }).eq("id", clientId);
@@ -655,10 +663,8 @@ export default function AnalysisPage() {
 
       if (isCirc) {
         if (isExcluded) {
-          // ⭐️ 특정순환계(제외) 버튼이 켜졌을 때만 KCD에 합산!
           if (sanjeongOpts.circExcl && CIRC_EXCL_NAMES.includes(cleanCurrentName)) return acc + amt;
         } else {
-          // ⭐️ 특정순환계(전체) 버튼이 켜졌을 때만 KCD에 합산!
           if (sanjeongOpts.circAll && CIRC_ALL_NAMES.includes(cleanCurrentName)) return acc + amt;
         }
         return acc; 
@@ -667,7 +673,6 @@ export default function AnalysisPage() {
       const isNormalKeywordMatch = keywords.some(kw => cleanName.includes(kw.replace(/\s+/g, '')));
       if (isNormalKeywordMatch) {
         
-        // ⭐️ 핵심 차단 로직: KCD 진단비 영역에서 수술비, 치료비, 입원비 등이 뻥튀기 합산되는 것을 완벽 차단!
         if (
             cleanName.includes("수술") || 
             cleanName.includes("치료") || 
@@ -704,7 +709,8 @@ export default function AnalysisPage() {
         coverageOverrides: newSettings.coverageOverrides,
         includeSanjeong: newSettings.includeSanjeong,
         radarTargets: newSettings.radarTargets,
-        radarRates: newSettings.radarRates 
+        radarRates: newSettings.radarRates,
+        pensionOverrides: newSettings.pensionOverrides // 🚀 모달 데이터 DB에 저장
       };
 
       const { error } = await supabase.from("clients").update({ consulting_details: payload }).eq("id", clientId);
@@ -716,8 +722,8 @@ export default function AnalysisPage() {
       setCoverageOverrides(newSettings.coverageOverrides);
       setIncludeSanjeong(newSettings.includeSanjeong);
       setRadarTargets(newSettings.radarTargets);
-      // 🚀 BINGO 2: 모달에서 넘어온 달성율을 메인 화면 상태에 즉각 반영!
       setRadarRates(newSettings.radarRates); 
+      setPensionOverrides(newSettings.pensionOverrides); // 🚀 화면에 즉시 적용
       
       setIsSettingsModalOpen(false);
     } catch (error: any) {
@@ -794,7 +800,6 @@ export default function AnalysisPage() {
       return client.consulting_details.selectedGaps.includes(custom.title);
     }).map((custom: any) => ({ ...custom, isCustom: true }));
 
-    // ⭐️ 끝에 .slice(0, 4) 를 추가하여 우선순위가 높은 순서대로 최대 4개까지만 표시합니다.
     return [...filteredAutoGaps, ...filteredCustomGaps].slice(0, 4);
   })();
 
@@ -825,11 +830,9 @@ export default function AnalysisPage() {
     return idxA - idxB;
   });
 
-// ⭐️ 데이터 추출 헬퍼 함수 (label: string = "" 기본값 추가)
 const getChartValue = (keywords: string[], type: 'before' | 'after', label: string = "") => {
   let total = 0;
   
-  // 1️⃣ 연금보험 (보장금액 대신 월 보험료 1만원 단위 환산)
   if (label === "연금보험") {
       const pensionPremium = analysisData.rawPolicies
           .filter(p => {
@@ -846,7 +849,6 @@ const getChartValue = (keywords: string[], type: 'before' | 'after', label: stri
       return Math.floor(pensionPremium / 10000);
   }
 
-  // 2️⃣ 뇌혈관질환진단비 (I67~I69 KCD 금액 연동)
   if (label === "뇌혈관질환진단비") {
       const kcdId = "I67~I69"; 
       const kcdKeywords = ["특정순환계", "뇌혈관", "순환계질환통합", "순환계통합", "순환계질환", "순환계"];
@@ -855,7 +857,6 @@ const getChartValue = (keywords: string[], type: 'before' | 'after', label: stri
       return calculateCodeCoverage(kcdKeywords, type, kcdId, includeSanjeong);
   }
 
-  // 3️⃣ 허혈성심장질환진단비 (I24~I25 KCD 금액 연동)
   if (label === "허혈성심장질환진단비") {
       const kcdId = "I24~I25"; 
       const kcdKeywords = ["특정순환계", "허혈성심장", "심혈관질환", "순환계질환통합", "순환계통합", "순환계질환", "순환계"];
@@ -864,7 +865,6 @@ const getChartValue = (keywords: string[], type: 'before' | 'after', label: stri
       return calculateCodeCoverage(kcdKeywords, type, kcdId, includeSanjeong);
   }
 
-  // 4️⃣ 순환계질환진단비 (I26~I50 KCD 평균 금액 연동)
   if (label === "순환계질환진단비") {
       const targetIds = ["I26~I28", "I30~I33", "I34~I37", "I38", "I39", "I40~I41", "I42~I43", "I44~I45", "I46", "I47~I48, ", "I49", "I50"];
       const kcdKeywords = ["특정순환계", "순환계질환통합", "순환계통합", "순환계질환", "순환계"];
@@ -880,7 +880,6 @@ const getChartValue = (keywords: string[], type: 'before' | 'after', label: stri
       return Math.floor(sum / targetIds.length);
   }
 
-  // 5️⃣ 기본 매칭 로직
   const isMatch = (cleanName: string) => {
       if (cleanName.includes("의료비") || cleanName.includes("실비") || cleanName.includes("실손")) return false;
       if (label.includes("진단") && (cleanName.includes("수술") || cleanName.includes("치료") || cleanName.includes("산정") || cleanName.includes("특례") || cleanName.includes("입원") || cleanName.includes("일당"))) return false;
@@ -902,7 +901,6 @@ const getChartValue = (keywords: string[], type: 'before' | 'after', label: stri
   return total;
 };
 
-// 4축 밸런스 점수 계산
 const chartDataGrouped = CHART_CONFIG.map(cat => {
   let catBeforeSum = 0;
   let catAfterSum = 0;
@@ -912,7 +910,6 @@ const chartDataGrouped = CHART_CONFIG.map(cat => {
      let aVal = getChartValue(item.keywords, 'after', item.label);
      const target = radarTargets[item.label] !== undefined ? radarTargets[item.label] : item.defaultTarget;
      
-     // 🚀 최우선! 모달에서 달성율을 수동으로 입력했다면 입력값을 바로 점수에 꽂아버립니다.
      const manualBeforeRate = radarRates[item.label]?.before;
      const manualAfterRate = radarRates[item.label]?.after;
 
@@ -1030,7 +1027,6 @@ return (
               {isSavingConsulting ? "저장중..." : saveSuccess ? "저장완료" : "내용저장"}
             </button>
             
-            {/* ⭐️ 출력 버튼은 모바일 화면에서는 숨김 (sm 크기 이상부터 노출) */}
             <button onClick={handlePrint} className="cursor-pointer hidden sm:flex items-center gap-1.5 bg-gray-900 text-white px-5 py-2.5 rounded-lg text-sm font-bold hover:bg-gray-800 transition shadow-md">
               <Printer className="w-4 h-4" /> 출력
             </button>
@@ -1087,7 +1083,7 @@ return (
                 {/* 상단: 미흡 보장 진단 */}
                 <div className="flex flex-col">
                   <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <h4 className="text-lg font-black text-gray-900 flex items-center gap-2">
+                    <h4 className="text-base font-black text-slate-800 flex items-center gap-2">
                       {displayGaps.length > 0 ? <AlertCircle className="w-5 h-5 text-red-500"/> : <ShieldCheck className="w-5 h-5 text-emerald-600"/>} 
                       기존 보장 공백 진단 결과
                     </h4>
@@ -1132,19 +1128,17 @@ return (
                   )}
                 </div>
 
-                {/* ⭐️ 하단: 4개의 5각형 밸런스 차트 (카테고리별 분리) */}
+                {/* 하단: 4개의 5각형 밸런스 차트 */}
+                
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <h4 className="text-base font-black text-slate-800 flex items-center gap-2">
+                    <Target className="w-5 h-5 text-blue-600"/> 보장 밸런스
+                  </h4>
+                </div>
                 <div className="bg-slate-50/80 border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col items-center">
-                  <div className="w-full mb-6">
-                    <h4 className="text-base font-black text-slate-800 flex items-center gap-2 mb-1">
-                      <Target className="w-5 h-5 text-blue-600"/> 보장 밸런스
-                    </h4>
-                  </div>
-                  
-                {/* 2x2 그리드로 4개의 차트 렌더링 */}
-                <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-y-12 print:gap-y-0 gap-x-4 w-full">
+                  <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-y-12 print:gap-y-0 gap-x-4 w-full">
                     {CHART_CONFIG.map((config, idx) => {
                         const bData = config.items.map(item => {
-                            // 🚀 TS 에러 해결: 변수에 담아서 확실하게 숫자(number)임을 보장합니다.
                             const manualBefore = radarRates[item.label]?.before;
                             if (manualBefore !== undefined) return Math.max(15, Math.min(100, manualBefore));
                             
@@ -1154,7 +1148,6 @@ return (
                         });
 
                         const aData = config.items.map(item => {
-                            // 🚀 TS 에러 해결: 변수에 담아서 확실하게 숫자(number)임을 보장합니다.
                             const manualAfter = radarRates[item.label]?.after;
                             if (manualAfter !== undefined) return Math.max(15, Math.min(100, manualAfter));
                             
@@ -1193,99 +1186,279 @@ return (
             );
           })()}
 
-          <div className="flex flex-col gap-4 shrink-0 print-bundle mt-4">
+
+          <section className="bg-white relative overflow-hidden">
+            <div className="flex items-center justify-between print:border-slate-300">
+              <h2 className="text-base font-black text-slate-800 flex items-center gap-2 uppercase tracking-widest">
+                <Coins className="w-5 h-5 text-violet-500" />
+                노후 연금 진단
+              </h2>
+              <span className="text-[10px] sm:text-xs font-bold bg-blue-50 text-blue-600 px-3 py-1 rounded-full border border-blue-200 print:border-slate-300">
+                통계청 최신 연령별 데이터 반영
+              </span>
+            </div>
+
+            {(() => {
+              // 1. 고객 나이 연산 로직
+              const currentYear = new Date().getFullYear();
+              let age = 0;
+
+              const birthStr = client?.birth_date || "";
+              const regNum = client?.registration_number || "";
+
+              if (birthStr) {
+                  const cleanBirth = birthStr.replace(/[^0-9]/g, '');
+                  if (cleanBirth.length >= 4) {
+                      const birthYear = parseInt(cleanBirth.substring(0, 4), 10);
+                      age = currentYear - birthYear;
+                  }
+              } else if (regNum && regNum.replace(/[^0-9]/g, '').length >= 6) {
+                  const cleanReg = regNum.replace(/[^0-9]/g, '');
+                  const yearPrefix = parseInt(cleanReg.substring(0, 2), 10);
+                  
+                  if (cleanReg.length >= 7) {
+                      const gender = cleanReg.substring(6, 7);
+                      const birthYear = (['3','4','7','8'].includes(gender) ? 2000 : 1900) + yearPrefix;
+                      age = currentYear - birthYear;
+                  } else {
+                      const birthYear = yearPrefix > 30 ? 1900 + yearPrefix : 2000 + yearPrefix;
+                      age = currentYear - birthYear;
+                  }
+              }
+
+              let nationalAvg = 0; 
+              let corporateAvg = 0; 
+              let ageGroupStr = "";
+
+              if (age < 30) {
+                  nationalAvg = 84; corporateAvg = 70; ageGroupStr = "20대";
+              } else if (age >= 30 && age <= 34) {
+                  nationalAvg = 78; corporateAvg = 65; ageGroupStr = "30~34세";
+              } else if (age >= 35 && age <= 39) {
+                  nationalAvg = 72; corporateAvg = 60; ageGroupStr = "35~39세";
+              } else if (age >= 40 && age <= 44) {
+                  nationalAvg = 58; corporateAvg = 55; ageGroupStr = "40~44세";
+              } else if (age >= 45 && age <= 49) {
+                  nationalAvg = 52; corporateAvg = 50; ageGroupStr = "45~49세";
+              } else if (age >= 50 && age <= 54) {
+                  nationalAvg = 48; corporateAvg = 45; ageGroupStr = "50~54세";
+              } else if (age >= 55 && age <= 59) {
+                  nationalAvg = 28; corporateAvg = 40; ageGroupStr = "55~59세";
+              } else if (age >= 60 && age <= 64) {
+                  nationalAvg = 24; corporateAvg = 35; ageGroupStr = "60~64세";
+              } else {
+                  nationalAvg = 50; corporateAvg = 30; ageGroupStr = "65세 이상";
+              }
+
+              // 3. 목표 및 합산 데이터 산정 (수동 설정값 반영)
+              const targetPension = pensionOverrides?.target ?? 198; 
+              const calcPersonal = getChartValue(["연금"], 'before', "연금보험");
+
+              const nationalFinal = pensionOverrides?.national ?? nationalAvg;
+              const corporateFinal = pensionOverrides?.corporate ?? corporateAvg;
+              const personalFinal = pensionOverrides?.personal ?? calcPersonal;
+
+              const totalPrepared = nationalFinal + corporateFinal + personalFinal;
+              const shortfall = Math.max(0, targetPension - totalPrepared);
+
+              // ⭐️ 해결 1: 피라미드의 '진짜 전체 높이'를 260px로 영구 고정합니다.
+              const CHART_HEIGHT = 200; 
+              const MIN_H = 120; // 0원일 때 형태를 유지하기 위한 최소 가중치
+              
+              const maxChartValue = Math.max(targetPension, totalPrepared);
+              const rawPx = (val: number) => (val / maxChartValue) * CHART_HEIGHT; 
+
+              // 1차 계산: 최소 높이 보장 (이 과정에서 거품 높이가 발생함)
+              const preNat = nationalFinal > 0 ? Math.max(MIN_H, rawPx(nationalFinal)) : MIN_H;
+              const preCorp = corporateFinal > 0 ? Math.max(MIN_H, rawPx(corporateFinal)) : MIN_H;
+              const prePers = personalFinal > 0 ? Math.max(MIN_H, rawPx(personalFinal)) : MIN_H;
+              const preShort = shortfall > 0 ? Math.max(MIN_H, rawPx(shortfall)) : 0; 
+
+              // ⭐️ 해결 2: 발생한 거품을 쫙 빼서 우리가 원하는 고정 높이(260px)로 정확히 압축 배분!
+              const preTotal = preNat + preCorp + prePers + preShort;
+              const scale = CHART_HEIGHT / preTotal; // 압축 비율 계산
+
+              const hNat = preNat * scale;
+              const hCorp = preCorp * scale;
+              const hPers = prePers * scale;
+              const hShort = preShort * scale;
+
+              // 이렇게 하면 totalH는 무슨 일이 있어도 언제나 260px로 완벽하게 고정됩니다.
+              const totalH = hNat + hCorp + hPers + hShort; 
+              const W = 260; // 피라미드 밑변 넓이도 동일하게 고정
+              const CX = W / 2;
+
+              // 각 층별 Y 좌표 (0이 꼭대기, totalH가 바닥)
+              const yShortTop = 0;
+              const yShortBottom = hShort;
+              const yPersTop = yShortBottom;
+              const yPersBottom = yPersTop + hPers;
+              const yCorpTop = yPersBottom;
+              const yCorpBottom = yCorpTop + hCorp;
+              const yNatTop = yCorpBottom;
+              const yNatBottom = yNatTop + hNat;
+
+              // 피라미드 빗변 각도를 구하는 함수
+              const getDX = (y: number) => (y / totalH) * CX;
+
+              // SVG 사다리꼴 꼭짓점 그리기 함수
+              const makePoly = (yTop: number, yBottom: number) => {
+                  const dxTop = getDX(yTop);
+                  const dxBottom = getDX(yBottom);
+                  return `${CX - dxTop},${yTop} ${CX + dxTop},${yTop} ${CX + dxBottom},${yBottom} ${CX - dxBottom},${yBottom}`;
+              };
+
+              // 목표선(빨간 줄)의 정확한 위치 계산
+              let targetLineTop = 0;
+              if (shortfall > 0) {
+                  targetLineTop = 0; 
+              } else {
+                  targetLineTop = totalH * (1 - (targetPension / totalPrepared));
+              }
+
+              return (
+                <figure className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-6 print:gap-8 items-stretch print-bundle mt-4 m-0 p-0" style={{ display: 'grid' }}>
+                  
+                  {/* 왼쪽: 3층 연금 피라미드 차트 */}
+                  <figure className="bg-slate-50 border border-slate-200 rounded-2xl flex flex-col justify-center items-center relative print:bg-white print:border-slate-300 m-0" style={{ minHeight: '240px', display: 'flex' }}>
+                    
+                    {/* 전체 높이가 260px로 영구 고정되어 펄럭이거나 축소되지 않습니다 */}
+                    <figure className="w-full max-w-[260px] mx-auto relative z-10 m-0 mt-4" style={{ height: `${totalH}px`, display: 'block' }}>
+                      
+                      <section className="absolute w-full border-t-[2.5px] border-dashed border-red-500 left-0 z-30" style={{ top: `${targetLineTop}px`, display: 'block' }}>
+                        <span className="absolute -top-4 left-1/2 -translate-x-1/2 text-red-600 font-black text-[12px] md:text-[13px] bg-white px-3 py-1 rounded shadow-sm border border-red-200 whitespace-nowrap print:border-red-300 print:shadow-none print:bg-white">
+                          적정 노후 생활비 (월 {targetPension}만)
+                        </span>
+                      </section>
+
+                      {/* 인쇄 버그 없는 순수 SVG 피라미드 렌더링 */}
+                      <svg viewBox={`0 0 ${W} ${totalH}`} preserveAspectRatio="none" className="absolute inset-0 w-full h-full drop-shadow-sm z-0" style={{ display: 'block' }}>
+                        
+                        <polygon points={`${CX},0 0,${totalH} ${W},${totalH}`} fill="#f1f5f9" />
+
+                        {hShort > 0 && <polygon points={makePoly(yShortTop, yShortBottom)} fill="#fee2e2" />}
+                        <polygon points={makePoly(yPersTop, yPersBottom)} fill={personalFinal > 0 ? "#a855f7" : "#f1f5f9"} />
+                        <polygon points={makePoly(yCorpTop, yCorpBottom)} fill={corporateFinal > 0 ? "#3b82f6" : "#f1f5f9"} />
+                        <polygon points={makePoly(yNatTop, yNatBottom)} fill={nationalFinal > 0 ? "#10b981" : "#f1f5f9"} />
+
+                        {/* 0원일 때 점선 */}
+                        {personalFinal === 0 && hPers > 0 && <line x1={CX - getDX(yPersTop)} y1={yPersTop} x2={CX + getDX(yPersTop)} y2={yPersTop} stroke="#cbd5e1" strokeWidth="1.5" strokeDasharray="4,4" />}
+                        {corporateFinal === 0 && hCorp > 0 && <line x1={CX - getDX(yCorpTop)} y1={yCorpTop} x2={CX + getDX(yCorpTop)} y2={yCorpTop} stroke="#cbd5e1" strokeWidth="1.5" strokeDasharray="4,4" />}
+                        {nationalFinal === 0 && hNat > 0 && <line x1={CX - getDX(yNatTop)} y1={yNatTop} x2={CX + getDX(yNatTop)} y2={yNatTop} stroke="#cbd5e1" strokeWidth="1.5" strokeDasharray="4,4" />}
+
+                        {/* 금액이 있을 때 실선 */}
+                        {personalFinal > 0 && <line x1={CX - getDX(yPersBottom)} y1={yPersBottom} x2={CX + getDX(yPersBottom)} y2={yPersBottom} stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" />}
+                        {corporateFinal > 0 && <line x1={CX - getDX(yCorpBottom)} y1={yCorpBottom} x2={CX + getDX(yCorpBottom)} y2={yCorpBottom} stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" />}
+                      </svg>
+
+                      {/* 텍스트 레이어 */}
+                      <article className="absolute inset-0 w-full h-full flex flex-col z-20 pointer-events-none" style={{ display: 'flex' }}>
+                          
+                          {hShort > 0 && (
+                            <section style={{ height: `${hShort}px`, display: 'flex' }} className="w-full flex-col items-center justify-center shrink-0" />
+                          )}
+
+                          <section style={{ height: `${hPers}px`, display: 'flex' }} className="w-full flex-col items-center justify-center shrink-0">
+                            <span className={`font-semibold text-[10px] print:text-[10px] ${personalFinal > 0 ? 'text-white/90 print:text-white [text-shadow:_0_1px_2px_theme(colors.purple.700)]' : 'text-slate-300 print:text-slate-300'}`}>여유생활자금</span>
+                            <span className={`font-black text-xs md:text-sm print:text-[13px] tracking-wide mt-0.5 ${personalFinal > 0 ? 'text-white print:text-white [text-shadow:_0_1px_2px_theme(colors.purple.700)]' : 'text-slate-300 print:text-slate-300'}`}>개인연금 {personalFinal}만</span>
+                          </section>
+
+                          <section style={{ height: `${hCorp}px`, display: 'flex' }} className="w-full flex-col items-center justify-center shrink-0">
+                            <span className={`font-semibold text-[10px] print:text-[10px] ${corporateFinal > 0 ? 'text-white/90 print:text-white' : 'text-slate-300 print:text-slate-300'}`}>표준생활자금 ({ageGroupStr} 중위)</span>
+                            <span className={`font-black text-xs md:text-sm print:text-[13px] tracking-wide mt-0.5 ${corporateFinal > 0 ? 'text-white print:text-white' : 'text-slate-300 print:text-slate-300'}`}>예상 퇴직연금 {corporateFinal}만</span>
+                          </section>
+
+                          <section style={{ height: `${hNat}px`, display: 'flex' }} className="w-full flex-col items-center justify-center shrink-0">
+                            <span className={`font-semibold text-[10px] print:text-[10px] ${nationalFinal > 0 ? 'text-white/90 print:text-white drop-shadow-md' : 'text-slate-400 print:text-slate-400'}`}>기초생활자금 ({ageGroupStr} 평균)</span>
+                            <span className={`font-black text-xs md:text-sm print:text-[13px] tracking-wide mt-0.5 ${nationalFinal > 0 ? 'text-white print:text-white' : 'text-slate-300 print:text-slate-300'}`}>예상 국민연금 {nationalFinal}만</span>
+                          </section>
+                      </article>
+
+                      {/* 개인연금 0원 뱃지 */}
+                      {personalFinal === 0 && (
+                        <div className="absolute top-[40%] -right-4 md:-right-12 translate-x-4 print:hidden z-40">
+                           <div className="bg-slate-700/80 text-white text-[11px] font-bold px-3 py-1.5 rounded-lg shadow-lg backdrop-blur-sm flex items-center gap-1.5">
+                              <span className="text-red-400 font-black">!</span> 개인연금 (0원)
+                           </div>
+                        </div>
+                      )}
+
+                    </figure>
+                  </figure>
+
+                  {/* 오른쪽: 브리핑 코멘트 */}
+                  <figure className="flex flex-col gap-4 h-full m-0" style={{ display: 'flex' }}>
+                    <section className="bg-slate-50 rounded-xl p-5 print:p-4 border border-slate-200 flex-1 flex flex-col justify-center print:bg-white print:border-slate-300" style={{ display: 'flex' }}>
+                      <p className="text-xs font-bold text-slate-500 mb-1 flex items-center gap-1.5">
+                        통계청 기준 노후 소득 예상 (<strong className="text-blue-600">{age}세</strong>)
+                      </p>
+                      <div className="flex items-end gap-2 mt-1">
+                        <span className="text-3xl md:text-4xl print:text-3xl font-black text-slate-800">{totalPrepared}<span className="text-lg print:text-base">만원</span></span>
+                        <span className="text-sm font-bold text-slate-400 mb-1">/ 월 확보</span>
+                      </div>
+                    </section>
+
+                    {shortfall > 0 ? (
+                      <section className="p-5 print:p-4 rounded-xl bg-red-50 border border-red-200 print:bg-white print:border-red-300 flex-1 flex flex-col justify-center" style={{ display: 'flex' }}>
+                        <p className="text-[13px] print:text-[13px] text-red-700/90 font-bold leading-relaxed break-keep">
+                          고객님의 연령대({ageGroupStr}) 기준, 예상되는 평균 국민연금과 퇴직연금을 합쳐도 적정 생활비 대비 <strong className="text-red-600">매월 {shortfall}만 원의 적자</strong>가 확정적으로 발생합니다.
+                        </p>
+                      </section>
+                    ) : (
+                      <section className="p-5 print:p-4 rounded-xl bg-emerald-50 border border-emerald-200 print:bg-white print:border-emerald-300 flex-1 flex flex-col justify-center" style={{ display: 'flex' }}>
+                        <p className="text-[13px] print:text-[13px] text-emerald-700/90 font-bold leading-relaxed break-keep">
+                          통계청 연령별 데이터({ageGroupStr})를 기준으로 분석한 결과, 고객님이 추가 준비하신 <strong>개인연금</strong> 덕분에 현금흐름이 완성되었습니다.
+                        </p>
+                      </section>
+                    )}
+                  </figure>
+                </figure>
+              );
+
+            })()}
+          </section>
+
+          <div className="flex flex-col gap-4 shrink-0 print-bundle">
+            <h3 className="text-base font-bold text-slate-800 flex items-center gap-2 text-lg">
+              <Scale className="w-5 h-5 text-blue-600" />
+              기존 유지안 및 권장 제안 비교
+            </h3>
             <div className="flex flex-col md:flex-row gap-4 print:flex print:flex-col print:flex-row">
               <div className="flex-1 bg-slate-50 border border-slate-200 p-6 rounded-2xl print:border-slate-300 flex flex-col justify-between print:flex-1 print:justify-between">
-                 <p className="text-sm font-bold text-slate-500 mb-6 flex items-center gap-1.5">
-                   <AlertCircle className="w-4 h-4"/> 기존 유지안
-                 </p>
-                 <div className="space-y-4">
-                   <div>
-                     <p className="text-xs font-bold text-slate-400 mb-1">월 납입 보험료</p>
-                     <p className="text-2xl font-black text-slate-700">{formatPremium(analysisData.premium.before)}</p>
-                   </div>
-                   <div className="border-t border-slate-200 pt-4 print:border-slate-300">
-                     <p className="text-xs font-bold text-slate-400 mb-1">총 납입원금</p>
-                     <p className={`text-xl font-black text-slate-500 ${totalPremiumDiff < 0 ? 'line-through decoration-slate-400' : ''}`}>
-                       {formatMoney(Math.round(analysisData.totalPremium.before / 10000))}
-                     </p>
-                   </div>
-                 </div>
+                <p className="text-sm font-black text-slate-500 mb-6 flex items-center">
+                  기존 유지안
+                </p>
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-xs font-bold text-slate-400 mb-1">월 납입 보험료</p>
+                    <p className="text-2xl font-black text-slate-700">{formatPremium(analysisData.premium.before)}</p>
+                  </div>
+                </div>
               </div>
 
               <div className="flex-1 bg-blue-50/50 border border-blue-200 p-6 rounded-2xl print:bg-blue-50 print:border-blue-300 flex flex-col justify-between  print:flex-1 print:justify-between">
-                 <p className="text-sm font-bold text-blue-600 mb-6 flex items-center gap-1.5">
-                   <CheckCircle2 className="w-4 h-4"/> 최적화 제안
-                 </p>
-                 <div className="space-y-4">
-                   <div>
-                     <p className="text-xs font-bold text-blue-400 mb-1">월 납입 보험료</p>
-                     <p className="text-2xl font-black text-gray-900">{formatPremium(afterPremium)}</p>
-                   </div>
-                   <div className="border-t border-blue-100 pt-4 print:border-blue-200">
-                     <p className="text-xs font-bold text-blue-400 mb-1">총 납입원금</p>
-                     <p className="text-xl font-black text-gray-900">
-                       {formatMoney(Math.round(analysisData.totalPremium.after / 10000))}
-                     </p>
-                   </div>
-                 </div>
+                <p className="text-sm font-bold text-blue-600 mb-6 flex items-center">
+                    최적화 제안
+                </p>
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-xs font-bold text-blue-400 mb-1">월 납입 보험료</p>
+                    <p className="text-2xl font-black text-gray-900">{formatPremium(afterPremium)}</p>
+                  </div>
+                </div>
               </div>
             </div>
             
-            <div className={`print-card w-full p-5 md:p-6 rounded-2xl text-white shadow-md flex flex-col md:flex-row justify-between items-center gap-5 border print:shadow-none ${
-              premiumDiff <= 0 ? 'bg-gradient-to-r from-blue-700 to-blue-600 border-blue-800' : 'bg-gradient-to-r from-slate-900 to-indigo-950 border-slate-800'
-            }`}>
-              <div className="flex items-center gap-4 w-full md:w-auto">
-                <div className={`p-3 rounded-full shrink-0 border ${premiumDiff <= 0 ? 'bg-white/10 border-white/20' : 'bg-indigo-500/20 border-indigo-500/30'}`}>
-                  {premiumDiff <= 0 ? <TrendingDown className="w-8 h-8 text-yellow-300"/> : <ShieldCheck className="w-8 h-8 text-emerald-400 animate-pulse"/>}
-                </div>
-                <div>
-                  <p className={`text-sm font-bold tracking-wide mb-1 ${premiumDiff <= 0 ? 'text-white/80' : 'text-indigo-300'}`}>
-                    {premiumDiff <= 0 ? '💡 평생 고정 지출 절감 완료' : '🛡️ 가성비 중심 핵심 보장 자산 극대화'}
-                  </p>
-                  <p className="text-3xl font-black flex items-center gap-1.5 text-white">
-                    {premiumDiff <= 0 ? (
-                      <>
-                        {formatPremium(Math.abs(premiumDiff))} 절감
-                        <span className="text-xs font-medium text-white/60 ml-1">/ 월</span>
-                      </>
-                    ) : (
-                      <>
-                        3대 질환 진단 시 최대 비용
-                      </>
-                    )}
-                  </p>
-                </div>
-              </div>
-
-              <div className="bg-white/5 rounded-xl p-4 border border-white/10 w-full md:w-auto text-left md:text-right shadow-inner backdrop-blur-sm">
-                {totalPremiumDiff <= 0 ? (
-                  <>
-                    <p className="text-[11px] font-medium mb-1 text-white/70">총 납입원금 기준 최종 세이브 자산</p>
-                    <p className="text-2xl font-black text-yellow-300">{formatMoney(Math.round(Math.abs(totalPremiumDiff) / 10000))}</p>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-2xl font-black text-emerald-400">+ {formatMoney(calculateTotalDefenseCost())} 확보</p>
-                  </>
-                )}
-              </div>
-            </div>
-
             {(() => {
               const upgradedCoverages = analysisData.coverages.filter(item => item.after > item.before && !HIDDEN_IN_SUMMARY.includes(item.name));
               
               return (
-                <div className="flex flex-col gap-8 mt-8 pt-8 border-t border-slate-200 border-dashed print:border-slate-300 print:mt-6 print:pt-6 print-bundle">
+                <div className="flex flex-col gap-8 print-bundle">
                   <div className={`flex flex-col justify-center ${upgradedCoverages.length === 0 ? 'print:hidden' : ''}`}>
                     <div className="mb-4">
-                      <h4 className="text-lg font-black text-gray-900 flex items-center gap-2">
+                      <h4 className="text-base font-black text-slate-800 flex items-center gap-2">
                         <ShieldCheck className="w-5 h-5 text-emerald-600"/> 핵심 보장 TOP 3
                       </h4>
-                      <div className="flex items-center justify-between mt-1">
-                        <p className="text-xs font-bold text-gray-500">기존 대비 보장 금액이 <strong className="text-emerald-600">가장 많이 늘어난 3가지 핵심 담보</strong>입니다.</p>
-                      </div>
-                        {/* ⭐️ 변경됨: flex flex-wrap 대신 grid grid-cols-3 사용하여 강제 1줄 3칸 분할 */}
                         <div className="grid grid-cols-3 gap-2 mt-3 w-full print:hidden">
                           {[0, 1, 2].map((slotIndex) => {
                             return (
@@ -1297,7 +1470,6 @@ return (
                                   newSelected[slotIndex] = e.target.value;
                                   setSelectedTop3(newSelected);
                                 }}
-                                // ⭐️ 변경됨: w-full (너비 꽉 채움) 및 truncate (글자가 넘치면 ... 처리) 추가
                                 className="w-full truncate cursor-pointer text-[11px] font-bold border border-emerald-200 rounded-lg px-2 py-1.5 bg-emerald-50 text-emerald-700 outline-none focus:border-emerald-500 shadow-sm"
                               >
                                 <option value="">{slotIndex + 1}위 (자동 추천)</option>
@@ -1676,7 +1848,6 @@ return (
                     );
                     const isUnchanged = isMaintained && !isModified;
                     
-                    // 💡 [핵심] 블러(Blur) 오버레이가 필요한 상태인지 통합 체크
                     const needsBlur = isUnchanged || isCanceled;
 
                     return (
@@ -1687,7 +1858,6 @@ return (
                         'border-blue-300 bg-blue-50/10'
                       }`}>
                         
-                        {/* ⭐️ [추가됨] 변경없음 & 해지 카드를 덮는 반투명 블러 오버레이 */}
                         {needsBlur && (
                           <div className={`absolute inset-0 z-10 flex items-center justify-center backdrop-blur-[3px] print:backdrop-blur-none ${isCanceled ? 'bg-red-50/40 print:bg-red-50/80' : 'bg-white/50 print:bg-slate-50/80'}`}>
                             {isUnchanged && (
@@ -1703,7 +1873,6 @@ return (
                           </div>
                         )}
 
-                        {/* ⭐️ 오버레이 아래에 깔릴 실제 내용들 (블러 대상일 땐 투명하게) */}
                         <div className={needsBlur ? 'opacity-40 select-none pointer-events-none' : ''}>
                           <div className="flex justify-between items-start mb-2">
                             <div>
@@ -1754,11 +1923,11 @@ return (
                                         <span className={`text-[9px] px-1.5 py-0.5 rounded border shrink-0 font-medium ${isEffectivelyDeleted ? 'bg-red-50 text-red-400 border-red-100' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
                                           {badgeText}
                                         </span>
-                                        ) : (
-                                          <span className={`text-[9px] px-1.5 py-0.5 rounded border shrink-0 font-medium ${isEffectivelyDeleted ? 'bg-red-50 text-red-400 border-red-100' : 'bg-amber-100 text-amber-700 border-amber-200'}`}>
-                                            {badgeText}
-                                          </span>
-                                        )}
+                                      ) : (
+                                        <span className={`text-[9px] px-1.5 py-0.5 rounded border shrink-0 font-medium ${isEffectivelyDeleted ? 'bg-red-50 text-red-400 border-red-100' : 'bg-amber-100 text-amber-700 border-amber-200'}`}>
+                                          {badgeText}
+                                        </span>
+                                      )}
                                       {d.name}
                                     </span>
                                     <span className={`font-bold shrink-0 ${isEffectivelyDeleted ? '' : (isDetailReduced ? 'text-red-600' : (d.original_amount !== undefined && afterDetailAmt !== beforeDetailAmt ? 'text-blue-600' : 'text-slate-800'))}`}>
@@ -1867,7 +2036,8 @@ return (
           initialCoverageOverrides={coverageOverrides}
           initialIncludeSanjeong={includeSanjeong}
           initialRadarTargets={radarTargets} 
-          initialRadarRates={radarRates} // 🚀 신규 추가
+          initialRadarRates={radarRates}
+          initialPensionOverrides={pensionOverrides} // 🚀 모달에 연금 설정값 전달
         />
       </div>
 

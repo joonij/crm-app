@@ -5,8 +5,8 @@ import { X, Settings2, RotateCcw, Star, Search, Check, AlertCircle, Plus, Trash2
 import { COVERAGE_OPTIONS } from "@/lib/coverageMapper";
 import { CHART_CONFIG } from "@/app/clients/[id]/analysis/page";
 
-// ⭐️ 데이터 상수
-const CIRCULATORY_CODES = [
+// ⭐️ 데이터 상수 (기존과 동일)
+const CIRCULATORY_CODES = [ /* ... 기존 코드 유지 (생략 없이 원본 그대로 사용했습니다) ... */ 
   {
     group: "순환계질환 [뇌, 심장, 혈관]",
     items: [
@@ -52,7 +52,7 @@ const CIRCULATORY_CODES = [
   }
 ];
 
-const CANCER_CODES = [
+const CANCER_CODES = [ /* ... 기존 코드 유지 ... */ 
   {
     group: "악성 신생물 [일반암, 제자리암, 경계성종양]",
     items: [
@@ -112,17 +112,19 @@ export default function SettingsModal({
   initialKcdOverrides, initialVisibleCoverages, initialCustomCoverages,
   initialCoverageOverrides, initialIncludeSanjeong,
   initialRadarTargets,
-  initialRadarRates // 🚀 Props 추가
+  initialRadarRates,
+  initialPensionOverrides // 🚀 연금 설정 Props 추가
 }: any) {
   
-// ⭐️ TypeScript 에러 해결: 'radar' 탭 타입을 추가합니다.
-  const [settingsTab, setSettingsTab] = useState<'kcd' | 'coverage' | 'radar'>('radar');
+  // ⭐️ 'pension' 탭 타입을 추가합니다.
+  const [settingsTab, setSettingsTab] = useState<'kcd' | 'coverage' | 'radar' | 'pension'>('radar');
   const [tempKcdOverrides, setTempKcdOverrides] = useState(initialKcdOverrides || {});
   const [tempVisibleCoverages, setTempVisibleCoverages] = useState(initialVisibleCoverages || []);
   const [tempCustomCoverages, setTempCustomCoverages] = useState(initialCustomCoverages || []);
   const [tempCoverageOverrides, setTempCoverageOverrides] = useState(initialCoverageOverrides || {});
   const [tempRadarTargets, setTempRadarTargets] = useState<Record<string, number>>(initialRadarTargets || {});
   const [tempRadarRates, setTempRadarRates] = useState<Record<string, { before?: number, after?: number }>>(initialRadarRates || {});
+  const [tempPensionOverrides, setTempPensionOverrides] = useState<Record<string, number>>(initialPensionOverrides || {}); // 🚀 연금 설정 상태 추가
   const [tempIncludeSanjeong, setTempIncludeSanjeong] = useState({
       brain: initialIncludeSanjeong?.brain || false,
       heart: initialIncludeSanjeong?.heart || false,
@@ -199,9 +201,11 @@ export default function SettingsModal({
       coverageOverrides: tempCoverageOverrides,
       includeSanjeong: tempIncludeSanjeong,
       radarTargets: tempRadarTargets,
-      radarRates: tempRadarRates // 🚀 추가
+      radarRates: tempRadarRates,
+      pensionOverrides: tempPensionOverrides // 🚀 연금 저장 데이터 전송
     });
   };
+
   const handleTempRadarTarget = (label: string, value: string) => {
     const num = value === "" ? undefined : parseInt(value);
     setTempRadarTargets((prev: any) => {
@@ -210,6 +214,7 @@ export default function SettingsModal({
       return next;
     });
   };
+
   const handleTempRadarRate = (label: string, field: 'before' | 'after', value: string) => {
     const num = value === "" ? undefined : parseInt(value);
     setTempRadarRates((prev: any) => {
@@ -221,6 +226,16 @@ export default function SettingsModal({
          return newObj;
       }
       return { ...prev, [label]: next };
+    });
+  };
+
+  // 🚀 연금 데이터 핸들러 추가
+  const handleTempPensionOverride = (key: string, value: string) => {
+    const num = value === "" ? undefined : parseInt(value);
+    setTempPensionOverrides((prev: any) => {
+      const next = { ...prev, [key]: num };
+      if (num === undefined) delete next[key];
+      return next;
     });
   };
 
@@ -245,24 +260,34 @@ export default function SettingsModal({
         </div>
 
         {/* 모달 탭 */}
-        <div className="flex px-6 bg-white border-b border-slate-200 shrink-0">
+        <div className="flex px-6 bg-white border-b border-slate-200 shrink-0 overflow-x-auto no-scrollbar">
           <button
             onClick={() => setSettingsTab('radar')}
-            className={`cursor-pointer px-4 py-3.5 text-sm font-black transition-colors relative ${settingsTab === 'radar' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
+            className={`cursor-pointer px-4 py-3.5 text-sm font-black transition-colors relative whitespace-nowrap ${settingsTab === 'radar' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
           >
             차트 목표액 설정
             {settingsTab === 'radar' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 rounded-t-md" />}
           </button>
+          
+          {/* ⭐️ 노후 연금 설정 탭 추가 */}
+          <button
+            onClick={() => setSettingsTab('pension')}
+            className={`cursor-pointer px-4 py-3.5 text-sm font-black transition-colors relative whitespace-nowrap ${settingsTab === 'pension' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
+          >
+            노후 연금 설정
+            {settingsTab === 'pension' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 rounded-t-md" />}
+          </button>
+
           <button
             onClick={() => setSettingsTab('coverage')}
-            className={`cursor-pointer px-4 py-3.5 text-sm font-black transition-colors relative ${settingsTab === 'coverage' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
+            className={`cursor-pointer px-4 py-3.5 text-sm font-black transition-colors relative whitespace-nowrap ${settingsTab === 'coverage' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
           >
             보장표 항목 설정
             {settingsTab === 'coverage' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 rounded-t-md" />}
           </button>
           <button
             onClick={() => setSettingsTab('kcd')}
-            className={`cursor-pointer px-4 py-3.5 text-sm font-black transition-colors relative ${settingsTab === 'kcd' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
+            className={`cursor-pointer px-4 py-3.5 text-sm font-black transition-colors relative whitespace-nowrap ${settingsTab === 'kcd' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
           >
             질환별 진단비 조정 (KCD)
             {settingsTab === 'kcd' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 rounded-t-md" />}
@@ -276,7 +301,7 @@ export default function SettingsModal({
           {settingsTab === 'kcd' && (
             <div className="space-y-6">
               
-              {/* ⭐️ 산정특례 및 특정순환계 체크박스 영역 (4칸으로 확장) */}
+              {/* 산정특례 및 특정순환계 체크박스 영역 */}
               <div className="bg-white p-5 rounded-2xl border border-blue-100 shadow-sm">
                 <h4 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 text-blue-500" />
@@ -386,8 +411,6 @@ export default function SettingsModal({
           {/* 2. 보장표 항목 설정 탭 */}
           {settingsTab === 'coverage' && (
             <div className="space-y-6">
-              
-              {/* ⭐️ 스크롤 시 글자 겹침을 방지하기 위해 윗부분 여백을 덮는 배경을 확실하게 줌 */}
               <div className="sticky -top-6 z-20 bg-slate-50 pt-6 pb-4 -mx-6 px-6 -mt-6 border-b border-slate-200 shadow-sm mb-2">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
@@ -414,7 +437,6 @@ export default function SettingsModal({
                       <h3 className="font-black text-slate-700">{cat}</h3>
                     </div>
                     
-                    {/* ⭐️ KCD와 완벽하게 동일한 테이블 레이아웃 적용 */}
                     <table className="w-full text-sm text-left">
                       <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
                         <tr>
@@ -495,7 +517,6 @@ export default function SettingsModal({
                       </tbody>
                     </table>
 
-                    {/* ⭐️ 하단 커스텀 항목 추가 폼 (테이블 열 비율에 딱 맞게 정렬) */}
                     <div className="flex items-center w-full p-2 bg-blue-50/50 border-t border-slate-200">
                       <div className="w-[40%] pr-2">
                         <input
@@ -541,7 +562,8 @@ export default function SettingsModal({
               })}
             </div>
           )}
-          {/* 3. ⭐️ 차트 목표액 설정 탭 (신규 추가) */}
+
+          {/* 3. 차트 목표액 설정 탭 */}
           {settingsTab === 'radar' && (
             <div className="space-y-6">
               <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 shadow-sm">
@@ -616,6 +638,57 @@ export default function SettingsModal({
               ))}
             </div>
           )}
+
+          {/* 4. ⭐️ 노후 연금 설정 탭 (신규 추가!) */}
+          {settingsTab === 'pension' && (
+            <div className="space-y-6">
+              <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 shadow-sm">
+                 <p className="text-sm font-bold text-blue-800 flex items-center gap-2">
+                   <AlertCircle className="w-5 h-5 text-blue-600"/> 
+                   3층 연금탑 진단에 사용되는 기준 금액을 수동으로 조정합니다.
+                 </p>
+                 <p className="text-[11px] text-blue-600/80 mt-1 ml-7">입력하지 않으면 통계청 데이터 및 파싱된 보험 데이터가 자동으로 계산되어 적용됩니다.</p>
+              </div>
+
+              <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                <table className="w-full text-sm text-left">
+                  <thead className="bg-slate-50 text-slate-500 text-[11px] uppercase tracking-wider">
+                    <tr>
+                      <th className="py-3 px-4 w-[50%]">연금 설정 항목</th>
+                      <th className="py-3 px-4 w-[50%] text-center border-l border-slate-100">수동 설정액 (단위: 만원)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {[
+                      { key: 'target', label: '적정 노후 생활비 (목표선)', placeholder: '자동 (기본 198)' },
+                      { key: 'personal', label: '3층: 개인연금', placeholder: '자동 (분석된 연금보험료)' },
+                      { key: 'corporate', label: '2층: 퇴직연금', placeholder: '자동 (연령별 통계청 중위)' },
+                      { key: 'national', label: '1층: 국민연금', placeholder: '자동 (연령별 통계청 평균)' },
+                    ].map((item, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="py-3 px-4">
+                          <p className="font-bold text-slate-800 text-[13px]">{item.label}</p>
+                        </td>
+                        <td className="py-2 px-4 border-l border-slate-100">
+                          <div className="relative">
+                            <input
+                              type="number"
+                              placeholder={item.placeholder}
+                              value={tempPensionOverrides[item.key] !== undefined ? tempPensionOverrides[item.key] : ""}
+                              onChange={(e) => handleTempPensionOverride(item.key, e.target.value)}
+                              className={`w-full text-right pr-7 py-2 px-3 rounded-md border text-sm font-bold outline-none transition-colors ${tempPensionOverrides[item.key] !== undefined ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-slate-200 bg-white text-slate-700'}`}
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold pointer-events-none">만</span>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
         </div>
 
         {/* 모달 푸터 (저장 버튼) */}
