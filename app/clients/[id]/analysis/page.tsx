@@ -1369,7 +1369,7 @@ return (
                           </section>
 
                           <section style={{ height: `${hNat}px`, display: 'flex' }} className="w-full flex-col items-center justify-center shrink-0">
-                            <span className={`font-semibold text-[10px] print:text-[10px] ${nationalFinal > 0 ? 'text-white/90 print:text-white drop-shadow-md' : 'text-slate-400 print:text-slate-400'}`}>기초생활자금 ({ageGroupStr} 평균)</span>
+                            <span className={`font-semibold text-[10px] print:text-[10px] ${nationalFinal > 0 ? 'text-white/90 print:text-white' : 'text-slate-300 print:text-slate-300'}`}>기초생활자금 ({ageGroupStr} 평균)</span>
                             <span className={`font-black text-xs md:text-sm print:text-[13px] tracking-wide mt-0.5 ${nationalFinal > 0 ? 'text-white print:text-white' : 'text-slate-300 print:text-slate-300'}`}>예상 국민연금 {nationalFinal}만</span>
                           </section>
                       </article>
