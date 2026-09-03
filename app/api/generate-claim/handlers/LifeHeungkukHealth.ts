@@ -165,10 +165,12 @@ export const fillLifeHeungkukHealth = async (pdfDoc: PDFDocument, data: any, fon
     // 국외 제공 동의
     drawCheck(fourthPage, 2350,1940, 46); // 민감정보 국외 제공 동의
     drawCheck(fourthPage, 2350,1200, 46); // 개인(신용)정보 국외 제공 동의
-
+  }
   // ==========================================
   // [5페이지] 필수 동의서 (3) 및 최종 서명
   // ==========================================
+  
+  if (fifthPage) {
     // 조회 동의
     drawCheck(fifthPage, 2350,2095, 46); // 고유식별정보 조회
     drawCheck(fifthPage, 2350,1780, 46); // 민감정보 조회

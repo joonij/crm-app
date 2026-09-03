@@ -164,30 +164,33 @@ export const fillLifeLinaHealth = async (pdfDoc: PDFDocument, data: any, font: P
   // ==========================================
   // [4페이지] 동의서 (3/3) 및 최종 서명
   // ==========================================
-  // 피보험자 동의
-  drawCheck(fourthPage, 343, 487); // 고유식별정보 조회
-  drawCheck(fourthPage, 343, 437); // 민감정보 조회
-  drawCheck(fourthPage, 343, 332); // 개인(신용)정보 조회
+  
+  if (fourthPage) {
+    // 피보험자 동의
+    drawCheck(fourthPage, 343, 487); // 고유식별정보 조회
+    drawCheck(fourthPage, 343, 437); // 민감정보 조회
+    drawCheck(fourthPage, 343, 332); // 개인(신용)정보 조회
 
-  // 수익자 동의
-  drawCheck(fourthPage, 505, 487); // 고유식별정보 조회
-  drawCheck(fourthPage, 505, 437); // 민감정보 조회
-  drawCheck(fourthPage, 505, 332); // 개인(신용)정보 조회
+    // 수익자 동의
+    drawCheck(fourthPage, 505, 487); // 고유식별정보 조회
+    drawCheck(fourthPage, 505, 437); // 민감정보 조회
+    drawCheck(fourthPage, 505, 332); // 개인(신용)정보 조회
 
-  // 하단 날짜 및 서명
-  drawText(fourthPage, data.todayYear,  209, 161, 11);
-  drawText(fourthPage, data.todayMonth, 300, 161, 11);
-  drawText(fourthPage, data.todayDay,   350, 161, 11);
+    // 하단 날짜 및 서명
+    drawText(fourthPage, data.todayYear,  209, 161, 11);
+    drawText(fourthPage, data.todayMonth, 300, 161, 11);
+    drawText(fourthPage, data.todayDay,   350, 161, 11);
 
-  // 피보험자 최종 서명
-  drawCenterText(fourthPage, data.insuredName, 190, 110, 11); 
-  if (insuredSignatureImg) {
-    fourthPage.drawImage(insuredSignatureImg, { x: 255, y: 110, ...sigDims }); 
-  }
+    // 피보험자 최종 서명
+    drawCenterText(fourthPage, data.insuredName, 190, 110, 11); 
+    if (insuredSignatureImg) {
+      fourthPage.drawImage(insuredSignatureImg, { x: 255, y: 110, ...sigDims }); 
+    }
 
-  // 수익자 최종 서명
-  drawCenterText(fourthPage, data.beneficiaryName, 190, 87, 11); 
-  if (signatureImg) {
-    fourthPage.drawImage(signatureImg, { x: 255, y: 87, ...sigDims }); 
+    // 수익자 최종 서명
+    drawCenterText(fourthPage, data.beneficiaryName, 190, 87, 11); 
+    if (signatureImg) {
+      fourthPage.drawImage(signatureImg, { x: 255, y: 87, ...sigDims }); 
+    }
   }
 };
