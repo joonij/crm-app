@@ -10,7 +10,10 @@ import QuickClaimModal from "@/components/QuickClaimModal";
 import Link from "next/link";
 import { BarChart3 } from "lucide-react";
 
-const SUPPORTED_COMPANIES = ["메리츠화재", "현대해상", "DB손해", "삼성화재"];
+const SUPPORTED_COMPANIES = [
+  "흥국생명", "라이나생명",
+  "메리츠화재", "현대해상", "DB손해", "삼성화재", "한화손해", "KB손해"
+];
 
 const formatAmount = (val: string) => {
   if (!val) return "";

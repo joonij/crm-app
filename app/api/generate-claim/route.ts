@@ -13,12 +13,15 @@ const supabase = createClient(
 );
 
 // ⭐️ 분리해둔 보험사별 모듈 불러오기
-import { fillMeritzPropertyHealth } from "./handlers/MeritzPropertyHealth";
-import { fillHyundaiMarineHealth } from "./handlers/HyundaiMarineHealth";
-import { fillDbPropertyHealth } from "./handlers/DbPropertyHealth";
-import { fillSamsungFireHealth } from "./handlers/SamsungFireHealth";
-import { fillHanwhaPropertyHealth } from "./handlers/HanwhaPropertyHealth";
-import { fillHeungkukLifeHealth } from "./handlers/HeungkukLifeHealth";
+import { fillLifeHeungkukHealth } from "./handlers/LifeHeungkukHealth";
+import { fillLifeLinaHealth } from "./handlers/LifeLinaHealth";
+
+import { fillPropertyMeritzHealth } from "./handlers/PropertyMeritzHealth";
+import { fillPropertyHyundaiHealth } from "./handlers/PropertyHyundaiHealth";
+import { fillPropertyDbHealth } from "./handlers/PropertyDbHealth";
+import { fillPropertSamsungHealth } from "./handlers/PropertSamsungHealth";
+import { fillPropertyHanwhaHealth } from "./handlers/PropertyHanwhaHealth";
+import { fillPropertyKbHealth } from "./handlers/PropertyKbHealth";
 
 export async function POST(req: NextRequest) {
   try {
@@ -36,11 +39,13 @@ export async function POST(req: NextRequest) {
       insuredName: formData.get("insuredName") as string || "",
       insuredRrn: formData.get("insuredRrn") as string || "",
       insuredPhone: formData.get("insuredPhone") as string || "",
+      insuredAddress: formData.get("insuredAddress") as string || "",
 
       useSavedAccount: formData.get("useSavedAccount") as string || "",
       beneficiaryName: formData.get("beneficiaryName") as string || "",
       beneficiaryRrn: formData.get("beneficiaryRrn") as string || "",
       beneficiaryPhone: formData.get("beneficiaryPhone") as string || "",
+      beneficiaryAddress: formData.get("beneficiaryAddress") as string || "",
 
       bankName: formData.get("bankName") as string || "",
       accountNumber: formData.get("accountNumber") as string || "",
@@ -65,25 +70,38 @@ export async function POST(req: NextRequest) {
     let fileName = "";
     let fillFunction: any = null; 
 
+    if (claimData.insuranceCompany.includes("흥국생명")) {
+      fileName = "lifeheungkuk_health.pdf";
+      fillFunction = fillLifeHeungkukHealth;
+    } 
+    if (claimData.insuranceCompany.includes("라이나생명")) {
+      fileName = "lifelina_health.pdf";
+      fillFunction = fillLifeLinaHealth;
+    } 
+
     if (claimData.insuranceCompany.includes("메리츠화재")) {
-      fileName = "meritzproperty_health.pdf";
-      fillFunction = fillMeritzPropertyHealth;
+      fileName = "propertymeritz_health.pdf";
+      fillFunction = fillPropertyMeritzHealth;
     } 
     if (claimData.insuranceCompany.includes("현대해상")) {
-      fileName = "hyundaimarine_health.pdf";
-      fillFunction = fillHyundaiMarineHealth;
+      fileName = "propertyhyundai_health.pdf";
+      fillFunction = fillPropertyHyundaiHealth;
     } 
     if (claimData.insuranceCompany.includes("DB손해")) {
-      fileName = "dbproperty_health.pdf";
-      fillFunction = fillDbPropertyHealth;
+      fileName = "propertydb_health.pdf";
+      fillFunction = fillPropertyDbHealth;
     } 
     if (claimData.insuranceCompany.includes("삼성화재")) {
-      fileName = "samsungfire_health.pdf";
-      fillFunction = fillSamsungFireHealth;
+      fileName = "propertsamsung_health.pdf";
+      fillFunction = fillPropertSamsungHealth;
     } 
-    if (claimData.insuranceCompany.includes("흥국생명")) {
-      fileName = "hanwhaproperty_health.pdf";
-      fillFunction = fillHanwhaPropertyHealth;
+    if (claimData.insuranceCompany.includes("한화손해")) {
+      fileName = "propertyhanwha_health.pdf";
+      fillFunction = fillPropertyHanwhaHealth;
+    } 
+    if (claimData.insuranceCompany.includes("KB손해")) {
+      fileName = "propertykb_health.pdf";
+      fillFunction = fillPropertyKbHealth;
     } 
 
     if (!fileName || !fillFunction) {
@@ -112,39 +130,44 @@ export async function POST(req: NextRequest) {
     console.log(`✅ ${claimData.insuranceCompany} 템플릿 데이터 작성 완료`);
 
     // 6. 영수증 이미지 첨부 (공통 로직)
-    for (const file of receipts) {
-      const arrayBuffer = await file.arrayBuffer();
-      const fileType = file.type;
+// 6. 영수증 이미지 첨부 (공통 로직)
+for (const file of receipts) {
+  const arrayBuffer = await file.arrayBuffer();
+  const fileType = file.type;
 
-      if (fileType === "application/pdf") {
-        const attachedPdf = await PDFDocument.load(arrayBuffer);
-        const copiedPages = await pdfDoc.copyPages(attachedPdf, attachedPdf.getPageIndices());
-        copiedPages.forEach((page) => pdfDoc.addPage(page));
-      } else if (fileType === "image/jpeg" || fileType === "image/jpg" || fileType === "image/png") {
-        let image;
-        if (fileType === "image/jpeg" || fileType === "image/jpg") {
-          image = await pdfDoc.embedJpg(arrayBuffer);
-        } else if (fileType === "image/png") {
-          image = await pdfDoc.embedPng(arrayBuffer);
-        } else {
-          continue; 
-        }
-
-        const A4_WIDTH = 595;
-        const A4_HEIGHT = 842;
-        const { width, height } = image.scaleToFit(A4_WIDTH - 40, A4_HEIGHT - 40);
-        
-        const newPage = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
-        newPage.drawImage(image, {
-          x: (A4_WIDTH - width) / 2,
-          y: (A4_HEIGHT - height) / 2,
-          width,
-          height,
-        });
-      } else {
-        continue; 
-      }
+  if (fileType === "application/pdf") {
+    // PDF 파일이면 기존 그대로 페이지 복사
+    const attachedPdf = await PDFDocument.load(arrayBuffer);
+    const copiedPages = await pdfDoc.copyPages(attachedPdf, attachedPdf.getPageIndices());
+    copiedPages.forEach((page) => pdfDoc.addPage(page));
+    
+  } else if (fileType === "image/jpeg" || fileType === "image/jpg" || fileType === "image/png") {
+    let image;
+    if (fileType === "image/jpeg" || fileType === "image/jpg") {
+      image = await pdfDoc.embedJpg(arrayBuffer);
+    } else if (fileType === "image/png") {
+      image = await pdfDoc.embedPng(arrayBuffer);
+    } else {
+      continue; 
     }
+
+    // ⭐️ 원본 이미지의 1:1 실제 크기를 가져옵니다.
+    const { width, height } = image.scale(1);
+    
+    // ⭐️ A4가 아닌, 이미지 원본과 정확히 동일한 크기의 도화지(페이지)를 생성합니다!
+    const newPage = pdfDoc.addPage([width, height]);
+    
+    // ⭐️ 여백(x: 0, y: 0) 없이 도화지 전체에 이미지를 꽉 채워서 그립니다.
+    newPage.drawImage(image, {
+      x: 0,
+      y: 0,
+      width,
+      height,
+    });
+  } else {
+    continue; 
+  }
+}
 
     // 7. 최종 저장 (바이트 추출)
     const pdfBytesOut = await pdfDoc.save();

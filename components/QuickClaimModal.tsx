@@ -34,13 +34,12 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
   const [isLoading, setIsLoading] = useState(false);
 
   const [policyholder, setPolicyholder] = useState({ id: null as number | null, name: "", rrn: "", phone: "" });
-  const [insured, setInsured] = useState({ id: null as number | null, name: "", rrn: "", phone: "" });
-  const [beneficiary, setBeneficiary] = useState({ id: null as number | null, name: "", rrn: "", phone: "" });
+  const [insured, setInsured] = useState({ id: null as number | null, name: "", rrn: "", phone: "", address: "" });
+  const [beneficiary, setBeneficiary] = useState({ id: null as number | null, name: "", rrn: "", phone: "", address: "" });
 
   const [accidentDesc, setAccidentDesc] = useState("");
   const [bankName, setBankName] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
-  
   const [useSavedAccount, setUseSavedAccount] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [clientsList, setClientsList] = useState<any[]>([]);
@@ -64,12 +63,15 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
   let supportsSavedAccount = true; 
   const currentFaxNumber = Object.entries(FAX_NUMBERS).find(([key]) => companyName.includes(key))?.[1] || "번호 확인 필요";
 
+  if (companyName.includes("흥국생명")) { supportsSavedAccount = false; }
+  if (companyName.includes("라이나생명")) { supportsSavedAccount = false; }
+
   if (companyName.includes("메리츠화재")) { needsInsuredSignature = false; supportsSavedAccount = true; } 
   if (companyName.includes("현대해상")) { needsInsuredSignature = false; }
   if (companyName.includes("DB손해")) { }
   if (companyName.includes("삼성화재")) { supportsSavedAccount = false; }
-  // if (companyName.includes("한화손해")) { needsBeneficiarySignature = false; }
-  // if (companyName.includes("흥국생명")) { needsInsuredSignature = false; supportsSavedAccount = false; }
+  if (companyName.includes("한화손해")) { needsBeneficiarySignature = false; }
+  if (companyName.includes("KB손해")) { needsInsuredSignature = false; }
 
   useEffect(() => { if (!supportsSavedAccount) setUseSavedAccount(false); }, [supportsSavedAccount]);
 
@@ -82,7 +84,7 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
       if (user) {
         const { data: agentData } = await supabase.from("agents").select("id").eq("auth_id", user.id).single();
         if (agentData) {
-          const { data: myClients } = await supabase.from("clients").select("id, name, phone, registration_number, bank_info, bank_lists").eq("agent_id", agentData.id).order("name");
+          const { data: myClients } = await supabase.from("clients").select("id, name, phone, registration_number, bank_info, bank_lists, address").eq("agent_id", agentData.id).order("name");
           if (myClients) setClientsList(myClients);
         }
       }
@@ -96,6 +98,7 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
 
       const clientName = client.name || "";
       const clientPhone = client.phone || "";
+      const clientAddress = client.address || "";
       let clientRrn = "";
       
       if (client.registration_number) {
@@ -110,8 +113,14 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
 
       const currentClientId = parseInt(client.id, 10);
       const getPartyInfo = (partyName?: string | null) => {
-        if (!partyName || partyName === clientName) return { id: currentClientId, name: clientName, rrn: clientRrn, phone: clientPhone };
-        return { id: null, name: partyName, rrn: "", phone: "" };
+        if (!partyName || partyName === clientName) return { 
+          id: currentClientId, 
+          name: clientName, 
+          rrn: clientRrn, 
+          phone: clientPhone, 
+          address: clientAddress
+        };
+        return { id: null, name: partyName, rrn: "", phone: "", address: "" };
       };
 
       setPolicyholder(getPartyInfo(insurance.contractor_name));
@@ -213,10 +222,13 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
         rrn = raw.includes("-") ? raw : `${raw.slice(0, 6)}-${raw.slice(6)}`;
       }
     }
-    const newData = { id: selectedClient.id, name: selectedClient.name, rrn, phone: selectedClient.phone || "" };
+    const newData: any = { id: selectedClient.id, name: selectedClient.name, rrn, phone: selectedClient.phone || "", address: selectedClient.address || "" };
     
     if (role === 'policyholder') setPolicyholder(newData);
-    else if (role === 'insured') setInsured(newData);
+      else if (role === 'insured') {
+      setInsured(newData); 
+    }
+
     else if (role === 'beneficiary') {
       setBeneficiary(newData);
       setAccountNumber(selectedClient.bank_info || "");
@@ -234,30 +246,78 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
       setIsLoading(true);
       try {
         const files = Array.from(e.target.files);
-        const options = { maxSizeMB: 0.3, maxWidthOrHeight: 1000, useWebWorker: false };
-        const processedFiles = await Promise.all(
-          files.map(async (file) => {
-            if (!file.type.startsWith('image/')) return file;
-            try { return await imageCompression(file, options); } catch (compressError) { return file; }
-          })
-        );
+        
+        // ⭐️ 영수증 전용: 해상도 및 밝기/대비 자동 조절 함수
+        const processImage = (file: File): Promise<File> => {
+          return new Promise((resolve) => {
+            // PDF 파일은 원본 그대로 통과
+            if (!file.type.startsWith('image/')) return resolve(file); 
+            
+            const img = new Image();
+            img.src = URL.createObjectURL(file);
+            img.onload = () => {
+              const canvas = document.createElement('canvas');
+              const ctx = canvas.getContext('2d');
+              
+              // ⭐️ 해상도 최대 2000px 유지 (기존 1000px에서 2배 상향 -> 글씨 안 깨짐)
+              let width = img.width;
+              let height = img.height;
+              const MAX_SIZE = 2000; 
+              if (width > height && width > MAX_SIZE) {
+                height *= MAX_SIZE / width;
+                width = MAX_SIZE;
+              } else if (height > MAX_SIZE) {
+                width *= MAX_SIZE / height;
+                height = MAX_SIZE;
+              }
+
+              canvas.width = width;
+              canvas.height = height;
+
+              if (ctx) {
+                // ⭐️ 마법의 필터: 밝기 15% 증가, 대비 10% 증가 (스캔 어플 효과)
+                ctx.filter = 'brightness(1.15) contrast(1.10)';
+                ctx.drawImage(img, 0, 0, width, height);
+                
+                // 85% 품질의 고화질 JPEG로 변환 (해상도는 높이되 Vercel 4MB 용량 제한은 방어)
+                canvas.toBlob((blob) => {
+                  if (blob) {
+                    resolve(new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".jpeg", { type: 'image/jpeg' }));
+                  } else {
+                    resolve(file); // 실패 시 원본 반환
+                  }
+                }, 'image/jpeg', 0.85);
+              } else {
+                resolve(file);
+              }
+            };
+            img.onerror = () => resolve(file); // 이미지 로드 실패 시 원본 반환
+          });
+        };
+
+        const processedFiles = await Promise.all(files.map(processImage));
+
         setUploadedFiles((prev) => {
           const newFiles = [...prev, ...processedFiles];
           const totalSizeMB = newFiles.reduce((acc, file) => acc + file.size, 0) / (1024 * 1024);
-          if (totalSizeMB > 4.0) {
-            alert(`첨부파일 총 용량이 서버 제한(4MB)을 초과합니다.\n영수증 사진을 줄이거나, 서류를 나누어서 청구해 주세요.`);
+          
+          // 고화질로 변환했으므로 넉넉하게 5MB로 제한 변경 (서버 환경에 따라 유동적 조절 가능)
+          if (totalSizeMB > 5.0) {
+            alert(`첨부파일 총 용량(${totalSizeMB.toFixed(1)}MB)이 서버 제한을 초과합니다.\n영수증 사진을 줄이거나, 서류를 나누어서 청구해 주세요.`);
             return prev;
           }
           return newFiles;
         });
-      } catch (error) { alert("파일을 첨부하는 중 문제가 발생했습니다."); } finally { setIsLoading(false); }
+      } catch (error) { 
+        alert("파일을 첨부하는 중 문제가 발생했습니다."); 
+      } finally { 
+        setIsLoading(false); 
+      }
     }
     e.target.value = ''; 
   };
 
   const handleAction = async (type: string) => {
-    // if (needsInsuredSignature && !hasInsuredSignature) return alert("피보험자 서명을 기재해 주세요.");
-    // if (needsBeneficiarySignature && !hasBeneficiarySignature) return alert("수익자(청구인) 서명을 기재해 주세요.");
     
     setIsLoading(true);
     try {
@@ -272,11 +332,13 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
       formData.append("insuredName", insured.name);
       formData.append("insuredRrn", insured.rrn);
       formData.append("insuredPhone", insured.phone);
+      formData.append("insuredAddress", insured.address);
 
       formData.append("beneficiaryName", beneficiary.name);
       formData.append("beneficiaryRrn", beneficiary.rrn);
       formData.append("beneficiaryPhone", beneficiary.phone);
-      
+      formData.append("beneficiaryAddress", beneficiary.address);
+
       formData.append("bankName", bankName);
       formData.append("accountNumber", accountNumber);
       formData.append("accidentDesc", accidentDesc);
@@ -465,12 +527,14 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
                 {renderClientSearchInput('insured', '이름 검색 또는 직접입력')}
                 <input type="text" placeholder="주민번호" value={insured.rrn} onChange={e => setInsured({...insured, rrn: e.target.value})} className="w-full border border-gray-200 rounded-xl sm:rounded-lg p-3 sm:p-2.5 text-[16px] sm:text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none shadow-sm transition-all" />
                 <input type="text" placeholder="연락처" value={insured.phone} onChange={e => setInsured({...insured, phone: e.target.value})} className="w-full border border-gray-200 rounded-xl sm:rounded-lg p-3 sm:p-2.5 text-[16px] sm:text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none shadow-sm transition-all" />
+                <input type="hidden" value={insured.address} />
               </div>
               <div className="space-y-3 sm:space-y-2 bg-white p-4 sm:p-4 rounded-xl border border-gray-100 shadow-sm">
                 <p className="text-sm sm:text-xs font-black text-amber-700">③ 수익자 (청구인)</p>
                 {renderClientSearchInput('beneficiary', '이름 검색 또는 직접입력')}
                 <input type="text" placeholder="주민번호" value={beneficiary.rrn} onChange={e => setBeneficiary({...beneficiary, rrn: e.target.value})} className="w-full border border-gray-200 rounded-xl sm:rounded-lg p-3 sm:p-2.5 text-[16px] sm:text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none shadow-sm transition-all" />
                 <input type="text" placeholder="연락처" value={beneficiary.phone} onChange={e => setBeneficiary({...beneficiary, phone: e.target.value})} className="w-full border border-gray-200 rounded-xl sm:rounded-lg p-3 sm:p-2.5 text-[16px] sm:text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none shadow-sm transition-all" />
+                <input type="hidden" value={beneficiary.address} />
               </div>
             </div>
           </div>

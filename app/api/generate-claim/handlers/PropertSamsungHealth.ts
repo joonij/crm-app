@@ -1,6 +1,6 @@
 import { PDFDocument, PDFFont, rgb } from "pdf-lib";
 
-export const fillSamsungFireHealth = async (pdfDoc: PDFDocument, data: any, font: PDFFont) => {
+export const fillPropertSamsungHealth = async (pdfDoc: PDFDocument, data: any, font: PDFFont) => {
   const pages = pdfDoc.getPages();
   const firstPage = pages[0]; // 1페이지
   const secondPage = pages.length > 1 ? pages[1] : null; // 2페이지 (있을 경우)

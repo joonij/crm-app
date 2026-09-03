@@ -15,16 +15,20 @@ import {
   Bell,
   Settings,
   User,
-  FileBox
+  FileBox,
+  Building2,
+  LogOut // ⭐️ 로그아웃 아이콘 추가
 } from "lucide-react";
 
+// ⭐️ [권한 설정] allowedRanks 배열에 허용할 직급(rank)을 넣습니다. "ALL"이면 누구나 접근 가능.
 const navItems = [
-  { label: "대시보드", href: "/dashboard", icon: Presentation, requiredRole: "user" },
-  { label: "고객 관리", href: "/clients", icon: Users, requiredRole: "user" },
-  { label: "스케줄 보드", href: "/schedules", icon: Calendar, requiredRole: "user" },
-  { label: "청구 관리", href: "/claims", icon: FileBox, requiredRole: "user" },
-  { label: "알림 센터", href: "/notifications", icon: Bell, requiredRole: "user" },
-  { label: "사내 교육", href: "/training", icon: GraduationCap, requiredRole: "user" },
+  { label: "대시보드", href: "/dashboard", icon: Presentation, allowedRanks: ["FC", "SM", "BM"] },
+  { label: "고객 관리", href: "/clients", icon: Users, allowedRanks: ["FC", "SM", "BM"] },
+  { label: "스케줄 보드", href: "/schedules", icon: Calendar, allowedRanks: ["FC", "SM", "BM"] },
+  { label: "청구 관리", href: "/claims", icon: FileBox, allowedRanks: ["OS", "FC", "SM", "BM"] },
+  { label: "알림 센터", href: "/notifications", icon: Bell, allowedRanks: ["FC", "SM", "BM"] },
+  { label: "사내 교육", href: "/training", icon: GraduationCap, allowedRanks: ["FC", "SM", "BM"] },
+  // { label: "지점 통합 관리", href: "/branch-admin", icon: Building2, allowedRanks: ["OS", "총무", "BM", "지점장", "ADMIN"] },
 ] as const;
 
 function isActivePath(pathname: string, href: string) {
@@ -40,7 +44,6 @@ export default function Sidebar() {
   
   // 유저 정보 상태
   const [agentId, setAgentId] = useState<number | null>(null);
-  const [userRole, setUserRole] = useState<string>("user");
   const [userName, setUserName] = useState<string>(""); 
   const [userRank, setUserRank] = useState<string>(""); 
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -50,7 +53,6 @@ export default function Sidebar() {
   const [teamNumber, setTeamNumber] = useState<string>("");
   const [agentCode, setAgentCode] = useState<string>("");
   
-  // 🚀 순수 알림 개수 상태 (이제 서버 로봇이 넣어주는 진짜 알림만 카운트합니다)
   const [unreadCount, setUnreadCount] = useState(0);
 
   // 1. 유저 정보 조회 및 인증 상태 감지
@@ -73,7 +75,7 @@ export default function Sidebar() {
       if (agentData) {
         setAgentId(agentData.id);
         setUserName(agentData.name || "담당자");
-        setUserRank(agentData.rank || "");
+        setUserRank(agentData.rank ? String(agentData.rank).toUpperCase() : "");
         setAvatarUrl(agentData.avatar_url || null);
         setAgentCode(agentData.agent_code ? String(agentData.agent_code) : "");
         
@@ -103,6 +105,7 @@ export default function Sidebar() {
         setAgentId(null);
         setUserName("");
         setAvatarUrl(null);
+        setUserRank("");
         setUnreadCount(0);
         setIsLoading(false);
         if (event === 'SIGNED_OUT') router.refresh();
@@ -112,7 +115,7 @@ export default function Sidebar() {
     return () => subscription.unsubscribe();
   }, [router]); 
 
-  // 2. 알림 개수 실시간 연동 (오직 notifications 테이블만 바라봅니다)
+  // 2. 알림 개수 실시간 연동
   useEffect(() => {
     if (!agentId) return;
 
@@ -159,6 +162,19 @@ export default function Sidebar() {
     document.title = unreadCount > 0 ? `(${unreadCount}) CareLink` : "CareLink";
   }, [unreadCount]);
 
+  // ⭐️ OS 또는 총무 계정인지 확인하는 변수
+  const isOS = userRank === "OS" || userRank === "총무";
+
+  // ⭐️ 로그아웃 처리 함수
+  const handleLogout = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (!error) {
+      router.push("/login"); // 로그인 페이지로 이동 (경로는 프로젝트 설정에 맞게 수정)
+    } else {
+      alert("로그아웃에 실패했습니다.");
+    }
+  };
+
   return (
     <aside
       className={`flex h-full print:hidden flex-col shrink-0 overflow-hidden border-r border-gray-800 bg-gray-950 text-gray-100 transition-all duration-300 ${
@@ -191,23 +207,19 @@ export default function Sidebar() {
 
       <nav className="px-2 py-5 overflow-y-auto [&::-webkit-scrollbar]:hidden">
         <ul className="space-y-1">
-          {navItems.map(({ label, href, icon: OriginalIcon, requiredRole }) => {
+          {navItems.map(({ label, href, icon: OriginalIcon, allowedRanks }) => {
             const active = isActivePath(pathname, href);
-            const isLocked = String(requiredRole) === "admin" && userRole !== "admin";
-            const Icon = isLocked ? Lock : OriginalIcon;
+            
+            const isRestricted = !allowedRanks.includes("ALL");
+            const isLocked = isRestricted && (!userRank || !allowedRanks.includes(userRank));
+            
+            const Icon = OriginalIcon;
             
             const isNotificationMenu = label === "알림 센터";
             const hasUnread = isNotificationMenu && unreadCount > 0;
 
             if (isLocked) {
-              return (
-                <li key={href} className="relative">
-                  <div className={`flex items-center rounded-lg py-2.5 text-sm font-medium transition-colors cursor-not-allowed opacity-50 ${isOpen ? "gap-3 px-3" : "justify-center px-2"} text-gray-500 hover:bg-gray-900`}>
-                    <Icon className="h-4 w-4 shrink-0" />
-                    {isOpen && <span className="truncate">{label}</span>}
-                  </div>
-                </li>
-              );
+              return null;
             }
 
             return (
@@ -222,14 +234,12 @@ export default function Sidebar() {
 
                   {hasUnread && (
                     isOpen ? (
-                      // 열려있을 때는 예쁜 숫자 뱃지
                       <div className="ml-auto flex items-center justify-center">
                         <span className="inline-flex items-center justify-center rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm ring-2 ring-gray-950">
                           {unreadCount > 99 ? '99+' : unreadCount}
                         </span>
                       </div>
                     ) : (
-                      // 닫혀있을 때는 깜빡이는 예쁜 빨간 점
                       <div className="absolute top-2 right-2 flex h-2 w-2 items-center justify-center">
                         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"></span>
                         <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500 ring-2 ring-gray-950"></span>
@@ -243,7 +253,6 @@ export default function Sidebar() {
         </ul>
       </nav>
 
-      {/* 마이페이지 이동 링크로 변경된 하단 유저 프로필 영역 */}
       <div className={`mt-auto shrink-0 border-t border-gray-800 ${isOpen ? "p-3" : "flex justify-center p-3"}`}>
         {isLoading ? (
           <div className="animate-pulse flex flex-col gap-3 w-full px-1 py-2">
@@ -258,65 +267,124 @@ export default function Sidebar() {
             </div>
           </div>
         ) : isOpen ? (
-          <Link 
-            href="/mypage" 
-            className="group flex flex-col gap-3 p-3 rounded-xl hover:bg-gray-900 transition-colors border border-transparent hover:border-gray-800 relative cursor-pointer"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 bg-gray-800 border border-gray-700 flex items-center justify-center relative">
-                {avatarUrl ? (
-                  <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
-                ) : (
-                  <User className="w-5 h-5 text-gray-500" />
-                )}
-              </div>
-              
-              <div className="flex flex-col flex-1 min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-sm font-bold text-white tracking-tight truncate">{userName || "로그인 필요"}</span>
-                  {userRank && (
-                    <span className="text-[10px] bg-blue-600/20 text-blue-400 px-1.5 py-0.5 rounded font-black uppercase shrink-0">
-                      {userRank}
-                    </span>
+          // ⭐️ 열려 있을 때: OS 계정이면 Link 대신 div 사용 (클릭 불가)
+          isOS ? (
+            <div className="flex flex-col gap-3 p-3 rounded-xl border border-transparent relative">
+              <div className="flex items-center gap-3 w-full">
+                <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 bg-gray-800 border border-gray-700 flex items-center justify-center relative">
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
+                  ) : (
+                    <User className="w-5 h-5 text-gray-500" />
                   )}
                 </div>
-                <span className="text-xs text-gray-500 truncate mt-0.5">
-                  {companyName} {branchName ? `/ ${branchName}` : ""}
-                </span>
+                
+                <div className="flex flex-col flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 w-full">
+                    <span className="text-sm font-bold text-white tracking-tight truncate">{userName || "로그인 필요"}</span>
+                    {userRank && (
+                      <span className="text-[10px] bg-blue-600/20 text-blue-400 px-1.5 py-0.5 rounded font-black uppercase shrink-0">
+                        {userRank}
+                      </span>
+                    )}
+                    {/* ⭐️ OS 전용 로그아웃 버튼 */}
+                    <button 
+                      onClick={handleLogout}
+                      className="ml-auto text-gray-500 hover:text-red-400 transition-colors p-1 rounded hover:bg-gray-800 cursor-pointer"
+                      title="로그아웃"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <span className="text-xs text-gray-500 truncate mt-0.5">
+                    {companyName} {branchName ? `/ ${branchName}` : ""}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            // ⭐️ 일반 계정이면 마이페이지 이동 가능 (Link 태그)
+            <Link 
+              href="/mypage" 
+              className="group flex flex-col gap-3 p-3 rounded-xl hover:bg-gray-900 transition-colors border border-transparent hover:border-gray-800 relative cursor-pointer"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 bg-gray-800 border border-gray-700 flex items-center justify-center relative">
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
+                  ) : (
+                    <User className="w-5 h-5 text-gray-500" />
+                  )}
+                </div>
+                
+                <div className="flex flex-col flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm font-bold text-white tracking-tight truncate">{userName || "로그인 필요"}</span>
+                    {userRank && (
+                      <span className="text-[10px] bg-blue-600/20 text-blue-400 px-1.5 py-0.5 rounded font-black uppercase shrink-0">
+                        {userRank}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-xs text-gray-500 truncate mt-0.5">
+                    {companyName} {branchName ? `/ ${branchName}` : ""}
+                  </span>
+                </div>
+                
+                <Settings className="w-4 h-4 text-gray-600 group-hover:text-blue-400 transition-colors shrink-0" />
               </div>
               
-              <Settings className="w-4 h-4 text-gray-600 group-hover:text-blue-400 transition-colors shrink-0" />
-            </div>
-            
-            {agentId && (
-              <div className="flex flex-col gap-1.5 rounded-lg bg-gray-950/50 p-2.5 border border-gray-800/80 group-hover:border-gray-700/80 transition-colors mt-1">
-                <div className="flex justify-between items-center text-[11px]">
-                  <span className="text-gray-500 font-medium">소속팀 ({agencyId || "-"})</span>
-                  <span className="text-gray-300 font-bold truncate max-w-[120px] text-right" title={branchName}>
-                    {teamNumber || "-"} 팀
-                  </span>
+              {agentId && (
+                <div className="flex flex-col gap-1.5 rounded-lg bg-gray-950/50 p-2.5 border border-gray-800/80 group-hover:border-gray-700/80 transition-colors mt-1">
+                  <div className="flex justify-between items-center text-[11px]">
+                    <span className="text-gray-500 font-medium">소속팀 ({agencyId || "-"})</span>
+                    <span className="text-gray-300 font-bold truncate max-w-[120px] text-right" title={branchName}>
+                      {teamNumber || "-"} 팀
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-[11px] mt-0.5 pt-1.5 border-t border-gray-800">
+                    <span className="text-gray-500 font-medium">관리 사번</span>
+                    <span className="text-blue-400 font-black tracking-wide">
+                      {agentCode || "-"}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex justify-between items-center text-[11px] mt-0.5 pt-1.5 border-t border-gray-800">
-                  <span className="text-gray-500 font-medium">관리 사번</span>
-                  <span className="text-blue-400 font-black tracking-wide">
-                    {agentCode || "-"}
-                  </span>
-                </div>
-              </div>
-            )}
-          </Link>
+              )}
+            </Link>
+          )
         ) : (
-          <Link
-            href="/mypage"
-            className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-900 text-sm font-bold text-gray-400 border border-gray-800 hover:border-gray-600 hover:bg-gray-800 hover:text-white transition-colors overflow-hidden"
-            title="마이페이지 이동"
-          >
-            {avatarUrl ? (
-              <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
-            ) : (
-              userName ? userName.substring(0, 1) : "?"
-            )}
-          </Link>
+          // ⭐️ 닫혀 있을 때
+          isOS ? (
+            <button
+              onClick={handleLogout}
+              className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-900 text-sm font-bold text-gray-400 border border-gray-800 hover:border-gray-600 hover:bg-red-900/30 hover:text-red-400 transition-colors overflow-hidden group cursor-pointer"
+              title="로그아웃"
+            >
+              {avatarUrl ? (
+                <div className="w-full h-full relative">
+                  <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover group-hover:opacity-10 transition-opacity" />
+                  <LogOut className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 opacity-0 group-hover:opacity-100 text-red-400 transition-opacity" />
+                </div>
+              ) : (
+                <>
+                  <span className="group-hover:hidden">{userName ? userName.substring(0, 1) : "?"}</span>
+                  <LogOut className="hidden group-hover:block w-4 h-4" />
+                </>
+              )}
+            </button>
+          ) : (
+            <Link
+              href="/mypage"
+              className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-900 text-sm font-bold text-gray-400 border border-gray-800 hover:border-gray-600 hover:bg-gray-800 hover:text-white transition-colors overflow-hidden"
+              title="마이페이지 이동"
+            >
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                userName ? userName.substring(0, 1) : "?"
+              )}
+            </Link>
+          )
         )}
       </div>
     </aside>

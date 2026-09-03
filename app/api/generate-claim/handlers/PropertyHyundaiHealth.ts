@@ -1,11 +1,12 @@
 import { PDFDocument, PDFFont, rgb } from "pdf-lib";
 
-export const fillMeritzPropertyHealth = async (pdfDoc: PDFDocument, data: any, font: PDFFont) => {
+export const fillPropertyHyundaiHealth = async (pdfDoc: PDFDocument, data: any, font: PDFFont) => {
   const pages = pdfDoc.getPages();
   const firstPage = pages[0]; // 1페이지
   const secondPage = pages.length > 1 ? pages[1] : null; // 2페이지 (있을 경우)
   const thirdPage = pages.length > 2 ? pages[2] : null;  // 3페이지 (있을 경우)
   const fourthPage = pages.length > 3 ? pages[3] : null;  // 4페이지 (있을 경우)
+  const fifthPage = pages.length > 4 ? pages[4] : null;  // 5페이지 (있을 경우)
 
   // 메리츠 전용 텍스트 그리기 함수 (글자 크기 조절 자유)
     // ⭐️ spacing(자간) 파라미터가 추가되었습니다. (기본값 0)
@@ -63,65 +64,70 @@ export const fillMeritzPropertyHealth = async (pdfDoc: PDFDocument, data: any, f
     const sigDims = { width: 240, height: 40 };
 
     // ⭐️ 1페이지 서명란 좌표 (수익자 이름인 405, 72의 바로 옆이나 위에 맞게 좌표 조절)
-    firstPage.drawImage(signatureImg, { x: 400, y: 58, ...sigDims });
+    firstPage.drawImage(signatureImg, { x: 395, y: 112, ...sigDims });
 
     // ⭐️ 4페이지 동의서 서명란 좌표 (대표님이 쓰신 이름 좌표 432, 440의 바로 우측)
-    if (fourthPage) {
-      fourthPage.drawImage(signatureImg, { x: 408, y: 425, ...sigDims });
+    if (fifthPage) {
+      fifthPage.drawImage(signatureImg, { x: 365, y: 315, ...sigDims });
     }
   }
 
   // ----------------------------------------------------
   // [1페이지] 데이터 입력 (메리츠 좌표)
   // ----------------------------------------------------
-  drawCenterText(firstPage, data.policyholderName, 140, 728);
-  drawText(firstPage, data.policyholderRrn, 237, 728, 18, 12.7);
+  drawCenterText(firstPage, data.policyholderName, 163, 558);
+  drawText(firstPage, data.policyholderRrn, 260, 558, 18, 11.6);
 
-  drawCenterText(firstPage, data.insuredName, 140, 701);
-  drawText(firstPage, data.insuredRrn, 237, 701, 18, 12.7);
+  drawCenterText(firstPage, data.insuredName, 163, 603);
+  drawText(firstPage, data.insuredRrn, 260, 603, 18, 11.6);
 
-  drawCenterText(firstPage, data.beneficiaryName, 140, 620);
-  drawText(firstPage, data.beneficiaryPhone, 237, 620, 18, 12.3);
+  drawCenterText(firstPage, data.beneficiaryName, 163, 536);
+  drawText(firstPage, data.beneficiaryPhone, 260, 536, 18, 10.8);
 
+  
   if (data.useSavedAccount === true || data.useSavedAccount === "true") {
-    drawCheck(firstPage, 127, 245);
+    drawCheck(firstPage, 135, 237);
   } else {
-    drawText(firstPage, data.bankName, 72, 216, 12);
-    drawCenterText(firstPage, data.beneficiaryName, 230, 216, 12);
-    drawCenterText(firstPage, data.beneficiaryRrn, 385, 216, 12);
-    drawCenterText(firstPage, "수익자", 540, 216, 12);
-    drawText(firstPage, data.accountNumber, 87, 187, 18, 12.9);
+    drawText(firstPage, data.bankName, 95, 212, 12);
+    drawText(firstPage, data.accountNumber, 240, 212, 12);
+    drawCenterText(firstPage, data.beneficiaryName, 525, 212, 12);
   }
 
-  drawText(firstPage, data.accidentDesc, 72, 367, 12);
-
-  drawText(firstPage, data.todayYear, 133, 72, 14);
-  drawText(firstPage, data.todayMonth, 183, 72, 14);
-  drawText(firstPage, data.todayDay, 213, 72, 14);
+  drawText(firstPage, data.todayYear, 100, 125, 14);
+  drawText(firstPage, data.todayMonth, 165, 125, 14);
+  drawText(firstPage, data.todayDay, 210, 125, 14);
   
-  drawCenterText(firstPage, data.beneficiaryName, 405, 72);
+  drawCenterText(firstPage, data.beneficiaryName, 415, 125);
 
   if (secondPage) {
-    // 체크박스 위치
-    drawCheck(secondPage, 478, 553);
-    drawCheck(secondPage, 478, 480);
-    drawCheck(secondPage, 478, 390);
-
+    drawCenterText(secondPage, data.insuredName, 100, 743, 14);
+    drawText(secondPage, data.insuredRrn, 285, 743, 14);
+    drawCheck(secondPage, 512, 405);
+    drawCheck(secondPage, 512, 302);
+    drawCheck(secondPage, 512, 180);
   }
   if (thirdPage) {
-    drawCheck(thirdPage, 487, 760);
-    drawCheck(thirdPage, 487, 694);
-    drawCheck(thirdPage, 487, 613);
-    drawCheck(thirdPage, 487, 220);
-    drawCheck(thirdPage, 487, 121);
+    drawCenterText(thirdPage, data.insuredName, 100, 743, 14);
+    drawText(thirdPage, data.insuredRrn, 285, 743, 14);
+    drawCheck(thirdPage, 508, 275);
+    drawCheck(thirdPage, 508, 177);
   }
   if (fourthPage) {
-    drawCheck(fourthPage, 487, 638);
-    drawCheck(fourthPage, 487, 586);
-    drawCheck(fourthPage, 487, 504);
-    drawText(fourthPage, data.todayYear, 53, 442, 14);
-    drawText(fourthPage, data.todayMonth, 132, 442, 14);
-    drawText(fourthPage, data.todayDay, 195, 442, 14);
-    drawCenterText(fourthPage, data.beneficiaryName, 432, 440);
+    drawCenterText(fourthPage, data.insuredName, 100, 743, 14);
+    drawText(fourthPage, data.insuredRrn, 285, 743, 14);
+    drawCheck(fourthPage, 507, 633);
+    drawCheck(fourthPage, 507, 215);
+    drawCheck(fourthPage, 507, 122);
+  }
+  if (fifthPage) {
+    drawCenterText(fifthPage, data.insuredName, 100, 743, 14);
+    drawText(fifthPage, data.insuredRrn, 285, 743, 14);
+    drawCheck(fifthPage, 509, 555);
+    drawCheck(fifthPage, 509, 507);
+    drawCheck(fifthPage, 509, 420);
+    drawText(fifthPage, data.todayYear, 125, 370, 18, 28);
+    drawText(fifthPage, data.todayMonth, 310, 370, 18, 28);
+    drawText(fifthPage, data.todayDay, 415, 370, 18, 28);
+    drawCenterText(fifthPage, data.beneficiaryName, 300, 325);
   }
 };
