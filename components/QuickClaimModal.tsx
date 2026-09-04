@@ -33,7 +33,11 @@ const FAX_NUMBERS: Record<string, string> = {
 export default function QuickClaimModal({ isOpen, onClose, client, insurance }: QuickClaimModalProps) {
   const [isLoading, setIsLoading] = useState(false);
 
-  // ⭐️ 수정됨: policyholder 에도 address: "" 추가하여 타입스크립트 에러 방지
+  // ⭐️ 신규 추가: OS 계정 판별 및 담당 FC 상태
+  const [userRank, setUserRank] = useState("");
+  const [branchFCs, setBranchFCs] = useState<any[]>([]);
+  const [selectedFC, setSelectedFC] = useState("");
+
   const [policyholder, setPolicyholder] = useState({ id: null as number | null, name: "", rrn: "", phone: "", address: "" });
   const [insured, setInsured] = useState({ id: null as number | null, name: "", rrn: "", phone: "", address: "" });
   const [beneficiary, setBeneficiary] = useState({ id: null as number | null, name: "", rrn: "", phone: "", address: "" });
@@ -57,7 +61,6 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
   const [hasInsuredSignature, setHasInsuredSignature] = useState(false); 
   const [hasBeneficiarySignature, setHasBeneficiarySignature] = useState(false);
 
-  // 보험사별 제어 로직
   const companyName = insurance?.insurance_company || "";
   let needsInsuredSignature = true; 
   let needsBeneficiarySignature = true; 
@@ -66,7 +69,6 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
 
   if (companyName.includes("흥국생명")) { supportsSavedAccount = false; }
   if (companyName.includes("라이나생명")) { supportsSavedAccount = false; }
-
   if (companyName.includes("메리츠화재")) { needsInsuredSignature = false; supportsSavedAccount = true; } 
   if (companyName.includes("현대해상")) { needsInsuredSignature = false; }
   if (companyName.includes("DB손해")) { }
@@ -76,6 +78,7 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
 
   useEffect(() => { if (!supportsSavedAccount) setUseSavedAccount(false); }, [supportsSavedAccount]);
 
+  // 1️⃣ 모달 진입 시: 은행 목록 가져오고, 내가 OS인지 판단해서 FC 목록 불러오기
   useEffect(() => {
     const fetchLookups = async () => {
       const { data: banks } = await supabase.from("bank_lists").select("id, bank").order("bank");
@@ -83,19 +86,58 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
 
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data: agentData } = await supabase.from("agents").select("id").eq("auth_id", user.id).single();
+        const { data: agentData } = await supabase.from("agents").select("id, rank, agency_id, agencies(corporation_name, branch_name)").eq("auth_id", user.id).single();
         if (agentData) {
-          const { data: myClients } = await supabase.from("clients").select("id, name, phone, registration_number, bank_info, bank_lists, address").eq("agent_id", agentData.id).order("name");
-          if (myClients) setClientsList(myClients);
+          const rank = String(agentData.rank).toUpperCase();
+          setUserRank(rank);
+          
+          if (rank === "OS" || rank === "총무") {
+            const agency = Array.isArray(agentData.agencies) ? agentData.agencies[0] : agentData.agencies;
+            if (agency) {
+              const { data: targetAgencies } = await supabase.from("agencies").select("id").eq("corporation_name", agency.corporation_name).eq("branch_name", agency.branch_name);
+              if (targetAgencies && targetAgencies.length > 0) {
+                const agencyIds = targetAgencies.map(a => a.id);
+                const { data: branchAgents } = await supabase.from("agents").select("id, name, rank").in("agency_id", agencyIds);
+                if (branchAgents) {
+                  setBranchFCs(branchAgents.sort((a, b) => a.name.localeCompare(b.name, 'ko-KR')));
+                }
+              }
+            }
+          } else {
+            // 일반 설계사면 본인 ID를 즉시 선택
+            setSelectedFC(String(agentData.id));
+          }
         }
       }
     };
     fetchLookups();
   }, []);
 
+  // 2️⃣ 담당 FC가 변경될 때마다(또는 지정될 때마다) 해당 FC의 고객 목록을 새로 불러옴!
+  useEffect(() => {
+    if (!selectedFC) {
+      setClientsList([]);
+      return;
+    }
+    const fetchClients = async () => {
+      const { data: myClients } = await supabase.from("clients")
+        .select("id, name, phone, registration_number, bank_info, bank_lists, address")
+        .eq("agent_id", selectedFC)
+        .order("name");
+      if (myClients) setClientsList(myClients);
+    };
+    fetchClients();
+  }, [selectedFC]);
+
+  // 3️⃣ 부모 컴포넌트(데스크)에서 넘겨준 고객 데이터 세팅
   useEffect(() => {
     const loadClaimDefaults = async () => {
       if (!isOpen || !client || !insurance) return;
+
+      // ⭐️ 바깥쪽 데스크에서 넘어온 고객 정보에 agent_id가 있다면 모달 안의 FC 선택도 자동으로 맞춰줍니다!
+      if (client.agent_id) {
+        setSelectedFC(String(client.agent_id));
+      }
 
       const clientName = client.name || "";
       const clientPhone = client.phone || "";
@@ -313,7 +355,6 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
   };
 
   const handleAction = async (type: string) => {
-    
     setIsLoading(true);
     try {
       const formData = new FormData();
@@ -342,10 +383,16 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
       const actualClientName = client?.name || insured.name || policyholder.name || "미지정고객";
       formData.append("clientName", actualClientName);
       
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: agentData } = await supabase.from("agents").select("id").eq("auth_id", user.id).single();
-        if (agentData) formData.append("agentId", String(agentData.id));
+      // ⭐️ 신규 로직: OS가 대리 청구할 때 청구 이력이 OS가 아닌 '담당 FC'에게 쌓이도록 처리!
+      if (selectedFC) {
+        formData.append("agentId", selectedFC);
+      } else {
+        // 만약 선택된 FC가 없다면 방어용으로 본인 ID 저장
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: agentData } = await supabase.from("agents").select("id").eq("auth_id", user.id).single();
+          if (agentData) formData.append("agentId", String(agentData.id));
+        }
       }
       
       if (needsBeneficiarySignature && hasBeneficiarySignature && beneficiaryCanvasRef.current) {
@@ -431,7 +478,6 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
         })
       : clientsList;
 
-    // ⭐️ 수정됨: 각 역할별로 명시적으로 업데이트하도록 분리하여 타입스크립트 에러 해결!
     const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const val = e.target.value;
       if (role === 'policyholder') setPolicyholder({ ...policyholder, name: val, id: null });
@@ -445,7 +491,7 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
           type="text" 
           placeholder={placeholderText}
           value={currentValue} 
-          onChange={handleNameChange} // ⭐️ 수정된 핸들러 적용
+          onChange={handleNameChange}
           onFocus={() => setFocusedClientField(role)}
           onBlur={() => setTimeout(() => setFocusedClientField(null), 150)}
           className="w-full border border-gray-200 rounded-xl p-3 sm:p-2.5 text-[16px] sm:text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-sm" 
@@ -516,7 +562,28 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
         
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 sm:space-y-8">
           <div className="bg-slate-50 p-5 sm:p-5 rounded-2xl border border-gray-200 space-y-5">
-            <h4 className="font-black text-base sm:text-sm text-gray-800 flex items-center gap-1.5 border-b border-gray-200 pb-3"><Users className="w-5 h-5 sm:w-4 sm:h-4 text-indigo-500" /> 계약 관계자 정보</h4>
+            <h4 className="font-black text-base sm:text-sm text-gray-800 flex items-center gap-1.5 border-b border-gray-200 pb-3">
+              <Users className="w-5 h-5 sm:w-4 sm:h-4 text-indigo-500" /> 계약 관계자 정보
+            </h4>
+            
+            {/* ⭐️ OS 계정용 FC 선택 드롭다운 (고객 검색 대상을 결정함) */}
+            {(userRank === 'OS' || userRank === '총무') && (
+              <div className="bg-indigo-50 p-3 sm:p-4 rounded-xl border border-indigo-100 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-2">
+                <label className="text-sm font-bold text-indigo-800 whitespace-nowrap">담당 FC 지정</label>
+                <select
+                  value={selectedFC}
+                  onChange={(e) => setSelectedFC(e.target.value)}
+                  className="w-full sm:max-w-xs bg-white border border-indigo-200 rounded-lg p-2 sm:p-2.5 text-sm font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none shadow-sm transition-all"
+                >
+                  <option value="">FC를 선택해주세요 (필수)</option>
+                  {branchFCs.map(fc => (
+                    <option key={fc.id} value={fc.id}>{fc.name} {fc.rank}</option>
+                  ))}
+                </select>
+                {!selectedFC && <span className="text-xs text-rose-500 font-bold">※ FC를 지정해야 해당 FC의 고객 목록을 검색할 수 있습니다.</span>}
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5">
               <div className="space-y-3 sm:space-y-2 bg-white p-4 sm:p-4 rounded-xl border border-gray-100 shadow-sm">
                 <p className="text-sm sm:text-xs font-black text-indigo-700">① 계약자</p>
@@ -616,10 +683,10 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
         </div>
 
         <div className="p-4 sm:p-5 border-t border-gray-100 bg-white grid grid-cols-1 sm:grid-cols-2 gap-3 shrink-0 pb-8 sm:pb-5">
-          <button onClick={() => handleAction('pdf')} disabled={isLoading} className="cursor-pointer flex items-center justify-center gap-2 p-4 sm:p-3.5 rounded-2xl sm:rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 font-black text-base sm:text-sm transition-colors shadow-sm">
+          <button onClick={() => handleAction('pdf')} disabled={isLoading || (userRank === 'OS' && !selectedFC)} className="cursor-pointer flex items-center justify-center gap-2 p-4 sm:p-3.5 rounded-2xl sm:rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 font-black text-base sm:text-sm transition-colors shadow-sm disabled:opacity-50">
             <Printer className="w-5 h-5 sm:w-4 sm:h-4" /> PDF 인쇄
           </button>
-          <button onClick={() => handleAction('mobile')} disabled={isLoading} className="cursor-pointer flex items-center justify-center gap-2 p-4 sm:p-3.5 rounded-2xl sm:rounded-xl border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-700 font-black text-base sm:text-sm transition-colors shadow-sm">
+          <button onClick={() => handleAction('mobile')} disabled={isLoading || (userRank === 'OS' && !selectedFC)} className="cursor-pointer flex items-center justify-center gap-2 p-4 sm:p-3.5 rounded-2xl sm:rounded-xl border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-700 font-black text-base sm:text-sm transition-colors shadow-sm disabled:opacity-50">
             <Share2 className="w-5 h-5 sm:w-4 sm:h-4" /> 모바일 팩스 전송
           </button>
         </div>
