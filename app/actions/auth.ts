@@ -49,7 +49,13 @@ export async function signUpAction(formData: FormData) {
     return { error: error.message };
   }
 
-  redirect("/clients");
+  // ⭐️ [신규 분기 처리] 방금 입력받은 rank가 OS나 총무면 claims로, 아니면 clients로 이동
+  const isOS = rank?.toUpperCase() === "OS" || rank === "총무";
+  if (isOS) {
+    redirect("/claims");
+  } else {
+    redirect("/clients");
+  }
 }
 
 export async function signInAction(formData: FormData) {
@@ -62,7 +68,7 @@ export async function signInAction(formData: FormData) {
 
   const supabase = await getSupabaseServer();
 
-  const { error } = await supabase.auth.signInWithPassword({
+  const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
   });
@@ -71,7 +77,32 @@ export async function signInAction(formData: FormData) {
     return { error: "이메일 또는 비밀번호가 일치하지 않습니다." };
   }
 
-  redirect("/clients");
+  // ⭐️ [신규 분기 처리] 로그인한 유저의 정보를 가져와서 rank를 확인합니다.
+  let isOS = false;
+  
+  if (data.user) {
+    // 1. 방금 로그인한 사용자의 ID로 agents 테이블을 조회하여 rank(직급)를 알아냅니다.
+    const { data: agentData } = await supabase
+      .from("agents")
+      .select("rank")
+      .eq("auth_id", data.user.id)
+      .single();
+      
+    // 2. 알아낸 직급이 OS 또는 총무인지 판별합니다.
+    if (agentData && agentData.rank) {
+      const userRank = String(agentData.rank).toUpperCase();
+      if (userRank === "OS" || userRank === "총무") {
+        isOS = true;
+      }
+    }
+  }
+
+  // 3. 판별 결과에 따라 각자 맞는 첫 페이지로 보내줍니다!
+  if (isOS) {
+    redirect("/claims");
+  } else {
+    redirect("/clients");
+  }
 }
 
 export async function signOutAction() {

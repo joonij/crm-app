@@ -4,7 +4,6 @@
 import { usePathname } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import MobileSidebar from "@/components/MobileSidebar";
-// import RealtimeNotification from "@/components/RealtimeNotification";
 
 export default function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -15,7 +14,7 @@ export default function LayoutWrapper({ children }: { children: React.ReactNode 
   const isResetPasswordPage = pathname?.startsWith("/reset-password");
   const isReportPage = pathname?.startsWith("/report");
   const isCardPage = pathname?.startsWith("/card");
-  const isAuthPage = pathname === "/login" || pathname === "/signup"; // ⭐️ 로그인 및 회원가입 페이지 조건 추가
+  const isAuthPage = pathname === "/login" || pathname === "/signup";
 
   // 2. 예외 페이지일 경우 사이드바와 알림을 완전히 제외한 단독 레이아웃 반환
   if (isReportPage || isAuthPage || isCardPage || isFindEmailPage || isResetPasswordPage || isUpdatePasswordPage) {

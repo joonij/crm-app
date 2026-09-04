@@ -388,7 +388,7 @@ export default function ClaimManagementPage() {
               onClick={handleOsClaimStart}
               className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white text-sm font-bold rounded-xl px-3 py-2.5 transition-colors shadow-sm cursor-pointer"
             >
-              청구서 모달 열기 🚀
+              청구서 모달 열기
             </button>
           </div>
         </div>
