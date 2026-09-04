@@ -33,7 +33,8 @@ const FAX_NUMBERS: Record<string, string> = {
 export default function QuickClaimModal({ isOpen, onClose, client, insurance }: QuickClaimModalProps) {
   const [isLoading, setIsLoading] = useState(false);
 
-  const [policyholder, setPolicyholder] = useState({ id: null as number | null, name: "", rrn: "", phone: "" });
+  // ⭐️ 수정됨: policyholder 에도 address: "" 추가하여 타입스크립트 에러 방지
+  const [policyholder, setPolicyholder] = useState({ id: null as number | null, name: "", rrn: "", phone: "", address: "" });
   const [insured, setInsured] = useState({ id: null as number | null, name: "", rrn: "", phone: "", address: "" });
   const [beneficiary, setBeneficiary] = useState({ id: null as number | null, name: "", rrn: "", phone: "", address: "" });
 
@@ -247,10 +248,8 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
       try {
         const files = Array.from(e.target.files);
         
-        // ⭐️ 영수증 전용: 해상도 및 밝기/대비 자동 조절 함수
         const processImage = (file: File): Promise<File> => {
           return new Promise((resolve) => {
-            // PDF 파일은 원본 그대로 통과
             if (!file.type.startsWith('image/')) return resolve(file); 
             
             const img = new Image();
@@ -259,7 +258,6 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
               const canvas = document.createElement('canvas');
               const ctx = canvas.getContext('2d');
               
-              // ⭐️ 해상도 최대 2000px 유지 (기존 1000px에서 2배 상향 -> 글씨 안 깨짐)
               let width = img.width;
               let height = img.height;
               const MAX_SIZE = 2000; 
@@ -275,23 +273,21 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
               canvas.height = height;
 
               if (ctx) {
-                // ⭐️ 마법의 필터: 밝기 15% 증가, 대비 10% 증가 (스캔 어플 효과)
                 ctx.filter = 'brightness(1.15) contrast(1.10)';
                 ctx.drawImage(img, 0, 0, width, height);
                 
-                // 85% 품질의 고화질 JPEG로 변환 (해상도는 높이되 Vercel 4MB 용량 제한은 방어)
                 canvas.toBlob((blob) => {
                   if (blob) {
                     resolve(new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".jpeg", { type: 'image/jpeg' }));
                   } else {
-                    resolve(file); // 실패 시 원본 반환
+                    resolve(file); 
                   }
                 }, 'image/jpeg', 0.85);
               } else {
                 resolve(file);
               }
             };
-            img.onerror = () => resolve(file); // 이미지 로드 실패 시 원본 반환
+            img.onerror = () => resolve(file); 
           });
         };
 
@@ -301,7 +297,6 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
           const newFiles = [...prev, ...processedFiles];
           const totalSizeMB = newFiles.reduce((acc, file) => acc + file.size, 0) / (1024 * 1024);
           
-          // 고화질로 변환했으므로 넉넉하게 5MB로 제한 변경 (서버 환경에 따라 유동적 조절 가능)
           if (totalSizeMB > 5.0) {
             alert(`첨부파일 총 용량(${totalSizeMB.toFixed(1)}MB)이 서버 제한을 초과합니다.\n영수증 사진을 줄이거나, 서류를 나누어서 청구해 주세요.`);
             return prev;
@@ -424,7 +419,6 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
 
   const renderClientSearchInput = (role: 'policyholder' | 'insured' | 'beneficiary', placeholderText: string) => {
     const currentState = role === 'policyholder' ? policyholder : role === 'insured' ? insured : beneficiary;
-    const setState = role === 'policyholder' ? setPolicyholder : role === 'insured' ? setInsured : setBeneficiary;
     const currentValue = currentState.name;
     const cleanNameInput = currentValue.replace(/\s+/g, "").toLowerCase();
     const cleanPhoneInput = currentValue.replace(/[^0-9]/g, "");
@@ -437,13 +431,21 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
         })
       : clientsList;
 
+    // ⭐️ 수정됨: 각 역할별로 명시적으로 업데이트하도록 분리하여 타입스크립트 에러 해결!
+    const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const val = e.target.value;
+      if (role === 'policyholder') setPolicyholder({ ...policyholder, name: val, id: null });
+      else if (role === 'insured') setInsured({ ...insured, name: val, id: null });
+      else setBeneficiary({ ...beneficiary, name: val, id: null });
+    };
+
     return (
       <div className="relative w-full">
         <input 
           type="text" 
           placeholder={placeholderText}
           value={currentValue} 
-          onChange={(e) => setState({ ...currentState, name: e.target.value, id: null })}
+          onChange={handleNameChange} // ⭐️ 수정된 핸들러 적용
           onFocus={() => setFocusedClientField(role)}
           onBlur={() => setTimeout(() => setFocusedClientField(null), 150)}
           className="w-full border border-gray-200 rounded-xl p-3 sm:p-2.5 text-[16px] sm:text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-sm" 
