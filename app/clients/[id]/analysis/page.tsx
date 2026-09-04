@@ -1317,7 +1317,7 @@ return (
               }
 
               return (
-                <figure className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-6 print:gap-8 items-stretch print-bundle mt-4 m-0 p-0" style={{ display: 'grid' }}>
+                <figure className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-4 print:gap-4 items-stretch print-bundle mt-4 m-0 p-0" style={{ display: 'grid' }}>
                   
                   {/* 왼쪽: 3층 연금 피라미드 차트 */}
                   <figure className="bg-slate-50 border border-slate-200 rounded-2xl flex flex-col justify-center items-center relative print:bg-white print:border-slate-300 m-0" style={{ minHeight: '240px', display: 'flex' }}>

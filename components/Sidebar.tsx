@@ -17,7 +17,8 @@ import {
   User,
   FileBox,
   Building2,
-  LogOut
+  LogOut,
+  ExternalLink
 } from "lucide-react";
 
 // ⭐️ [권한 설정] allowedRanks 배열에 허용할 직급(rank)을 넣습니다. "ALL"이면 누구나 접근 가능.
@@ -28,6 +29,7 @@ const navItems = [
   { label: "청구 관리", href: "/claims", icon: FileBox, allowedRanks: ["OS", "FC", "SM", "BM"] },
   { label: "알림 센터", href: "/notifications", icon: Bell, allowedRanks: ["FC", "SM", "BM"] },
   { label: "사내 교육", href: "/training", icon: GraduationCap, allowedRanks: ["FC", "SM", "BM"] },
+  // { label: "보험사 전산", href: "/portals", icon: ExternalLink, allowedRanks: ["ALL"] },
   // { label: "지점 통합 관리", href: "/branch-admin", icon: Building2, allowedRanks: ["OS", "총무", "BM", "지점장", "ADMIN"] },
 ] as const;
 
