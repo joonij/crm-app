@@ -17,7 +17,7 @@ import {
   User,
   FileBox,
   Building2,
-  LogOut // ⭐️ 로그아웃 아이콘 추가
+  LogOut
 } from "lucide-react";
 
 // ⭐️ [권한 설정] allowedRanks 배열에 허용할 직급(rank)을 넣습니다. "ALL"이면 누구나 접근 가능.
@@ -169,7 +169,7 @@ export default function Sidebar() {
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
     if (!error) {
-      router.push("/login"); // 로그인 페이지로 이동 (경로는 프로젝트 설정에 맞게 수정)
+      router.push("/login");
     } else {
       alert("로그아웃에 실패했습니다.");
     }
@@ -210,8 +210,11 @@ export default function Sidebar() {
           {navItems.map(({ label, href, icon: OriginalIcon, allowedRanks }) => {
             const active = isActivePath(pathname, href);
             
-            const isRestricted = !allowedRanks.includes("ALL");
-            const isLocked = isRestricted && (!userRank || !allowedRanks.includes(userRank));
+            // ⭐️ 타입스크립트 에러 해결: allowedRanks를 문자열 배열로 강제 인식시킵니다.
+            const ranks = allowedRanks as readonly string[];
+            
+            const isRestricted = !ranks.includes("ALL");
+            const isLocked = isRestricted && (!userRank || !ranks.includes(userRank));
             
             const Icon = OriginalIcon;
             
@@ -267,7 +270,6 @@ export default function Sidebar() {
             </div>
           </div>
         ) : isOpen ? (
-          // ⭐️ 열려 있을 때: OS 계정이면 Link 대신 div 사용 (클릭 불가)
           isOS ? (
             <div className="flex flex-col gap-3 p-3 rounded-xl border border-transparent relative">
               <div className="flex items-center gap-3 w-full">
@@ -287,7 +289,6 @@ export default function Sidebar() {
                         {userRank}
                       </span>
                     )}
-                    {/* ⭐️ OS 전용 로그아웃 버튼 */}
                     <button 
                       onClick={handleLogout}
                       className="ml-auto text-gray-500 hover:text-red-400 transition-colors p-1 rounded hover:bg-gray-800 cursor-pointer"
@@ -303,7 +304,6 @@ export default function Sidebar() {
               </div>
             </div>
           ) : (
-            // ⭐️ 일반 계정이면 마이페이지 이동 가능 (Link 태그)
             <Link 
               href="/mypage" 
               className="group flex flex-col gap-3 p-3 rounded-xl hover:bg-gray-900 transition-colors border border-transparent hover:border-gray-800 relative cursor-pointer"
@@ -353,7 +353,6 @@ export default function Sidebar() {
             </Link>
           )
         ) : (
-          // ⭐️ 닫혀 있을 때
           isOS ? (
             <button
               onClick={handleLogout}
