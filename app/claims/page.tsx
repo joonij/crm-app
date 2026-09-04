@@ -32,7 +32,7 @@ interface ClaimRecord {
 function SearchableSelect({ 
   options, value, onChange, placeholder, disabled 
 }: { 
-  options: {value: string | number, label: string, disabled?: boolean}[], // disabled 속성 추가
+  options: {value: string | number, label: string, disabled?: boolean}[], 
   value: string | number, 
   onChange: (val: any) => void, 
   placeholder: string, 
@@ -92,14 +92,14 @@ function SearchableSelect({
                 <div
                   key={opt.value}
                   onClick={() => {
-                    if (opt.disabled) return; // ⭐️ disabled 이면 클릭 무시
+                    if (opt.disabled) return; 
                     onChange(opt.value);
                     setIsOpen(false);
                     setSearch("");
                   }}
                   className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
                     opt.disabled
-                      ? 'bg-gray-50 text-gray-400 cursor-not-allowed' // ⭐️ 비활성화 디자인
+                      ? 'bg-gray-50 text-gray-400 cursor-not-allowed' 
                       : String(value) === String(opt.value) 
                         ? 'bg-indigo-50 text-indigo-700 font-bold cursor-pointer' 
                         : 'hover:bg-gray-50 text-gray-700 cursor-pointer'
@@ -234,7 +234,6 @@ export default function ClaimManagementPage() {
           const now = new Date();
           const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
-          // ⭐️ [공통] 해당 계정(agent.id)이 청구한 리스트만 하단에 노출되도록 통일!
           const { data: myClaims } = await supabase
             .from("claims")
             .select("*")
@@ -244,27 +243,31 @@ export default function ClaimManagementPage() {
 
           if (myClaims) setClaims(myClaims);
 
-          // ⭐️ [OS 전용] OS 계정일 경우, 상단 데스크에 띄워줄 지점 FC 목록만 추가로 불러옵니다.
           if (agent.rank === 'OS') {
-            const corpName = agent.agencies.corporation_name;
-            const branchName = agent.agencies.branch_name;
+            // ⭐️ [수정됨] 배열일 경우를 대비해 첫 번째 항목을 안전하게 추출하도록 처리했습니다!
+            const agency = Array.isArray(agent.agencies) ? agent.agencies[0] : agent.agencies;
+            
+            if (agency) {
+              const corpName = agency.corporation_name;
+              const branchName = agency.branch_name;
 
-            const { data: targetAgencies } = await supabase
-              .from("agencies")
-              .select("id")
-              .eq("corporation_name", corpName)
-              .eq("branch_name", branchName);
+              const { data: targetAgencies } = await supabase
+                .from("agencies")
+                .select("id")
+                .eq("corporation_name", corpName)
+                .eq("branch_name", branchName);
 
-            if (targetAgencies && targetAgencies.length > 0) {
-              const agencyIds = targetAgencies.map(a => a.id);
+              if (targetAgencies && targetAgencies.length > 0) {
+                const agencyIds = targetAgencies.map(a => a.id);
 
-              const { data: branchAgents } = await supabase
-                .from("agents")
-                .select("id, name, rank") 
-                .in("agency_id", agencyIds);
+                const { data: branchAgents } = await supabase
+                  .from("agents")
+                  .select("id, name, rank") 
+                  .in("agency_id", agencyIds);
 
-              if (branchAgents && branchAgents.length > 0) {
-                setBranchFCs(branchAgents.sort(sortNameEngThenKor)); 
+                if (branchAgents && branchAgents.length > 0) {
+                  setBranchFCs(branchAgents.sort(sortNameEngThenKor)); 
+                }
               }
             }
           }
@@ -365,7 +368,7 @@ export default function ClaimManagementPage() {
               }))}
             />
 
-            {/* ⭐️ 3. 청구할 보험 선택 (검색 가능 + 미지원 시 Disabled 처리) */}
+            {/* 3. 청구할 보험 선택 (검색 가능 + 미지원 시 Disabled 처리) */}
             <SearchableSelect
               placeholder="3. 청구할 보험 선택"
               value={selectedInsurance}
@@ -376,17 +379,16 @@ export default function ClaimManagementPage() {
                 return {
                   value: ins.id,
                   label: `[${ins.insurance_company}] ${ins.product_name} ${!isSupported ? '- 준비중' : ''}`,
-                  disabled: !isSupported // ⭐️ 배열에 없으면 선택 불가!
+                  disabled: !isSupported // 배열에 없으면 선택 불가
                 };
               })}
             />
 
             <button 
               onClick={handleOsClaimStart}
-              disabled={!selectedInsurance}
               className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white text-sm font-bold rounded-xl px-3 py-2.5 transition-colors shadow-sm cursor-pointer"
             >
-              청구서 모달 열기
+              청구서 모달 열기 🚀
             </button>
           </div>
         </div>
