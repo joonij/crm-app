@@ -99,9 +99,9 @@ export async function signInAction(formData: FormData) {
 
   // 3. 판별 결과에 따라 각자 맞는 첫 페이지로 보내줍니다!
   if (isOS) {
-    redirect("/claims");
+    redirect("/portals");
   } else {
-    redirect("/clients");
+    redirect("/portals");
   }
 }
 

@@ -1,72 +1,203 @@
 "use client";
 
-import { useState } from "react";
-import { ExternalLink } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { supabase } from "@/lib/supabase";
+import { ExternalLink, Users, Loader2, Search, ChevronDown } from "lucide-react";
 import CompanyPortalModal, { CompanyData } from "@/components/CompanyPortalModal";
 
-const COMPANIES: CompanyData[] = [
-  // ==========================================
-  // [1] 손해보험사 (14개)
-  // ==========================================
-  { id: "kb_sonhae", name: "KB손해보험", type: "손해보험", logoUrl: "/logos/kb.png", phones: { customer: "1544-0114", inbound: "1544-0019", helpdesk: "1544-8119", fax: "0505-136-6500" }, cardInfo: { inquiry: "초회, 계속분 가능", method: "계속분 : 설계사 수납", target: "계약자, 배우자, 직계가족", partners: "KB, 롯데, BC, 삼성, 신한, 우리, 농협, 씨티, 현대, 하나" } },
-  { id: "heungkuk_fire", name: "흥국화재", type: "손해보험", logoUrl: "/logos/heungkuk_fire.png", phones: { customer: "1688-1688", inbound: "-", helpdesk: "-", fax: "0505-135-3344" }, cardInfo: { inquiry: "가능", method: "고객센터 수납", target: "계약자 본인", partners: "전 카드사 가능" } },
-  { id: "samsung_fire", name: "삼성화재", type: "손해보험", logoUrl: "/logos/samsung_fire.png", phones: { customer: "1588-5114", inbound: "-", helpdesk: "-", fax: "0505-116-1600" }, cardInfo: { inquiry: "가능", method: "설계사 및 고객센터", target: "계약자", partners: "삼성, KB, 신한" } },
-  { id: "meritz", name: "메리츠화재", type: "손해보험", logoUrl: "/logos/meritz.png", phones: { customer: "1566-7711", inbound: "-", helpdesk: "-", fax: "0505-021-3400" }, cardInfo: { inquiry: "가능", method: "설계사 수납", target: "계약자 및 가족", partners: "전 카드사" } },
-  { id: "db_sonhae", name: "DB손해보험", type: "손해보험", logoUrl: "/logos/db_sonhae.png", phones: { customer: "1588-0100", inbound: "-", helpdesk: "-", fax: "0505-181-4861" }, cardInfo: { inquiry: "확인필요", method: "-", target: "-", partners: "-" } },
-  { id: "hyundai_marine", name: "현대해상", type: "손해보험", logoUrl: "/logos/hyundai_marine.png", phones: { customer: "1588-5656", inbound: "-", helpdesk: "-", fax: "0507-774-6060" }, cardInfo: { inquiry: "확인필요", method: "-", target: "-", partners: "-" } },
-  { id: "lotte_sonhae", name: "롯데손해보험", type: "손해보험", logoUrl: "/logos/lotte_sonhae.png", phones: { customer: "1588-3344", inbound: "-", helpdesk: "-", fax: "0505-134-0077" }, cardInfo: { inquiry: "확인필요", method: "-", target: "-", partners: "-" } },
-  { id: "hanwha_sonhae", name: "한화손해보험", type: "손해보험", logoUrl: "/logos/hanwha_sonhae.png", phones: { customer: "1566-8000", inbound: "-", helpdesk: "-", fax: "0505-154-2062" }, cardInfo: { inquiry: "확인필요", method: "-", target: "-", partners: "-" } },
-  { id: "mg_sonhae", name: "MG손해보험", type: "손해보험", logoUrl: "/logos/mg_sonhae.png", phones: { customer: "1588-5959", inbound: "-", helpdesk: "-", fax: "0505-081-1983" }, cardInfo: { inquiry: "확인필요", method: "-", target: "-", partners: "-" } },
-  { id: "nh_sonhae", name: "NH농협손해보험", type: "손해보험", logoUrl: "/logos/nh_sonhae.png", phones: { customer: "1644-9000", inbound: "-", helpdesk: "-", fax: "0505-136-4100" }, cardInfo: { inquiry: "확인필요", method: "-", target: "-", partners: "-" } },
-  { id: "aig_sonhae", name: "AIG손해보험", type: "손해보험", logoUrl: "/logos/aig_sonhae.png", phones: { customer: "1544-2792", inbound: "-", helpdesk: "-", fax: "-" }, cardInfo: { inquiry: "확인필요", method: "-", target: "-", partners: "-" } },
-  { id: "hana_sonhae", name: "하나손해보험", type: "손해보험", logoUrl: "/logos/hana_sonhae.png", phones: { customer: "1566-3000", inbound: "-", helpdesk: "-", fax: "-" }, cardInfo: { inquiry: "확인필요", method: "-", target: "-", partners: "-" } },
-  { id: "lina_sonhae", name: "라이나손해보험", type: "손해보험", logoUrl: "/logos/lina_sonhae.png", phones: { customer: "1566-5800", inbound: "-", helpdesk: "-", fax: "-" }, cardInfo: { inquiry: "확인필요", method: "-", target: "-", partners: "-" } },
-  { id: "axa_sonhae", name: "AXA손해보험", type: "손해보험", logoUrl: "/logos/axa_sonhae.png", phones: { customer: "1566-1566", inbound: "-", helpdesk: "-", fax: "-" }, cardInfo: { inquiry: "확인필요", method: "-", target: "-", partners: "-" } },
+// ==========================================
+// ⭐️ [신규 추가] SearchableSelect 개별 옵션 Disabled 지원 컴포넌트
+// ==========================================
+function SearchableSelect({ 
+  options, value, onChange, placeholder, disabled 
+}: { 
+  options: {value: string | number, label: string, disabled?: boolean}[], 
+  value: string | number, 
+  onChange: (val: any) => void, 
+  placeholder: string, 
+  disabled?: boolean 
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // ==========================================
-  // [2] 생명보험사 (20개)
-  // ==========================================
-  { id: "samsung_life", name: "삼성생명", type: "생명보험", logoUrl: "/logos/samsung_life.png", phones: { customer: "1588-3114", inbound: "-", helpdesk: "-", fax: "0505-116-2200" }, cardInfo: { inquiry: "초회만 가능", method: "고객센터", target: "계약자", partners: "삼성카드 전용" } },
-  { id: "hanwha_life", name: "한화생명", type: "생명보험", logoUrl: "/logos/hanwha_life.png", phones: { customer: "1588-6363", inbound: "-", helpdesk: "-", fax: "0505-154-2062" }, cardInfo: { inquiry: "가능", method: "설계사 수납", target: "계약자 본인", partners: "한화, 국민, 신한" } },
-  { id: "kyobo_life", name: "교보생명", type: "생명보험", logoUrl: "/logos/kyobo_life.png", phones: { customer: "1588-1001", inbound: "-", helpdesk: "-", fax: "-" }, cardInfo: { inquiry: "확인필요", method: "-", target: "-", partners: "-" } },
-  { id: "metlife", name: "메트라이프", type: "생명보험", logoUrl: "/logos/metlife.png", phones: { customer: "1588-9600", inbound: "-", helpdesk: "-", fax: "-" }, cardInfo: { inquiry: "확인필요", method: "-", target: "-", partners: "-" } },
-  { id: "mirae_asset", name: "미래에셋생명", type: "생명보험", logoUrl: "/logos/mirae_asset.png", phones: { customer: "1588-0220", inbound: "-", helpdesk: "-", fax: "-" }, cardInfo: { inquiry: "확인필요", method: "-", target: "-", partners: "-" } },
-  { id: "db_life", name: "DB생명", type: "생명보험", logoUrl: "/logos/db_life.png", phones: { customer: "1588-3131", inbound: "-", helpdesk: "-", fax: "-" }, cardInfo: { inquiry: "확인필요", method: "-", target: "-", partners: "-" } },
-  { id: "heungkuk_life", name: "흥국생명", type: "생명보험", logoUrl: "/logos/heungkuk_life.png", phones: { customer: "1588-2288", inbound: "-", helpdesk: "-", fax: "-" }, cardInfo: { inquiry: "확인필요", method: "-", target: "-", partners: "-" } },
-  { id: "nh_life", name: "NH농협생명", type: "생명보험", logoUrl: "/logos/nh_life.png", phones: { customer: "1544-4000", inbound: "-", helpdesk: "-", fax: "-" }, cardInfo: { inquiry: "확인필요", method: "-", target: "-", partners: "-" } },
-  { id: "hana_life", name: "하나생명", type: "생명보험", logoUrl: "/logos/hana_life.png", phones: { customer: "1577-1112", inbound: "-", helpdesk: "-", fax: "-" }, cardInfo: { inquiry: "확인필요", method: "-", target: "-", partners: "-" } },
-  { id: "kb_life", name: "KB라이프", type: "생명보험", logoUrl: "/logos/kb_life.png", phones: { customer: "1588-3374", inbound: "-", helpdesk: "-", fax: "-" }, cardInfo: { inquiry: "확인필요", method: "-", target: "-", partners: "-" } },
-  { id: "shinhan_life", name: "신한라이프", type: "생명보험", logoUrl: "/logos/shinhan_life.png", phones: { customer: "1588-5580", inbound: "-", helpdesk: "-", fax: "-" }, cardInfo: { inquiry: "확인필요", method: "-", target: "-", partners: "-" } },
-  { id: "im_life", name: "iM라이프", type: "생명보험", logoUrl: "/logos/im_life.png", phones: { customer: "1588-4770", inbound: "-", helpdesk: "-", fax: "-" }, cardInfo: { inquiry: "확인필요", method: "-", target: "-", partners: "-" } },
-  { id: "kdb_life", name: "KDB생명", type: "생명보험", logoUrl: "/logos/kdb_life.png", phones: { customer: "1588-4040", inbound: "-", helpdesk: "-", fax: "-" }, cardInfo: { inquiry: "확인필요", method: "-", target: "-", partners: "-" } },
-  { id: "bnp_life", name: "BNP파리바카디프", type: "생명보험", logoUrl: "/logos/bnp_life.png", phones: { customer: "1688-1118", inbound: "-", helpdesk: "-", fax: "-" }, cardInfo: { inquiry: "확인필요", method: "-", target: "-", partners: "-" } },
-  { id: "lina_life", name: "라이나생명", type: "생명보험", logoUrl: "/logos/lina_life.png", phones: { customer: "1588-0058", inbound: "-", helpdesk: "-", fax: "-" }, cardInfo: { inquiry: "확인필요", method: "-", target: "-", partners: "-" } },
-  { id: "dongyang_life", name: "동양생명", type: "생명보험", logoUrl: "/logos/dongyang_life.png", phones: { customer: "1577-1004", inbound: "-", helpdesk: "-", fax: "-" }, cardInfo: { inquiry: "확인필요", method: "-", target: "-", partners: "-" } },
-  { id: "abl_life", name: "ABL생명", type: "생명보험", logoUrl: "/logos/abl_life.png", phones: { customer: "1588-6500", inbound: "-", helpdesk: "-", fax: "-" }, cardInfo: { inquiry: "확인필요", method: "-", target: "-", partners: "-" } },
-  { id: "fubon_life", name: "푸본현대생명", type: "생명보험", logoUrl: "/logos/fubon_life.png", phones: { customer: "1577-3311", inbound: "-", helpdesk: "-", fax: "-" }, cardInfo: { inquiry: "확인필요", method: "-", target: "-", partners: "-" } },
-  { id: "aia_life", name: "AIA생명", type: "생명보험", logoUrl: "/logos/aia_life.png", phones: { customer: "1588-9898", inbound: "-", helpdesk: "-", fax: "-" }, cardInfo: { inquiry: "확인필요", method: "-", target: "-", partners: "-" } },
-  { id: "chubb_life", name: "처브생명", type: "생명보험", logoUrl: "/logos/chubb_life.png", phones: { customer: "1566-5005", inbound: "-", helpdesk: "-", fax: "-" }, cardInfo: { inquiry: "확인필요", method: "-", target: "-", partners: "-" } },
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
-  // ==========================================
-  // [3] 기타보험/공제 (6개)
-  // ==========================================
-  { id: "ibk_pension", name: "IBK연금보험", type: "기타", logoUrl: "/logos/ibk_pension.png", phones: { customer: "1577-4117", inbound: "-", helpdesk: "-", fax: "-" }, cardInfo: { inquiry: "확인필요", method: "-", target: "-", partners: "-" } },
-  { id: "post_office", name: "우체국보험", type: "기타", logoUrl: "/logos/post_office.png", phones: { customer: "1599-0100", inbound: "-", helpdesk: "-", fax: "-" }, cardInfo: { inquiry: "확인필요", method: "-", target: "-", partners: "-" } },
-  { id: "teachers_credit", name: "교직원공제회", type: "기타", logoUrl: "/logos/teachers_credit.png", phones: { customer: "1577-3400", inbound: "-", helpdesk: "-", fax: "-" }, cardInfo: { inquiry: "확인필요", method: "-", target: "-", partners: "-" } },
-  { id: "mg_saemaul", name: "MG새마을금고", type: "기타", logoUrl: "/logos/mg_saemaul.png", phones: { customer: "1599-9000", inbound: "-", helpdesk: "-", fax: "-" }, cardInfo: { inquiry: "확인필요", method: "-", target: "-", partners: "-" } },
-  { id: "suhyup", name: "수협", type: "기타", logoUrl: "/logos/suhyup.png", phones: { customer: "1588-1515", inbound: "-", helpdesk: "-", fax: "-" }, cardInfo: { inquiry: "확인필요", method: "-", target: "-", partners: "-" } },
-  { id: "shinhyup", name: "신협", type: "기타", logoUrl: "/logos/shinhyup.png", phones: { customer: "1566-6000", inbound: "-", helpdesk: "-", fax: "-" }, cardInfo: { inquiry: "확인필요", method: "-", target: "-", partners: "-" } }
-];
-
-export default function PortalsPage() {
-  // ⭐️ 핵심 변경점: null 대신 COMPANIES 배열에서 ABL생명을 찾아 기본값으로 지정합니다.
-  const [selectedCompany, setSelectedCompany] = useState<CompanyData | null>(
-    COMPANIES.find(c => c.name === "ABL생명") || null
+  const selectedOption = options.find((opt) => String(opt.value) === String(value));
+  const filteredOptions = options.filter((opt) =>
+    opt.label.toLowerCase().includes(search.toLowerCase())
   );
 
-  const nonLifeCompanies = COMPANIES.filter(c => c.type === "손해보험");
-  const lifeCompanies = COMPANIES.filter(c => c.type === "생명보험");
-  const otherCompanies = COMPANIES.filter(c => c.type === "기타");
+  return (
+    <div className="relative w-full" ref={dropdownRef}>
+      <div
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+        className={`w-full border text-sm font-bold rounded-xl px-3 py-2.5 flex items-center justify-between transition-all ${
+          disabled 
+            ? 'bg-gray-100 border-indigo-100 text-gray-400 cursor-not-allowed' 
+            : 'bg-white border-indigo-200 text-gray-700 cursor-pointer focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-100'
+        }`}
+      >
+        <span className="truncate">{selectedOption ? selectedOption.label : placeholder}</span>
+        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </div>
+
+      {isOpen && !disabled && (
+        <div className="absolute z-50 w-full mt-2 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+          <div className="p-2 border-b border-gray-100 flex items-center gap-2 bg-gray-50">
+            <Search className="w-4 h-4 text-gray-400 ml-1 shrink-0" />
+            <input
+              type="text"
+              className="w-full text-sm bg-transparent outline-none placeholder:font-normal"
+              placeholder="이름 검색..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              autoFocus
+            />
+          </div>
+          <div className="max-h-48 overflow-y-auto p-1">
+            {filteredOptions.length === 0 ? (
+              <div className="p-3 text-center text-xs text-gray-400">검색 결과가 없습니다.</div>
+            ) : (
+              filteredOptions.map((opt) => (
+                <div
+                  key={opt.value}
+                  onClick={() => {
+                    if (opt.disabled) return; 
+                    onChange(opt.value);
+                    setIsOpen(false);
+                    setSearch("");
+                  }}
+                  className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                    opt.disabled
+                      ? 'bg-gray-50 text-gray-400 cursor-not-allowed' 
+                      : String(value) === String(opt.value) 
+                        ? 'bg-indigo-50 text-indigo-700 font-bold cursor-pointer' 
+                        : 'hover:bg-gray-50 text-gray-700 cursor-pointer'
+                  }`}
+                >
+                  {opt.label}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ==========================================
+// 메인 페이지 컴포넌트
+// ==========================================
+export default function PortalsPage() {
+  const [companies, setCompanies] = useState<CompanyData[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  const [selectedCompany, setSelectedCompany] = useState<CompanyData | null>(null);
+
+  const [userRank, setUserRank] = useState("");
+  const [myAgentId, setMyAgentId] = useState<string | null>(null);
+  const [branchFCs, setBranchFCs] = useState<any[]>([]);
+  const [selectedFC, setSelectedFC] = useState("");
+
+  useEffect(() => {
+    const initData = async () => {
+      setIsLoading(true);
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: agentData } = await supabase.from("agents")
+          .select("id, name, rank, agencies(corporation_name, branch_name)")
+          .eq("auth_id", user.id)
+          .single();
+
+        if (agentData) {
+          setMyAgentId(String(agentData.id));
+          const rank = String(agentData.rank).toUpperCase();
+          setUserRank(rank);
+
+          if (rank === "OS") {
+            const agency = Array.isArray(agentData.agencies) ? agentData.agencies[0] : agentData.agencies;
+            if (agency) {
+              const { data: targetAgencies } = await supabase.from("agencies")
+                .select("id").eq("corporation_name", agency.corporation_name).eq("branch_name", agency.branch_name);
+              
+              if (targetAgencies && targetAgencies.length > 0) {
+                const agencyIds = targetAgencies.map(a => a.id);
+                const { data: branchAgents } = await supabase.from("agents")
+                  .select("id, name, rank").in("agency_id", agencyIds);
+                if (branchAgents) setBranchFCs(branchAgents.sort((a, b) => a.name.localeCompare(b.name, 'ko-KR')));
+              }
+            }
+          } else {
+            setSelectedFC(String(agentData.id));
+          }
+        }
+      }
+
+      const { data: dbCompanies, error } = await supabase
+        .from("insurance_companies")
+        .select("*");
+
+      if (!error && dbCompanies) {
+        const formattedCompanies: CompanyData[] = dbCompanies.map((dbData) => ({
+          id: String(dbData.id),
+          name: dbData.company_name,
+          type: dbData.company_type as "손해보험" | "생명보험" | "기타",
+          logoUrl: dbData.logo_url || undefined,
+          browser: dbData.browser || undefined,
+          portalUrl: dbData.portal_url || undefined,
+          termsUrl: dbData.terms_url || undefined,
+          claimUrl: dbData.claim_url || undefined, 
+          phones: { 
+            customer: dbData.phone_customer || "-", 
+            inbound: dbData.phone_inbound || "-", 
+            helpdesk: dbData.phone_helpdesk || "-", 
+            fax: dbData.phone_fax || "-" 
+          },
+          cardInfo: { 
+            inquiry: dbData.card_inquiry || "-", 
+            method: dbData.card_method || "-", 
+            apply: dbData.card_apply || "-", 
+            target: dbData.card_target || "-", 
+            partners: dbData.card_partners || "-" 
+          }
+        }));
+
+        formattedCompanies.sort((a, b) => {
+          const aIsEng = /^[a-zA-Z]/.test(a.name);
+          const bIsEng = /^[a-zA-Z]/.test(b.name);
+          if (aIsEng && !bIsEng) return -1;
+          if (!aIsEng && bIsEng) return 1; 
+          return a.name.localeCompare(b.name, 'ko-KR');
+        });
+
+        setCompanies(formattedCompanies);
+
+        const defaultCompany = formattedCompanies.find(c => c.name === "ABL생명");
+        if (defaultCompany) {
+          setSelectedCompany(defaultCompany);
+        }
+      }
+
+      setIsLoading(false);
+    };
+
+    initData();
+  }, []);
+
+  const nonLifeCompanies = companies.filter(c => c.type === "손해보험");
+  const lifeCompanies = companies.filter(c => c.type === "생명보험");
+  const otherCompanies = companies.filter(c => c.type === "기타");
 
   const renderCompanyCard = (company: CompanyData) => {
     const isSelected = selectedCompany?.id === company.id;
@@ -81,7 +212,7 @@ export default function PortalsPage() {
             : "border-gray-100 shadow-[0_2px_10px_rgba(0,0,0,0.02)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] hover:-translate-y-1"
         }`}
       >
-        <div className="w-14 h-14 bg-white rounded-2xl mb-3 flex items-center justify-center group-hover:scale-110 transition-transform overflow-hidden">
+        <div className="w-24 h-24 bg-white rounded-2xl mb-3 flex items-center justify-center group-hover:scale-110 transition-transform overflow-hidden">
           {company.logoUrl ? (
             <img src={company.logoUrl} alt={`${company.name} 로고`} className="w-full h-full object-contain p-1" />
           ) : (
@@ -95,67 +226,151 @@ export default function PortalsPage() {
     );
   };
 
+  const isOS = userRank === 'OS';
+  const targetAgentId = isOS ? selectedFC : myAgentId;
+  const targetAgentName = branchFCs.find(fc => String(fc.id) === selectedFC)?.name || null;
+
   return (
-    <div className="w-full mx-auto max-w-[1600px] p-4 md:p-6 lg:p-8 flex flex-col lg:flex-row gap-6 lg:gap-8 items-start relative">
+    <div className="w-full mx-auto max-w-[1800px] p-4 md:p-6 lg:p-8 flex flex-col lg:flex-row gap-6 lg:gap-8 items-start relative">
       
       {/* 👈 좌측: 리스트 영역 */}
       <div className="flex-1 w-full min-w-0 space-y-10">
-        <div className="mb-2">
-          <h1 className="text-2xl font-black text-slate-800 flex items-center gap-2">
-            <ExternalLink className="w-7 h-7 text-blue-600" /> 전산망 및 업무 지원
-          </h1>
-          <p className="mt-2 text-sm text-gray-500 font-medium">
-            각 보험사의 전산망 접속 및 고객센터, 팩스번호, 결제 정보를 한곳에서 확인하세요.
-          </p>
+        
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-2">
+          <div>
+            <h1 className="text-2xl font-black text-slate-800 flex items-center gap-2">
+              <ExternalLink className="w-7 h-7 text-blue-600" /> 전산망 및 업무 지원
+            </h1>
+            <p className="mt-2 text-sm text-gray-500 font-medium">
+              각 보험사의 전산망 접속 및 고객센터, 팩스번호, 결제 정보를 한곳에서 확인하세요.
+            </p>
+          </div>
+
+          {/* ⭐️ [변경됨] OS 계정일 경우 SearchableSelect 로 변경 */}
+          {isOS && (
+            <div className="bg-indigo-50 border border-indigo-100 p-3 rounded-xl flex items-center gap-3 w-full md:w-[260px] shrink-0 shadow-sm animate-in fade-in">
+              <Users className="w-5 h-5 text-indigo-500 shrink-0" />
+              <div className="w-full">
+                <SearchableSelect
+                  placeholder="담당 FC 선택"
+                  value={selectedFC}
+                  onChange={setSelectedFC}
+                  options={branchFCs.map(fc => ({
+                    value: fc.id,
+                    label: `${fc.name} ${fc.rank || ''}`.trim()
+                  }))}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
-        <section>
-          <h2 className="text-lg font-black text-slate-800 mb-4 ml-1 flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span> 손해보험사
-          </h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 sm:gap-4">
-            {nonLifeCompanies.map(renderCompanyCard)}
+        {/* ⭐️ 로딩 상태 표시 */}
+        {isLoading ? (
+          <div className="py-24 flex flex-col items-center justify-center space-y-4">
+            <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
+            <p className="text-sm font-bold text-gray-500">보험사 정보를 불러오는 중입니다...</p>
           </div>
-        </section>
+        ) : (
+          <>
+            {/* ⭐️ 신규 추가: 업무 지원 사이트 영역 */}
+            <section className="mb-10">
+              <h2 className="text-lg font-black text-slate-800 mb-4 ml-1 flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span> 업무 지원 사이트
+              </h2>
+              <div className="flex flex-wrap gap-3 sm:gap-4">
+                <a 
+                  href="https://az.bojang114.com/index_real.html"
+                  target="_blank" 
+                  rel="noreferrer"
+                  className="flex items-center gap-3 bg-white border border-gray-200 hover:border-amber-400 hover:bg-amber-50 rounded-2xl px-5 py-4 transition-all shadow-sm hover:shadow-md cursor-pointer group w-full sm:w-auto min-w-[200px]"
+                >
+                  <div className="bg-amber-100 p-2 rounded-xl text-amber-600 group-hover:scale-110 transition-transform">
+                    <ExternalLink className="w-5 h-5" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="font-black text-slate-800 text-sm">보장114</span>
+                    <span className="text-[11px] font-bold text-slate-400">간편보장분석</span>
+                  </div>
+                </a>
+                <a 
+                  href="https://gaworld.kr/infra"
+                  target="_blank" 
+                  rel="noreferrer"
+                  className="flex items-center gap-3 bg-white border border-gray-200 hover:border-amber-400 hover:bg-amber-50 rounded-2xl px-5 py-4 transition-all shadow-sm hover:shadow-md cursor-pointer group w-full sm:w-auto min-w-[200px]"
+                >
+                  <div className="bg-amber-100 p-2 rounded-xl text-amber-600 group-hover:scale-110 transition-transform">
+                    <ExternalLink className="w-5 h-5" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="font-black text-slate-800 text-sm">GAWORLD</span>
+                    <span className="text-[11px] font-bold text-slate-400">보험사전산, 환급률 계산 등</span>
+                  </div>
+                </a>
 
-        <section>
-          <h2 className="text-lg font-black text-slate-800 mb-4 ml-1 flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> 생명보험사
-          </h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 sm:gap-4">
-            {lifeCompanies.map(renderCompanyCard)}
-          </div>
-        </section>
+                {/* 💡 나중에 다른 사이트(예: 보험클리닉, KIDI 등)가 생기면 위 <a> 태그를 복사해서 계속 이어 붙이시면 됩니다! */}
+                
+              </div>
+            </section>
+            <section>
+              <h2 className="text-lg font-black text-slate-800 mb-4 ml-1 flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> 생명보험사
+              </h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-7 gap-3 sm:gap-4">
+                {lifeCompanies.map(renderCompanyCard)}
+              </div>
+            </section>
+            <section>
+              <h2 className="text-lg font-black text-slate-800 mb-4 ml-1 flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span> 손해보험사
+              </h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-7 gap-3 sm:gap-4">
+                {nonLifeCompanies.map(renderCompanyCard)}
+              </div>
+            </section>
 
-        {otherCompanies.length > 0 && (
-          <section>
-            <h2 className="text-lg font-black text-slate-800 mb-4 ml-1 flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span> 기타 보험 및 공제
-            </h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 sm:gap-4">
-              {otherCompanies.map(renderCompanyCard)}
-            </div>
-          </section>
+
+            {otherCompanies.length > 0 && (
+              <section>
+                <h2 className="text-lg font-black text-slate-800 mb-4 ml-1 flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span> 기타 보험 및 공제
+                </h2>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-7 gap-3 sm:gap-4">
+                  {otherCompanies.map(renderCompanyCard)}
+                </div>
+              </section>
+            )}
+          </>
         )}
       </div>
+      
+      {selectedCompany && !isLoading && (
+        <div className="w-[380px] xl:w-[420px] shrink-0 hidden lg:block transition-all duration-300"></div>
+      )}
 
-      {/* 👉 우측: 실시간 분할 패널 영역 */}
-      {selectedCompany && (
-        <div className="w-[360px] xl:w-[400px] shrink-0 sticky top-6 h-[calc(100vh-3rem)] z-40 animate-in fade-in slide-in-from-right-8 duration-300 hidden lg:block">
+      {/* 2. 실제 화면 우측 끝에 100% 높이로 고정되는 패널 */}
+      {selectedCompany && !isLoading && (
+        <div className="fixed top-0 right-0 w-[380px] xl:w-[420px] h-screen z-50 animate-in fade-in slide-in-from-right-8 duration-300 hidden lg:block border-l border-gray-200 bg-white shadow-2xl">
           <CompanyPortalModal 
             isOpen={!!selectedCompany} 
             onClose={() => setSelectedCompany(null)} 
-            company={selectedCompany} 
+            company={selectedCompany}
+            targetAgentId={targetAgentId} 
+            targetAgentName={targetAgentName} 
+            isOS={isOS} 
           />
         </div>
       )}
 
-      {/* 📱 모바일 환경에서는 화면을 덮는 모달로 작동 */}
+      {/* 📱 모바일 환경에서는 꽉 찬 풀스크린 모달로 작동 */}
       <div className="lg:hidden">
         <CompanyPortalModal 
-          isOpen={!!selectedCompany} 
+          isOpen={!!selectedCompany && !isLoading} 
           onClose={() => setSelectedCompany(null)} 
-          company={selectedCompany} 
+          company={selectedCompany}
+          targetAgentId={targetAgentId}
+          targetAgentName={targetAgentName}
+          isOS={isOS}
         />
       </div>
 
