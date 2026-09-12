@@ -19,7 +19,6 @@ import {
   ExternalLink
 } from "lucide-react";
 
-// ⭐️ [권한 설정] allowedRanks 배열에 허용할 직급(rank)을 넣습니다. "ALL"이면 누구나 접근 가능.
 const navItems = [
   { label: "보험사 전산", href: "/portals", icon: ExternalLink, allowedRanks: ["ALL"] },
   { label: "대시보드", href: "/dashboard", icon: Presentation, allowedRanks: ["FC", "SM", "BM"] },
@@ -41,8 +40,6 @@ export default function Sidebar() {
   const router = useRouter(); 
   const [isOpen, setIsOpen] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
-  
-  // 유저 정보 상태
   const [agentId, setAgentId] = useState<number | null>(null);
   const [userName, setUserName] = useState<string>(""); 
   const [userRank, setUserRank] = useState<string>(""); 
@@ -52,10 +49,8 @@ export default function Sidebar() {
   const [branchName, setBranchName] = useState<string>("");
   const [teamNumber, setTeamNumber] = useState<string>("");
   const [agentCode, setAgentCode] = useState<string>("");
-  
   const [unreadCount, setUnreadCount] = useState(0);
 
-  // 1. 유저 정보 조회 및 인증 상태 감지
   useEffect(() => {
     const fetchUserProfile = async (userId: string) => {
       setIsLoading(true);
@@ -162,10 +157,7 @@ export default function Sidebar() {
     document.title = unreadCount > 0 ? `(${unreadCount}) CareLink` : "CareLink";
   }, [unreadCount]);
 
-  // ⭐️ OS 또는 총무 계정인지 확인하는 변수
-  const isOS = userRank === "OS" || userRank === "총무";
-
-  // ⭐️ 로그아웃 처리 함수
+  const isOS = userRank.includes("OS");
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
     if (!error) {
@@ -209,15 +201,11 @@ export default function Sidebar() {
         <ul className="space-y-1">
           {navItems.map(({ label, href, icon: OriginalIcon, allowedRanks }) => {
             const active = isActivePath(pathname, href);
-            
-            // ⭐️ 타입스크립트 에러 해결: allowedRanks를 문자열 배열로 강제 인식시킵니다.
             const ranks = allowedRanks as readonly string[];
-            
             const isRestricted = !ranks.includes("ALL");
-            const isLocked = isRestricted && (!userRank || !ranks.includes(userRank));
-            
+            const isAuthorized = userRank && ranks.some(allowed => userRank.includes(allowed));
+            const isLocked = isRestricted && !isAuthorized;
             const Icon = OriginalIcon;
-            
             const isNotificationMenu = label === "알림 센터";
             const hasUnread = isNotificationMenu && unreadCount > 0;
 
@@ -234,7 +222,6 @@ export default function Sidebar() {
                   <Icon className={`h-4 w-4 shrink-0 ${active ? "text-blue-400" : "text-gray-500"} ${hasUnread ? "animate-bounce" : ""}`} />
                   
                   {isOpen && <span className="truncate">{label}</span>}
-
                   {hasUnread && (
                     isOpen ? (
                       <div className="ml-auto flex items-center justify-center">

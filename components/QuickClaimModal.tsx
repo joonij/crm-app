@@ -1,12 +1,12 @@
+// components/QuickClaimModal.tsx
 "use client";
 
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase"; 
 import { decryptRegNumber } from "@/app/actions/crypto"; 
-import imageCompression from 'browser-image-compression';
 import { 
   X, Upload, CheckCircle, FileText, Printer, Share2, 
-  Loader2, Users, Edit3, Eraser, Ban, Copy 
+  Loader2, Users, Edit3, Eraser, Ban, Copy, Search, ChevronDown
 } from "lucide-react";
 
 type QuickClaimModalProps = {
@@ -16,7 +16,6 @@ type QuickClaimModalProps = {
   insurance: any;
 };
 
-// 보험사별 팩스 번호
 const FAX_NUMBERS: Record<string, string> = {
   "메리츠화재": "0505-021-3400",
   "현대해상": "0507-774-6060",
@@ -30,10 +29,96 @@ const FAX_NUMBERS: Record<string, string> = {
   "MG손해": "0505-081-1983",
 };
 
+function SearchableSelect({ 
+  options, value, onChange, placeholder, disabled 
+}: { 
+  options: {value: string | number, label: string, disabled?: boolean}[], 
+  value: string | number, 
+  onChange: (val: any) => void, 
+  placeholder: string, 
+  disabled?: boolean 
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const selectedOption = options.find((opt) => String(opt.value) === String(value));
+  const filteredOptions = options.filter((opt) =>
+    opt.label.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="relative w-full" ref={dropdownRef}>
+      <div
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+        className={`w-full bg-white border text-sm font-bold rounded-xl p-3 sm:p-2.5 flex items-center justify-between transition-all shadow-sm ${
+          disabled 
+            ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed shadow-none' 
+            : 'border-indigo-200 text-indigo-900 cursor-pointer focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-100'
+        }`}
+      >
+        <span className="truncate">{selectedOption ? selectedOption.label : placeholder}</span>
+        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </div>
+
+      {isOpen && !disabled && (
+        <div className="absolute z-50 w-full mt-2 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+          <div className="p-2 border-b border-gray-100 flex items-center gap-2 bg-gray-50">
+            <Search className="w-4 h-4 text-gray-400 ml-1 shrink-0" />
+            <input
+              type="text"
+              className="w-full text-sm bg-transparent outline-none placeholder:font-normal"
+              placeholder="이름 검색..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              autoFocus
+            />
+          </div>
+          <div className="max-h-48 overflow-y-auto p-1">
+            {filteredOptions.length === 0 ? (
+              <div className="p-3 text-center text-xs text-gray-400">검색 결과가 없습니다.</div>
+            ) : (
+              filteredOptions.map((opt) => (
+                <div
+                  key={opt.value}
+                  onClick={() => {
+                    if (opt.disabled) return; 
+                    onChange(opt.value);
+                    setIsOpen(false);
+                    setSearch("");
+                  }}
+                  className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                    opt.disabled
+                      ? 'bg-gray-50 text-gray-400 cursor-not-allowed' 
+                      : String(value) === String(opt.value) 
+                        ? 'bg-indigo-50 text-indigo-700 font-bold cursor-pointer' 
+                        : 'hover:bg-gray-50 text-gray-700 cursor-pointer'
+                  }`}
+                >
+                  {opt.label}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function QuickClaimModal({ isOpen, onClose, client, insurance }: QuickClaimModalProps) {
   const [isLoading, setIsLoading] = useState(false);
 
-  // ⭐️ 신규 추가: OS 계정 판별 및 담당 FC 상태
   const [userRank, setUserRank] = useState("");
   const [branchFCs, setBranchFCs] = useState<any[]>([]);
   const [selectedFC, setSelectedFC] = useState("");
@@ -77,8 +162,6 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
   if (companyName.includes("KB손해")) { needsInsuredSignature = false; }
 
   useEffect(() => { if (!supportsSavedAccount) setUseSavedAccount(false); }, [supportsSavedAccount]);
-
-  // 1️⃣ 모달 진입 시: 은행 목록 가져오고, 내가 OS인지 판단해서 FC 목록 불러오기
   useEffect(() => {
     const fetchLookups = async () => {
       const { data: banks } = await supabase.from("bank_lists").select("id, bank").order("bank");
@@ -90,8 +173,9 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
         if (agentData) {
           const rank = String(agentData.rank).toUpperCase();
           setUserRank(rank);
+          const isOsRole = rank.includes("OS");
           
-          if (rank === "OS" || rank === "총무") {
+          if (isOsRole) {
             const agency = Array.isArray(agentData.agencies) ? agentData.agencies[0] : agentData.agencies;
             if (agency) {
               const { data: targetAgencies } = await supabase.from("agencies").select("id").eq("corporation_name", agency.corporation_name).eq("branch_name", agency.branch_name);
@@ -100,20 +184,19 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
                 const { data: branchAgents } = await supabase.from("agents").select("id, name, rank").in("agency_id", agencyIds);
                 if (branchAgents) {
                   setBranchFCs(branchAgents.sort((a, b) => a.name.localeCompare(b.name, 'ko-KR')));
+                  if (!client?.agent_id) setSelectedFC(String(agentData.id));
                 }
               }
             }
           } else {
-            // 일반 설계사면 본인 ID를 즉시 선택
-            setSelectedFC(String(agentData.id));
+            if (!client?.agent_id) setSelectedFC(String(agentData.id));
           }
         }
       }
     };
     fetchLookups();
-  }, []);
+  }, [client]);
 
-  // 2️⃣ 담당 FC가 변경될 때마다(또는 지정될 때마다) 해당 FC의 고객 목록을 새로 불러옴!
   useEffect(() => {
     if (!selectedFC) {
       setClientsList([]);
@@ -129,12 +212,10 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
     fetchClients();
   }, [selectedFC]);
 
-  // 3️⃣ 부모 컴포넌트(데스크)에서 넘겨준 고객 데이터 세팅
   useEffect(() => {
     const loadClaimDefaults = async () => {
       if (!isOpen || !client || !insurance) return;
 
-      // ⭐️ 바깥쪽 데스크에서 넘어온 고객 정보에 agent_id가 있다면 모달 안의 FC 선택도 자동으로 맞춰줍니다!
       if (client.agent_id) {
         setSelectedFC(String(client.agent_id));
       }
@@ -383,11 +464,9 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
       const actualClientName = client?.name || insured.name || policyholder.name || "미지정고객";
       formData.append("clientName", actualClientName);
       
-      // ⭐️ 신규 로직: OS가 대리 청구할 때 청구 이력이 OS가 아닌 '담당 FC'에게 쌓이도록 처리!
       if (selectedFC) {
         formData.append("agentId", selectedFC);
       } else {
-        // 만약 선택된 FC가 없다면 방어용으로 본인 ID 저장
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
           const { data: agentData } = await supabase.from("agents").select("id").eq("auth_id", user.id).single();
@@ -494,7 +573,7 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
           onChange={handleNameChange}
           onFocus={() => setFocusedClientField(role)}
           onBlur={() => setTimeout(() => setFocusedClientField(null), 150)}
-          className="w-full border border-gray-200 rounded-xl p-3 sm:p-2.5 text-[16px] sm:text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-sm" 
+          className="w-full border border-gray-200 rounded-xl sm:rounded-lg p-3 sm:p-2.5 text-[16px] sm:text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none shadow-sm transition-all" 
         />
         {focusedClientField === role && filteredClients.length > 0 && (
           <ul className="absolute z-50 left-0 right-0 top-full mt-1 max-h-52 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-xl py-1" onMouseDown={(e) => e.preventDefault()}>
@@ -509,6 +588,8 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
       </div>
     );
   };
+
+  const isOS = userRank.includes('OS');
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/70 backdrop-blur-sm sm:p-4 animate-in fade-in duration-200">
@@ -566,21 +647,21 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
               <Users className="w-5 h-5 sm:w-4 sm:h-4 text-indigo-500" /> 계약 관계자 정보
             </h4>
             
-            {/* ⭐️ OS 계정용 FC 선택 드롭다운 (고객 검색 대상을 결정함) */}
-            {(userRank === 'OS' || userRank === '총무') && (
+            {isOS && (
               <div className="bg-indigo-50 p-3 sm:p-4 rounded-xl border border-indigo-100 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-2">
                 <label className="text-sm font-bold text-indigo-800 whitespace-nowrap">담당 FC 지정</label>
-                <select
-                  value={selectedFC}
-                  onChange={(e) => setSelectedFC(e.target.value)}
-                  className="w-full sm:max-w-xs bg-white border border-indigo-200 rounded-lg p-2 sm:p-2.5 text-sm font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none shadow-sm transition-all"
-                >
-                  <option value="">FC를 선택해주세요 (필수)</option>
-                  {branchFCs.map(fc => (
-                    <option key={fc.id} value={fc.id}>{fc.name} {fc.rank}</option>
-                  ))}
-                </select>
-                {!selectedFC && <span className="text-xs text-rose-500 font-bold">※ FC를 지정해야 해당 FC의 고객 목록을 검색할 수 있습니다.</span>}
+                <div className="w-full sm:max-w-xs">
+                  <SearchableSelect
+                    placeholder="담당 FC 선택 (필수)"
+                    value={selectedFC}
+                    onChange={setSelectedFC}
+                    options={branchFCs.map(fc => ({
+                      value: fc.id,
+                      label: `${fc.name} ${fc.rank || ''}`.trim()
+                    }))}
+                  />
+                </div>
+                {!selectedFC && <span className="text-xs text-rose-500 font-bold">※ FC를 지정해야 해당 고객이 검색됩니다.</span>}
               </div>
             )}
 
@@ -683,10 +764,10 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
         </div>
 
         <div className="p-4 sm:p-5 border-t border-gray-100 bg-white grid grid-cols-1 sm:grid-cols-2 gap-3 shrink-0 pb-8 sm:pb-5">
-          <button onClick={() => handleAction('pdf')} disabled={isLoading || (userRank === 'OS' && !selectedFC)} className="cursor-pointer flex items-center justify-center gap-2 p-4 sm:p-3.5 rounded-2xl sm:rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 font-black text-base sm:text-sm transition-colors shadow-sm disabled:opacity-50">
+          <button onClick={() => handleAction('pdf')} disabled={isLoading || (isOS && !selectedFC)} className="cursor-pointer flex items-center justify-center gap-2 p-4 sm:p-3.5 rounded-2xl sm:rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 font-black text-base sm:text-sm transition-colors shadow-sm disabled:opacity-50">
             <Printer className="w-5 h-5 sm:w-4 sm:h-4" /> PDF 인쇄
           </button>
-          <button onClick={() => handleAction('mobile')} disabled={isLoading || (userRank === 'OS' && !selectedFC)} className="cursor-pointer flex items-center justify-center gap-2 p-4 sm:p-3.5 rounded-2xl sm:rounded-xl border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-700 font-black text-base sm:text-sm transition-colors shadow-sm disabled:opacity-50">
+          <button onClick={() => handleAction('mobile')} disabled={isLoading || (isOS && !selectedFC)} className="cursor-pointer flex items-center justify-center gap-2 p-4 sm:p-3.5 rounded-2xl sm:rounded-xl border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-700 font-black text-base sm:text-sm transition-colors shadow-sm disabled:opacity-50">
             <Share2 className="w-5 h-5 sm:w-4 sm:h-4" /> 모바일 팩스 전송
           </button>
         </div>

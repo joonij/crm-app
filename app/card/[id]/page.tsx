@@ -3,9 +3,8 @@
 
 import { useEffect, useState, use } from "react";
 import { supabase } from "@/lib/supabase";
-import { User, Phone, Mail, MapPin, Printer, Quote, Award, CheckCircle2, MessageSquare, ShieldCheck, LineChart, Briefcase, Gem, Target, BadgeCheck, X, Search, BarChart3, HeartHandshake, Loader2, ChevronDown, Users } from "lucide-react";
+import { User, Phone, Mail, MapPin, Printer, Quote, Award, CheckCircle2, ShieldCheck, LineChart, Briefcase, Gem, Target, BadgeCheck, X, Search, BarChart3, HeartHandshake, Loader2, ChevronDown, Users } from "lucide-react";
 
-// 전화번호 하이픈 자동 포맷팅 함수
 const formatPhoneNumber = (value: string) => {
   const num = value.replace(/[^0-9]/g, "");
   if (!num) return "";
@@ -24,12 +23,9 @@ const formatPhoneNumber = (value: string) => {
 export default function CardPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
   const targetId = resolvedParams.id;
-
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-
-  // 예약 모달 상태
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedNeed, setSelectedNeed] = useState("");
   const [customerName, setCustomerName] = useState("");
@@ -59,14 +55,11 @@ export default function CardPage({ params }: { params: Promise<{ id: string }> }
     };
     fetchProfile();
   }, [targetId]);
-
-  // DB 저장 및 알림 연동 함수
+  
   const handleReservationSubmit = async () => {
     if (!customerName.trim() || !customerPhone.trim()) {
       return alert("성함과 연락처를 모두 입력해주세요.");
     }
-
-    // 특정 상품 문의를 선택했는데, 상품 종류를 고르지 않은 경우 방어 로직
     if (selectedNeed === "특정 상품 문의" && !specificProduct) {
       return alert("문의하실 특정 상품 종류를 선택해주세요.");
     }

@@ -5,9 +5,6 @@ import { supabase } from "@/lib/supabase";
 import { ExternalLink, Users, Loader2, Search, ChevronDown } from "lucide-react";
 import CompanyPortalModal, { CompanyData } from "@/components/CompanyPortalModal";
 
-// ==========================================
-// ⭐️ [신규 추가] SearchableSelect 개별 옵션 Disabled 지원 컴포넌트
-// ==========================================
 function SearchableSelect({ 
   options, value, onChange, placeholder, disabled 
 }: { 
@@ -95,9 +92,6 @@ function SearchableSelect({
   );
 }
 
-// ==========================================
-// 메인 페이지 컴포넌트
-// ==========================================
 export default function PortalsPage() {
   const [companies, setCompanies] = useState<CompanyData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -125,7 +119,9 @@ export default function PortalsPage() {
           const rank = String(agentData.rank).toUpperCase();
           setUserRank(rank);
 
-          if (rank === "OS") {
+          const isOsRole = rank.includes("OS") || rank.includes("총무");
+
+          if (isOsRole) {
             const agency = Array.isArray(agentData.agencies) ? agentData.agencies[0] : agentData.agencies;
             if (agency) {
               const { data: targetAgencies } = await supabase.from("agencies")
@@ -135,7 +131,10 @@ export default function PortalsPage() {
                 const agencyIds = targetAgencies.map(a => a.id);
                 const { data: branchAgents } = await supabase.from("agents")
                   .select("id, name, rank").in("agency_id", agencyIds);
-                if (branchAgents) setBranchFCs(branchAgents.sort((a, b) => a.name.localeCompare(b.name, 'ko-KR')));
+                  if (branchAgents) {
+                    setBranchFCs(branchAgents.sort((a, b) => a.name.localeCompare(b.name, 'ko-KR')));
+                    setSelectedFC(String(agentData.id));
+                  }
               }
             }
           } else {
@@ -226,14 +225,12 @@ export default function PortalsPage() {
     );
   };
 
-  const isOS = userRank === 'OS';
+  const isOS = userRank.includes('OS') || userRank.includes('총무');
   const targetAgentId = isOS ? selectedFC : myAgentId;
   const targetAgentName = branchFCs.find(fc => String(fc.id) === selectedFC)?.name || null;
 
   return (
     <div className="w-full mx-auto max-w-[1800px] p-4 md:p-6 lg:p-8 flex flex-col lg:flex-row gap-6 lg:gap-8 items-start relative">
-      
-      {/* 👈 좌측: 리스트 영역 */}
       <div className="flex-1 w-full min-w-0 space-y-10">
         
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-2">
@@ -246,7 +243,6 @@ export default function PortalsPage() {
             </p>
           </div>
 
-          {/* ⭐️ [변경됨] OS 계정일 경우 SearchableSelect 로 변경 */}
           {isOS && (
             <div className="bg-indigo-50 border border-indigo-100 p-3 rounded-xl flex items-center gap-3 w-full md:w-[260px] shrink-0 shadow-sm animate-in fade-in">
               <Users className="w-5 h-5 text-indigo-500 shrink-0" />
@@ -265,7 +261,6 @@ export default function PortalsPage() {
           )}
         </div>
 
-        {/* ⭐️ 로딩 상태 표시 */}
         {isLoading ? (
           <div className="py-24 flex flex-col items-center justify-center space-y-4">
             <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
@@ -273,7 +268,6 @@ export default function PortalsPage() {
           </div>
         ) : (
           <>
-            {/* ⭐️ 신규 추가: 업무 지원 사이트 영역 */}
             <section className="mb-10">
               <h2 className="text-lg font-black text-slate-800 mb-4 ml-1 flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span> 업무 지원 사이트
@@ -307,9 +301,6 @@ export default function PortalsPage() {
                     <span className="text-[11px] font-bold text-slate-400">보험사전산, 환급률 계산 등</span>
                   </div>
                 </a>
-
-                {/* 💡 나중에 다른 사이트(예: 보험클리닉, KIDI 등)가 생기면 위 <a> 태그를 복사해서 계속 이어 붙이시면 됩니다! */}
-                
               </div>
             </section>
             <section>
@@ -348,7 +339,6 @@ export default function PortalsPage() {
         <div className="w-[380px] xl:w-[420px] shrink-0 hidden lg:block transition-all duration-300"></div>
       )}
 
-      {/* 2. 실제 화면 우측 끝에 100% 높이로 고정되는 패널 */}
       {selectedCompany && !isLoading && (
         <div className="fixed top-0 right-0 w-[380px] xl:w-[420px] h-screen z-50 animate-in fade-in slide-in-from-right-8 duration-300 hidden lg:block border-l border-gray-200 bg-white shadow-2xl">
           <CompanyPortalModal 
@@ -362,7 +352,6 @@ export default function PortalsPage() {
         </div>
       )}
 
-      {/* 📱 모바일 환경에서는 꽉 찬 풀스크린 모달로 작동 */}
       <div className="lg:hidden">
         <CompanyPortalModal 
           isOpen={!!selectedCompany && !isLoading} 

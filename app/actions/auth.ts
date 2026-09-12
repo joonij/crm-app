@@ -3,11 +3,8 @@
 
 import { getSupabaseServer } from "@/lib/supabaseServer";
 import { redirect } from "next/navigation";
-import { createClient } from "@supabase/supabase-js"; // ⭐️ 관리자 권한용 모듈 추가
+import { createClient } from "@supabase/supabase-js";
 
-// ==========================================
-// 기존 가입 / 로그인 / 로그아웃 로직 (유지)
-// ==========================================
 export async function signUpAction(formData: FormData) {
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
@@ -48,14 +45,7 @@ export async function signUpAction(formData: FormData) {
   if (error) {
     return { error: error.message };
   }
-
-  // ⭐️ [신규 분기 처리] 방금 입력받은 rank가 OS나 총무면 claims로, 아니면 clients로 이동
-  const isOS = rank?.toUpperCase() === "OS" || rank === "총무";
-  if (isOS) {
-    redirect("/claims");
-  } else {
-    redirect("/clients");
-  }
+  redirect("/portals");
 }
 
 export async function signInAction(formData: FormData) {
@@ -77,27 +67,23 @@ export async function signInAction(formData: FormData) {
     return { error: "이메일 또는 비밀번호가 일치하지 않습니다." };
   }
 
-  // ⭐️ [신규 분기 처리] 로그인한 유저의 정보를 가져와서 rank를 확인합니다.
   let isOS = false;
   
   if (data.user) {
-    // 1. 방금 로그인한 사용자의 ID로 agents 테이블을 조회하여 rank(직급)를 알아냅니다.
     const { data: agentData } = await supabase
       .from("agents")
       .select("rank")
       .eq("auth_id", data.user.id)
       .single();
       
-    // 2. 알아낸 직급이 OS 또는 총무인지 판별합니다.
-    if (agentData && agentData.rank) {
-      const userRank = String(agentData.rank).toUpperCase();
-      if (userRank === "OS" || userRank === "총무") {
-        isOS = true;
+      if (agentData && agentData.rank) {
+        const userRank = String(agentData.rank).toUpperCase();
+        if (userRank.includes("OS")) {
+          isOS = true;
+        }
       }
     }
-  }
 
-  // 3. 판별 결과에 따라 각자 맞는 첫 페이지로 보내줍니다!
   if (isOS) {
     redirect("/portals");
   } else {
@@ -110,28 +96,18 @@ export async function signOutAction() {
   await supabase.auth.signOut();
   redirect("/login");
 }
-
-// ==========================================
-// ⭐️ 신규 추가: 계정 찾기 & 비밀번호 재설정 로직
-// ==========================================
-
-/**
- * 관리자 권한 클라이언트 생성 
- * (로그아웃 상태인 유저의 요청을 처리하고, RLS 제약을 무시하기 위해 사용)
- */
 const getAdminSupabase = () => {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY! // 반드시 .env.local에 설정되어 있어야 함
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 };
 
-// 1. 아이디(이메일) 찾기 로직
 export async function findEmailAction(name: string, phone: string) {
   const supabaseAdmin = getAdminSupabase();
 
   const { data, error } = await supabaseAdmin
-    .from("agents") // 설계사 테이블 조회
+    .from("agents")
     .select("email")
     .eq("name", name)
     .eq("phone", phone)
@@ -140,21 +116,15 @@ export async function findEmailAction(name: string, phone: string) {
   if (error || !data) {
     return { error: "입력하신 정보와 일치하는 계정이 없습니다." };
   }
-
-  // ⭐️ 마스킹 처리 로직을 완전히 제거하고 원본 이메일을 그대로 반환합니다.
   return { email: data.email };
 }
 
-// 2. 이메일 인증 없는 비밀번호 강제 변경 로직
 export async function directResetPasswordAction(formData: FormData) {
   const email = formData.get("email") as string;
   const name = formData.get("name") as string;
   const phone = formData.get("phone") as string;
   const newPassword = formData.get("newPassword") as string;
-
   const supabaseAdmin = getAdminSupabase();
-
-  // 1단계: 입력한 정보(이름, 연락처, 이메일)가 실제 DB(agents 테이블)와 완벽히 일치하는지 검증
   const { data: agent, error: agentError } = await supabaseAdmin
     .from("agents")
     .select("auth_id") // auth.users 테이블과 매핑되는 키
@@ -163,12 +133,10 @@ export async function directResetPasswordAction(formData: FormData) {
     .eq("phone", phone)
     .single();
 
-  // 정보가 하나라도 틀리면 차단 (보안 강화)
   if (agentError || !agent) {
     return { error: "입력하신 정보와 일치하는 계정이 없습니다." };
   }
 
-  // 2단계: 인증 시스템(Auth)에서 해당 유저의 비밀번호를 관리자 권한으로 강제 업데이트
   const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
     agent.auth_id,
     { password: newPassword }

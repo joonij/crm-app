@@ -88,15 +88,12 @@ export default function CompanyPortalModal({ isOpen, onClose, company, targetAge
   };
 
   if (!isOpen || !company) return null;
-
-  // ⭐️ 전산망 주소가 비어있거나 "-" 인 경우 판단
   const isPortalDisabled = !company.portalUrl || company.portalUrl.trim() === "-" || company.portalUrl.trim() === "";
 
   return (
     <div className="lg:static lg:inset-auto lg:bg-transparent lg:p-0 lg:backdrop-blur-none fixed inset-0 z-[100] flex items-center justify-center p-0 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200 h-full w-full">
       <div className="bg-white rounded-none lg:shadow-none shadow-2xl lg:border-none w-full max-w-full h-full flex flex-col overflow-hidden animate-in slide-in-from-bottom-8 lg:slide-in-from-right-4 duration-300">
         
-        {/* 헤더: 로고 + 이름 */}
         <div className="flex justify-between items-center p-5 border-b border-gray-100 bg-white shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center overflow-hidden border border-gray-100 p-1">
@@ -116,10 +113,7 @@ export default function CompanyPortalModal({ isOpen, onClose, company, targetAge
           </button>
         </div>
 
-        {/* 바디 (스크롤 영역) */}
         <div className="p-5 space-y-6 overflow-y-auto flex-1 bg-slate-50/50">
-          
-          {/* 1. 메인 전산 접속 버튼 (값이 없을 땐 비활성화) */}
           {isPortalDisabled ? (
             <div className="flex items-center justify-between p-5 bg-slate-50 rounded-2xl border border-slate-200 shadow-sm cursor-not-allowed">
               <div className="flex items-center gap-3">
@@ -170,7 +164,6 @@ export default function CompanyPortalModal({ isOpen, onClose, company, targetAge
             </a>
           )}
 
-          {/* 2. 접속 계정 정보 패널 */}
           <div className="bg-slate-800 rounded-2xl p-5 shadow-lg border border-slate-700 flex flex-col h-[216px]">
             <div className="flex justify-between items-center mb-4 shrink-0">
               <h4 className="text-sm font-black text-white flex items-center gap-1.5">
@@ -238,12 +231,9 @@ export default function CompanyPortalModal({ isOpen, onClose, company, targetAge
             </div>
           </div>
 
-          {/* 3. 연락처 섹션 */}
           <div className="space-y-3">
             <h4 className="text-sm font-black text-slate-800 px-1">📞 업무 연락처</h4>
             <div className="grid grid-cols-2 gap-3">
-              
-              {/* 고객 센터 */}
               {(() => {
                 const isDisabled = !company.phones.customer || company.phones.customer === "-";
                 return (
@@ -258,7 +248,6 @@ export default function CompanyPortalModal({ isOpen, onClose, company, targetAge
                 );
               })()}
 
-              {/* 인콜 모니터링 */}
               {(() => {
                 const isDisabled = !company.phones.inbound || company.phones.inbound === "-";
                 return (
@@ -273,7 +262,6 @@ export default function CompanyPortalModal({ isOpen, onClose, company, targetAge
                 );
               })()}
 
-              {/* 헬프데스크 */}
               {(() => {
                 const isDisabled = !company.phones.helpdesk || company.phones.helpdesk === "-";
                 return (
@@ -288,7 +276,6 @@ export default function CompanyPortalModal({ isOpen, onClose, company, targetAge
                 );
               })()}
               
-              {/* 청구 팩스 */}
               {(() => {
                 const isDisabled = !company.phones.fax || company.phones.fax === "-" || company.phones.fax.includes("가상팩스");
                 return (
@@ -305,13 +292,11 @@ export default function CompanyPortalModal({ isOpen, onClose, company, targetAge
             </div>
           </div>
 
-          {/* 4. 약관 및 청구 업무 */}
           <div className="space-y-3">
             <h4 className="text-sm font-black text-slate-800 px-1">📄 약관 및 청구</h4>
             <div className="flex flex-col gap-2 w-full pb-2">
               
               <div className="flex gap-2 w-full">
-                {/* 약관 조회 */}
                 <a 
                   href={company.termsUrl || "#"} 
                   target={company.termsUrl ? "_blank" : "_self"} 
@@ -326,7 +311,6 @@ export default function CompanyPortalModal({ isOpen, onClose, company, targetAge
                   <span className="truncate">약관 조회</span>
                 </a>
                 
-                {/* 대리 청구서 작성 */}
                 <button 
                   onClick={() => isSupported && setIsClaimModalOpen(true)}
                   disabled={!isSupported}
@@ -341,7 +325,6 @@ export default function CompanyPortalModal({ isOpen, onClose, company, targetAge
                 </button>
               </div>
 
-              {/* 고객 직접 청구 (모바일/웹) */}
               {company.claimUrl ? (
                 <a 
                   href={company.claimUrl}
@@ -361,8 +344,6 @@ export default function CompanyPortalModal({ isOpen, onClose, company, targetAge
               )}
             </div>
           </div>
-
-          {/* 5. 카드납 정보 */}
           <div className="space-y-3 pb-8">
             <div className="flex items-center justify-between px-1">
               <h4 className="text-sm font-black text-slate-800 flex items-center gap-1.5">💳 카드납 수납 규정</h4>
@@ -397,7 +378,6 @@ export default function CompanyPortalModal({ isOpen, onClose, company, targetAge
         </div>
       </div>
       
-      {/* ⭐️ 청구서 작성 모달 */}
       {isClaimModalOpen && (
         <div className="fixed inset-0 z-[200]">
           <QuickClaimModal 

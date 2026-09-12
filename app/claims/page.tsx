@@ -2,17 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
-import { 
-  Plus, Search, Clock, CheckCircle2, Download, 
-  AlertCircle, RefreshCw, FileBox, Loader2, ChevronDown, Users 
-} from "lucide-react";
-
+import { Plus, Search, Clock, CheckCircle2, Download, AlertCircle, RefreshCw, FileBox, Loader2, ChevronDown, Users } from "lucide-react";
 import QuickClaimModal from "@/components/QuickClaimModal";
-
-const SUPPORTED_COMPANIES = [
-  "흥국생명", "라이나생명",
-  "메리츠화재", "현대해상", "DB손해", "삼성화재", "한화손해", "KB손해"
-];
 
 type ClaimStatus = 'pending' | 'completed' | 'rejected';
 
@@ -26,9 +17,6 @@ interface ClaimRecord {
   pdf_url: string | null;
 }
 
-// ==========================================
-// ⭐️ [신규 추가] SearchableSelect 개별 옵션 Disabled 지원
-// ==========================================
 function SearchableSelect({ 
   options, value, onChange, placeholder, disabled 
 }: { 
@@ -116,9 +104,6 @@ function SearchableSelect({
   );
 }
 
-// ==========================================
-// ⭐️ 메인 페이지 컴포넌트
-// ==========================================
 export default function ClaimManagementPage() {
   const [agentRank, setAgentRank] = useState(""); 
   
@@ -132,7 +117,7 @@ export default function ClaimManagementPage() {
   const [selectedInsurance, setSelectedInsurance] = useState("");
 
   const [claims, setClaims] = useState<ClaimRecord[]>([]);
-  const [insuranceCompanies, setInsuranceCompanies] = useState<{company_type: string, company_name: string}[]>([]);
+  const [insuranceCompanies, setInsuranceCompanies] = useState<{company_type: string, company_name: string, has_claim_form?: boolean}[]>([]);
   const [selectedNewCompany, setSelectedNewCompany] = useState("");
   
   const [isLoading, setIsLoading] = useState(true);
@@ -154,8 +139,11 @@ export default function ClaimManagementPage() {
     return nameA.localeCompare(nameB, 'ko-KR'); 
   };
 
-  const isSupportedCompany = (companyName: string) => SUPPORTED_COMPANIES.some(c => (companyName || "").includes(c));
-
+  const isSupportedCompany = (companyName: string) => {
+    if (!companyName) return false;
+    const comp = insuranceCompanies.find(c => companyName.includes(c.company_name) || c.company_name.includes(companyName));
+    return comp ? (comp.has_claim_form !== false) : false; 
+  };
   useEffect(() => {
     setDisplayCount(20);
   }, [searchTerm]);
@@ -204,18 +192,26 @@ export default function ClaimManagementPage() {
   useEffect(() => {
     const initData = async () => {
       setIsLoading(true);
-      
-      const { data: compData } = await supabase.from("insurance_companies").select("company_type, company_name");
+      const { data: compData } = await supabase.from("insurance_companies").select("company_type, company_name, has_claim_form");
       if (compData && compData.length > 0) {
         setInsuranceCompanies(compData);
       } else {
         setInsuranceCompanies([
-          { company_type: "손해보험", company_name: "메리츠화재" }, { company_type: "손해보험", company_name: "현대해상" },
-          { company_type: "손해보험", company_name: "DB손해" }, { company_type: "손해보험", company_name: "삼성화재" },
-          { company_type: "손해보험", company_name: "KB손해" }, { company_type: "손해보험", company_name: "한화손해" },
-          { company_type: "손해보험", company_name: "흥국화재" }, { company_type: "손해보험", company_name: "롯데손해" },
-          { company_type: "생명보험", company_name: "삼성생명" }, { company_type: "생명보험", company_name: "교보생명" },
-          { company_type: "생명보험", company_name: "흥국생명" },
+          { company_type: "손해보험", company_name: "메리츠화재", has_claim_form: true },
+          { company_type: "손해보험", company_name: "현대해상", has_claim_form: true },
+          { company_type: "손해보험", company_name: "DB손해", has_claim_form: true },
+          { company_type: "손해보험", company_name: "삼성화재", has_claim_form: true },
+          { company_type: "손해보험", company_name: "메리츠화재", has_claim_form: true },
+          { company_type: "손해보험", company_name: "현대해상", has_claim_form: true },
+          { company_type: "손해보험", company_name: "DB손해", has_claim_form: true },
+          { company_type: "손해보험", company_name: "삼성화재", has_claim_form: true },
+          { company_type: "손해보험", company_name: "KB손해", has_claim_form: true },
+          { company_type: "손해보험", company_name: "한화손해", has_claim_form: true},
+          { company_type: "손해보험", company_name: "흥국화재", has_claim_form: true },
+          { company_type: "손해보험", company_name: "롯데손해", has_claim_form: true },
+          { company_type: "생명보험", company_name: "삼성생명", has_claim_form: true },
+          { company_type: "생명보험", company_name: "교보생명", has_claim_form: true },
+          { company_type: "생명보험", company_name: "흥국생명", has_claim_form: true },
         ]);
       }
 
@@ -243,8 +239,9 @@ export default function ClaimManagementPage() {
 
           if (myClaims) setClaims(myClaims);
 
-          if (agent.rank === 'OS') {
-            // ⭐️ [수정됨] 배열일 경우를 대비해 첫 번째 항목을 안전하게 추출하도록 처리했습니다!
+          const isOsRole = agent.rank.includes('OS');
+
+          if (isOsRole) {
             const agency = Array.isArray(agent.agencies) ? agent.agencies[0] : agent.agencies;
             
             if (agency) {
@@ -265,14 +262,17 @@ export default function ClaimManagementPage() {
                   .select("id, name, rank") 
                   .in("agency_id", agencyIds);
 
-                if (branchAgents && branchAgents.length > 0) {
-                  setBranchFCs(branchAgents.sort(sortNameEngThenKor)); 
+                  if (branchAgents && branchAgents.length > 0) {
+                    setBranchFCs(branchAgents.sort(sortNameEngThenKor)); 
+                    setSelectedFC(String(agent.id));
+                  }
                 }
               }
+            } else {
+              setSelectedFC(String(agent.id));
             }
           }
         }
-      }
       setIsLoading(false);
     };
     initData();
@@ -334,18 +334,17 @@ export default function ClaimManagementPage() {
   const pendingCount = claims.filter(c => c.status === 'pending').length;
   const completedCount = claims.filter(c => c.status === 'completed').length;
 
+  const isOS = agentRank.includes('OS');
   return (
     <div className="w-full mx-auto max-w-[1000px] space-y-6 p-4 md:p-8 pb-24">
       
-      {/* 👑 OS 통합 청구 지원 데스크 */}
-      {agentRank === 'OS' && (
+      {isOS && (
         <div className="bg-indigo-50 border border-indigo-100 p-5 rounded-2xl shadow-sm mb-6 animate-in fade-in duration-300">
           <h3 className="text-lg font-black text-indigo-900 mb-4 flex items-center gap-2">
             <Users className="w-5 h-5" /> OS 통합 청구 지원 데스크
           </h3>
           
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-            {/* 1. 담당자 선택 (검색 가능) */}
             <SearchableSelect
               placeholder="1. 담당자 선택"
               value={selectedFC}
@@ -356,7 +355,6 @@ export default function ClaimManagementPage() {
               }))}
             />
 
-            {/* 2. 고객 선택 (검색 가능) */}
             <SearchableSelect
               placeholder="2. 고객 선택"
               value={selectedClient}
@@ -368,7 +366,6 @@ export default function ClaimManagementPage() {
               }))}
             />
 
-            {/* 3. 청구할 보험 선택 (검색 가능 + 미지원 시 Disabled 처리) */}
             <SearchableSelect
               placeholder="3. 청구할 보험 선택"
               value={selectedInsurance}
@@ -379,7 +376,7 @@ export default function ClaimManagementPage() {
                 return {
                   value: ins.id,
                   label: `[${ins.insurance_company}] ${ins.product_name} ${!isSupported ? '- 준비중' : ''}`,
-                  disabled: !isSupported // 배열에 없으면 선택 불가
+                  disabled: !isSupported
                 };
               })}
             />
@@ -394,7 +391,6 @@ export default function ClaimManagementPage() {
         </div>
       )}
       
-      {/* 상단 헤더 & 보험사 선택 컨트롤 */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-black text-slate-800 flex items-center gap-2">
@@ -462,7 +458,6 @@ export default function ClaimManagementPage() {
         </div>
       </div>
 
-      {/* 통계 대시보드 */}
       <div className="grid grid-cols-3 gap-3 md:gap-4 mb-6">
         <div className="bg-white border border-gray-200 p-4 rounded-2xl shadow-sm text-center">
           <p className="text-xs font-bold text-gray-500 mb-1">총 청구 건수</p>
@@ -483,7 +478,6 @@ export default function ClaimManagementPage() {
         <input type="text" placeholder="고객 이름이나 보험사로 검색하세요..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all shadow-sm"/>
       </div>
 
-      {/* 청구 내역 리스트 */}
       <div className="space-y-3">
         {isLoading ? (
           <div className="py-12 text-center text-gray-400"><Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />데이터를 불러오는 중입니다...</div>

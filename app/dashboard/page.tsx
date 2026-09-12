@@ -5,12 +5,10 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { 
   Car, FileText, CheckCircle2, 
-  ChevronRight, Calendar, Clock, Loader2, TrendingUp, Users, Gift, Bell, Presentation, Kanban, UserPlus, Target
+  ChevronRight, Calendar, Clock, Loader2, TrendingUp, Users, Gift, Bell, Presentation, Kanban, UserPlus
 } from "lucide-react";
 
-// ⭐️ FC별 도입 목표는 아직 DB에 없으므로 유지
 const MOCK_TARGET_RECRUIT_PER_FC = 2; 
-
 const RECRUITING_STEPS = [
   { id: "rec01", label: "후보자 발굴" },
   { id: "rec02", label: "비전 제시" },
@@ -90,11 +88,7 @@ const getRetouchTheme = (days: number) => {
 export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [currentAgentName, setCurrentAgentName] = useState("");
-  
-  // 탭 상태 관리 (매니저용)
   const [activeTab, setActiveTab] = useState<'personal' | 'team'>('personal');
-
-  // 내 데이터
   const [oldClients, setOldClients] = useState<any[]>([]);
   const [sangryungClients, setSangryungClients] = useState<any[]>([]);
   const [autoRenewals, setAutoRenewals] = useState<any[]>([]);
@@ -102,19 +96,11 @@ export default function DashboardPage() {
   const [completed, setCompleted] = useState<any[]>([]);
   const [totalInProgressPremium, setTotalInProgressPremium] = useState(0);
   const [monthlyStats, setMonthlyStats] = useState({ thisMonth: 0, lastMonth: 0, twoMonthsAgo: 0 });
-  
-  // ⭐️ 나의 월간 목표 금액 (DB에서 불러옴)
   const [myTargetAmount, setMyTargetAmount] = useState(800000); 
-
-  // 알림 센터
   const [unreadCount, setUnreadCount] = useState(0);
-
-  // 팀장(매니저) 전용 데이터 상태
   const [isManager, setIsManager] = useState(false);
   const [teamRecruitingByAgent, setTeamRecruitingByAgent] = useState<any[]>([]);
   const [teamContractsByAgent, setTeamContractsByAgent] = useState<any[]>([]);
-
-  // ⭐️ 그래프 애니메이션 렌더링 스위치
   const [animateBar, setAnimateBar] = useState(false);
 
   useEffect(() => {
@@ -128,7 +114,6 @@ export default function DashboardPage() {
 
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        // ⭐️ DB에서 monthly_target 도 같이 꺼내옵니다
         const { data: agentData } = await supabase.from("agents").select("id, name, rank, agency_id, monthly_target").eq("auth_id", user.id).single();
         if (agentData) {
           myName = agentData.name;
@@ -136,10 +121,10 @@ export default function DashboardPage() {
           myAgencyId = agentData.agency_id;
           setCurrentAgentName(myName);
           
-          // ⭐️ 나의 목표 금액 세팅
           setMyTargetAmount(agentData.monthly_target || 800000); 
           
-          managerAuth = !!agentData.rank && agentData.rank !== "FC";
+          const userRank = agentData.rank ? String(agentData.rank).toUpperCase() : "";
+          managerAuth = userRank.includes("SM");
           setIsManager(managerAuth);
         }
       }
@@ -149,7 +134,6 @@ export default function DashboardPage() {
         return;
       }
 
-      // 1. 내 데이터 호출
       const [clientsRes, insRes, schedulesRes] = await Promise.all([
         supabase.from("clients").select("*").eq("agent_id", myAgentId),
         supabase.from("subscription_insurance").select("*").eq("agent_name", myName),
@@ -253,9 +237,6 @@ export default function DashboardPage() {
       setCompleted(completedPolicies);
       setMonthlyStats({ thisMonth: statThisMonth, lastMonth: statLastMonth, twoMonthsAgo: statTwoMonthsAgo });
 
-      // -------------------------------------------------------------------
-      // 2. 팀장(매니저) 전용 팀 데이터 호출
-      // -------------------------------------------------------------------
       if (managerAuth && myAgencyId) {
         const { data: members } = await supabase.from("agents").select("id, name, monthly_target").eq("agency_id", myAgencyId);
         
@@ -270,11 +251,8 @@ export default function DashboardPage() {
 
           const tClients = tClientsRes.data || [];
           const tIns = tInsRes.data || [];
-
           const sortByName = (a: any, b: any) => a.name.localeCompare(b.name, 'ko-KR');
           const sortedMembers = [...members].sort(sortByName);
-
-          // ① 팀 리쿠르팅 진행 현황
           const groupedRecruiting = sortedMembers.map(member => {
             const memberClients = tClients
               .filter(c => c.agent_id === member.id && parseSteps(c.recruiting_status).length > 0)
@@ -294,7 +272,6 @@ export default function DashboardPage() {
           });
           setTeamRecruitingByAgent(groupedRecruiting);
 
-          // ② 이번 달 팀 계약 현황
           const tCont = tIns
              .filter(ins => ins.policy_status === "new" || ins.policy_status === "maintain")
              .map(ins => {
@@ -336,10 +313,9 @@ export default function DashboardPage() {
     fetchDashboardData();
   }, []);
 
-  // ⭐️ 데이터 로딩이 끝나면 애니메이션 0% -> 목표치% 로 발동
   useEffect(() => {
     if (!isLoading) {
-      const timer = setTimeout(() => setAnimateBar(true), 150); // 살짝 딜레이를 줘서 애니메이션 효과를 극대화
+      const timer = setTimeout(() => setAnimateBar(true), 150);
       return () => clearTimeout(timer);
     }
   }, [isLoading]);
@@ -364,8 +340,6 @@ export default function DashboardPage() {
 
   return (
     <div className="w-full max-w-[1500px] mx-auto p-4 md:p-8 bg-gray-50/50 min-h-screen flex flex-col overflow-hidden">
-      
-      {/* 상단 타이틀 및 알림 센터 */}
       <div className="flex justify-between items-end mb-4 relative shrink-0">
         <div>
           <h1 className="text-2xl font-black text-slate-800 flex items-center gap-2"><Presentation className="w-5 h-5 text-blue-600" />영업 현황 보드</h1>
@@ -389,8 +363,6 @@ export default function DashboardPage() {
           </Link>
         </div>
       </div>
-
-      {/* 상단 탭 UI (매니저 권한이 있을 경우에만 표시) */}
       {isManager && (
         <div className="flex items-center gap-6 border-b border-gray-200 shrink-0 mb-6 px-1">
           <button
@@ -410,13 +382,8 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* -------------------------------------------------------------------------
-          ⭐️ 첫 번째 탭 화면: 나(Agent)의 개인 현황
-      ------------------------------------------------------------------------- */}
       {(!isManager || activeTab === 'personal') && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 shrink-0 lg:h-[calc(100vh-190px)] w-full lg:grid-rows-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.5fr)]">
-          
-          {/* ① 재터치 필요 고객 */}
           <div className="lg:col-start-1 lg:col-span-1 lg:row-start-1 lg:row-span-2 h-[400px] lg:h-full bg-white border border-rose-200 rounded-2xl shadow-sm flex flex-col overflow-hidden min-h-0">
             <div className="bg-rose-50/80 p-4 border-b border-rose-100 flex justify-between items-center shrink-0">
               <div>
@@ -462,7 +429,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* 상령일 임박 고객 */}
           <div className="lg:col-start-1 lg:col-span-1 lg:row-start-3 lg:row-span-1 h-[300px] lg:h-full bg-white border border-purple-200 rounded-2xl shadow-sm flex flex-col overflow-hidden min-h-0">
             <div className="bg-purple-50/80 p-4 border-b border-purple-100 flex justify-between items-center shrink-0">
               <div>
@@ -500,7 +466,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* ② 자동차 갱신 리스트 */}
           <div className="lg:col-start-2 lg:col-span-2 lg:row-start-1 lg:row-span-1 h-[300px] lg:h-full bg-white border border-amber-200 rounded-2xl shadow-sm flex flex-col overflow-hidden min-h-0">
             <div className="bg-amber-50/50 p-4 border-b border-amber-100 flex justify-between items-center shrink-0">
               <h3 className="font-bold text-amber-900 flex items-center gap-2">
@@ -537,7 +502,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* ③ 진행 중인 계약 리스트 */}
           <div className="lg:col-start-2 lg:col-span-2 lg:row-start-2 lg:row-span-1 h-[300px] lg:h-full bg-white border border-blue-200 rounded-2xl shadow-sm flex flex-col overflow-hidden min-h-0">
             <div className="bg-blue-50/50 p-4 border-b border-blue-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 shrink-0">
               <h3 className="font-bold text-blue-900 flex items-center gap-2">
@@ -572,7 +536,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* ④ 최근 체결한 보험 리스트 & 통계 */}
           <div className="lg:col-start-2 lg:col-span-2 lg:row-start-3 lg:row-span-1 h-[400px] lg:h-full bg-white border border-emerald-200 rounded-2xl shadow-sm flex flex-col overflow-hidden min-h-0">
             <div className="bg-emerald-50/50 p-4 border-b border-emerald-100 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 shrink-0">
               <h3 className="font-bold text-emerald-900 flex items-center gap-2 shrink-0">
@@ -599,8 +562,6 @@ export default function DashboardPage() {
             </div>
 
             <div className="p-3 flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-emerald-200 [&::-webkit-scrollbar-thumb]:rounded-full">
-              
-              {/* ⭐️ 내 개인 달성률(게이지 바) 렌더링 영역 */}
               {(() => {
                 const safeTarget = myTargetAmount > 0 ? myTargetAmount : 1;
                 const myAchievementRate = Math.min(100, Math.round((monthlyStats.thisMonth / safeTarget) * 100)) || 0;
@@ -640,7 +601,6 @@ export default function DashboardPage() {
                 );
               })()}
 
-              {/* 체결된 고객 리스트 영역 */}
               {completed.length > 0 ? (
                 <ul className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   {completed.map(ins => (
@@ -669,13 +629,8 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* -------------------------------------------------------------------------
-          ⭐️ 두 번째 탭 화면: 매니저(팀장/지점장) 전용 팀 전체 현황
-      ------------------------------------------------------------------------- */}
       {isManager && activeTab === 'team' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 shrink-0 lg:h-[calc(100vh-190px)] w-full">
-          
-          {/* 팀 리쿠르팅 파이프라인 (좌측) */}
           <div className="bg-white border border-purple-300 rounded-2xl shadow-sm flex flex-col overflow-hidden h-[400px] lg:h-full min-h-0">
             <div className="bg-purple-100/50 p-4 border-b border-purple-200 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 shrink-0">
               <div>
@@ -736,8 +691,6 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
-
-          {/* 이번 달 팀 계약 현황 (우측) */}
           <div className="bg-white border border-blue-300 rounded-2xl shadow-sm flex flex-col overflow-hidden h-[400px] lg:h-full min-h-0">
             <div className="bg-blue-100/50 p-4 border-b border-blue-200 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 shrink-0">
               <div>
@@ -771,7 +724,6 @@ export default function DashboardPage() {
                   
                   return (
                     <div key={group.agentName}>
-                      {/* ⭐️ 팀원별 목표/진행률 요약 그래프 영역 */}
                       <div className="flex flex-col gap-2 mb-3 bg-blue-50/50 p-3 rounded-xl border border-blue-100">
                         <div className="flex items-center justify-between gap-4">
                           <span className="bg-blue-600 text-white text-xs font-black px-2.5 py-1 rounded-md shadow-sm shrink-0 whitespace-nowrap">{group.agentName} FC</span>

@@ -3,12 +3,11 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { Scale, Coins, Activity, Trash2, Check, X, ArrowLeft, Umbrella, TrendingDown, ShieldCheck, Printer, AlertCircle, Stethoscope, CheckCircle2, Info, FileText, AlertTriangle, Save, Loader2, Settings2, Star, RotateCcw, ShieldAlert, Share2, Target, Phone, MessageCircle, ArrowRight, UserPlus, ChevronDown, ChevronUp, Search, LineChart, Gem, Plus } from "lucide-react";
-import { COVERAGE_OPTIONS, ALLOWED_COVERAGES, calculateCoverageScores, getStandardCoverageInfo, applyCoverageToMap } from "@/lib/coverageMapper";
+import { Scale, Coins, ArrowLeft, ShieldCheck, Printer, AlertCircle, Stethoscope, CheckCircle2, Info, FileText, AlertTriangle, Save, Loader2, Settings2, ShieldAlert, Target } from "lucide-react";
+import { COVERAGE_OPTIONS, calculateCoverageScores, getStandardCoverageInfo, applyCoverageToMap } from "@/lib/coverageMapper";
 import SettingsModal from '../components/SettingsModal';
 import { decryptRegNumber } from "@/app/actions/crypto";
 
-// ⭐️ 4대 핵심 보장 카테고리 및 세부 목표 설정
 export const CHART_CONFIG = [
   {
     title: "진단비",
@@ -53,7 +52,6 @@ export const CHART_CONFIG = [
   }
 ];
 
-// ⭐️ 5각형 폴리곤 차트 컴포넌트
 const PolygonRadarChart = ({ categories, beforeData, afterData }: { categories: string[], beforeData: number[], afterData: number[] }) => {
   const size = 320; 
   const center = size / 2;
@@ -76,21 +74,15 @@ const PolygonRadarChart = ({ categories, beforeData, afterData }: { categories: 
   return (
     <div className="relative w-full aspect-square max-w-[340px] print:max-w-[220px] mx-auto">
       <svg viewBox={`0 0 ${size} ${size}`} className="w-full h-full drop-shadow-sm overflow-visible">
-        
-        {/* 거미줄(Grid) 배경 */}
         {levels.map(level => (
           <polygon key={level} points={getPoints(Array(sides).fill(level))} fill="none" stroke="currentColor" className="text-slate-200" strokeWidth="1" />
         ))}
-
-        {/* 대각선 (Axes) */}
         {Array(sides).fill(0).map((_, i) => {
            const theta = i * angleStep - Math.PI / 2;
            const x = center + radius * Math.cos(theta);
            const y = center + radius * Math.sin(theta);
            return <line key={i} x1={center} y1={center} x2={x} y2={y} stroke="currentColor" className="text-slate-200" strokeWidth="1" />
         })}
-
-        {/* 1. 리모델링 전 (기존 보장) */}
         <polygon points={getPoints(beforeData)} fill="transparent" stroke="#64748b" strokeWidth="1.5" strokeDasharray="4,4" className="print:stroke-slate-800" />
         {beforeData.map((val, i) => {
            const r = (val / 100) * radius;
@@ -99,8 +91,6 @@ const PolygonRadarChart = ({ categories, beforeData, afterData }: { categories: 
            const y = center + r * Math.sin(theta);
            return <circle key={`before-${i}`} cx={x} cy={y} r="3" fill="#d8dadc" stroke="#44546b" strokeWidth="1.5" className="print:stroke-slate-800" />
         })}
-
-        {/* 2. 최적화 제안 후 */}
         <polygon points={getPoints(afterData)} fill="rgba(59, 130, 246, 0.4)" stroke="#3b82f6" strokeWidth="2.5" />
         {afterData.map((val, i) => {
            const r = (val / 100) * radius;
@@ -109,8 +99,6 @@ const PolygonRadarChart = ({ categories, beforeData, afterData }: { categories: 
            const y = center + r * Math.sin(theta);
            return <circle key={`after-${i}`} cx={x} cy={y} r="3.5" fill="#60a5fa" stroke="#1e3a8a" strokeWidth="1.5" />
         })}
-
-        {/* 라벨 텍스트 */}
         {categories.map((label, i) => {
            const labelRadius = radius + 32; 
            const theta = i * angleStep - Math.PI / 2;
@@ -347,7 +335,7 @@ export default function AnalysisPage() {
   const [selectedGaps, setSelectedGaps] = useState<string[]>([]);
   const [radarTargets, setRadarTargets] = useState<Record<string, number>>({});
   const [radarRates, setRadarRates] = useState<Record<string, { before?: number, after?: number }>>({});
-  const [pensionOverrides, setPensionOverrides] = useState<Record<string, number>>({}); // 🚀 연금 설정 상태 추가
+  const [pensionOverrides, setPensionOverrides] = useState<Record<string, number>>({});
   const [analysisData, setAnalysisData] = useState({
     premium: { before: 0, after: 0 },
     totalPremium: { before: 0, after: 0 }, 
@@ -357,14 +345,10 @@ export default function AnalysisPage() {
   
   const [isLoading, setIsLoading] = useState(true);
   const [medicalHistory, setMedicalHistory] = useState<any>({ checklist: {}, memo: "" });
-  
   const [briefingText, setBriefingText] = useState("유지 중이신 전체 보험 증권을 종합적으로 분석한 결과, 보장 범위가 겹치는 잉여 특약과 향후 의료기술에 따른 불필요한 담보들이 확인되었습니다.");
-  
   const [selectedTop3, setSelectedTop3] = useState<string[]>([]);
   const [isSavingConsulting, setIsSavingConsulting] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
-
-  // 세부 설정 모달용 상태 관리
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [kcdOverrides, setKcdOverrides] = useState<Record<string, { before?: number; after?: number; highlight?: boolean }>>({});
   const [coverageOverrides, setCoverageOverrides] = useState<Record<string, { before?: number; after?: number }>>({});
@@ -403,7 +387,7 @@ export default function AnalysisPage() {
         }
         if (clientData.consulting_details.radarTargets) setRadarTargets(clientData.consulting_details.radarTargets);
         if (clientData.consulting_details.radarRates) setRadarRates(clientData.consulting_details.radarRates);
-        if (clientData.consulting_details.pensionOverrides) setPensionOverrides(clientData.consulting_details.pensionOverrides); // 🚀 DB 연금 설정 로드
+        if (clientData.consulting_details.pensionOverrides) setPensionOverrides(clientData.consulting_details.pensionOverrides);
       }
     }
 
@@ -576,7 +560,7 @@ export default function AnalysisPage() {
         includeSanjeong: includeSanjeong,
         radarTargets: radarTargets,
         radarRates: radarRates,
-        pensionOverrides: pensionOverrides // 🚀 연금 설정 저장
+        pensionOverrides: pensionOverrides
       };
 
       const { error } = await supabase.from("clients").update({ consulting_details: payload }).eq("id", clientId);
@@ -710,7 +694,7 @@ export default function AnalysisPage() {
         includeSanjeong: newSettings.includeSanjeong,
         radarTargets: newSettings.radarTargets,
         radarRates: newSettings.radarRates,
-        pensionOverrides: newSettings.pensionOverrides // 🚀 모달 데이터 DB에 저장
+        pensionOverrides: newSettings.pensionOverrides
       };
 
       const { error } = await supabase.from("clients").update({ consulting_details: payload }).eq("id", clientId);
@@ -723,7 +707,7 @@ export default function AnalysisPage() {
       setIncludeSanjeong(newSettings.includeSanjeong);
       setRadarTargets(newSettings.radarTargets);
       setRadarRates(newSettings.radarRates); 
-      setPensionOverrides(newSettings.pensionOverrides); // 🚀 화면에 즉시 적용
+      setPensionOverrides(newSettings.pensionOverrides);
       
       setIsSettingsModalOpen(false);
     } catch (error: any) {
@@ -992,10 +976,7 @@ return (
         }
       `}} />
       <div className="w-full max-w-5xl mx-auto md:p-4 md:p-8 space-y-6 print:p-1 print:m-0 print:max-w-none print:bg-white">
-        
-        {/* 헤더 바 */}
         <div className="sticky top-0 z-50 bg-white/80 backdrop-blur-md py-3 pr-4 pl-4 md:py-4 -mt-4 flex items-center justify-between border-b-2 border-gray-900 gap-2 md:gap-4 print:hidden w-full">
-          
           <div className="flex items-center gap-1.5 md:gap-3 min-w-0">
             <button onClick={() => router.back()} className="cursor-pointer p-1.5 md:p-2 hover:bg-gray-100 rounded-full transition shrink-0">
               <ArrowLeft className="w-5 h-5 md:w-6 md:h-6 text-gray-600" />
@@ -1032,8 +1013,6 @@ return (
             </button>
           </div>
         </div>
-
-        {/* 메인 커버 페이지 */}
         <section className="relative flex flex-col justify-between bg-white border border-slate-400 w-full md:rounded-3xl p-4 md:p-16 print:p-16 mb-8 cover-page print:break-after-page overflow-hidden">
           <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-600 rounded-full mix-blend-overlay filter blur-[120px] opacity-40 translate-x-1/4 -translate-y-1/4"></div>
           <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-emerald-500 rounded-full mix-blend-overlay filter blur-[120px] opacity-20 -translate-x-1/4 translate-y-1/4"></div>
@@ -1079,8 +1058,6 @@ return (
           {(() => {
             return (
               <div className="flex flex-col gap-8 print:border-slate-300 print-bundle">
-                
-                {/* 상단: 미흡 보장 진단 */}
                 <div className="flex flex-col">
                   <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <h4 className="text-base font-black text-slate-800 flex items-center gap-2">
@@ -1127,9 +1104,6 @@ return (
                     </div>
                   )}
                 </div>
-
-                {/* 하단: 4개의 5각형 밸런스 차트 */}
-                
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <h4 className="text-base font-black text-slate-800 flex items-center gap-2">
                     <Target className="w-5 h-5 text-blue-600"/> 보장 밸런스
@@ -1168,8 +1142,6 @@ return (
                         )
                     })}
                   </div>
-                  
-                  {/* 차트 범례 */}
                   <div className="flex justify-center gap-6 pt-6 border-t border-slate-200 w-full">
                     <div className="flex items-center gap-2">
                       <span className="w-4 h-0 border-t-2 border-dashed border-slate-400"></span>
@@ -1199,7 +1171,6 @@ return (
             </div>
 
             {(() => {
-              // 1. 고객 나이 연산 로직
               const currentYear = new Date().getFullYear();
               let age = 0;
 
@@ -1250,45 +1221,30 @@ return (
                   nationalAvg = 50; corporateAvg = 30; ageGroupStr = "65세 이상";
               }
 
-              // 3. 목표 및 합산 데이터 산정 (수동 설정값 반영)
               const targetPension = pensionOverrides?.target ?? 198; 
               const calcPersonal = getChartValue(["연금"], 'before', "연금보험");
-
               const nationalFinal = pensionOverrides?.national ?? nationalAvg;
               const corporateFinal = pensionOverrides?.corporate ?? corporateAvg;
               const personalFinal = pensionOverrides?.personal ?? calcPersonal;
-
               const totalPrepared = nationalFinal + corporateFinal + personalFinal;
               const shortfall = Math.max(0, targetPension - totalPrepared);
-
-              // ⭐️ 해결 1: 피라미드의 '진짜 전체 높이'를 260px로 영구 고정합니다.
               const CHART_HEIGHT = 200; 
-              const MIN_H = 120; // 0원일 때 형태를 유지하기 위한 최소 가중치
-              
+              const MIN_H = 120;
               const maxChartValue = Math.max(targetPension, totalPrepared);
               const rawPx = (val: number) => (val / maxChartValue) * CHART_HEIGHT; 
-
-              // 1차 계산: 최소 높이 보장 (이 과정에서 거품 높이가 발생함)
               const preNat = nationalFinal > 0 ? Math.max(MIN_H, rawPx(nationalFinal)) : MIN_H;
               const preCorp = corporateFinal > 0 ? Math.max(MIN_H, rawPx(corporateFinal)) : MIN_H;
               const prePers = personalFinal > 0 ? Math.max(MIN_H, rawPx(personalFinal)) : MIN_H;
               const preShort = shortfall > 0 ? Math.max(MIN_H, rawPx(shortfall)) : 0; 
-
-              // ⭐️ 해결 2: 발생한 거품을 쫙 빼서 우리가 원하는 고정 높이(260px)로 정확히 압축 배분!
               const preTotal = preNat + preCorp + prePers + preShort;
-              const scale = CHART_HEIGHT / preTotal; // 압축 비율 계산
-
+              const scale = CHART_HEIGHT / preTotal;
               const hNat = preNat * scale;
               const hCorp = preCorp * scale;
               const hPers = prePers * scale;
               const hShort = preShort * scale;
-
-              // 이렇게 하면 totalH는 무슨 일이 있어도 언제나 260px로 완벽하게 고정됩니다.
               const totalH = hNat + hCorp + hPers + hShort; 
-              const W = 260; // 피라미드 밑변 넓이도 동일하게 고정
+              const W = 260;
               const CX = W / 2;
-
-              // 각 층별 Y 좌표 (0이 꼭대기, totalH가 바닥)
               const yShortTop = 0;
               const yShortBottom = hShort;
               const yPersTop = yShortBottom;
@@ -1297,18 +1253,13 @@ return (
               const yCorpBottom = yCorpTop + hCorp;
               const yNatTop = yCorpBottom;
               const yNatBottom = yNatTop + hNat;
-
-              // 피라미드 빗변 각도를 구하는 함수
               const getDX = (y: number) => (y / totalH) * CX;
-
-              // SVG 사다리꼴 꼭짓점 그리기 함수
               const makePoly = (yTop: number, yBottom: number) => {
                   const dxTop = getDX(yTop);
                   const dxBottom = getDX(yBottom);
                   return `${CX - dxTop},${yTop} ${CX + dxTop},${yTop} ${CX + dxBottom},${yBottom} ${CX - dxBottom},${yBottom}`;
               };
 
-              // 목표선(빨간 줄)의 정확한 위치 계산
               let targetLineTop = 0;
               if (shortfall > 0) {
                   targetLineTop = 0; 
@@ -1318,63 +1269,45 @@ return (
 
               return (
                 <figure className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-4 print:gap-4 items-stretch print-bundle mt-4 m-0 p-0" style={{ display: 'grid' }}>
-                  
-                  {/* 왼쪽: 3층 연금 피라미드 차트 */}
                   <figure className="bg-slate-50 border border-slate-200 rounded-2xl flex flex-col justify-center items-center relative print:bg-white print:border-slate-300 m-0" style={{ minHeight: '240px', display: 'flex' }}>
-                    
-                    {/* 전체 높이가 260px로 영구 고정되어 펄럭이거나 축소되지 않습니다 */}
                     <figure className="w-full max-w-[260px] mx-auto relative z-10 m-0 mt-4" style={{ height: `${totalH}px`, display: 'block' }}>
-                      
                       <section className="absolute w-full border-t-[2.5px] border-dashed border-red-500 left-0 z-30" style={{ top: `${targetLineTop}px`, display: 'block' }}>
                         <span className="absolute -top-4 left-1/2 -translate-x-1/2 text-red-600 font-black text-[12px] md:text-[13px] bg-white px-3 py-1 rounded shadow-sm border border-red-200 whitespace-nowrap print:border-red-300 print:shadow-none print:bg-white">
                           적정 노후 생활비 (월 {targetPension}만)
                         </span>
                       </section>
-
-                      {/* 인쇄 버그 없는 순수 SVG 피라미드 렌더링 */}
                       <svg viewBox={`0 0 ${W} ${totalH}`} preserveAspectRatio="none" className="absolute inset-0 w-full h-full drop-shadow-sm z-0" style={{ display: 'block' }}>
-                        
                         <polygon points={`${CX},0 0,${totalH} ${W},${totalH}`} fill="#f1f5f9" />
-
                         {hShort > 0 && <polygon points={makePoly(yShortTop, yShortBottom)} fill="#fee2e2" />}
                         <polygon points={makePoly(yPersTop, yPersBottom)} fill={personalFinal > 0 ? "#a855f7" : "#f1f5f9"} />
                         <polygon points={makePoly(yCorpTop, yCorpBottom)} fill={corporateFinal > 0 ? "#3b82f6" : "#f1f5f9"} />
                         <polygon points={makePoly(yNatTop, yNatBottom)} fill={nationalFinal > 0 ? "#10b981" : "#f1f5f9"} />
-
-                        {/* 0원일 때 점선 */}
                         {personalFinal === 0 && hPers > 0 && <line x1={CX - getDX(yPersTop)} y1={yPersTop} x2={CX + getDX(yPersTop)} y2={yPersTop} stroke="#cbd5e1" strokeWidth="1.5" strokeDasharray="4,4" />}
                         {corporateFinal === 0 && hCorp > 0 && <line x1={CX - getDX(yCorpTop)} y1={yCorpTop} x2={CX + getDX(yCorpTop)} y2={yCorpTop} stroke="#cbd5e1" strokeWidth="1.5" strokeDasharray="4,4" />}
                         {nationalFinal === 0 && hNat > 0 && <line x1={CX - getDX(yNatTop)} y1={yNatTop} x2={CX + getDX(yNatTop)} y2={yNatTop} stroke="#cbd5e1" strokeWidth="1.5" strokeDasharray="4,4" />}
-
-                        {/* 금액이 있을 때 실선 */}
                         {personalFinal > 0 && <line x1={CX - getDX(yPersBottom)} y1={yPersBottom} x2={CX + getDX(yPersBottom)} y2={yPersBottom} stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" />}
                         {corporateFinal > 0 && <line x1={CX - getDX(yCorpBottom)} y1={yCorpBottom} x2={CX + getDX(yCorpBottom)} y2={yCorpBottom} stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" />}
                       </svg>
-
-                      {/* 텍스트 레이어 */}
                       <article className="absolute inset-0 w-full h-full flex flex-col z-20 pointer-events-none" style={{ display: 'flex' }}>
-                          
-                          {hShort > 0 && (
-                            <section style={{ height: `${hShort}px`, display: 'flex' }} className="w-full flex-col items-center justify-center shrink-0" />
-                          )}
+                        {hShort > 0 && (
+                          <section style={{ height: `${hShort}px`, display: 'flex' }} className="w-full flex-col items-center justify-center shrink-0" />
+                        )}
 
-                          <section style={{ height: `${hPers}px`, display: 'flex' }} className="w-full flex-col items-center justify-center shrink-0">
-                            <span className={`font-semibold text-[10px] print:text-[10px] ${personalFinal > 0 ? 'text-white/90 print:text-white [text-shadow:_0_1px_2px_theme(colors.purple.700)]' : 'text-slate-300 print:text-slate-300'}`}>여유생활자금</span>
-                            <span className={`font-black text-xs md:text-sm print:text-[13px] tracking-wide mt-0.5 ${personalFinal > 0 ? 'text-white print:text-white [text-shadow:_0_1px_2px_theme(colors.purple.700)]' : 'text-slate-300 print:text-slate-300'}`}>개인연금 {personalFinal}만</span>
-                          </section>
+                        <section style={{ height: `${hPers}px`, display: 'flex' }} className="w-full flex-col items-center justify-center shrink-0">
+                          <span className={`font-semibold text-[10px] print:text-[10px] ${personalFinal > 0 ? 'text-white/90 print:text-white [text-shadow:_0_1px_2px_theme(colors.purple.700)]' : 'text-slate-300 print:text-slate-300'}`}>여유생활자금</span>
+                          <span className={`font-black text-xs md:text-sm print:text-[13px] tracking-wide mt-0.5 ${personalFinal > 0 ? 'text-white print:text-white [text-shadow:_0_1px_2px_theme(colors.purple.700)]' : 'text-slate-300 print:text-slate-300'}`}>개인연금 {personalFinal}만</span>
+                        </section>
 
-                          <section style={{ height: `${hCorp}px`, display: 'flex' }} className="w-full flex-col items-center justify-center shrink-0">
-                            <span className={`font-semibold text-[10px] print:text-[10px] ${corporateFinal > 0 ? 'text-white/90 print:text-white' : 'text-slate-300 print:text-slate-300'}`}>표준생활자금 ({ageGroupStr} 중위)</span>
-                            <span className={`font-black text-xs md:text-sm print:text-[13px] tracking-wide mt-0.5 ${corporateFinal > 0 ? 'text-white print:text-white' : 'text-slate-300 print:text-slate-300'}`}>예상 퇴직연금 {corporateFinal}만</span>
-                          </section>
+                        <section style={{ height: `${hCorp}px`, display: 'flex' }} className="w-full flex-col items-center justify-center shrink-0">
+                          <span className={`font-semibold text-[10px] print:text-[10px] ${corporateFinal > 0 ? 'text-white/90 print:text-white' : 'text-slate-300 print:text-slate-300'}`}>표준생활자금 ({ageGroupStr} 중위)</span>
+                          <span className={`font-black text-xs md:text-sm print:text-[13px] tracking-wide mt-0.5 ${corporateFinal > 0 ? 'text-white print:text-white' : 'text-slate-300 print:text-slate-300'}`}>예상 퇴직연금 {corporateFinal}만</span>
+                        </section>
 
-                          <section style={{ height: `${hNat}px`, display: 'flex' }} className="w-full flex-col items-center justify-center shrink-0">
-                            <span className={`font-semibold text-[10px] print:text-[10px] ${nationalFinal > 0 ? 'text-white/90 print:text-white' : 'text-slate-300 print:text-slate-300'}`}>기초생활자금 ({ageGroupStr} 평균)</span>
-                            <span className={`font-black text-xs md:text-sm print:text-[13px] tracking-wide mt-0.5 ${nationalFinal > 0 ? 'text-white print:text-white' : 'text-slate-300 print:text-slate-300'}`}>예상 국민연금 {nationalFinal}만</span>
-                          </section>
+                        <section style={{ height: `${hNat}px`, display: 'flex' }} className="w-full flex-col items-center justify-center shrink-0">
+                          <span className={`font-semibold text-[10px] print:text-[10px] ${nationalFinal > 0 ? 'text-white/90 print:text-white' : 'text-slate-300 print:text-slate-300'}`}>기초생활자금 ({ageGroupStr} 평균)</span>
+                          <span className={`font-black text-xs md:text-sm print:text-[13px] tracking-wide mt-0.5 ${nationalFinal > 0 ? 'text-white print:text-white' : 'text-slate-300 print:text-slate-300'}`}>예상 국민연금 {nationalFinal}만</span>
+                        </section>
                       </article>
-
-                      {/* 개인연금 0원 뱃지 */}
                       {personalFinal === 0 && (
                         <div className="absolute top-[40%] -right-4 md:-right-12 translate-x-4 print:hidden z-40">
                            <div className="bg-slate-700/80 text-white text-[11px] font-bold px-3 py-1.5 rounded-lg shadow-lg backdrop-blur-sm flex items-center gap-1.5">
@@ -1385,8 +1318,6 @@ return (
 
                     </figure>
                   </figure>
-
-                  {/* 오른쪽: 브리핑 코멘트 */}
                   <figure className="flex flex-col gap-4 h-full m-0" style={{ display: 'flex' }}>
                     <section className="bg-slate-50 rounded-xl p-5 print:p-4 border border-slate-200 flex-1 flex flex-col justify-center print:bg-white print:border-slate-300" style={{ display: 'flex' }}>
                       <p className="text-xs font-bold text-slate-500 mb-1 flex items-center gap-1.5">
@@ -1397,7 +1328,6 @@ return (
                         <span className="text-sm font-bold text-slate-400 mb-1">/ 월 확보</span>
                       </div>
                     </section>
-
                     {shortfall > 0 ? (
                       <section className="p-5 print:p-4 rounded-xl bg-red-50 border border-red-200 print:bg-white print:border-red-300 flex-1 flex flex-col justify-center" style={{ display: 'flex' }}>
                         <p className="text-[13px] print:text-[13px] text-red-700/90 font-bold leading-relaxed break-keep">
@@ -1414,7 +1344,6 @@ return (
                   </figure>
                 </figure>
               );
-
             })()}
           </section>
 
@@ -1559,8 +1488,6 @@ return (
             </div>
           </div>
         </section>
-
-        {/* 보장 금액 합산 페이지 */}
         <section className="bg-white md:rounded-2xl p-4 md:p-8 border border-slate-400 shadow-sm print:p-0 print:border-none print:break-inside-avoid print:shadow-none relative overflow-hidden">
           <div className="flex items-center justify-between border-b border-slate-200 pb-4 mb-6 print:border-slate-300">
             <h2 className="text-lg font-black text-slate-800 flex items-center gap-2 uppercase tracking-widest">
@@ -1568,7 +1495,6 @@ return (
             보장 금액 합계
             </h2>
           </div>
-          
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-white">
               <tr>
@@ -1607,8 +1533,6 @@ return (
             </tbody>
           </table>
         </section>
-
-        {/* C00 ~ D09 신생물 질환 상세 코드별 보장금액 진단 */}
         <section className="bg-white md:rounded-2xl p-4 md:p-8 border-2 border-slate-400 shadow-sm print:p-0 print:border-none print:break-inside-avoid print:shadow-none relative overflow-hidden mt-6">
           <div className="flex items-center justify-between border-b border-slate-200 pb-4 mb-6 print:border-slate-300">
             <h2 className="text-lg font-black text-slate-800 flex items-center gap-2 uppercase tracking-widest">
@@ -1677,8 +1601,6 @@ return (
             ))}
           </div>
         </section>
-
-        {/* I00 ~ I99 순환계 질환 상세 코드별 보장금액 진단 */}
         <section className="bg-white md:rounded-2xl p-4 md:p-8 border-2 border-slate-400 shadow-sm print:p-0 print:border-none print:break-inside-avoid print:shadow-none relative overflow-hidden mt-6">
           <div className="flex items-center justify-between border-b border-slate-200 pb-4 mb-6 print:border-slate-300">
             <h2 className="text-lg font-black text-slate-800 flex items-center gap-2 uppercase tracking-widest">
@@ -1747,12 +1669,8 @@ return (
             ))}
           </div>
         </section>
-        
-        {/* 리모델링 상세 내역 */}
         <section className="bg-white md:rounded-2xl p-4 md:p-8 border-2 border-slate-400 shadow-sm print:p-0 print:border-none print:break-inside-avoid print:shadow-none relative overflow-hidden mt-6">
           <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-200 print:grid-cols-2 print:divide-y-0 print:divide-x">
-    
-            {/* 왼쪽: 리모델링 전 */}
             <div className="md:p-6 print:p-2 border-0 print:pl-0 print:pt-0">
               <h3 className="font-bold text-slate-700 mb-5 flex items-center gap-2 border-b border-slate-200 pb-3 text-lg">
                 기존 보험내역
@@ -1783,12 +1701,10 @@ return (
                          <span className="text-slate-700 font-bold">{cov.subscription_date || '-'} ~{cov.maturity_date || '-'}</span>
                        </div>
                     </div>
-                    
                     {cov.details && (
                       <div className="space-y-2 pt-2 border-t border-dashed border-slate-200">
                         {cov.details.map((d: any, i: number) => {
                           const badgeText = d.renewal_type || "비갱신";
-
                           return (
                             <div key={i} className="flex justify-between text-xs text-slate-600">
                               <span className="truncate pr-2 flex items-center gap-1.5 leading-relaxed">
@@ -1818,8 +1734,6 @@ return (
                 )}
               </div>
             </div>
-
-            {/* 오른쪽: 리모델링 후 */}
             <div className="pt-6 md:p-6 print:p-2 border-0 print:pr-0 print:pt-0">
               <h3 className="font-bold text-blue-700 mb-5 flex items-center gap-2 border-b border-blue-200 pb-3 text-lg">
                 권장 보험내역
@@ -1950,8 +1864,6 @@ return (
 
           </div>
         </section>
-
-        {/* 건강 분석 페이지 */}
         <section className="bg-white md:rounded-2xl p-4 md:p-8 border border-slate-400 shadow-sm print:p-0 print:border-none print:break-inside-avoid print:shadow-none relative overflow-hidden">
             <div className="flex items-center justify-between border-b border-slate-200 pb-4 mb-6 print:border-slate-300">
               <h2 className="text-lg font-black text-slate-800 flex items-center gap-2 uppercase tracking-widest">
@@ -2037,7 +1949,7 @@ return (
           initialIncludeSanjeong={includeSanjeong}
           initialRadarTargets={radarTargets} 
           initialRadarRates={radarRates}
-          initialPensionOverrides={pensionOverrides} // 🚀 모달에 연금 설정값 전달
+          initialPensionOverrides={pensionOverrides}
         />
       </div>
 

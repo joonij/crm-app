@@ -61,7 +61,9 @@ export default function ClientDetailLayout({
       }
 
       // ⭐️ 4. 권한 체크 2: 내가 'SM(팀장)'이고, 같은 지점인가?
-      if (myAgent.rank === "SM" && myAgent.agency_id) {
+      const userRank = myAgent.rank ? String(myAgent.rank).toUpperCase() : "";
+      const isManagerRole = userRank.includes("SM");
+      if (isManagerRole && myAgent.agency_id) {
         // 고객 담당자(팀원)의 지점(agency_id) 확인
         const { data: clientAgent } = await supabase
           .from("agents")

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, useMemo, useRef } from "react";
-import { Plus, Users, X, CheckSquare, Square, BarChart3, Phone, Search, Crown, UserPlus, Star, Trash2, ChevronDown, MessageCircle, Info, Send, FileEdit, CalendarDays } from "lucide-react";
+import { Plus, Users, X, CheckSquare, Square, BarChart3, Phone, Search, Crown, UserPlus, Star, Trash2, ChevronDown, Info, Send, CalendarDays } from "lucide-react";
 import ClientModal from "@/components/ClientModal";
 import { supabase } from "@/lib/supabase";
 import Link from 'next/link';
@@ -106,27 +106,19 @@ export default function ClientsPage() {
   const [clients, setClients] = useState<Client[] | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingClientId, setEditingClientId] = useState<number | null>(null);
-  
   const [progressModalClient, setProgressModalClient] = useState<Client | null>(null);
   const [recruitingModalClient, setRecruitingModalClient] = useState<Client | null>(null);
-
   const [kakaoRequestData, setKakaoRequestData] = useState<{isOpen: boolean, text: string, clientName: string}>({isOpen: false, text: "", clientName: ""});
-
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-
   const [isManager, setIsManager] = useState(false);
   const [currentAgentId, setCurrentAgentId] = useState<number | null>(null);
   const [teamMembers, setTeamMembers] = useState<{ id: number; name: string; rank: string; }[]>([]);
-  
   const [selectedAgentFilter, setSelectedAgentFilter] = useState<string>("me");
   const isFilterInitialized = useRef(false);
-
   const [page, setPage] = useState(1);
   const ITEMS_PER_PAGE = 20;
-
   const loadMoreRef = useRef<HTMLDivElement>(null);
-
   const fetchClients = useCallback(async () => {
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     
@@ -158,9 +150,9 @@ export default function ClientsPage() {
       }
     }
 
-    const managerAuth = !!agent.rank && agent.rank !== "FC";
+    const userRank = agent.rank ? String(agent.rank).toUpperCase() : "";
+    const managerAuth = userRank.includes("SM");
     setIsManager(managerAuth);
-
     let query = supabase.from("clients").select(`
       *, 
       agents(name), 
