@@ -8,7 +8,6 @@ import { createClient } from "@supabase/supabase-js";
 export async function signUpAction(formData: FormData) {
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
-  
   const name = formData.get("name") as string;
   const agency_id = formData.get("agency_id") as string;
   const agent_code = formData.get("agent_code") as string;

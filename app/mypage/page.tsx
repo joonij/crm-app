@@ -3,8 +3,8 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { 
-  User, Phone, Mail, LogOut, Camera, Save, Loader2, Award, QrCode, 
-  MapPin, Printer, Share2, MessageCircle, X, Quote, Briefcase, 
+  User, Mail, LogOut, Camera, Save, Loader2, Award, 
+  MapPin, Printer, MessageCircle, X, Briefcase, 
   Network, Plus, Trash2, KeyRound, TrendingUp, Pencil, ExternalLink 
 } from "lucide-react";
 
@@ -38,52 +38,8 @@ type TeamMember = {
   phone: string;
   avatar_url: string | null;
 };
-const INSURANCE_PORTALS: Record<string, string> = {
-  // "ㅋ": "https://gaworld.kr/t-fs",
-  "ABL생명": "https://ga.abllife.co.kr/",
-  "AIA생명": "https://imap.aia.co.kr/",
-  "BNP파리바카디프생명": "http://ga.cardif.co.kr/",
-  "DB생명": "http://etopia.dongbulife.com/",
-  "IM라이프": "https://fgs.imlifeins.co.kr:8443/",
-  "KB라이프": "https://sfa.kblife.co.kr/",
-  "KDB생명": "http://kss.kdblife.co.kr/",
-  "NH농협생명": "https://sfa.nhlife.co.kr:8443/websquare/websquare.jsp#w2xPath=/ui/sf/sc/SFSC0100M00.xml",
-  "교보생명": "https://ga.kyobo.com/",
-  "라이나생명": "https://ga.lina.co.kr/",
-  "메트라이프": "http://metplus.metlife.co.kr/",
-  "미래에셋생명" : "http://www.loveageplan.com/",
-  "삼성생명": "https://connectplus.samsunglife.com:10443/gasso/login?contextType=external",
-  "수호천사동양생명": "https://1004.myangel.co.kr/",
-  "신한라이프": "https://ga.shinhanlife.co.kr/",
-  "처브라이프": "https://esmart.chubblife.co.kr/index.do",
-  "푸르덴셜생명": "https://ga2.prudential.co.kr/",
-  "푸본현대생명": "https://ez.fubonhyundai.com/wsOnl/main.jsp",
-  "하나생명": "https://ga.hanalife.co.kr/",
-  "한화생명": "https://hmp.hanwhalife.com/online/ga",
-  "흥국생명": "https://sales.heungkuklife.co.kr/login.html",
-
-  "AIG손해": "https://aigen-ga.aig.co.kr/",
-  "DB손해": "https://www.mdbins.com/",
-  "KB손해": "http://sales.kbinsure.co.kr/",
-  "MG손해": "https://mganet.mggeneralins.com/",
-  "NH농협손해": "http://ss.nhfire.co.kr/",
-  "라이나손해": "https://ga.linagi.com/",
-  "롯데손해": "http://lottero.lotteins.co.kr/",
-  "메리츠화재": "http://sales.meritzfire.com/",
-  "삼성화재": "https://erp.samsungfire.com/irj/servlet/prt/portal/prtroot/logon.LogonPage",
-  "하나손해": "https://sfa.saleshana.com/",
-  "한화손해": "http://portal.hwgeneralins.com/",
-  "현대해상": "https://sp.hi.co.kr/",
-  "흥국화재": "https://salesup.heungkukfire.co.kr/",
-
-  "IBK연금보험": "https://sf.ibki.co.kr/",
-};
 
 export default function MyPage() {
-  const handleOpenPortal = (companyName: string) => {
-    const url = INSURANCE_PORTALS[companyName] || `https://www.google.com//search?q=${companyName}+영업지원시스템`;
-    window.open(url, '_blank');
-  };
   const [profile, setProfile] = useState<AgentProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -108,7 +64,7 @@ export default function MyPage() {
     name: "", identity: "", phone: "", bio: "", office_address: "", fax: "", 
   });
 
-  // ⭐️ 팀원 전체 정보 수정 모달용 상태 관리
+  // 팀원 전체 정보 수정 모달용 상태 관리
   const [editingMember, setEditingMember] = useState<AgentProfile | null>(null);
   const [isMemberSaving, setIsMemberSaving] = useState(false);
   
@@ -212,7 +168,6 @@ export default function MyPage() {
     setIsSaving(false);
   };
 
-  // --- 본인 프로필 수정 핸들러 ---
   const handleAddSkill = () => {
     if(!newSkillName.trim()) return alert("전문 분야 키워드를 입력해주세요.");
     setSkills([...skills, { name: newSkillName, score: newSkillScore }]);
@@ -287,8 +242,11 @@ export default function MyPage() {
     } else { alert("카카오톡 시스템을 불러오는 중입니다. 잠시 후 다시 시도해주세요."); }
   };
 
-  // --- ⭐️ 팀원 모달창 전용 핸들러 ---
-  const canEditOthers = profile ? ["BM", "RM", "본부장", "지점장", "SM", "팀장"].includes(profile.rank.toUpperCase()) : false;
+  // ⭐️ 팀원 모달창 편집 권한 (isManager와 동일한 로직으로 SM, BM, ADMIN 등 유연하게 처리)
+  const canEditOthers = profile ? 
+    ["SM"]
+    .some(role => profile.rank.toUpperCase().includes(role)) 
+    : false;
 
   const openMemberEditModal = async (memberId: number) => {
     setIsLoading(true);
@@ -306,7 +264,6 @@ export default function MyPage() {
         skills: data.skills || [],
         careers: data.careers || [],
       });
-      // 모달 열 때 임시값 초기화
       setModalNewSkillName(""); setModalNewCareerYear(""); setModalNewCareerDesc("");
       setModalNewCompany(""); setModalNewCompanyCode(""); setModalNewCompanyPassword("");
     } else {
@@ -395,15 +352,15 @@ export default function MyPage() {
   const inputClass = "w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all";
 
   const managers = teamMembers
-    .filter(m => ["BM", "RM", "본부장", "지점장"].includes(m.rank.toUpperCase()))
+    .filter(m => ["BM", "RM"].some(role => m.rank.toUpperCase().includes(role)))
     .sort((a, b) => a.name.localeCompare(b.name, 'ko-KR'));
     
   const teamLeaders = teamMembers
-    .filter(m => ["SM", "팀장"].includes(m.rank.toUpperCase()))
+    .filter(m => ["SM"].some(role => m.rank.toUpperCase().includes(role)))
     .sort((a, b) => a.name.localeCompare(b.name, 'ko-KR'));
     
   const members = teamMembers
-    .filter(m => !["BM", "RM", "본부장", "지점장", "SM", "팀장"].includes(m.rank.toUpperCase()))
+    .filter(m => !["BM", "RM", "SM"].some(role => m.rank.toUpperCase().includes(role)))
     .sort((a, b) => a.name.localeCompare(b.name, 'ko-KR'));
 
   const getCompanyTypePriority = (companyName: string) => {
@@ -427,7 +384,6 @@ export default function MyPage() {
     if (priorityA !== priorityB) return priorityA - priorityB; return compareEnglishKorean(companyA, companyB); 
   });
   
-  // 모달용 정렬된 코드
   const modalSortedCompanyCodes = editingMember ? Object.entries(editingMember.company_codes).sort(([companyA], [companyB]) => {
     const priorityA = getCompanyTypePriority(companyA); const priorityB = getCompanyTypePriority(companyB);
     if (priorityA !== priorityB) return priorityA - priorityB; return compareEnglishKorean(companyA, companyB); 
@@ -743,12 +699,9 @@ export default function MyPage() {
                         <div className="flex flex-col overflow-hidden pr-2 gap-0.5">
                           <div className="flex items-center gap-1.5">
                             <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border whitespace-nowrap ${badgeClass}`}>{badgeText}</span>
-                            <span 
-                              onClick={() => handleOpenPortal(company)}
-                              className="text-[11px] font-bold text-gray-500 truncate cursor-pointer hover:text-blue-600 hover:underline flex items-center gap-0.5"
-                              title={`${company} 전산 열기`}
-                            >
-                              {company} <ExternalLink className="w-2.5 h-2.5 opacity-70" />
+                            {/* ⭐️ 변경됨: 전산 바로가기 아이콘 및 링크 제거 */}
+                            <span className="text-[11px] font-bold text-gray-500 truncate">
+                              {company}
                             </span>
                           </div>
                           <span className="text-sm font-black text-gray-900 tracking-wide truncate mt-0.5">{data.code}</span>
@@ -933,7 +886,7 @@ export default function MyPage() {
                       <div key={idx} className="flex items-center gap-3 bg-white p-2.5 rounded-lg border border-slate-100 shadow-sm">
                         <span className="text-xs font-black text-blue-600 w-10 text-center">{career.year}</span>
                         <span className="text-sm font-bold text-gray-800 flex-1">{career.desc}</span>
-                        <button onClick={() => handleModalRemoveCareer(idx)} className="cursor-pointer p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors">
+                        <button onClick={() => handleModalRemoveCareer(idx)} className="cursor-pointer p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
@@ -964,12 +917,9 @@ export default function MyPage() {
                       modalSortedCompanyCodes.map(([company, data]) => (
                         <div key={company} className="flex items-center justify-between bg-white border border-slate-200 p-2.5 rounded-lg shadow-sm">
                           <div className="flex flex-col pr-2">
-                            <span 
-                              onClick={() => handleOpenPortal(company)}
-                              className="text-[11px] font-bold text-gray-500 cursor-pointer hover:text-blue-600 hover:underline flex items-center gap-0.5"
-                              title={`${company} 전산 열기`}
-                            >
-                              {company} <ExternalLink className="w-2.5 h-2.5 opacity-70" />
+                            {/* ⭐️ 변경됨: 전산 바로가기 아이콘 및 링크 제거 */}
+                            <span className="text-[11px] font-bold text-gray-500 truncate">
+                              {company}
                             </span>
                             <span className="text-sm font-black text-gray-900">{data.code}</span>
                             {data.password && <span className="text-[10px] text-gray-400 flex items-center gap-1 mt-0.5"><KeyRound className="w-2.5 h-2.5" /> {data.password}</span>}

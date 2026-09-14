@@ -43,9 +43,14 @@ export async function proxy(request: NextRequest) {
   if (!user) {
     if (
       pathname === "/" || 
+      pathname.startsWith("/portals") || 
+      pathname.startsWith("/dashboard") || 
       pathname.startsWith("/clients") || 
       pathname.startsWith("/schedules") || 
-      pathname.startsWith("/training")
+      pathname.startsWith("/claims") || 
+      pathname.startsWith("/notifications") || 
+      pathname.startsWith("/training") || 
+      pathname.startsWith("/mypage")
     ) {
       const url = request.nextUrl.clone();
       url.pathname = "/login";
@@ -61,7 +66,7 @@ export async function proxy(request: NextRequest) {
       pathname === "/signup"
     ) {
       const url = request.nextUrl.clone();
-      url.pathname = "/clients";
+      url.pathname = "/portals";
       return NextResponse.redirect(url);
     }
   }

@@ -144,6 +144,7 @@ export default function ClaimManagementPage() {
     const comp = insuranceCompanies.find(c => companyName.includes(c.company_name) || c.company_name.includes(companyName));
     return comp ? (comp.has_claim_form !== false) : false; 
   };
+  
   useEffect(() => {
     setDisplayCount(20);
   }, [searchTerm]);
@@ -193,14 +194,12 @@ export default function ClaimManagementPage() {
     const initData = async () => {
       setIsLoading(true);
       const { data: compData } = await supabase.from("insurance_companies").select("company_type, company_name, has_claim_form");
+      
       if (compData && compData.length > 0) {
-        setInsuranceCompanies(compData);
+        const uniqueComps = Array.from(new Map(compData.map(item => [item.company_name, item])).values());
+        setInsuranceCompanies(uniqueComps);
       } else {
         setInsuranceCompanies([
-          { company_type: "손해보험", company_name: "메리츠화재", has_claim_form: true },
-          { company_type: "손해보험", company_name: "현대해상", has_claim_form: true },
-          { company_type: "손해보험", company_name: "DB손해", has_claim_form: true },
-          { company_type: "손해보험", company_name: "삼성화재", has_claim_form: true },
           { company_type: "손해보험", company_name: "메리츠화재", has_claim_form: true },
           { company_type: "손해보험", company_name: "현대해상", has_claim_form: true },
           { company_type: "손해보험", company_name: "DB손해", has_claim_form: true },
@@ -225,7 +224,8 @@ export default function ClaimManagementPage() {
           .single();
 
         if (agent) {
-          setAgentRank(agent.rank); 
+          const rankStr = agent.rank ? String(agent.rank).toUpperCase() : "";
+          setAgentRank(rankStr); 
 
           const now = new Date();
           const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
@@ -239,9 +239,9 @@ export default function ClaimManagementPage() {
 
           if (myClaims) setClaims(myClaims);
 
-          const isOsRole = agent.rank.includes('OS');
+          const isManagerRole = rankStr.includes('OS')|| agentRank.includes('ADMIN');
 
-          if (isOsRole) {
+          if (isManagerRole) {
             const agency = Array.isArray(agent.agencies) ? agent.agencies[0] : agent.agencies;
             
             if (agency) {
@@ -334,14 +334,18 @@ export default function ClaimManagementPage() {
   const pendingCount = claims.filter(c => c.status === 'pending').length;
   const completedCount = claims.filter(c => c.status === 'completed').length;
 
-  const isOS = agentRank.includes('OS');
+  const isManagerUI = agentRank.includes('OS')|| agentRank.includes('ADMIN');
+  
+  // ⭐️ SM/BM/ADMIN 권한자이면서 총무/OS 겸직이 아닌 경우, '공유/팩스' 버튼 숨김 처리
+  const hideShare = !agentRank.includes('OS')|| !agentRank.includes('ADMIN');
+
   return (
     <div className="w-full mx-auto max-w-[1000px] space-y-6 p-4 md:p-8 pb-24">
       
-      {isOS && (
+      {isManagerUI && (
         <div className="bg-indigo-50 border border-indigo-100 p-5 rounded-2xl shadow-sm mb-6 animate-in fade-in duration-300">
           <h3 className="text-lg font-black text-indigo-900 mb-4 flex items-center gap-2">
-            <Users className="w-5 h-5" /> OS 통합 청구 지원 데스크
+            <Users className="w-5 h-5" /> 통합 청구 지원 데스크 (관리자)
           </h3>
           
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
@@ -507,13 +511,18 @@ export default function ClaimManagementPage() {
                   </h4>
                   <p className="text-sm font-medium text-gray-600 mt-1 truncate">{claim.reason}</p>
                 </div>
+                
+                {/* ⭐️ 하단 버튼 영역 */}
                 <div className="flex gap-2 shrink-0 border-t border-gray-100 md:border-0 pt-3 md:pt-0">
                   <button onClick={() => handleDownloadPDF(claim.pdf_url)} className="cursor-pointer flex-1 md:flex-none flex items-center justify-center gap-1.5 text-xs font-bold bg-slate-100 text-slate-700 px-3.5 py-2.5 rounded-xl hover:bg-slate-200 transition-colors">
                     <Download className="w-3.5 h-3.5" /> PDF 다운
                   </button>
-                  <button onClick={() => handleDownloadPDF(claim.pdf_url)} className="cursor-pointer flex-1 md:flex-none flex items-center justify-center gap-1.5 text-xs font-bold bg-blue-50 text-blue-700 px-3.5 py-2.5 rounded-xl hover:bg-blue-100 transition-colors">
-                    <RefreshCw className="w-3.5 h-3.5" /> 팩스 재청구
-                  </button>
+                  {/* SM, BM, ADMIN 이면 공유/팩스재청구 버튼 안 보임 */}
+                  {!hideShare && (
+                    <button onClick={() => handleDownloadPDF(claim.pdf_url)} className="cursor-pointer flex-1 md:flex-none flex items-center justify-center gap-1.5 text-xs font-bold bg-blue-50 text-blue-700 px-3.5 py-2.5 rounded-xl hover:bg-blue-100 transition-colors">
+                      <RefreshCw className="w-3.5 h-3.5" /> 팩스 재청구
+                    </button>
+                  )}
                 </div>
               </div>
             );
