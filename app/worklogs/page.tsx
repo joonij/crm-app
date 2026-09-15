@@ -359,20 +359,26 @@ export default function WorklogsPage() {
         .order("time", { ascending: false });
 
       if (logsData) {
-        const formattedLogs: WorkLog[] = logsData.map(l => ({
-          id: l.id,
-          authorId: l.agent_id,
-          authorName: l.agents?.name || "알 수 없음",
-          authorRank: l.agents?.rank || "FC",
-          category: l.category || "일반",
-          scheduleContent: l.content, 
-          content: l.worklog,         
-          time: l.time,
-          date: l.date,
-          clientName: l.clients?.name,
-          clientId: l.client_id,
-          readBy: Array.isArray(l.read_by) ? l.read_by : [] 
-        }));
+        const formattedLogs: WorkLog[] = logsData.map(l => {
+            // ⭐️ agents 조인 결과가 배열인지 단일 객체인지 안전하게 처리
+            const agentInfo = Array.isArray(l.agents) ? l.agents[0] : l.agents;
+            const clientInfo = Array.isArray(l.clients) ? l.clients[0] : l.clients;
+  
+            return {
+              id: l.id,
+              authorId: l.agent_id,
+              authorName: agentInfo?.name || "알 수 없음",
+              authorRank: agentInfo?.rank || "FC",
+              category: l.category || "일반",
+              scheduleContent: l.content, 
+              content: l.worklog,         
+              time: l.time,
+              date: l.date,
+              clientName: clientInfo?.name,
+              clientId: l.client_id,
+              readBy: Array.isArray(l.read_by) ? l.read_by : [] 
+            };
+          });
         setLogs(formattedLogs);
       }
 
