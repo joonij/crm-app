@@ -473,10 +473,6 @@ ${medicalMemo}`;
       </div>
 
       <section className="flex flex-col lg:flex-row gap-6 w-full flex-1 min-h-0">
-        
-        {/* ================================================================= */}
-        {/* 좌측 영역 (프로필 요약 + 탭 컨텐츠) */}
-        {/* ================================================================= */}
         <div className="w-full lg:w-[32%] xl:w-[28%] flex flex-col gap-4 h-full min-h-0 shrink-0">
           
           {/* 1. 새로운 형태의 고객 프로필 요약 카드 (우측에 액션 버튼 세로 배치) */}

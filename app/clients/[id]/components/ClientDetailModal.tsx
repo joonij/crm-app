@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { User, CreditCard, X, ShieldAlert, FileText, MapPin, Briefcase, Edit2, Save } from "lucide-react";
+import { User, CreditCard, X, Edit2, Save } from "lucide-react";
 import { decryptRegNumber, encryptRegNumber } from "@/app/actions/crypto";
 import { supabase } from "@/lib/supabase";
 

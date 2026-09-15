@@ -239,7 +239,7 @@ export default function ClaimManagementPage() {
 
           if (myClaims) setClaims(myClaims);
 
-          const isManagerRole = rankStr.includes('OS')|| agentRank.includes('ADMIN');
+          const isManagerRole = rankStr.includes('OS');
 
           if (isManagerRole) {
             const agency = Array.isArray(agent.agencies) ? agent.agencies[0] : agent.agencies;
@@ -334,10 +334,10 @@ export default function ClaimManagementPage() {
   const pendingCount = claims.filter(c => c.status === 'pending').length;
   const completedCount = claims.filter(c => c.status === 'completed').length;
 
-  const isManagerUI = agentRank.includes('OS')|| agentRank.includes('ADMIN');
+  const isManagerUI = agentRank.includes('OS');
   
   // ⭐️ SM/BM/ADMIN 권한자이면서 총무/OS 겸직이 아닌 경우, '공유/팩스' 버튼 숨김 처리
-  const hideShare = !agentRank.includes('OS')|| !agentRank.includes('ADMIN');
+  const hideShare = !agentRank.includes('OS');
 
   return (
     <div className="w-full mx-auto max-w-[1000px] space-y-6 p-4 md:p-8 pb-24">

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
-import { Shield, X, Plus, Sparkles, FileText, Loader2, CheckSquare, Trash2, AlertCircle, Check, PenTool, CheckCircle2, Save, Undo, Banknote, TrendingDown, Edit2, ChevronUp, ChevronDown, Search, MinusCircle, RotateCcw } from "lucide-react";
+import { Shield, X, Plus, ChevronRight, TrendingUp, Sparkles, FileText, Loader2, CheckSquare, Trash2, AlertCircle, Check, PenTool, CheckCircle2, Save, Undo, Banknote, TrendingDown, Edit2, ChevronUp, ChevronDown, Search, MinusCircle, RotateCcw, AlertTriangle } from "lucide-react";
 import { COVERAGE_OPTIONS, mapToStandardCoverage } from "@/lib/coverageMapper"; 
 import { analyzeInsuranceEngine, formatAmountWithComma } from "@/lib/insuranceParser";
 import InsuranceModal from "@/app/clients/[id]/components/InsuranceModal";
@@ -82,6 +82,8 @@ type Coverage = {
 type InsuranceCompany = {
   company_type: string;
   company_name: string;
+  logo_url?: string | null; 
+  terms_url?: string | null; 
 };
 
 const statusTheme: Record<string, { bg: string; border: string; text: string }> = {
@@ -93,7 +95,9 @@ const statusTheme: Record<string, { bg: string; border: string; text: string }> 
 export default function ClientCoverageCard({ clientId }: { clientId: string }) {
   const [clientData, setClientData] = useState<any>(null); 
   const [coverages, setCoverages] = useState<Coverage[]>([]);
-  const [isCoveragesLoaded, setIsCoveragesLoaded] = useState(false); // ⭐️ 보험 데이터 로딩 완료 상태
+  const [isCoveragesLoaded, setIsCoveragesLoaded] = useState(false); 
+
+  const [currentAgentName, setCurrentAgentName] = useState<string>("");
 
   const [expandedCovId, setExpandedCovId] = useState<number | null>(null);
   const [isCovModalOpen, setIsCovModalOpen] = useState(false);
@@ -139,12 +143,12 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
       }));
       setCoverages(processedData);
     }
-    setIsCoveragesLoaded(true); // ⭐️ 보험 데이터 세팅이 완전히 끝나면 true로 변경
+    setIsCoveragesLoaded(true); 
   };
 
   useEffect(() => { 
     const fetchCompanies = async () => {
-      const { data } = await supabase.from("insurance_companies").select("company_type, company_name").order("company_type", { ascending: true }).order("company_name", { ascending: true });
+      const { data } = await supabase.from("insurance_companies").select("company_type, company_name, logo_url, terms_url").order("company_type", { ascending: true }).order("company_name", { ascending: true });
       if (data) setCompanies(data);
     };
 
@@ -156,8 +160,9 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     const fetchMyClients = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data: agentData } = await supabase.from("agents").select("id").eq("auth_id", user.id).single();
+        const { data: agentData } = await supabase.from("agents").select("id, name").eq("auth_id", user.id).single();
         if (agentData) {
+          setCurrentAgentName(agentData.name || ""); 
           const { data: myClients } = await supabase.from("clients").select("id, name, phone").eq("agent_id", agentData.id).order("name");
           if (myClients) setClientsList(myClients);
         }
@@ -240,14 +245,12 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     ];
   }, [coverages]);
 
-  // ⭐️ 2. DB 데이터 불러오기 (보험 데이터가 완료된 후에만 세팅하도록 조건 강화)
   useEffect(() => {
     if (!hasInitializedGaps && clientData && isCoveragesLoaded) {
       if (clientData.consulting_details) {
         if (Array.isArray(clientData.consulting_details.selectedGaps)) {
           setSelectedGaps(clientData.consulting_details.selectedGaps);
         } else {
-          // DB에 내용이 없으면 조건이 일치하는 것만 기본 선택
           setSelectedGaps(gapItems.filter(g => g.condition).map(g => g.title));
         }
 
@@ -270,7 +273,6 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
       ...newCustomGap
     };
     setCustomGaps([...customGaps, newGap]);
-    // 커스텀 갭을 추가하면 자동으로 활성화 처리
     setSelectedGaps([...selectedGaps, newGap.title]);
     setIsAddingCustomGap(false);
     setNewCustomGap({ title: "", desc: "", action: "" });
@@ -281,7 +283,6 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     setSelectedGaps(selectedGaps.filter(t => t !== title));
   };
 
-  // ⭐️ 3. 체크박스 선택값 저장 시 로컬 clientData도 함께 갱신
   const handleSaveGaps = async () => {
     setIsSavingGaps(true);
     try {
@@ -293,7 +294,6 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
       const { error } = await supabase.from("clients").update({ consulting_details: updatedConsulting }).eq("id", clientId);
       if (error) throw error;
       
-      // 로컬 데이터 최신화 (다음 저장 시 과거 데이터로 덮어쓰는 것 방지)
       setClientData((prev: any) => ({ ...prev, consulting_details: updatedConsulting }));
       
       setGapSaveSuccess(true);
@@ -328,6 +328,16 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     }
     setSelectedClaimIns(cov);
     setIsClaimModalOpen(true);
+  };
+
+  const handleOpenTerms = (cov: Coverage) => {
+    const compInfo = companies.find(c => cov.insurance_company?.includes(c.company_name) || c.company_name.includes(cov.insurance_company || ""));
+    
+    if (compInfo && compInfo.terms_url) {
+      window.open(compInfo.terms_url, '_blank');
+    } else {
+      alert("해당 보험사의 약관조회 링크가 등록되어 있지 않습니다. 관리자에게 문의해주세요.");
+    }
   };
 
   const handleStartEditPolicy = (cov: Coverage) => {
@@ -394,6 +404,7 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
       beneficiary_id: editingPolicyForm.beneficiary_id || null,
       agent_name: editingPolicyForm.agent_name || null,
       payment_period: editingPolicyForm.payment_period || null,
+      details: editingPolicyForm.details || null, // ⭐️ 부담보(details) 변경사항도 함께 저장되도록 추가
     }).eq("id", editingPolicyId);
 
     if (error) {
@@ -569,6 +580,31 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
   const nonLifeInsurances = companies.filter((c) => c.company_type === "손해보험");
   const differentLifeInsurances = companies.filter((c) => c.company_type === "기타");
 
+  const calculateTotalPremiums = () => {
+    let beforePremium = 0;
+    let afterPremium = 0;
+
+    coverages.forEach(cov => {
+      if (cov.policy_status !== 'cancel') {
+        const originalAmount = cov.remodeled_amount ? cov.remodeled_amount : cov.monthly_premium;
+        const isMyPolicy = currentAgentName && cov.agent_name === currentAgentName;
+
+        if ((cov.policy_status === 'maintain' || !cov.policy_status) && !isMyPolicy) {
+          beforePremium += originalAmount;
+        }
+        afterPremium += cov.monthly_premium;
+      }
+    });
+
+    const isDecreased = afterPremium < beforePremium;
+    const isIncreased = afterPremium > beforePremium;
+    const diff = Math.abs(afterPremium - beforePremium);
+
+    return { beforePremium, afterPremium, isDecreased, isIncreased, diff };
+  };
+
+  const { beforePremium, afterPremium, isDecreased, isIncreased, diff } = calculateTotalPremiums();
+
   return (
     <>
       <div className="w-full h-full flex flex-col md:rounded-2xl border border-gray-200 bg-white p-5 md:p-6 shadow-sm min-h-0 relative overflow-x-hidden">
@@ -596,7 +632,6 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
         
         <div className="flex-1 overflow-y-auto pr-2 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-thumb]:rounded-full">
           
-          {/* 고객 리포트용 보장 공백 컨트롤 패널 (커스텀 작성 가능) - ⭐️ 붉은색 테마 적용 */}
           <div className="mb-4 bg-white border-2 border-red-100 rounded-2xl p-4 sm:p-5 shadow-sm">
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4 border-b border-red-50 pb-3">
               <div>
@@ -622,7 +657,6 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
               </div>
             </div>
 
-            {/* 커스텀 카드 작성 폼 */}
             {isAddingCustomGap && (
               <div className="bg-red-50/50 p-4 rounded-xl border border-red-100 mb-4 animate-in fade-in slide-in-from-top-2">
                 <div className="flex items-center justify-between mb-3">
@@ -641,7 +675,6 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
             )}
             
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5">
-              {/* 1. 자동 검출된 카드 */}
               {gapItems.map(gap => {
                 const isSelected = selectedGaps.includes(gap.title);
                 const isDetected = gap.condition;
@@ -672,7 +705,6 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                 )
               })}
 
-              {/* 2. 직접 작성한 커스텀 카드 */}
               {customGaps.map((custom) => {
                 const isSelected = selectedGaps.includes(custom.title);
                 
@@ -706,7 +738,39 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
             </div>
           </div>
 
-          {/* 기존 검색바 */}
+          {coverages.length > 0 && (
+            <div className="mb-2 bg-gradient-to-br from-indigo-50 to-blue-50 border border-indigo-100 rounded-2xl p-4 sm:p-3 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-indigo-100 p-2.5 rounded-full">
+                  <Banknote className="w-5 h-5 text-indigo-600" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-indigo-900 text-sm">고객 총 월 보험료 현황</h3>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-center gap-3 sm:gap-6 w-full sm:w-auto bg-white/60 p-3 sm:py-2 sm:px-4 rounded-xl border border-white/50">
+                <div className="flex flex-col items-end">
+                  <span className="text-[10px] text-gray-500 font-bold">기존 총 보험료</span>
+                  <span className="text-sm font-black text-gray-800 line-through decoration-gray-400">
+                    {beforePremium.toLocaleString()}원
+                  </span>
+                </div>
+                
+                <div className="text-indigo-300">
+                  <ChevronRight className="w-5 h-5" />
+                </div>
+
+                <div className="flex flex-col items-end">
+                  <span className="text-[10px] text-blue-600 font-black">권장 총 보험료</span>
+                  <span className="text-lg font-black text-blue-700">
+                    {afterPremium.toLocaleString()}원
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="mb-2 relative">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
@@ -731,7 +795,12 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                 const isPolicyReducing = reducingPolicyId === cov.id;
                 const isCustomCompany = editingPolicyForm?.insurance_company && !companies.some(c => c.company_name === editingPolicyForm.insurance_company);
                 
+                const companyInfo = companies.find(c => c.company_name === cov.insurance_company);
+                
                 const isExpanded = expandedCovId === cov.id || (insuranceSearchTerm.length > 0);
+                
+                const exclusions = cov.details?.filter((d: any) => !d.is_deleted && d.name?.startsWith('부담보:')) || [];
+                const normalDetails = cov.details?.filter((d: any) => d.is_deleted || !d.name?.startsWith('부담보:')) || [];
                 
                 return (
                   <div key={cov.id} className={`relative group rounded-lg border text-sm overflow-hidden flex flex-col transition-colors h-fit ${theme.bg} ${theme.border}`}>
@@ -833,6 +902,81 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                               <option value="30년납">30년납</option>
                             </select>
                           </div>
+                          
+                          {/* ⭐️ 추가: 부담보 수정 영역 */}
+                          <div className="col-span-2 pt-3 mt-2 border-t border-gray-100">
+                            <span className="text-[11px] text-orange-600 mb-2 ml-1 font-bold flex items-center gap-1">
+                              <AlertTriangle className="w-3.5 h-3.5"/> 부담보 / 할증 수정
+                            </span>
+                            <div className="flex flex-col gap-2">
+                              {(() => {
+                                const formDetails = editingPolicyForm?.details || [];
+                                const formExclusions = formDetails
+                                  .map((d, idx) => ({ ...d, originalIdx: idx }))
+                                  .filter(d => !d.is_deleted && d.name?.startsWith('부담보:'));
+
+                                return formExclusions.length > 0 ? (
+                                  formExclusions.map((exc) => (
+                                    <div key={exc.originalIdx} className="flex gap-2 items-center bg-orange-50/30 p-2 rounded-lg border border-orange-100">
+                                      <input
+                                        type="text"
+                                        placeholder="부위 (예: 위, 대장)"
+                                        className="flex-1 border border-gray-200 rounded p-1.5 text-xs outline-none focus:border-orange-400 bg-white"
+                                        value={exc.name.replace('부담보:', '').trim()}
+                                        onChange={(e) => {
+                                          const newDetails = [...editingPolicyForm!.details!];
+                                          newDetails[exc.originalIdx] = { ...newDetails[exc.originalIdx], name: `부담보: ${e.target.value}` };
+                                          setEditingPolicyForm({ ...editingPolicyForm!, details: newDetails });
+                                        }}
+                                      />
+                                      <select
+                                        className="w-[80px] border border-gray-200 rounded p-1.5 text-xs outline-none focus:border-orange-400 bg-white"
+                                        value={exc.amount}
+                                        onChange={(e) => {
+                                          const newDetails = [...editingPolicyForm!.details!];
+                                          newDetails[exc.originalIdx] = { ...newDetails[exc.originalIdx], amount: e.target.value };
+                                          setEditingPolicyForm({ ...editingPolicyForm!, details: newDetails });
+                                        }}
+                                      >
+                                        <option value="1년">1년</option>
+                                        <option value="2년">2년</option>
+                                        <option value="3년">3년</option>
+                                        <option value="4년">4년</option>
+                                        <option value="5년">5년</option>
+                                        <option value="전기간">전기간</option>
+                                        <option value="할증">할증</option>
+                                      </select>
+                                      <button 
+                                        onClick={() => {
+                                          const newDetails = [...editingPolicyForm!.details!];
+                                          newDetails[exc.originalIdx] = { ...newDetails[exc.originalIdx], is_deleted: true };
+                                          setEditingPolicyForm({ ...editingPolicyForm!, details: newDetails });
+                                        }} 
+                                        className="p-1.5 text-gray-400 hover:text-red-500 rounded bg-white border border-gray-200 shadow-sm cursor-pointer"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  ))
+                                ) : (
+                                  <div className="text-[11px] text-gray-400 text-center py-2.5 bg-gray-50 border border-dashed border-gray-200 rounded-lg">
+                                    등록된 부담보 내역이 없습니다.
+                                  </div>
+                                );
+                              })()}
+                              
+                              <button 
+                                onClick={() => {
+                                  const newDetails = editingPolicyForm!.details ? [...editingPolicyForm!.details] : [];
+                                  newDetails.push({ name: "부담보: ", amount: "전기간", renewal_type: "부담보" });
+                                  setEditingPolicyForm({ ...editingPolicyForm!, details: newDetails });
+                                }}
+                                className="mt-1 w-full py-2 bg-orange-50 text-orange-600 text-[11px] font-bold rounded-lg border border-dashed border-orange-200 hover:bg-orange-100 transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                              >
+                                <Plus className="w-3 h-3" /> 부담보 추가하기
+                              </button>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     ) : (
@@ -841,8 +985,11 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                         
                         <div className="flex justify-between items-start gap-2">
                           <div className="flex items-center gap-2 min-w-0 pr-2">
+                            {companyInfo?.logo_url && (
+                              <img src={companyInfo.logo_url} alt={cov.insurance_company} className="w-6 h-6 object-contain" />
+                            )}
                             <p className="font-bold text-gray-900 truncate text-base" title={cov.insurance_company}>{cov.insurance_company}</p>
-                                                        
+                                                                            
                             <select
                               value={currentStatus}
                               onChange={(e) => updatePolicyStatus(cov.id, e.target.value)}
@@ -871,6 +1018,9 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                               </button>
                               <button onClick={() => handleStartReducePolicy(cov)} className="cursor-pointer text-gray-500 hover:text-purple-600 hover:bg-purple-50 p-1.5 border-r border-gray-100/50" title="보험료 감액">
                                 <TrendingDown className="h-3.5 w-3.5" />
+                              </button>
+                              <button onClick={() => handleOpenTerms(cov)} className="cursor-pointer text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 p-1.5 border-r border-gray-100/50" title="약관 조회">
+                                <FileText className="h-3.5 w-3.5" />
                               </button>
                               <button onClick={() => handleStartEditPolicy(cov)} className="cursor-pointer text-gray-500 hover:text-blue-500 hover:bg-blue-50 p-1.5 border-r border-gray-100/50" title="기본 정보 수정">
                                 <Edit2 className="h-3.5 w-3.5" />
@@ -963,10 +1113,37 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                             <span className="text-[11px] text-gray-800 font-bold truncate">{cov.agent_name || "-"}</span>
                           </div>
                         </div>
+                        
+                        {/* ⭐️ 변경됨: 부담보 강조 렌더링 영역 */}
+                        <div className="bg-orange-50/40 border border-orange-100 rounded-lg p-3 mb-2 flex flex-col gap-1.5 shadow-sm">
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <AlertTriangle className={`w-4 h-4 ${exclusions.length > 0 ? 'text-orange-500' : 'text-gray-400'}`} />
+                            <span className={`text-[11px] font-bold ${exclusions.length > 0 ? 'text-orange-700' : 'text-gray-500'}`}>부담보 및 할증 내역</span>
+                          </div>
+                          {exclusions.length > 0 ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {exclusions.map((exc: any, i: number) => (
+                                <div key={`exc-${i}`} className="flex justify-between items-center bg-white border border-orange-100 rounded-md px-2.5 py-1.5 shadow-sm">
+                                  <span className="text-xs font-bold text-gray-800 truncate pr-2">
+                                    {exc.name.replace('부담보:', '').trim()}
+                                  </span>
+                                  <span className="text-[11px] font-black text-orange-600 bg-orange-100 px-1.5 py-0.5 rounded whitespace-nowrap shrink-0">
+                                    {exc.amount}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-center py-2 bg-white/60 rounded-md border border-dashed border-gray-200 text-[11px] font-medium text-gray-400">
+                              적용된 부담보 내역이 없습니다.
+                            </div>
+                          )}
+                        </div>
 
-                        {cov.details && cov.details.map((detail, idx) => {
+                        {normalDetails.map((detail: any, idx: number) => {
+                          const originalIndex = cov.details?.findIndex(d => d === detail) ?? idx;
                           const isDeleted = detail.is_deleted;
-                          const isEditing = editingDetail?.covId === cov.id && editingDetail?.idx === idx;
+                          const isEditing = editingDetail?.covId === cov.id && editingDetail?.idx === originalIndex;
                           
                           const isMatched = insuranceSearchTerm && detail.name.toLowerCase().includes(insuranceSearchTerm.toLowerCase());
                           
@@ -975,7 +1152,7 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                             : [];
 
                           return (
-                            <div key={idx} className={`flex flex-col text-xs border-b border-gray-200/50 pb-2 last:border-0 last:pb-0 ${isDeleted ? 'opacity-60 grayscale' : ''}`}>
+                            <div key={originalIndex} className={`flex flex-col text-xs border-b border-gray-200/50 pb-2 last:border-0 last:pb-0 ${isDeleted ? 'opacity-60 grayscale' : ''}`}>
                               <div className="flex justify-between items-start sm:items-center gap-2">
                                 
                                 {isEditing ? (
@@ -990,8 +1167,8 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                                           </div>
                                         </div>
                                         <div className="flex gap-1.5 shrink-0">
-                                          <button onClick={() => handleSaveDetail(cov.id, idx)} className="text-[11px] text-purple-600 font-bold bg-white border border-purple-300 px-3.5 py-1.5 rounded-md hover:bg-purple-100 shadow-sm">적용</button>
-                                          <button onClick={() => handleCancelEdit(cov.id, idx)} className="text-[11px] text-gray-500 font-bold bg-gray-100 px-3.5 py-1.5 rounded-md hover:bg-gray-200 border border-gray-200 shadow-sm">취소</button>
+                                          <button onClick={() => handleSaveDetail(cov.id, originalIndex)} className="text-[11px] text-purple-600 font-bold bg-white border border-purple-300 px-3.5 py-1.5 rounded-md hover:bg-purple-100 shadow-sm">적용</button>
+                                          <button onClick={() => handleCancelEdit(cov.id, originalIndex)} className="text-[11px] text-gray-500 font-bold bg-gray-100 px-3.5 py-1.5 rounded-md hover:bg-gray-200 border border-gray-200 shadow-sm">취소</button>
                                         </div>
                                       </div>
                                     </div>
@@ -1059,8 +1236,8 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                                           </select>
                                         </div>
                                         <div className="flex gap-1.5 shrink-0">
-                                          <button onClick={() => handleSaveDetail(cov.id, idx)} className="text-[11px] text-white font-bold bg-blue-600 px-3.5 py-1.5 rounded-md hover:bg-blue-700 shadow-sm transition-colors active:scale-95">확인</button>
-                                          <button onClick={() => handleCancelEdit(cov.id, idx)} className="text-[11px] text-gray-600 font-bold bg-white border border-gray-300 px-3.5 py-1.5 rounded-md hover:bg-gray-50 shadow-sm transition-colors active:scale-95">취소</button>
+                                          <button onClick={() => handleSaveDetail(cov.id, originalIndex)} className="text-[11px] text-white font-bold bg-blue-600 px-3.5 py-1.5 rounded-md hover:bg-blue-700 shadow-sm transition-colors active:scale-95">확인</button>
+                                          <button onClick={() => handleCancelEdit(cov.id, originalIndex)} className="text-[11px] text-gray-600 font-bold bg-white border border-gray-300 px-3.5 py-1.5 rounded-md hover:bg-gray-50 shadow-sm transition-colors active:scale-95">취소</button>
                                         </div>
                                       </div>
                                     </div>
@@ -1099,26 +1276,26 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
                                 <div className="flex justify-end gap-2 mt-2">
                                   {isDeleted ? (
                                     <>
-                                      <button onClick={() => handleToggleDetailDelete(cov.id, idx)} className="flex items-center gap-1 text-[10px] text-blue-600 font-semibold bg-blue-50 px-2 py-0.5 rounded cursor-pointer"><RotateCcw className="w-3 h-3" /> 복구</button>
-                                      <button onClick={() => handlePermanentlyDeleteDetail(cov.id, idx)} className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-red-500 px-1"><Trash2 className="w-3 h-3" /> 영구삭제</button>
+                                      <button onClick={() => handleToggleDetailDelete(cov.id, originalIndex)} className="flex items-center gap-1 text-[10px] text-blue-600 font-semibold bg-blue-50 px-2 py-0.5 rounded cursor-pointer"><RotateCcw className="w-3 h-3" /> 복구</button>
+                                      <button onClick={() => handlePermanentlyDeleteDetail(cov.id, originalIndex)} className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-red-500 px-1"><Trash2 className="w-3 h-3" /> 영구삭제</button>
                                     </>
                                   ) : (
                                     <>
                                       {detail.original_amount && (
-                                        <button onClick={() => handleRestoreAmount(cov.id, idx)} className="flex items-center gap-1 text-[10px] text-purple-600 font-semibold hover:text-purple-800 px-1 mr-1">
+                                        <button onClick={() => handleRestoreAmount(cov.id, originalIndex)} className="flex items-center gap-1 text-[10px] text-purple-600 font-semibold hover:text-purple-800 px-1 mr-1">
                                           <Undo className="w-3 h-3" /> 감액 취소
                                         </button>
                                       )}
-                                      <button onClick={() => setEditingDetail({ covId: cov.id, idx, tempName: detail.name, tempAmount: detail.amount, tempRenewalType: detail.renewal_type || '비갱신', mode: 'reduce' })} className="cursor-pointer flex items-center gap-1 text-[10px] text-gray-500 hover:text-purple-600 px-1">
+                                      <button onClick={() => setEditingDetail({ covId: cov.id, idx: originalIndex, tempName: detail.name, tempAmount: detail.amount, tempRenewalType: detail.renewal_type || '비갱신', mode: 'reduce' })} className="cursor-pointer flex items-center gap-1 text-[10px] text-gray-500 hover:text-purple-600 px-1">
                                         <TrendingDown className="w-3 h-3" /> 감액
                                       </button>
-                                      <button onClick={() => handleToggleDetailDelete(cov.id, idx)} className="cursor-pointer flex items-center gap-1 text-[10px] text-gray-500 hover:text-orange-500 px-1">
+                                      <button onClick={() => handleToggleDetailDelete(cov.id, originalIndex)} className="cursor-pointer flex items-center gap-1 text-[10px] text-gray-500 hover:text-orange-500 px-1">
                                         <MinusCircle className="w-3 h-3" /> 부분해지
                                       </button>
-                                      <button onClick={() => setEditingDetail({ covId: cov.id, idx, tempName: detail.name, tempAmount: detail.amount, tempRenewalType: detail.renewal_type || '비갱신', mode: 'edit' })} className="cursor-pointer flex items-center gap-1 text-[10px] text-gray-500 hover:text-blue-600 px-1">
+                                      <button onClick={() => setEditingDetail({ covId: cov.id, idx: originalIndex, tempName: detail.name, tempAmount: detail.amount, tempRenewalType: detail.renewal_type || '비갱신', mode: 'edit' })} className="cursor-pointer flex items-center gap-1 text-[10px] text-gray-500 hover:text-blue-600 px-1">
                                         <Edit2 className="w-3 h-3" /> 수정
                                       </button>
-                                      <button onClick={() => handlePermanentlyDeleteDetail(cov.id, idx)} className="cursor-pointer flex items-center gap-1 text-[10px] text-gray-500 hover:text-red-500 px-1">
+                                      <button onClick={() => handlePermanentlyDeleteDetail(cov.id, originalIndex)} className="cursor-pointer flex items-center gap-1 text-[10px] text-gray-500 hover:text-red-500 px-1">
                                         <Trash2 className="w-3 h-3" /> 삭제
                                       </button>
                                     </>

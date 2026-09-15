@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { X, Settings2, RotateCcw, Star, Search, Check, AlertCircle, Plus, Trash2 } from "lucide-react";
-import { COVERAGE_OPTIONS } from "@/lib/coverageMapper";
+import { X, Settings2, Star, Search, Check, AlertCircle, Plus, Trash2, CheckCircle2 } from "lucide-react";
+// import { COVERAGE_OPTIONS } from "@/lib/coverageMapper";
 import { CHART_CONFIG } from "@/app/clients/[id]/analysis/page";
 
 // ⭐️ 데이터 상수 (기존과 동일)
-const CIRCULATORY_CODES = [ /* ... 기존 코드 유지 (생략 없이 원본 그대로 사용했습니다) ... */ 
+const CIRCULATORY_CODES = [
   {
     group: "순환계질환 [뇌, 심장, 혈관]",
     items: [
@@ -52,7 +52,7 @@ const CIRCULATORY_CODES = [ /* ... 기존 코드 유지 (생략 없이 원본 �
   }
 ];
 
-const CANCER_CODES = [ /* ... 기존 코드 유지 ... */ 
+const CANCER_CODES = [
   {
     group: "악성 신생물 [일반암, 제자리암, 경계성종양]",
     items: [
@@ -113,10 +113,9 @@ export default function SettingsModal({
   initialCoverageOverrides, initialIncludeSanjeong,
   initialRadarTargets,
   initialRadarRates,
-  initialPensionOverrides // 🚀 연금 설정 Props 추가
+  initialPensionOverrides
 }: any) {
   
-  // ⭐️ 'pension' 탭 타입을 추가합니다.
   const [settingsTab, setSettingsTab] = useState<'kcd' | 'coverage' | 'radar' | 'pension'>('radar');
   const [tempKcdOverrides, setTempKcdOverrides] = useState(initialKcdOverrides || {});
   const [tempVisibleCoverages, setTempVisibleCoverages] = useState(initialVisibleCoverages || []);
@@ -124,7 +123,7 @@ export default function SettingsModal({
   const [tempCoverageOverrides, setTempCoverageOverrides] = useState(initialCoverageOverrides || {});
   const [tempRadarTargets, setTempRadarTargets] = useState<Record<string, number>>(initialRadarTargets || {});
   const [tempRadarRates, setTempRadarRates] = useState<Record<string, { before?: number, after?: number }>>(initialRadarRates || {});
-  const [tempPensionOverrides, setTempPensionOverrides] = useState<Record<string, number>>(initialPensionOverrides || {}); // 🚀 연금 설정 상태 추가
+  const [tempPensionOverrides, setTempPensionOverrides] = useState<Record<string, number>>(initialPensionOverrides || {}); 
   const [tempIncludeSanjeong, setTempIncludeSanjeong] = useState({
       brain: initialIncludeSanjeong?.brain || false,
       heart: initialIncludeSanjeong?.heart || false,
@@ -133,6 +132,9 @@ export default function SettingsModal({
   });
   const [searchCovItem, setSearchCovItem] = useState("");
   const [customInputs, setCustomInputs] = useState<Record<string, { name: string, before: string, after: string }>>({});
+
+  // ⭐️ 상태 추가: 저장 중 및 저장 완료 상태
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   if (!isOpen) return null;
 
@@ -193,17 +195,25 @@ export default function SettingsModal({
     setTempCustomCoverages((prev: any[]) => prev.filter(c => c.id !== id));
   };
 
-  const handleSave = () => {
-    onSave({
-      kcdOverrides: tempKcdOverrides,
-      visibleCoverages: tempVisibleCoverages,
-      customCoverages: tempCustomCoverages,
-      coverageOverrides: tempCoverageOverrides,
-      includeSanjeong: tempIncludeSanjeong,
-      radarTargets: tempRadarTargets,
-      radarRates: tempRadarRates,
-      pensionOverrides: tempPensionOverrides // 🚀 연금 저장 데이터 전송
-    });
+  // ⭐️ 저장 핸들러 업데이트 (모달이 스스로 닫히지 않고 상태만 변경)
+  const handleSave = async () => {
+    try {
+      await onSave({
+        kcdOverrides: tempKcdOverrides,
+        visibleCoverages: tempVisibleCoverages,
+        customCoverages: tempCustomCoverages,
+        coverageOverrides: tempCoverageOverrides,
+        includeSanjeong: tempIncludeSanjeong,
+        radarTargets: tempRadarTargets,
+        radarRates: tempRadarRates,
+        pensionOverrides: tempPensionOverrides 
+      });
+      
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 1000);
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   const handleTempRadarTarget = (label: string, value: string) => {
@@ -229,7 +239,6 @@ export default function SettingsModal({
     });
   };
 
-  // 🚀 연금 데이터 핸들러 추가
   const handleTempPensionOverride = (key: string, value: string) => {
     const num = value === "" ? undefined : parseInt(value);
     setTempPensionOverrides((prev: any) => {
@@ -240,169 +249,156 @@ export default function SettingsModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
-      <div className="bg-slate-50 rounded-[2rem] w-full max-w-5xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden border border-slate-200">
+    <>
+      <div className="lg:hidden fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm transition-opacity" onClick={onClose}></div>
+      
+      <div className="fixed inset-x-0 bottom-0 lg:inset-auto lg:top-0 lg:right-0 lg:h-full z-[100] w-full lg:w-[400px] lg:shadow-[-10px_0_30px_-15px_rgba(0,0,0,0.3)] lg:border-l border-slate-200 bg-white flex flex-col transition-transform transform rounded-t-3xl lg:rounded-none overflow-hidden max-h-[90vh] lg:max-h-full animate-in slide-in-from-bottom lg:slide-in-from-right duration-300 ease-out">
         
-        {/* 모달 헤더 */}
-        <div className="bg-white px-6 py-5 border-b border-slate-200 flex justify-between items-center shrink-0">
+        {/* 헤더 */}
+        <div className="bg-white px-5 py-4 border-b border-slate-100 flex justify-between items-center shrink-0">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+            <div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg">
               <Settings2 className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-xl font-black text-slate-800">분석표 세부 설정</h2>
-              <p className="text-[11px] text-slate-400 font-bold mt-0.5">수동 조정 내역은 현재 고객에게만 저장됩니다.</p>
+              <h2 className="text-lg font-black text-slate-800">분석표 세부 설정</h2>
+              <p className="text-[10px] text-slate-400 font-bold mt-0.5">수동 조정 내역은 현재 고객에게만 저장됩니다.</p>
             </div>
           </div>
-          <button onClick={onClose} className="cursor-pointer p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors">
-            <X className="w-6 h-6" />
+          <button onClick={onClose} className="cursor-pointer p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors">
+            <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* 모달 탭 */}
-        <div className="flex px-6 bg-white border-b border-slate-200 shrink-0 overflow-x-auto no-scrollbar">
+        {/* 탭 네비게이션 */}
+        <div className="flex px-2 bg-white border-b border-slate-100 shrink-0 overflow-x-auto no-scrollbar">
           <button
             onClick={() => setSettingsTab('radar')}
-            className={`cursor-pointer px-4 py-3.5 text-sm font-black transition-colors relative whitespace-nowrap ${settingsTab === 'radar' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
+            className={`cursor-pointer px-3 py-3 text-[13px] font-black transition-colors relative whitespace-nowrap ${settingsTab === 'radar' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
           >
-            차트 목표액 설정
+            차트 목표액
             {settingsTab === 'radar' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 rounded-t-md" />}
           </button>
           
-          {/* ⭐️ 노후 연금 설정 탭 추가 */}
           <button
             onClick={() => setSettingsTab('pension')}
-            className={`cursor-pointer px-4 py-3.5 text-sm font-black transition-colors relative whitespace-nowrap ${settingsTab === 'pension' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
+            className={`cursor-pointer px-3 py-3 text-[13px] font-black transition-colors relative whitespace-nowrap ${settingsTab === 'pension' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
           >
-            노후 연금 설정
+            노후 연금
             {settingsTab === 'pension' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 rounded-t-md" />}
           </button>
 
           <button
             onClick={() => setSettingsTab('coverage')}
-            className={`cursor-pointer px-4 py-3.5 text-sm font-black transition-colors relative whitespace-nowrap ${settingsTab === 'coverage' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
+            className={`cursor-pointer px-3 py-3 text-[13px] font-black transition-colors relative whitespace-nowrap ${settingsTab === 'coverage' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
           >
-            보장표 항목 설정
+            보장표 항목
             {settingsTab === 'coverage' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 rounded-t-md" />}
           </button>
           <button
             onClick={() => setSettingsTab('kcd')}
-            className={`cursor-pointer px-4 py-3.5 text-sm font-black transition-colors relative whitespace-nowrap ${settingsTab === 'kcd' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
+            className={`cursor-pointer px-3 py-3 text-[13px] font-black transition-colors relative whitespace-nowrap ${settingsTab === 'kcd' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
           >
-            질환별 진단비 조정 (KCD)
+            질환진단비(KCD)
             {settingsTab === 'kcd' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 rounded-t-md" />}
           </button>
         </div>
 
-        {/* 모달 컨텐츠 영역 */}
-        <div className="flex-1 overflow-y-auto p-6 relative">
+        {/* 메인 컨텐츠 스크롤 영역 */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5 bg-slate-50/50">
           
           {/* 1. KCD 수동 조정 탭 */}
           {settingsTab === 'kcd' && (
-            <div className="space-y-6">
-              
-              {/* 산정특례 및 특정순환계 체크박스 영역 */}
-              <div className="bg-white p-5 rounded-2xl border border-blue-100 shadow-sm">
-                <h4 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
+            <div className="space-y-4">
+              <div className="bg-white p-4 rounded-xl border border-blue-100 shadow-sm">
+                <h4 className="font-bold text-slate-800 text-[13px] mb-3 flex items-center gap-1.5">
                   <AlertCircle className="w-4 h-4 text-blue-500" />
-                  산정특례 및 특정순환계 KCD 합산 여부
+                  산정특례 / 특정순환계 병합
                 </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <label className="flex items-center gap-2 cursor-pointer p-3 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
+                <div className="flex flex-col gap-2">
+                  <label className="flex items-center gap-2 cursor-pointer p-2.5 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
                     <input type="checkbox" className="cursor-pointer w-4 h-4 rounded text-blue-600 border-slate-300"
                            checked={tempIncludeSanjeong.brain}
                            onChange={(e) => setTempIncludeSanjeong((p: any) => ({...p, brain: e.target.checked}))} />
-                    <span className="text-sm font-bold text-slate-700">뇌혈관 산정특례 합산</span>
+                    <span className="text-xs font-bold text-slate-700">뇌혈관 산정특례 합산</span>
                   </label>
-                  <label className="flex items-center gap-2 cursor-pointer p-3 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
+                  <label className="flex items-center gap-2 cursor-pointer p-2.5 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
                     <input type="checkbox" className="cursor-pointer w-4 h-4 rounded text-blue-600 border-slate-300"
                            checked={tempIncludeSanjeong.heart}
                            onChange={(e) => setTempIncludeSanjeong((p: any) => ({...p, heart: e.target.checked}))} />
-                    <span className="text-sm font-bold text-slate-700">심혈관 산정특례 합산</span>
+                    <span className="text-xs font-bold text-slate-700">심혈관 산정특례 합산</span>
                   </label>
-                  <label className="flex items-center gap-2 cursor-pointer p-3 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
+                  <label className="flex items-center gap-2 cursor-pointer p-2.5 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
                     <input type="checkbox" className="cursor-pointer w-4 h-4 rounded text-emerald-600 border-slate-300"
                            checked={tempIncludeSanjeong.circAll}
                            onChange={(e) => setTempIncludeSanjeong((p: any) => ({...p, circAll: e.target.checked}))} />
-                    <span className="text-sm font-bold text-slate-700">미래에셋생명 - 특정순환계 합산</span>
+                    <span className="text-xs font-bold text-slate-700">특정순환계 합산</span>
                   </label>
-                  <label className="flex items-center gap-2 cursor-pointer p-3 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
+                  <label className="flex items-center gap-2 cursor-pointer p-2.5 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
                     <input type="checkbox" className="cursor-pointer w-4 h-4 rounded text-emerald-600 border-slate-300"
                            checked={tempIncludeSanjeong.circExcl}
                            onChange={(e) => setTempIncludeSanjeong((p: any) => ({...p, circExcl: e.target.checked}))} />
-                    <span className="text-sm font-bold text-slate-700">미래에셋생명 - 특정순환계(뇌/심 제외) 합산</span>
+                    <span className="text-xs font-bold text-slate-700">특정순환계(뇌/심 제외) 합산</span>
                   </label>
                 </div>
               </div>
 
               {[...CIRCULATORY_CODES, ...CANCER_CODES].map((group, groupIdx) => (
-                <div key={groupIdx} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-                  <div className="bg-slate-100 px-4 py-3 border-b border-slate-200">
-                    <h3 className="font-black text-slate-700">{group.group}</h3>
+                <div key={groupIdx} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                  <div className="bg-slate-100/80 px-3 py-2 border-b border-slate-200">
+                    <h3 className="font-bold text-xs text-slate-700">{group.group}</h3>
                   </div>
-                  <table className="w-full text-sm text-left">
-                    <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
-                      <tr>
-                        <th className="py-3 px-4 w-[40%]">분류코드 및 질환명</th>
-                        <th className="py-3 px-2 w-[25%] text-center border-l border-slate-100">기존 보장액</th>
-                        <th className="py-3 px-2 w-[25%] text-center border-l border-slate-100">권장 보장액</th>
-                        <th className="py-3 px-2 w-[10%] text-center border-l border-slate-100">★</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {group.items.map((item, itemIdx) => {
-                        const override = tempKcdOverrides[item.id] || {};
-                        const isHighlight = override.highlight !== undefined ? override.highlight : item.highlight;
-                        
-                        const calcBefore = calculateCodeCoverage(item.keywords, 'before', item.id, tempIncludeSanjeong, tempCoverageOverrides, tempCustomCoverages);
-                        const calcAfter = calculateCodeCoverage(item.keywords, 'after', item.id, tempIncludeSanjeong, tempCoverageOverrides, tempCustomCoverages);
-                        
-                        const showBefore = override.before !== undefined ? override.before : calcBefore;
-                        const showAfter = override.after !== undefined ? override.after : calcAfter;
-
-                        return (
-                          <tr key={itemIdx} className="hover:bg-slate-50/50 transition-colors">
-                            <td className="py-2 px-4">
-                              <p className="font-bold text-slate-800 text-[13px]">{item.name}</p>
-                              <p className="text-[10px] text-slate-400">{item.id}</p>
-                            </td>
-                            <td className="py-2 px-2 border-l border-slate-100">
-                              <div className="relative">
-                                <input
-                                  type="number"
-                                  placeholder={calcBefore.toString()}
-                                  value={override.before !== undefined ? override.before : ""}
-                                  onChange={(e) => handleTempKcdOverride(item.id, 'before', e.target.value === "" ? undefined : parseInt(e.target.value))}
-                                  className={`w-full text-right pr-6 py-1.5 px-2 rounded-md border text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none transition-colors ${override.before !== undefined ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-slate-200 bg-white text-slate-700'}`}
-                                />
-                                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold pointer-events-none">만</span>
-                              </div>
-                            </td>
-                            <td className="py-2 px-2 border-l border-slate-100">
-                              <div className="relative">
-                                <input
-                                  type="number"
-                                  placeholder={calcAfter.toString()}
-                                  value={override.after !== undefined ? override.after : ""}
-                                  onChange={(e) => handleTempKcdOverride(item.id, 'after', e.target.value === "" ? undefined : parseInt(e.target.value))}
-                                  className={`w-full text-right pr-6 py-1.5 px-2 rounded-md border text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none transition-colors ${override.after !== undefined ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-slate-200 bg-blue-50/20 text-blue-700'}`}
-                                />
-                                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold pointer-events-none">만</span>
-                              </div>
-                            </td>
-                            <td className="py-2 px-2 border-l border-slate-100 text-center">
-                              <button
-                                onClick={() => handleTempKcdOverride(item.id, 'highlight', !isHighlight)}
-                                className={`cursor-pointer mx-auto p-1.5 rounded-md transition-colors block ${isHighlight ? 'bg-amber-100 text-amber-500 hover:bg-amber-200' : 'bg-slate-100 text-slate-300 hover:bg-slate-200'}`}
-                              >
-                                <Star className={`w-4 h-4 ${isHighlight ? 'fill-amber-500' : ''}`} />
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                  <div className="divide-y divide-slate-100">
+                    {group.items.map((item, itemIdx) => {
+                      const override = tempKcdOverrides[item.id] || {};
+                      const isHighlight = override.highlight !== undefined ? override.highlight : item.highlight;
+                      
+                      const calcBefore = calculateCodeCoverage(item.keywords, 'before', item.id, tempIncludeSanjeong, tempCoverageOverrides, tempCustomCoverages);
+                      const calcAfter = calculateCodeCoverage(item.keywords, 'after', item.id, tempIncludeSanjeong, tempCoverageOverrides, tempCustomCoverages);
+                      
+                      return (
+                        <div key={itemIdx} className="p-3 hover:bg-slate-50/50 transition-colors flex flex-col gap-2">
+                          <div className="flex justify-between items-start">
+                            <div className="pr-2">
+                              <p className="font-bold text-slate-800 text-xs">{item.name}</p>
+                              <p className="text-[10px] text-slate-400 mt-0.5">{item.id}</p>
+                            </div>
+                            <button
+                              onClick={() => handleTempKcdOverride(item.id, 'highlight', !isHighlight)}
+                              className={`cursor-pointer p-1 rounded transition-colors shrink-0 ${isHighlight ? 'text-amber-500' : 'text-slate-300'}`}
+                            >
+                              <Star className={`w-4 h-4 ${isHighlight ? 'fill-amber-500' : ''}`} />
+                            </button>
+                          </div>
+                          
+                          <div className="flex gap-2">
+                            <div className="relative flex-1">
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">기존</span>
+                              <input
+                                type="number"
+                                placeholder={calcBefore.toString()}
+                                value={override.before !== undefined ? override.before : ""}
+                                onChange={(e) => handleTempKcdOverride(item.id, 'before', e.target.value === "" ? undefined : parseInt(e.target.value))}
+                                className={`w-full text-right pr-6 pl-8 py-1 rounded-md border text-xs font-bold focus:ring-1 focus:ring-blue-500 outline-none transition-colors ${override.before !== undefined ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-slate-200 bg-slate-50/50 text-slate-700'}`}
+                              />
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold pointer-events-none">만</span>
+                            </div>
+                            <div className="relative flex-1">
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-blue-400">권장</span>
+                              <input
+                                type="number"
+                                placeholder={calcAfter.toString()}
+                                value={override.after !== undefined ? override.after : ""}
+                                onChange={(e) => handleTempKcdOverride(item.id, 'after', e.target.value === "" ? undefined : parseInt(e.target.value))}
+                                className={`w-full text-right pr-6 pl-8 py-1 rounded-md border text-xs font-bold focus:ring-1 focus:ring-blue-500 outline-none transition-colors ${override.after !== undefined ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-blue-200 bg-blue-50/30 text-blue-700'}`}
+                              />
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-blue-400 font-bold pointer-events-none">만</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               ))}
             </div>
@@ -410,16 +406,16 @@ export default function SettingsModal({
 
           {/* 2. 보장표 항목 설정 탭 */}
           {settingsTab === 'coverage' && (
-            <div className="space-y-6">
-              <div className="sticky -top-6 z-20 bg-slate-50 pt-6 pb-4 -mx-6 px-6 -mt-6 border-b border-slate-200 shadow-sm mb-2">
+            <div className="space-y-4">
+              <div className="sticky -top-5 z-20 bg-slate-50/50 backdrop-blur-md pt-4 pb-3 -mx-4 px-4 -mt-5">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input
                     type="text"
                     placeholder="보장 항목 검색..."
                     value={searchCovItem}
                     onChange={(e) => setSearchCovItem(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 bg-white text-sm font-bold outline-none shadow-sm"
+                    className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white text-xs font-bold outline-none shadow-sm"
                   />
                 </div>
               </div>
@@ -432,122 +428,108 @@ export default function SettingsModal({
                 if (allItems.length === 0 && !cat.toLowerCase().includes(searchCovItem.toLowerCase())) return null;
 
                 return (
-                  <div key={cat} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-                    <div className="bg-slate-100 px-4 py-3 border-b border-slate-200">
-                      <h3 className="font-black text-slate-700">{cat}</h3>
+                  <div key={cat} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                    <div className="bg-slate-100/80 px-3 py-2 border-b border-slate-200">
+                      <h3 className="font-black text-xs text-slate-700">{cat}</h3>
                     </div>
                     
-                    <table className="w-full text-sm text-left">
-                      <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
-                        <tr>
-                          <th className="py-3 px-4 w-[40%]">보장 항목명</th>
-                          <th className="py-3 px-2 w-[25%] text-center border-l border-slate-100">기존 보장액</th>
-                          <th className="py-3 px-2 w-[25%] text-center border-l border-slate-100">권장 보장액</th>
-                          <th className="py-3 px-2 w-[10%] text-center border-l border-slate-100">관리</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {allItems.map((item: any, idx: number) => {
-                          const isCustom = !!item.id;
-                          const isVisible = tempVisibleCoverages.includes(item.name) || isCustom;
-                          const override = tempCoverageOverrides[item.name] || {};
+                    <div className="divide-y divide-slate-100">
+                      {allItems.map((item: any, idx: number) => {
+                        const isCustom = !!item.id;
+                        const isVisible = tempVisibleCoverages.includes(item.name) || isCustom;
+                        const override = tempCoverageOverrides[item.name] || {};
 
-                          return (
-                            <tr key={isCustom ? item.id : idx} className={`transition-colors ${isVisible ? 'hover:bg-slate-50/50' : 'bg-slate-50 opacity-60'}`}>
-                              <td className="py-2 px-4">
-                                <div className="flex items-center gap-2">
-                                  {!isCustom && (
-                                    <label className="flex items-center cursor-pointer shrink-0">
-                                      <input
-                                        type="checkbox"
-                                        checked={isVisible}
-                                        onChange={() => toggleVisibleCoverage(item.name)}
-                                        className="cursor-pointer w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500"
-                                      />
-                                    </label>
-                                  )}
-                                  <p className={`font-bold text-[13px] ${isVisible ? 'text-slate-800' : 'text-slate-500'}`}>
-                                    {isCustom && <span className="text-orange-500 mr-1">★</span>}
-                                    {item.name}
-                                  </p>
-                                </div>
-                              </td>
-                              <td className="py-2 px-2 border-l border-slate-100">
-                                {isVisible && !isCustom ? (
-                                  <div className="relative">
-                                    <input
-                                      type="number"
-                                      placeholder={item.before.toString()}
-                                      value={override.before !== undefined ? override.before : ""}
-                                      onChange={(e) => handleTempCoverageOverride(item.name, 'before', e.target.value === "" ? undefined : parseInt(e.target.value))}
-                                      className={`w-full text-right pr-6 py-1.5 px-2 rounded-md border text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none transition-colors ${override.before !== undefined ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-slate-200 bg-white text-slate-700'}`}
-                                    />
-                                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold pointer-events-none">만</span>
-                                  </div>
-                                ) : isCustom ? (
-                                  <div className="text-center font-bold text-slate-500 text-[13px] py-1.5">{formatDetailAmount(item.before)}만</div>
-                                ) : null}
-                              </td>
-                              <td className="py-2 px-2 border-l border-slate-100">
-                                {isVisible && !isCustom ? (
-                                  <div className="relative">
-                                    <input
-                                      type="number"
-                                      placeholder={item.after.toString()}
-                                      value={override.after !== undefined ? override.after : ""}
-                                      onChange={(e) => handleTempCoverageOverride(item.name, 'after', e.target.value === "" ? undefined : parseInt(e.target.value))}
-                                      className={`w-full text-right pr-6 py-1.5 px-2 rounded-md border text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none transition-colors ${override.after !== undefined ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-slate-200 bg-blue-50/20 text-blue-700'}`}
-                                    />
-                                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold pointer-events-none">만</span>
-                                  </div>
-                                ) : isCustom ? (
-                                  <div className="text-center font-bold text-blue-600 text-[13px] py-1.5">{formatDetailAmount(item.after)}만</div>
-                                ) : null}
-                              </td>
-                              <td className="py-2 px-2 border-l border-slate-100 text-center">
-                                {isCustom && (
-                                  <button onClick={() => handleDeleteCustomCoverage(item.id)} className="cursor-pointer p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors mx-auto block">
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
+                        return (
+                          <div key={isCustom ? item.id : idx} className={`p-3 transition-colors flex flex-col gap-2 ${isVisible ? 'hover:bg-slate-50/50' : 'bg-slate-50 opacity-60'}`}>
+                            <div className="flex items-start justify-between">
+                              <div className="flex items-start gap-2 pr-2">
+                                {!isCustom && (
+                                  <input
+                                    type="checkbox"
+                                    checked={isVisible}
+                                    onChange={() => toggleVisibleCoverage(item.name)}
+                                    className="cursor-pointer mt-0.5 w-3.5 h-3.5 rounded text-blue-600 border-slate-300 shrink-0"
+                                  />
                                 )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                                <p className={`font-bold text-[12px] leading-tight ${isVisible ? 'text-slate-800' : 'text-slate-500'}`}>
+                                  {isCustom && <span className="text-orange-500 mr-0.5">★</span>}
+                                  {item.name}
+                                </p>
+                              </div>
+                              {isCustom && (
+                                <button onClick={() => handleDeleteCustomCoverage(item.id)} className="cursor-pointer p-1 text-slate-300 hover:text-red-500 bg-white rounded-md shrink-0">
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                            
+                            <div className="flex gap-2">
+                              <div className="relative flex-1">
+                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">기존</span>
+                                {isVisible && !isCustom ? (
+                                  <input
+                                    type="number"
+                                    placeholder={item.before.toString()}
+                                    value={override.before !== undefined ? override.before : ""}
+                                    onChange={(e) => handleTempCoverageOverride(item.name, 'before', e.target.value === "" ? undefined : parseInt(e.target.value))}
+                                    className={`w-full text-right pr-6 pl-8 py-1 rounded-md border text-xs font-bold focus:ring-1 focus:ring-blue-500 outline-none transition-colors ${override.before !== undefined ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-slate-200 bg-white text-slate-700'}`}
+                                  />
+                                ) : (
+                                  <div className="w-full text-right pr-6 pl-8 py-1 rounded-md border border-transparent bg-slate-50 text-xs font-bold text-slate-500">{item.before}</div>
+                                )}
+                                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold pointer-events-none">만</span>
+                              </div>
 
-                    <div className="flex items-center w-full p-2 bg-blue-50/50 border-t border-slate-200">
-                      <div className="w-[40%] pr-2">
-                        <input
-                          type="text"
-                          placeholder="새 항목명 입력..."
-                          value={customInputs[cat]?.name || ""}
-                          onChange={(e) => handleCustomInputChange(cat, 'name', e.target.value)}
-                          className="w-full py-1.5 px-3 rounded-md border border-slate-200 text-sm font-bold outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                        />
-                      </div>
-                      <div className="w-[25%] px-1 relative">
-                        <input
-                          type="text"
-                          placeholder="기존액"
-                          value={customInputs[cat]?.before || ""}
-                          onChange={(e) => handleCustomInputChange(cat, 'before', e.target.value)}
-                          className="w-full text-right pr-6 py-1.5 px-2 rounded-md border border-slate-200 text-sm font-bold outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                        />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold pointer-events-none">만</span>
-                      </div>
-                      <div className="w-[25%] px-1 relative">
-                        <input
-                          type="text"
-                          placeholder="권장액"
-                          value={customInputs[cat]?.after || ""}
-                          onChange={(e) => handleCustomInputChange(cat, 'after', e.target.value)}
-                          className="w-full text-right pr-6 py-1.5 px-2 rounded-md border border-slate-200 text-sm font-bold outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                        />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold pointer-events-none">만</span>
-                      </div>
-                      <div className="w-[10%] flex justify-center pl-1">
+                              <div className="relative flex-1">
+                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-blue-400">권장</span>
+                                {isVisible && !isCustom ? (
+                                  <input
+                                    type="number"
+                                    placeholder={item.after.toString()}
+                                    value={override.after !== undefined ? override.after : ""}
+                                    onChange={(e) => handleTempCoverageOverride(item.name, 'after', e.target.value === "" ? undefined : parseInt(e.target.value))}
+                                    className={`w-full text-right pr-6 pl-8 py-1 rounded-md border text-xs font-bold focus:ring-1 focus:ring-blue-500 outline-none transition-colors ${override.after !== undefined ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-blue-200 bg-blue-50/30 text-blue-700'}`}
+                                  />
+                                ) : (
+                                  <div className="w-full text-right pr-6 pl-8 py-1 rounded-md border border-transparent bg-blue-50/30 text-xs font-bold text-blue-600">{item.after}</div>
+                                )}
+                                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-blue-400 font-bold pointer-events-none">만</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="p-2.5 bg-blue-50/30 border-t border-slate-200 flex flex-col gap-2">
+                      <input
+                        type="text"
+                        placeholder="새 항목명 입력..."
+                        value={customInputs[cat]?.name || ""}
+                        onChange={(e) => handleCustomInputChange(cat, 'name', e.target.value)}
+                        className="w-full py-1.5 px-3 rounded-md border border-slate-200 text-xs font-bold outline-none focus:border-blue-400"
+                      />
+                      <div className="flex gap-2">
+                        <div className="relative flex-1">
+                          <input
+                            type="text"
+                            placeholder="기존액"
+                            value={customInputs[cat]?.before || ""}
+                            onChange={(e) => handleCustomInputChange(cat, 'before', e.target.value)}
+                            className="w-full text-right pr-5 py-1.5 pl-2 rounded-md border border-slate-200 text-xs font-bold outline-none focus:border-blue-400"
+                          />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold pointer-events-none">만</span>
+                        </div>
+                        <div className="relative flex-1">
+                          <input
+                            type="text"
+                            placeholder="권장액"
+                            value={customInputs[cat]?.after || ""}
+                            onChange={(e) => handleCustomInputChange(cat, 'after', e.target.value)}
+                            className="w-full text-right pr-5 py-1.5 pl-2 rounded-md border border-slate-200 text-xs font-bold outline-none focus:border-blue-400"
+                          />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold pointer-events-none">만</span>
+                        </div>
                         <button
                           onClick={() => handleAddCustomCoverage(cat)}
                           className="cursor-pointer p-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors shadow-sm"
@@ -556,7 +538,6 @@ export default function SettingsModal({
                         </button>
                       </div>
                     </div>
-
                   </div>
                 );
               })}
@@ -565,144 +546,118 @@ export default function SettingsModal({
 
           {/* 3. 차트 목표액 설정 탭 */}
           {settingsTab === 'radar' && (
-            <div className="space-y-6">
-              <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 shadow-sm">
-                 <p className="text-sm font-bold text-blue-800 flex items-center gap-2">
-                   <AlertCircle className="w-5 h-5 text-blue-600"/> 
-                   4대 핵심 보장 차트의 100% 기준이 되는 '권장 목표 금액'을 설정합니다.
-                 </p>
-                 <p className="text-[11px] text-blue-600/80 mt-1 ml-7">입력하지 않으면 기본 권장 목표액이 자동으로 적용됩니다.</p>
-              </div>
-
+            <div className="space-y-4">
               {CHART_CONFIG.map((cat, idx) => (
-                <div key={idx} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-                  <div className="bg-slate-100 px-4 py-3 border-b border-slate-200 flex justify-between items-center">
-                    <h3 className="font-black text-slate-700">{cat.title} 카테고리 목표 설정</h3>
+                <div key={idx} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                  <div className="bg-slate-100/80 px-3 py-2 border-b border-slate-200 flex justify-between items-center">
+                    <h3 className="font-black text-xs text-slate-700">{cat.title} 목표 설정</h3>
                   </div>
                   
-                  <table className="w-full text-sm text-left">
-                    <thead className="bg-slate-50 text-slate-500 text-[11px] uppercase tracking-wider">
-                      <tr>
-                        <th className="py-3 px-4 w-[35%]">보장 항목명</th>
-                        <th className="py-3 px-2 w-[22%] text-center border-l border-slate-100">100% 목표액</th>
-                        <th className="py-3 px-2 w-[21%] text-center border-l border-slate-100">기존 달성율(%)</th>
-                        <th className="py-3 px-2 w-[22%] text-center border-l border-slate-100 text-blue-600">권장 달성율(%)</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {cat.items.map((item, itemIdx) => (
-                        <tr key={itemIdx} className="hover:bg-slate-50/50 transition-colors">
-                          <td className="py-2 px-4">
-                            <p className="font-bold text-slate-800 text-[12px]">{item.label}</p>
-                          </td>
-                          <td className="py-2 px-2 border-l border-slate-100">
+                  <div className="divide-y divide-slate-100">
+                    {cat.items.map((item, itemIdx) => (
+                      <div key={itemIdx} className="p-3 hover:bg-slate-50/50 transition-colors flex flex-col gap-2">
+                        <p className="font-bold text-slate-800 text-xs">{item.label}</p>
+                        
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-[9px] font-bold text-slate-400">100% 목표금액</span>
                             <div className="relative">
                               <input
                                 type="number"
                                 placeholder={item.defaultTarget.toString()}
                                 value={tempRadarTargets[item.label] !== undefined ? tempRadarTargets[item.label] : ""}
                                 onChange={(e) => handleTempRadarTarget(item.label, e.target.value)}
-                                className={`w-full text-right pr-5 py-1.5 px-2 rounded-md border text-sm font-bold outline-none transition-colors ${tempRadarTargets[item.label] !== undefined ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-slate-200 bg-white text-slate-700'}`}
+                                className={`w-full text-right pr-5 py-1 px-2 rounded border text-xs font-bold outline-none transition-colors ${tempRadarTargets[item.label] !== undefined ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-slate-200 bg-white text-slate-700'}`}
                               />
                             </div>
-                          </td>
-                          <td className="py-2 px-2 border-l border-slate-100">
+                          </div>
+                          
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-[9px] font-bold text-slate-400">기존 달성율(강제)</span>
                             <div className="relative">
                               <input
                                 type="number"
-                                placeholder="자동"
+                                placeholder="자동계산"
                                 value={tempRadarRates[item.label]?.before !== undefined ? tempRadarRates[item.label].before : ""}
                                 onChange={(e) => handleTempRadarRate(item.label, 'before', e.target.value)}
-                                className={`w-full text-right pr-6 py-1.5 px-2 rounded-md border text-sm font-bold outline-none transition-colors ${tempRadarRates[item.label]?.before !== undefined ? 'border-indigo-400 bg-indigo-50 text-indigo-700' : 'border-slate-200 bg-slate-50/50 text-slate-500'}`}
+                                className={`w-full text-right pr-5 py-1 px-2 rounded border text-xs font-bold outline-none transition-colors ${tempRadarRates[item.label]?.before !== undefined ? 'border-indigo-400 bg-indigo-50 text-indigo-700' : 'border-slate-200 bg-slate-50 text-slate-500'}`}
                               />
-                              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold pointer-events-none">%</span>
+                              <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] text-slate-400 font-bold">%</span>
                             </div>
-                          </td>
-                          <td className="py-2 px-2 border-l border-slate-100">
+                          </div>
+                          
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-[9px] font-bold text-blue-400">권장 달성율(강제)</span>
                             <div className="relative">
                               <input
                                 type="number"
-                                placeholder="자동"
+                                placeholder="자동계산"
                                 value={tempRadarRates[item.label]?.after !== undefined ? tempRadarRates[item.label].after : ""}
                                 onChange={(e) => handleTempRadarRate(item.label, 'after', e.target.value)}
-                                className={`w-full text-right pr-6 py-1.5 px-2 rounded-md border text-sm font-bold outline-none transition-colors ${tempRadarRates[item.label]?.after !== undefined ? 'border-emerald-400 bg-emerald-50 text-emerald-700' : 'border-blue-200 bg-blue-50/30 text-blue-700'}`}
+                                className={`w-full text-right pr-5 py-1 px-2 rounded border text-xs font-bold outline-none transition-colors ${tempRadarRates[item.label]?.after !== undefined ? 'border-emerald-400 bg-emerald-50 text-emerald-700' : 'border-blue-200 bg-blue-50 text-blue-700'}`}
                               />
-                              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-blue-400 font-bold pointer-events-none">%</span>
+                              <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] text-blue-400 font-bold">%</span>
                             </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>
           )}
 
-          {/* 4. ⭐️ 노후 연금 설정 탭 (신규 추가!) */}
+          {/* 4. 노후 연금 설정 탭 */}
           {settingsTab === 'pension' && (
-            <div className="space-y-6">
-              <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 shadow-sm">
-                 <p className="text-sm font-bold text-blue-800 flex items-center gap-2">
-                   <AlertCircle className="w-5 h-5 text-blue-600"/> 
-                   3층 연금탑 진단에 사용되는 기준 금액을 수동으로 조정합니다.
-                 </p>
-                 <p className="text-[11px] text-blue-600/80 mt-1 ml-7">입력하지 않으면 통계청 데이터 및 파싱된 보험 데이터가 자동으로 계산되어 적용됩니다.</p>
-              </div>
-
-              <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-                <table className="w-full text-sm text-left">
-                  <thead className="bg-slate-50 text-slate-500 text-[11px] uppercase tracking-wider">
-                    <tr>
-                      <th className="py-3 px-4 w-[50%]">연금 설정 항목</th>
-                      <th className="py-3 px-4 w-[50%] text-center border-l border-slate-100">수동 설정액 (단위: 만원)</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {[
-                      { key: 'target', label: '적정 노후 생활비 (목표선)', placeholder: '자동 (기본 198)' },
-                      { key: 'personal', label: '3층: 개인연금', placeholder: '자동 (분석된 연금보험료)' },
-                      { key: 'corporate', label: '2층: 퇴직연금', placeholder: '자동 (연령별 통계청 중위)' },
-                      { key: 'national', label: '1층: 국민연금', placeholder: '자동 (연령별 통계청 평균)' },
-                    ].map((item, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="py-3 px-4">
-                          <p className="font-bold text-slate-800 text-[13px]">{item.label}</p>
-                        </td>
-                        <td className="py-2 px-4 border-l border-slate-100">
-                          <div className="relative">
-                            <input
-                              type="number"
-                              placeholder={item.placeholder}
-                              value={tempPensionOverrides[item.key] !== undefined ? tempPensionOverrides[item.key] : ""}
-                              onChange={(e) => handleTempPensionOverride(item.key, e.target.value)}
-                              className={`w-full text-right pr-7 py-2 px-3 rounded-md border text-sm font-bold outline-none transition-colors ${tempPensionOverrides[item.key] !== undefined ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-slate-200 bg-white text-slate-700'}`}
-                            />
-                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold pointer-events-none">만</span>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            <div className="space-y-4">
+              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                <div className="divide-y divide-slate-100">
+                  {[
+                    { key: 'target', label: '적정 노후 생활비 (목표선)', placeholder: '자동 (기본 198)' },
+                    { key: 'personal', label: '3층: 개인연금', placeholder: '자동 (분석된 연금보험료)' },
+                    { key: 'corporate', label: '2층: 퇴직연금', placeholder: '자동 (통계청 연령 중위)' },
+                    { key: 'national', label: '1층: 국민연금', placeholder: '자동 (통계청 연령 평균)' },
+                  ].map((item, idx) => (
+                    <div key={idx} className="p-3.5 hover:bg-slate-50/50 transition-colors flex flex-col gap-1.5">
+                      <p className="font-bold text-slate-800 text-xs">{item.label}</p>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          placeholder={item.placeholder}
+                          value={tempPensionOverrides[item.key] !== undefined ? tempPensionOverrides[item.key] : ""}
+                          onChange={(e) => handleTempPensionOverride(item.key, e.target.value)}
+                          className={`w-full text-right pr-6 py-2 px-3 rounded-lg border text-sm font-bold outline-none transition-colors ${tempPensionOverrides[item.key] !== undefined ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-slate-200 bg-slate-50 text-slate-600 focus:bg-white focus:border-blue-400'}`}
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold pointer-events-none">만</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )}
 
         </div>
 
-        {/* 모달 푸터 (저장 버튼) */}
-        <div className="bg-white px-6 py-4 border-t border-slate-200 flex justify-end shrink-0 gap-3">
-          <button onClick={onClose} className="cursor-pointer px-5 py-2.5 rounded-xl font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">
-            취소
+        {/* ⭐️ 모달 푸터 (저장 버튼 영역 상태 피드백 적용) */}
+        <div className="bg-white px-5 py-4 border-t border-slate-200 flex justify-end shrink-0 gap-2.5 pb-safe">
+          <button onClick={onClose} className="cursor-pointer flex-1 lg:flex-none px-4 py-3 text-sm rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">
+            닫기
           </button>
-          <button onClick={handleSave} className="cursor-pointer px-6 py-2.5 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-sm flex items-center gap-2">
-            <Check className="w-4 h-4" />
-            설정 저장 및 적용
+          <button 
+            onClick={handleSave} 
+            disabled={saveSuccess}
+            className={`cursor-pointer flex-1 lg:flex-none px-5 py-3 text-sm rounded-xl font-bold text-white transition-colors shadow-sm flex items-center justify-center gap-2 ${
+              saveSuccess ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-blue-600 hover:bg-blue-700'
+            }`}
+          >
+            {saveSuccess ? <CheckCircle2 className="w-4 h-4" /> : <Check className="w-4 h-4" />}
+            {saveSuccess ? "적용 완료!" : "적용하기"}
           </button>
         </div>
 
       </div>
-    </div>
+    </>
   );
 }

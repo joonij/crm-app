@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Calendar, Trash2, ChevronDown, ChevronUp, Edit2, X } from "lucide-react";
+import { Calendar, Trash2, ChevronDown, ChevronUp, Edit2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 type Schedule = { 

@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { Shield, X, Plus, Sparkles, FileText, Loader2, CheckSquare, Trash2 } from "lucide-react";
-import { COVERAGE_OPTIONS, mapToStandardCoverage } from "@/lib/coverageMapper"; 
+import { Shield, X, Plus, Sparkles, FileText, Loader2, CheckSquare, Trash2, AlertTriangle } from "lucide-react";
+import { COVERAGE_OPTIONS } from "@/lib/coverageMapper"; 
 import { analyzeInsuranceEngine, formatAmountWithComma } from "@/lib/insuranceParser";
 
 const inputClassName =
@@ -22,6 +22,7 @@ type InsuranceCompany = {
 
 const POLICY_PERIOD_OPTIONS = ["전기납", "일시납", "5년납", "7년납", "10년납", "15년납", "20년납", "25년납", "30년납"];
 const RENEWAL_OPTIONS = ["전기납", "일시납", "비갱신", "1년 갱신", "3년 갱신", "5년 갱신", "10년 갱신", "15년 갱신", "20년 갱신", "30년 갱신"];
+const EXCLUSION_PERIODS = ["1년", "2년", "3년", "4년", "5년", "전기간"]; // ⭐️ 부담보 기간 옵션
 
 const initialFormState = {
   policy_status: "maintain",
@@ -56,25 +57,29 @@ export default function InsuranceModal({
     Array(5).fill(null).map(() => ({ name: "", amount: "", renewal_type: "비갱신" }))
   );
   
+  // ⭐️ 추가됨: 부담보 상태 관리
+  const [exclusions, setExclusions] = useState<CoverageDetail[]>([]);
+
   const [isSaving, setIsSaving] = useState(false);
   const [companies, setCompanies] = useState<InsuranceCompany[]>([]);
   const [pasteText, setPasteText] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-
+  
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
   const [focusedRenewalIndex, setFocusedRenewalIndex] = useState<number | null>(null);
+  const [focusedExclIndex, setFocusedExclIndex] = useState<number | null>(null); // ⭐️ 부담보 포커스
+  
   const [focusedPolicyPeriod, setFocusedPolicyPeriod] = useState(false);
-
   const [clientsList, setClientsList] = useState<{ id: number; name: string; phone?: string }[]>([]);
   const [focusedClientField, setFocusedClientField] = useState<'contractor' | 'insured' | 'beneficiary' | null>(null);
-
   const [isCurrentUserAgent, setIsCurrentUserAgent] = useState(false);
   const [loggedInAgentName, setLoggedInAgentName] = useState("");
 
   useEffect(() => {
     setCovForm(initialFormState);
     setCovDetails(Array(5).fill(null).map(() => ({ name: "", amount: "", renewal_type: "비갱신" })));
+    setExclusions([]);
     setPasteText("");
 
     const fetchInitialData = async () => {
@@ -170,7 +175,6 @@ export default function InsuranceModal({
           company: result.data.company || prev.company,
           product: result.data.productName || prev.product,
           paymentPeriod: result.data.paymentPeriod || prev.paymentPeriod,
-          // ⭐️ 핵심: AI가 찾아온 종신(9999-12-31) 날짜를 그대로 꽂아줍니다!
           maturityDate: result.data.maturityDate || prev.maturityDate,
           premiumFormatted: result.data.monthlyPremium !== undefined && result.data.monthlyPremium !== null
             ? formatAmountWithComma(String(result.data.monthlyPremium)) 
@@ -180,7 +184,6 @@ export default function InsuranceModal({
         if (result.data.coverages && result.data.coverages.length > 0) {
            const formattedCoverages = result.data.coverages.map((cov: any) => ({
              name: String(cov.name || ""),
-             // ⭐️ 핵심: cov.amount가 숫자 0일 때 무시되지 않고 콤마 함수를 거쳐 "0"으로 저장되도록 강화
              amount: cov.amount !== undefined && cov.amount !== null && String(cov.amount).trim() !== ""
                ? formatAmountWithComma(String(cov.amount)) 
                : "",
@@ -211,13 +214,33 @@ export default function InsuranceModal({
   const addCovDetail = () => setCovDetails([...covDetails, { name: "", amount: "", renewal_type: "비갱신" }]);
   const removeCovDetail = (index: number) => setCovDetails(covDetails.filter((_, i) => i !== index));
 
+  // ⭐️ 추가됨: 부담보 핸들러
+  const updateExclusion = (index: number, field: 'name' | 'amount', value: string) => {
+    const newExcl = [...exclusions];
+    newExcl[index][field] = value;
+    setExclusions(newExcl);
+  };
+
+  const addExclusion = () => setExclusions([...exclusions, { name: "", amount: "전기간", renewal_type: "부담보" }]);
+  const removeExclusion = (index: number) => setExclusions(exclusions.filter((_, i) => i !== index));
+
   const handleSaveCoverage = async () => {
     if (!covForm.company.trim() || !covForm.product.trim() || !covForm.premiumFormatted) {
       alert("보험사, 상품명, 월 보험료를 모두 입력해주세요.");
       return;
     }
     setIsSaving(true);
+    
+    // ⭐️ 1. 일반 특약 유효성 필터링
     const validDetails = covDetails.filter((d) => String(d.name).trim() !== "" && String(d.amount).trim() !== "");
+    
+    // ⭐️ 2. 부담보 항목 포맷팅 ('부담보:' 말머리를 달아서 details 배열에 합칩니다)
+    const validExclusions = exclusions
+      .filter((e) => String(e.name).trim() !== "")
+      .map(e => ({ name: `부담보: ${e.name}`, amount: e.amount, renewal_type: "부담보" }));
+
+    // ⭐️ 3. 두 배열 합치기
+    const combinedDetails = [...validDetails, ...validExclusions];
 
     try {
       const { error } = await supabase.from("subscription_insurance").insert([
@@ -238,7 +261,7 @@ export default function InsuranceModal({
           beneficiary_name: covForm.beneficiary_name.trim(),
           beneficiary_id: covForm.beneficiary_id,
           agent_name: covForm.agent_name.trim(),
-          details: validDetails.length > 0 ? validDetails : null,
+          details: combinedDetails.length > 0 ? combinedDetails : null, // ⭐️ 합쳐진 배열 전송
         },
       ]);
       if (error) throw error;
@@ -484,6 +507,81 @@ export default function InsuranceModal({
               </div>
 
             </div>
+          </div>
+
+          {/* ⭐️ 추가된 부담보 입력 섹션 */}
+          <div className="space-y-3 pt-4 border-t border-gray-100">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-bold flex items-center gap-1.5 text-orange-600">
+                <AlertTriangle className="w-4 h-4" />
+                부담보 / 할증 내역
+              </p>
+            </div>
+            
+            {exclusions.length > 0 ? (
+              <div className="grid grid-cols-1 gap-x-6 gap-y-3">
+                {exclusions.map((exclusion, index) => {
+                  const displayPeriods = getDisplayOptions(exclusion.amount, EXCLUSION_PERIODS);
+
+                  return (
+                    <div key={index} className="flex flex-wrap sm:flex-nowrap gap-2 items-center p-2 sm:p-0 bg-orange-50/30 sm:bg-transparent rounded-lg border sm:border-0 border-orange-100 relative transition-colors">
+                      <div className="relative w-full sm:flex-1 shrink-0">
+                        <input
+                          type="text"
+                          placeholder="부담보 부위 (예: 위, 갑상선)"
+                          className={`${inputClassName} w-full text-xs font-bold text-gray-800 border-orange-200 focus:ring-orange-500/20`}
+                          value={exclusion.name}
+                          onChange={(e) => updateExclusion(index, "name", e.target.value)}
+                        />
+                      </div>
+                      
+                      <div className="flex w-full sm:w-[140px] gap-1.5 items-center">
+                        <div className="relative w-full">
+                          <input
+                            type="text"
+                            placeholder="기간/전기간"
+                            className={`${inputClassName} w-full text-xs font-bold text-gray-800 text-center border-orange-200 focus:ring-orange-500/20`}
+                            value={exclusion.amount}
+                            onChange={(e) => updateExclusion(index, "amount", e.target.value)}
+                            onFocus={() => setFocusedExclIndex(index)}
+                            onBlur={() => setFocusedExclIndex(null)}
+                            autoComplete="off"
+                          />
+                          {focusedExclIndex === index && displayPeriods.length > 0 && (
+                            <ul className="absolute z-50 left-0 right-0 top-full mt-1 max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-xl py-1" onMouseDown={(e) => e.preventDefault()}>
+                              {displayPeriods.map((opt) => (
+                                <li
+                                  key={opt}
+                                  onClick={() => {
+                                    updateExclusion(index, "amount", opt);
+                                    setFocusedExclIndex(null);
+                                  }}
+                                  className="px-3 py-2 text-xs font-medium text-gray-700 hover:bg-orange-50 cursor-pointer transition-colors text-center"
+                                >
+                                  {opt}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                        
+                        <button onClick={() => removeExclusion(index)} className="p-2 text-gray-400 hover:text-red-500 transition-colors shrink-0 bg-white rounded-md border border-gray-200 cursor-pointer shadow-sm hover:bg-red-50">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-4 bg-orange-50/20 rounded-xl border border-dashed border-orange-200 text-xs font-medium text-orange-600/60">
+                추가된 부담보 내역이 없습니다.
+              </div>
+            )}
+            
+            <button onClick={addExclusion} className="cursor-pointer w-full py-2.5 flex items-center justify-center gap-1 text-xs font-bold text-orange-600 bg-orange-50/50 hover:bg-orange-100 rounded-lg transition-colors border border-orange-100 shadow-sm mt-2">
+              <Plus className="w-3.5 h-3.5" /> 부담보 항목 추가
+            </button>
           </div>
 
           <div className="space-y-3 pt-4 border-t border-gray-100">

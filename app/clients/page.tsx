@@ -5,8 +5,6 @@ import { Plus, Users, X, CheckSquare, Square, BarChart3, Phone, Search, Crown, U
 import ClientModal from "@/components/ClientModal";
 import { supabase } from "@/lib/supabase";
 import Link from 'next/link';
-
-// ⭐️ 암호화 해제를 위한 함수 임포트
 import { decryptRegNumber, encryptRegNumber } from "@/app/actions/crypto"; 
 
 type Client = {
@@ -375,9 +373,11 @@ export default function ClientsPage() {
 
     return clients.filter((client) => {
       const cleanPhone = client.phone ? client.phone.replace(/[-\s]/g, "") : "";
+      const introducerName = client.introducerName?.toLowerCase() || "";
       const matchesSearch = 
         client.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        cleanPhone.includes(cleanSearchTerm);
+        cleanPhone.includes(cleanSearchTerm) ||
+        introducerName.includes(searchTerm.toLowerCase());
       
       let matchesStatus = false;
       if (statusFilter === "all") {

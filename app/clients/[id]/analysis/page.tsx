@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Scale, Coins, ArrowLeft, ShieldCheck, Printer, AlertCircle, Stethoscope, CheckCircle2, Info, FileText, AlertTriangle, Save, Loader2, Settings2, ShieldAlert, Target } from "lucide-react";
@@ -355,6 +355,7 @@ export default function AnalysisPage() {
   const [includeSanjeong, setIncludeSanjeong] = useState({ brain: false, heart: false, circAll: false, circExcl: false });
   const [visibleCoverages, setVisibleCoverages] = useState<string[]>([]);
   const [customCoverages, setCustomCoverages] = useState<{id: string, name: string, before: number, after: number, category: string}[]>([]);
+  const [companies, setCompanies] = useState<{company_type: string, company_name: string, logo_url?: string}[]>([]);
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
@@ -395,6 +396,9 @@ export default function AnalysisPage() {
       const { data: agentData } = await supabase.from("agents").select("*, agencies(*)").eq("id", clientData.agent_id).single();
       if (agentData) setAgentInfo(agentData);
     }
+
+    const { data: compData } = await supabase.from("insurance_companies").select("company_type, company_name, logo_url");
+    if (compData) setCompanies(compData);
 
     const { data: insData } = await supabase.from("subscription_insurance").select("*").eq("client_id", clientId);
 
@@ -552,8 +556,8 @@ export default function AnalysisPage() {
     try {
       const payload = {
         briefing: briefingText,
-        kcdOverrides: kcdOverrides,
         selectedTop3: selectedTop3,
+        kcdOverrides: kcdOverrides,
         visibleCoverages: visibleCoverages,
         customCoverages: customCoverages,
         coverageOverrides: coverageOverrides,
@@ -709,7 +713,6 @@ export default function AnalysisPage() {
       setRadarRates(newSettings.radarRates); 
       setPensionOverrides(newSettings.pensionOverrides);
       
-      setIsSettingsModalOpen(false);
     } catch (error: any) {
       alert(`저장 중 오류가 발생했습니다: ${error.message}`);
     }
@@ -724,7 +727,7 @@ export default function AnalysisPage() {
   const scores = (analysisData as any).scores || {
     cancer: { before: 0, after: 0 }, similarCancer: { before: 0, after: 0 }, 
     brain: { before: 0, after: 0 }, heart: { before: 0, after: 0 }, circulatory: { before: 0, after: 0 },   
-    death: { before: 0, after: 0 }, pension: { before: 0, after: 0 },        
+    death: { before: 0, after: 0 }, pension: { before: 0, after: 0 },       
     surgery: { before: 0, after: 0 }, hasJongSurgery: false, homeCare: { before: 0, after: 0 },
     hospitalization: { before: 0, after: 0 }, injury: { before: 0, after: 0 }, hasDriver: false, hasDental: false
   };
@@ -931,9 +934,9 @@ const chartDataGrouped = CHART_CONFIG.map(cat => {
   const beforePoints = chartDataGrouped.map(d => d.before);
   const afterPoints = chartDataGrouped.map(d => d.after);
 
-return (
-  <>
-    <style dangerouslySetInnerHTML={{__html: `
+  return (
+    <>
+      <style dangerouslySetInnerHTML={{__html: `
         @media print {
           * {
             -webkit-print-color-adjust: exact !important;
@@ -975,8 +978,10 @@ return (
           }
         }
       `}} />
-      <div className="w-full max-w-5xl mx-auto md:p-4 md:p-8 space-y-6 print:p-1 print:m-0 print:max-w-none print:bg-white">
-        <div className="sticky top-0 z-50 bg-white/80 backdrop-blur-md py-3 pr-4 pl-4 md:py-4 -mt-4 flex items-center justify-between border-b-2 border-gray-900 gap-2 md:gap-4 print:hidden w-full">
+
+      <div className={`w-full max-w-5xl mx-auto md:p-4 md:p-8 space-y-6 print:p-1 print:m-0 print:max-w-none print:bg-white transition-all duration-300 ${isSettingsModalOpen ? 'lg:pr-[140px]' : ''}`}>
+        
+        <div className="sticky top-0 z-50 bg-white/80 backdrop-blur-md py-3 pr-4 pl-4 md:py-4 -mt-4 flex items-center justify-between border-b-2 border-gray-900 gap-2 md:gap-4 print:hidden w-full transition-all">
           <div className="flex items-center gap-1.5 md:gap-3 min-w-0">
             <button onClick={() => router.back()} className="cursor-pointer p-1.5 md:p-2 hover:bg-gray-100 rounded-full transition shrink-0">
               <ArrowLeft className="w-5 h-5 md:w-6 md:h-6 text-gray-600" />
@@ -1488,7 +1493,7 @@ return (
             </div>
           </div>
         </section>
-        <section className="bg-white md:rounded-2xl p-4 md:p-8 border border-slate-400 shadow-sm print:p-0 print:border-none print:break-inside-avoid print:shadow-none relative overflow-hidden">
+        <section className="bg-white md:rounded-2xl p-4 md:p-8 border border-slate-400 shadow-sm print:p-0 print:border-none print:break-inside-avoid print:shadow-none relative overflow-hidden mt-6">
           <div className="flex items-center justify-between border-b border-slate-200 pb-4 mb-6 print:border-slate-300">
             <h2 className="text-lg font-black text-slate-800 flex items-center gap-2 uppercase tracking-widest">
             <AlertCircle className="w-5 h-5 text-blue-600" />
@@ -1679,56 +1684,63 @@ return (
                 {analysisData.rawPolicies
                   .filter(p => p.policy_status === "maintain" || p.policy_status === "cancel")
                   .sort((a, b) => compareEnglishKorean(a.insurance_company || "", b.insurance_company || ""))
-                  .map(cov => (
-                  <div key={cov.id} className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm print:break-inside-avoid">
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <p className="text-xs font-bold text-slate-500 mb-1">{cov.insurance_company}</p>
-                        <p className="font-bold text-slate-900 text-base leading-tight pr-2">{cov.product_name}</p>
+                  .map(cov => {
+                    const companyInfo = companies.find(c => c.company_name === cov.insurance_company);
+                    return (
+                    <div key={cov.id} className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm print:break-inside-avoid">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <div className="flex items-center gap-1.5 mb-1">
+                            {companyInfo?.logo_url && (
+                              <img src={companyInfo.logo_url} alt={cov.insurance_company} className="w-6 h-6 rounded-full object-contain p-0.5 border border-gray-200 bg-white" />
+                            )}
+                            <p className="text-xs font-bold text-slate-500">{cov.insurance_company}</p>
+                          </div>
+                          <p className="font-bold text-slate-900 text-base leading-tight pr-2">{cov.product_name}</p>
+                        </div>
+                        <div className="text-right shrink-0 w-26">
+                          {cov.payment_period && <p className="text-xs text-slate-400 mb-0.5">{cov.payment_period}</p>}
+                          <p className="font-black text-slate-700 text-base">{formatPremium(cov.remodeled_amount || cov.monthly_premium)}</p>
+                        </div>
                       </div>
-                      <div className="text-right shrink-0 w-26">
-                         {cov.payment_period && <p className="text-xs text-slate-400 mb-0.5">{cov.payment_period}</p>}
-                         <p className="font-black text-slate-700 text-base">{formatPremium(cov.remodeled_amount || cov.monthly_premium)}</p>
+                      <div className="bg-slate-50 border border-slate-100 rounded-lg p-2.5 mb-2 text-[11px] gap-2">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-slate-400 font-medium">계약자/피보험자</span>
+                          <span className="text-slate-700 font-bold">{cov.contractor_name || '-'} / {cov.insured_name || client?.name || '-'}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-slate-400 font-medium">가입일 / 만기일</span>
+                          <span className="text-slate-700 font-bold">{cov.subscription_date || '-'} ~{cov.maturity_date || '-'}</span>
+                        </div>
                       </div>
-                    </div>
-                    <div className="bg-slate-50 border border-slate-100 rounded-lg p-2.5 mb-2 text-[11px] gap-2">
-                       <div className="flex items-center gap-1.5">
-                         <span className="text-slate-400 font-medium">계약자/피보험자</span>
-                         <span className="text-slate-700 font-bold">{cov.contractor_name || '-'} / {cov.insured_name || client?.name || '-'}</span>
-                       </div>
-                       <div className="flex items-center gap-1.5">
-                         <span className="text-slate-400 font-medium">가입일 / 만기일</span>
-                         <span className="text-slate-700 font-bold">{cov.subscription_date || '-'} ~{cov.maturity_date || '-'}</span>
-                       </div>
-                    </div>
-                    {cov.details && (
-                      <div className="space-y-2 pt-2 border-t border-dashed border-slate-200">
-                        {cov.details.map((d: any, i: number) => {
-                          const badgeText = d.renewal_type || "비갱신";
-                          return (
-                            <div key={i} className="flex justify-between text-xs text-slate-600">
-                              <span className="truncate pr-2 flex items-center gap-1.5 leading-relaxed">
-                                {badgeText === "비갱신" ? (
-                                  <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200 shrink-0 font-medium">
-                                    {badgeText}
+                      {cov.details && (
+                        <div className="space-y-2 pt-2 border-t border-dashed border-slate-200">
+                          {cov.details.map((d: any, i: number) => {
+                            const badgeText = d.renewal_type || "비갱신";
+                            return (
+                              <div key={i} className="flex justify-between text-xs text-slate-600">
+                                <span className="truncate pr-2 flex items-center gap-1.5 leading-relaxed">
+                                  {badgeText === "비갱신" ? (
+                                    <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200 shrink-0 font-medium">
+                                      {badgeText}
+                                    </span>
+                                  ) : (
+                                    <span className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded border border-amber-200 shrink-0 font-medium">
+                                      {badgeText}
                                   </span>
-                                ) : (
-                                  <span className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded border border-amber-200 shrink-0 font-medium">
-                                    {badgeText}
-                                  </span>
-                                )}
-                                {d.name}
-                              </span>
-                              <span className="font-bold shrink-0 text-slate-700">
-                                {formatDetailAmount(d.original_amount || d.amount)}만원
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                ))}
+                                  )}
+                                  {d.name}
+                                </span>
+                                <span className="font-bold shrink-0 text-slate-700">
+                                  {formatDetailAmount(d.original_amount || d.amount)}만원
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )})}
                 {analysisData.rawPolicies.filter(p => p.policy_status === "maintain" || p.policy_status === "cancel").length === 0 && (
                   <p className="text-sm text-gray-400 text-center py-6 font-bold">기존 보유 보험이 없습니다.</p>
                 )}
@@ -1746,7 +1758,7 @@ return (
                     const bIsNew = b.policy_status === 'new';
                     if (aIsNew && !bIsNew) return 1;  
                     if (!aIsNew && bIsNew) return -1;
-                    return compareEnglishKorean(a.insurance_company || "", b.insurance_company || ""); 
+                    return compareEnglishKorean(a.insurance_company || "", b.insurance_company || "");
                   })
                   .map(cov => {
                     const isCanceled = cov.policy_status === 'cancel';
@@ -1754,15 +1766,14 @@ return (
                     const beforePremium = cov.remodeled_amount || cov.monthly_premium;
                     const afterPremium = cov.monthly_premium;
                     const isPremiumReduced = afterPremium < beforePremium;
-
                     const isMaintained = cov.policy_status === 'maintain';
                     const isModified = isMaintained && (
                       isPremiumReduced || 
                       (cov.details && cov.details.some((d: any) => d.is_deleted || (d.original_amount !== undefined && extractNumber(d.amount) !== extractNumber(d.original_amount))))
                     );
                     const isUnchanged = isMaintained && !isModified;
-                    
                     const needsBlur = isUnchanged || isCanceled;
+                    const companyInfo = companies.find(c => c.company_name === cov.insurance_company);
 
                     return (
                       <div key={cov.id} className={`relative bg-white rounded-xl border p-5 shadow-sm print:break-inside-avoid overflow-hidden ${
@@ -1771,7 +1782,6 @@ return (
                         isUnchanged ? 'border-slate-200' : 
                         'border-blue-300 bg-blue-50/10'
                       }`}>
-                        
                         {needsBlur && (
                           <div className={`absolute inset-0 z-10 flex items-center justify-center backdrop-blur-[3px] print:backdrop-blur-none ${isCanceled ? 'bg-red-50/40 print:bg-red-50/80' : 'bg-white/50 print:bg-slate-50/80'}`}>
                             {isUnchanged && (
@@ -1794,7 +1804,9 @@ return (
                                 {isNew && <span className="bg-emerald-600 text-white text-[10px] px-1.5 py-0.5 rounded font-bold tracking-wider">신규</span>}
                                 {isCanceled && <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded font-bold tracking-wider">해지</span>}
                                 {isModified && <span className="bg-blue-500 text-white text-[10px] px-1.5 py-0.5 rounded font-bold tracking-wider">부분 변경</span>}
-                                
+                                {companyInfo?.logo_url && (
+                                  <img src={companyInfo.logo_url} alt={cov.insurance_company} className="w-6 h-6 rounded-full object-contain p-0.5 border border-gray-200 bg-white" />
+                                )}
                                 <p className="text-xs font-bold text-slate-500">{cov.insurance_company}</p>
                               </div>
                               <p className={`font-bold text-base leading-tight pr-2 ${isCanceled ? 'text-slate-400 line-through' : 'text-slate-900'}`}>{cov.product_name}</p>
@@ -1932,25 +1944,28 @@ return (
               본 리포트는 국민건강보험공단(심평원) 진료 데이터를 기반으로 작성된 참고용 자료입니다
             </p>
           </section>
-
       </div>
 
       <div className="relative z-[99999] print:hidden">
-        <SettingsModal 
-          isOpen={isSettingsModalOpen}
-          onClose={() => setIsSettingsModalOpen(false)}
-          onSave={applySettingsOverrides}
-          analysisData={analysisData}
-          calculateCodeCoverage={calculateCodeCoverage}
-          initialKcdOverrides={kcdOverrides}
-          initialVisibleCoverages={visibleCoverages}
-          initialCustomCoverages={customCoverages}
-          initialCoverageOverrides={coverageOverrides}
-          initialIncludeSanjeong={includeSanjeong}
-          initialRadarTargets={radarTargets} 
-          initialRadarRates={radarRates}
-          initialPensionOverrides={pensionOverrides}
-        />
+        {isSettingsModalOpen && (
+          <div className="fixed inset-y-0 right-0 w-full lg:w-[400px] bg-white shadow-2xl border-l border-slate-200 z-[99999] animate-in slide-in-from-right duration-300">
+            <SettingsModal 
+              isOpen={isSettingsModalOpen}
+              onClose={() => setIsSettingsModalOpen(false)}
+              onSave={applySettingsOverrides}
+              analysisData={analysisData}
+              calculateCodeCoverage={calculateCodeCoverage}
+              initialKcdOverrides={kcdOverrides}
+              initialVisibleCoverages={visibleCoverages}
+              initialCustomCoverages={customCoverages}
+              initialCoverageOverrides={coverageOverrides}
+              initialIncludeSanjeong={includeSanjeong}
+              initialRadarTargets={radarTargets} 
+              initialRadarRates={radarRates}
+              initialPensionOverrides={pensionOverrides}
+            />
+          </div>
+        )}
       </div>
 
     </>

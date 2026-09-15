@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Clock, Loader2, Plus, Megaphone, Building2, Users, Edit2, Trash2, X, Trophy, Target, TrendingUp, DollarSign, AlertCircle, User, Building, UserPlus } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import ScheduleModal from "./components/ScheduleModal"; 
-import PendingContractsModal from "./components/PendingContractsModal"; // ⭐️ 새로 추가된 임포트
+import PendingContractsModal from "./components/PendingContractsModal"; 
 
 type ScheduleType = 'company' | 'agency' | 'team' | 'personal';
 
@@ -25,7 +25,7 @@ type ScheduleEvent = {
   clients?: { name?: string; contractor_name?: string; insured_name?: string; };
   contractStatus?: 'new' | 'maintain' | null; 
   premium?: number;
-  companyName?: string; // ⭐️ 보험사별 통계를 위한 필드 추가
+  companyName?: string; 
 };
 
 type MemberStats = {
@@ -84,8 +84,18 @@ const getMonthString = (offsetMonths: number = 0) => {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 };
 
+// ⭐️ 긴 겸직 랭크(예: ADMIN/SM)를 대표 랭크(예: SM)로 단순화해주는 헬퍼 함수
+const simplifyRank = (rankStr: string | null) => {
+  if (!rankStr) return "FC";
+  const upStr = rankStr.toUpperCase();
+  if (upStr.includes("BM")) return "BM";
+  if (upStr.includes("SM")) return "SM";
+  if (upStr.includes("RM")) return "RM";
+  if (upStr.includes("OS")) return "OS";
+  return "FC";
+};
+
 export default function SchedulePage() {
-  // 기존 상태들 아래에 추가
   const [pendingModalState, setPendingModalState] = useState<{ isOpen: boolean; events: any[]; date: string }>({
     isOpen: false, events: [], date: ""
   });
@@ -213,19 +223,27 @@ export default function SchedulePage() {
         setMonthlyTarget(info.monthly_target || 2000000);
         
         const agencyData = Array.isArray(info.agencies) ? info.agencies[0] : info.agencies;
+        
+        // ⭐️ 내 랭크를 불러올 때도 단순화 함수 적용
+        const myRankStr = (info.rank || 'FC').toUpperCase();
+        const simplifiedMyRank = simplifyRank(myRankStr);
+        
         setMyInfo({ 
-          id: info.id, name: info.name, agency_id: info.agency_id, rank: info.rank || 'FC',
+          id: info.id, name: info.name, agency_id: info.agency_id, rank: simplifiedMyRank,
           corpName: agencyData?.corporation_name || "", branchName: agencyData?.branch_name || "", teamNum: agencyData?.team_number?.toString() || ""
         });
 
         const myAgencyId = info.agency_id; 
-        const myRank = (info.rank || 'FC').toUpperCase();
         const { data: corpAgencies } = await supabase.from("agencies").select("id, branch_name").eq("corporation_name", agencyData.corporation_name);
         const corpAgencyIds = corpAgencies?.map(a => a.id) || [];
         const branchAgencyIds = corpAgencies?.filter(a => a.branch_name === agencyData.branch_name).map(a => a.id) || [];
 
         let membersQuery = supabase.from("agents").select("id, name, rank").order('id', { ascending: true });
-        if (['SM', 'BM', 'RM'].includes(myRank)) membersQuery = membersQuery.eq('agency_id', myAgencyId);
+        
+        // ⭐️ [수정] 배열 includes 대신 .includes() 메소드로 팀장/관리자 여부를 판단
+        const isManager = myRankStr.includes('SM') || myRankStr.includes('BM') || myRankStr.includes('RM');
+        
+        if (isManager) membersQuery = membersQuery.eq('agency_id', myAgencyId);
         else membersQuery = membersQuery.eq('id', info.id);
 
         const [{ data: members }, { data: schedules }, { data: myClients }] = await Promise.all([
@@ -287,7 +305,7 @@ export default function SchedulePage() {
                 teamMonthMaintain.amt += premium; teamMonthMaintain.cnt += 1;
                 if (c.agent_name === info.name) { myMonthMaintain.amt += premium; myMonthMaintain.cnt += 1; }
                 
-                if (['SM', 'BM', 'RM'].includes(myRank) || c.agent_name === info.name) {
+                if (isManager || c.agent_name === info.name) {
                   const compName = c.insurance_company || '기타';
                   compStatsMap[compName] = (compStatsMap[compName] || 0) + premium;
                 }
@@ -322,7 +340,7 @@ export default function SchedulePage() {
             clients: { contractor_name: c.contractor_name || "고객", insured_name: c.insured_name || "고객" },
             contractStatus: c.policy_status as 'new' | 'maintain',
             premium: premium,
-            companyName: c.insurance_company || '기타' // ⭐️ 보험사 정보 저장
+            companyName: c.insurance_company || '기타' 
           };
         });
 
@@ -332,8 +350,8 @@ export default function SchedulePage() {
         setTeamMonthlyStats({ newAmt: teamMonthNew.amt, newCnt: teamMonthNew.cnt, maintainAmt: teamMonthMaintain.amt, maintainCnt: teamMonthMaintain.cnt });
 
         setCompanyNotices(schedules.filter(s => s.schedule_type === 'company').map(e => ({ ...e, time: e.time.substring(0, 5), color: "bg-indigo-100 text-indigo-900 border-indigo-200" })));
-        setAgencyNotices(schedules.filter(s => s.schedule_type === 'agency' && (myRank === 'RM' || branchAgencyIds.includes(s.agency_id))).map(e => ({ ...e, time: e.time.substring(0, 5), color: "bg-purple-100 text-purple-900 border-purple-200" })));
-        setTeamNotices(schedules.filter(s => s.schedule_type === 'team' && (myRank === 'BM' ? branchAgencyIds.includes(s.agency_id) : s.agency_id === myAgencyId)).map(e => ({ ...e, time: e.time.substring(0, 5), color: "bg-emerald-100 text-emerald-900 border-emerald-200" })));
+        setAgencyNotices(schedules.filter(s => s.schedule_type === 'agency' && (myRankStr.includes('RM') || branchAgencyIds.includes(s.agency_id))).map(e => ({ ...e, time: e.time.substring(0, 5), color: "bg-purple-100 text-purple-900 border-purple-200" })));
+        setTeamNotices(schedules.filter(s => s.schedule_type === 'team' && (myRankStr.includes('BM') ? branchAgencyIds.includes(s.agency_id) : s.agency_id === myAgencyId)).map(e => ({ ...e, time: e.time.substring(0, 5), color: "bg-emerald-100 text-emerald-900 border-emerald-200" })));
         
         const formattedMembers = members.map(member => {
           let memberEvents: ScheduleEvent[] = schedules.filter(s => s.agent_id === member.id && s.schedule_type === 'personal').map(evt => ({
@@ -353,9 +371,12 @@ export default function SchedulePage() {
             return nameA.localeCompare(nameB, 'ko-KR');
           });
 
+          // ⭐️ 팀원의 직급을 화면에 뿌려줄 때도 단순화 함수 적용
+          const simplifiedMemberRank = simplifyRank(member.rank);
+
           return {
             id: member.id, 
-            name: `${member.name} (${member.rank || 'FC'})`, 
+            name: `${member.name} (${simplifiedMemberRank})`, // 👈 깔끔하게 SM으로 표기됨
             role: member.id === info.id ? "Me" : "Member",
             events: memberEvents,
             stats: statsMap[member.name]
@@ -412,7 +433,6 @@ export default function SchedulePage() {
     }
   };
 
-  // ⭐️ [수정] 렌더링 함수: 월간 달력에서는 주간 뷰의 디자인 컨테이너(css)를 유지한 채 핵심 정보만 렌더링
   const renderEvent = (evt: ScheduleEvent, isMonthlyView: boolean = false) => {
     const hasClient = !!evt.client_id;
     const isFaded = highlightedClientId !== null && (!hasClient || evt.client_id !== highlightedClientId);
@@ -426,7 +446,6 @@ export default function SchedulePage() {
 
     const clientName = evt.clients?.insured_name || evt.clients?.contractor_name || evt.clients?.name || "";
 
-    // 🚀 [신규] 월간 뷰 전용 심플 UI (CSS 디자인은 주간 카드와 동일하게 유지)
     if (isMonthlyView) {
       let badgeText = evt.category || "일정";
       if (evt.contractStatus === 'maintain') badgeText = "계약체결";
@@ -438,7 +457,6 @@ export default function SchedulePage() {
 
       const displayTime = evt.time && evt.time !== "23:59" ? evt.time : "";
       const isContract = evt.contractStatus === 'maintain' || evt.contractStatus === 'new';
-      const borderColorClass = evt.contractStatus === 'maintain' ? 'border-yellow-200/50' : evt.contractStatus === 'new' ? 'border-orange-200/50' : 'border-black/10';
 
       return (
         <div 
@@ -466,7 +484,8 @@ export default function SchedulePage() {
             </span>
           </div>
           
-          {isSM && evt.ownerName && (
+          {/* ⭐️ 내 랭크가 관리자(SM,ADMIN 등)일 때만 팀원의 이름을 보여줌 */}
+          {myInfo?.rank && myInfo.rank !== "FC" && evt.ownerName && (
             <div className="flex justify-between items-center mt-0.5">
               <span className="text-[10px] opacity-70 truncate">{evt.ownerName} FC</span>
             </div>
@@ -475,7 +494,6 @@ export default function SchedulePage() {
       );
     }
 
-    // --- 주간 뷰 및 모바일 리스트용 상세 UI ---
     if (evt.contractStatus === 'maintain') {
       return (
         <div 
@@ -510,7 +528,7 @@ export default function SchedulePage() {
             </span>
             <div className="flex justify-between items-end pt-1">
               <span className="text-[10px] opacity-70 truncate">
-                {isSM && evt.ownerName}
+                {myInfo?.rank && myInfo.rank !== "FC" && evt.ownerName}
               </span>
               <span className="text-yellow-800 font-bold text-[11px] bg-white/60 px-2 py-0.5 rounded border border-yellow-300 shadow-xs shrink-0">상세</span>
             </div>
@@ -553,7 +571,7 @@ export default function SchedulePage() {
             </span>
             <div className="flex justify-between items-end pt-1">
               <span className="text-[10px] opacity-70 truncate">
-                {isSM && evt.ownerName}
+                {myInfo?.rank && myInfo.rank !== "FC" && evt.ownerName}
               </span>
               <span className="text-orange-800 font-bold text-[11px] bg-white/60 px-2 py-0.5 rounded border border-orange-300 shadow-xs shrink-0">상세</span>
             </div>
@@ -584,14 +602,14 @@ export default function SchedulePage() {
         </div>
         <div className="flex justify-between items-center pt-1">
           <span className="text-[10px] opacity-70 truncate">
-            {isSM && evt.ownerName}
+            {myInfo?.rank && myInfo.rank !== "FC" && evt.ownerName}
           </span>
           <span className="text-blue-600 font-bold text-[11px] bg-white/80 px-2 py-0.5 rounded border border-blue-200/50 shadow-xs shrink-0">상세</span>
         </div>
       </div>
     );
   };
-  // ⭐️ 여러 개의 이벤트를 받아 '계약예정'만 추출해 요약 카드로 만들어주는 함수
+  
   const renderDayEvents = (dayEvents: ScheduleEvent[], isMonthlyView: boolean, date: string, ownerNameForWeekly?: string) => {
     const normalEvents = dayEvents.filter(e => e.contractStatus !== 'new');
     const pendingEvents = dayEvents.filter(e => e.contractStatus === 'new');
@@ -637,7 +655,6 @@ export default function SchedulePage() {
               <div className="flex justify-between items-end pt-1">
                 <span className="text-[10px] opacity-80 text-orange-800 truncate">{ownerNameForWeekly || '팀 전체'}</span>
                 <span className="text-white font-bold text-[11px] bg-orange-500 hover:bg-orange-600 px-2 py-0.5 rounded shadow-xs shrink-0 transition-colors">상세보기</span>
-
               </div>
             </div>
           </div>
@@ -653,14 +670,11 @@ export default function SchedulePage() {
     );
   };
 
-  const isSM = ['SM', 'BM', 'RM'].includes(myInfo?.rank.toUpperCase() || '');
-
   const monthlyWeeks = [];
   for (let i = 0; i < monthDays.length; i += 7) {
     monthlyWeeks.push(monthDays.slice(i, i + 7));
   }
 
-  // ⭐️ 1. 설계사 선택 상태 및 필터링 적용
   const [selectedAgentId, setSelectedAgentId] = useState<number | 'ALL'>('ALL');
 
   const displayMembers = selectedAgentId === 'ALL' 
@@ -809,7 +823,8 @@ export default function SchedulePage() {
 
           </div>
 
-          {isSM && (
+          {/* ⭐️ 내 랭크가 관리자(SM 등)일 때 팀 실적 요약 바를 표시 */}
+          {myInfo?.rank && myInfo.rank !== "FC" && (
             <div className="relative z-10 pt-4 border-t border-slate-100 flex flex-col gap-3">
               <div className="flex flex-col md:flex-row gap-4 md:gap-6 items-start md:items-center">
                 <div className="flex gap-4 bg-blue-50 px-5 py-3 rounded-2xl border border-blue-100 shadow-sm shrink-0">
@@ -906,7 +921,6 @@ export default function SchedulePage() {
                   {renderNoticeRowWeekly("팀 공지", <Users className="w-5 h-5 text-emerald-600" />, teamNotices, "bg-emerald-50/40", "text-emerald-800")}
                   
                   {displayMembers.map(member => {
-                    // ⭐️ 주간 뷰: 현재 보고 있는 주(weekDays)에 해당하는 통계만 실시간 계산
                     const weekDates = weekDays.map(d => d.date);
                     const compStats: Record<string, { newAmt: number, maintainAmt: number }> = {}; 
                     
@@ -938,11 +952,9 @@ export default function SchedulePage() {
                           </div>
                         ))}
 
-                        {/* ⭐️ 주간 요약 & 통계 렌더링 영역 */}
                         <div className="p-3 bg-slate-50/80 flex flex-col gap-2 border-l border-slate-200 shadow-inner min-w-[160px]">
                           {(member.stats.weekNewCnt > 0 || member.stats.weekMaintainCnt > 0) ? (
                             <div className="flex flex-col h-full">
-                              {/* 총 예정/체결 요약 */}
                               <div className="flex flex-col gap-1.5 mb-2">
                                 {member.stats.weekNewCnt > 0 && (
                                   <div className="bg-orange-100 text-orange-900 rounded-lg p-2 flex flex-col border border-orange-200">
@@ -958,7 +970,6 @@ export default function SchedulePage() {
                                 )}
                               </div>
 
-                              {/* ⭐️ 예정/체결 통합 보험사 통계 */}
                               {sortedCompStats.length > 0 && (
                                 <div className="pt-2 border-t border-slate-200 flex flex-col gap-1.5">
                                   {sortedCompStats.map(([comp, amts]) => (
@@ -1009,7 +1020,6 @@ export default function SchedulePage() {
                   {monthlyWeeks.map((week, wIdx) => {
                     const weekDates = week.map(d => d.date);
                     
-                    // ⭐️ displayMembers 사용 및 예정/체결 동시 집계 적용
                     const weekStats = displayMembers.map(member => {
                       let nAmt = 0, nCnt = 0, mAmt = 0, mCnt = 0;
                       const compStats: Record<string, { newAmt: number, maintainAmt: number }> = {}; 
@@ -1083,7 +1093,6 @@ export default function SchedulePage() {
                                   )}
                                 </div>
 
-                                {/* ⭐️ 예정/체결 통합 보험사 통계 */}
                                 {stat.sortedCompStats.length > 0 && (
                                   <div className="mt-1 pt-1.5 border-t border-slate-100 flex flex-col gap-1.5">
                                     {stat.sortedCompStats.map(([comp, amts]) => (
