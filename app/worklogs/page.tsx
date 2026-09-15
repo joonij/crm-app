@@ -309,7 +309,8 @@ export default function WorklogsPage() {
         .gte("date", "2026-09-14")
         .is("worklog", null); 
 
-      const pendingArr = (rawPending || []) as PendingSchedule[];
+    //   const pendingArr = (rawPending || []) as PendingSchedule[];
+      const pendingArr = (rawPending || []) as unknown as PendingSchedule[];
       setPendingSchedules(pendingArr.filter(p => p.agent_id === agent.id).sort((a,b) => b.date.localeCompare(a.date)));
 
       const now = new Date();
