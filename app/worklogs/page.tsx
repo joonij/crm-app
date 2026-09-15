@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { Search, CalendarDays, Plus, MessageSquare, Clock, Trash2, Check, X, FileText, ChevronDown, ChevronUp, User, Users, PenTool, Info, Loader2, MessageCircle, Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
-// --- 1. 타입 및 상수 정의 ---
+// --- 타입 및 상수 정의 ---
 interface TeamMember {
   id: number;
   name: string;
@@ -53,7 +53,7 @@ const getCategoryColor = (category: string) => {
   return "bg-slate-100 text-slate-600 border-slate-200"; 
 };
 
-// ⭐️ 개별 로그 및 피드백(댓글) 컴포넌트
+// 개별 로그 컴포넌트
 const LogItem = ({ log, selectedMemberId, onDelete, myAgentId, onAddFeedback, onMarkAsRead, teamMembers }: { 
   log: WorkLog; 
   selectedMemberId: number | 'ALL'; 
@@ -75,7 +75,6 @@ const LogItem = ({ log, selectedMemberId, onDelete, myAgentId, onAddFeedback, on
   const mainContent = splitContent[0];
   const feedbacks = splitContent.length > 1 ? splitContent.slice(1) : [];
 
-  // ⭐️ 안읽음 상태인지 판별
   const isUnreadByMe = myAgentId ? (log.authorId !== myAgentId && !log.readBy.includes(myAgentId)) : false;
 
   useEffect(() => {
@@ -84,11 +83,8 @@ const LogItem = ({ log, selectedMemberId, onDelete, myAgentId, onAddFeedback, on
     }
   }, [mainContent]);
 
-  // ⭐️ 더보기(확인) 버튼 클릭 이벤트
   const handleToggleExpand = () => {
     setIsExpanded(!isExpanded);
-    
-    // 안 읽은 상태에서 열었을 경우 즉시 읽음 처리
     if (!isExpanded && isUnreadByMe) {
       onMarkAsRead(log.id, log.readBy);
     }
@@ -106,7 +102,6 @@ const LogItem = ({ log, selectedMemberId, onDelete, myAgentId, onAddFeedback, on
   const readMembers = teamMembers.filter(m => log.readBy.includes(m.id) && m.id !== log.authorId);
   const unreadMembers = teamMembers.filter(m => !log.readBy.includes(m.id) && m.id !== log.authorId);
 
-  // 안 읽었거나, 글 내용이 너무 길어 넘칠 때만 더보기 버튼 노출
   const showToggleButton = isUnreadByMe || isOverflowing;
 
   return (
@@ -155,7 +150,6 @@ const LogItem = ({ log, selectedMemberId, onDelete, myAgentId, onAddFeedback, on
           {mainContent}
         </p>
         
-        {/* ⭐️ 더보기 (읽음 확인) 버튼 */}
         {showToggleButton && (
           <button 
             onClick={handleToggleExpand}
@@ -177,7 +171,6 @@ const LogItem = ({ log, selectedMemberId, onDelete, myAgentId, onAddFeedback, on
         )}
       </div>
 
-      {/* 피드백(댓글) 노출 영역 */}
       {feedbacks.length > 0 && (
         <div className="mt-4 pt-3 border-t border-dashed border-slate-200 space-y-2">
           {feedbacks.map((fb, i) => (
@@ -194,9 +187,7 @@ const LogItem = ({ log, selectedMemberId, onDelete, myAgentId, onAddFeedback, on
         </div>
       )}
 
-      {/* 하단 읽음 현황 & 피드백 폼 */}
       <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-        
         <div className="flex items-center gap-3">
           <div className="relative group/read cursor-help flex items-center gap-1">
             <Eye className="w-3.5 h-3.5 text-blue-500" />
@@ -283,20 +274,8 @@ export default function WorklogsPage() {
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
   const [isClientSearchFocused, setIsClientSearchFocused] = useState(false);
 
-  const parseLogContent = (rawContent: string | null) => {
-    if (!rawContent) return { scheduleContent: null, worklogContent: "" };
-    const splitIndex = rawContent.indexOf('\n\n[업무일지]\n');
-    if (splitIndex !== -1) {
-      return {
-        scheduleContent: rawContent.substring(0, splitIndex),
-        worklogContent: rawContent.substring(splitIndex + 10)
-      };
-    }
-    if (rawContent.startsWith('[업무일지]\n')) {
-        return { scheduleContent: null, worklogContent: rawContent.substring(7) }
-    }
-    return { scheduleContent: null, worklogContent: rawContent };
-  };
+  const [visibleCount, setVisibleCount] = useState(10);
+  const observerTarget = useRef(null);
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -331,7 +310,6 @@ export default function WorklogsPage() {
         .is("worklog", null); 
 
       const pendingArr = (rawPending || []) as PendingSchedule[];
-      
       setPendingSchedules(pendingArr.filter(p => p.agent_id === agent.id).sort((a,b) => b.date.localeCompare(a.date)));
 
       const now = new Date();
@@ -357,7 +335,6 @@ export default function WorklogsPage() {
             });
           }
           const pCount = pendingArr.filter(p => p.agent_id === m.id).length;
-          
           return { ...m, rank: m.rank || 'FC', newAmt, maintainAmt, pendingCount: pCount };
         }).sort((a, b) => a.id === agent.id ? -1 : b.id === agent.id ? 1 : a.name.localeCompare(b.name));
 
@@ -424,11 +401,32 @@ export default function WorklogsPage() {
     });
   }, [logs, selectedMemberId]);
 
-  const groupedLogs = displayLogs.reduce((acc, log) => {
+  const visibleLogs = useMemo(() => {
+    return displayLogs.slice(0, visibleCount);
+  }, [displayLogs, visibleCount]);
+
+  const groupedLogs = visibleLogs.reduce((acc, log) => {
     if (!acc[log.date]) acc[log.date] = [];
     acc[log.date].push(log);
     return acc;
   }, {} as Record<string, WorkLog[]>);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting && visibleCount < displayLogs.length) {
+          setVisibleCount(prev => prev + 10);
+        }
+      },
+      { threshold: 1.0 }
+    );
+    if (observerTarget.current) observer.observe(observerTarget.current);
+    return () => observer.disconnect();
+  }, [visibleCount, displayLogs.length]);
+
+  useEffect(() => {
+    setVisibleCount(10);
+  }, [selectedMemberId]);
 
   const handleSelectSchedule = (scheduleId: string) => {
     setSelectedScheduleId(scheduleId);
@@ -528,7 +526,6 @@ export default function WorklogsPage() {
     }
   };
 
-  // 읽음 처리 핸들러 (수동 클릭 시)
   const handleMarkAsRead = async (logId: number, currentReadBy: number[]) => {
     if (!myInfo) return;
     if (currentReadBy.includes(myInfo.id)) return;
@@ -614,7 +611,7 @@ export default function WorklogsPage() {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-2 space-y-1">
+          <div className="flex-1 overflow-y-auto p-2 space-y-1 max-h-[320px] lg:max-h-full">
             <button
               onClick={() => setSelectedMemberId('ALL')}
               className={`w-full text-left p-3 rounded-xl transition-all border cursor-pointer flex items-center justify-between mb-2 ${
@@ -698,7 +695,7 @@ export default function WorklogsPage() {
               <div className="relative border-l-2 border-slate-100 ml-3 md:ml-4 space-y-10 pb-8">
                 {Object.entries(groupedLogs).map(([date, dateLogs]) => (
                   <div key={date} className="relative">
-                    {/* 🗓️ 타임라인 날짜 뱃지 */}
+                    {/* 타임라인 날짜 뱃지 */}
                     <div className="absolute -left-[45px] md:-left-[54px] bg-slate-100 text-slate-600 border border-slate-200 rounded-full px-3 py-1 text-[11px] font-black shadow-sm z-10 flex items-center justify-center">
                        {date.substring(5).replace('-', '/')}
                     </div>
@@ -719,6 +716,12 @@ export default function WorklogsPage() {
                     </div>
                   </div>
                 ))}
+                
+                {visibleCount < displayLogs.length && (
+                  <div ref={observerTarget} className="flex justify-center py-4">
+                    <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -726,14 +729,14 @@ export default function WorklogsPage() {
 
       </div>
 
-      {/* 새 업무일지 작성 모달창 */}
+      {/* 🟢 새 업무일지 작성 모달창 (모바일 풀스크린 + textarea 남은 공간 꽉 채움) */}
       {isWriteModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in" onClick={() => setIsWriteModalOpen(false)}>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm md:p-4 animate-in fade-in" onClick={() => setIsWriteModalOpen(false)}>
           <div 
-            className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200"
+            className="bg-white md:rounded-2xl w-full h-full md:h-auto md:max-h-[90vh] max-w-2xl md:shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center shrink-0">
+            <div className="bg-slate-50 px-5 md:px-6 py-4 border-b border-slate-200 flex justify-between items-center shrink-0 mt-safe">
               <h3 className="font-bold text-slate-800 text-base flex items-center gap-2">
                 <PenTool className="w-4 h-4 text-blue-600" />
                 새 업무일지 작성
@@ -743,16 +746,8 @@ export default function WorklogsPage() {
               </button>
             </div>
             
-            <div className="p-6 space-y-5 overflow-y-auto max-h-[80vh]">
-              
-              <div className="bg-blue-50/50 text-blue-800 border border-blue-100 text-xs font-semibold p-3 rounded-lg flex items-start gap-2">
-                <Info className="w-4 h-4 shrink-0 mt-0.5 text-blue-500" />
-                <p className="leading-relaxed text-slate-600">
-                  작성하신 업무 일지는 팀장(관리자) 뷰에서 즉시 공유됩니다. 스케줄을 연동하면 일정과 히스토리를 함께 관리할 수 있습니다.
-                </p>
-              </div>
-
-              <div>
+            <div className="p-5 md:p-6 space-y-4 overflow-y-auto flex-1 flex flex-col">
+              <div className="shrink-0">
                 <label className="text-xs font-bold text-slate-500 mb-1.5 block ml-1 flex justify-between items-center">
                   <span>연동할 스케줄 불러오기 (선택)</span>
                   {!isManager && pendingSchedules.length > 0 && <span className="text-red-500 text-[10px]">미작성 {pendingSchedules.length}건</span>}
@@ -760,7 +755,7 @@ export default function WorklogsPage() {
                 <select 
                   value={selectedScheduleId}
                   onChange={(e) => handleSelectSchedule(e.target.value)}
-                  className="w-full text-sm font-bold border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white cursor-pointer"
+                  className="w-full text-sm font-bold border border-slate-200 rounded-xl px-3 py-3 md:py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white cursor-pointer appearance-none"
                 >
                   <option value="">-- 기존 스케줄 연동 없이 즉시 등록 --</option>
                   {pendingSchedules.map(sch => (
@@ -771,14 +766,14 @@ export default function WorklogsPage() {
                 </select>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 shrink-0">
                 <div className="relative flex flex-col">
                   <label className="text-xs font-bold text-slate-500 mb-1.5 block ml-1">관련 고객 (선택)</label>
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                     <input
                       type="text"
-                      className="w-full pl-9 pr-4 py-2.5 text-sm font-bold border border-slate-200 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white placeholder:text-slate-300 placeholder:font-medium"
+                      className="w-full pl-9 pr-4 py-3 md:py-2.5 text-sm font-bold border border-slate-200 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white placeholder:text-slate-300 placeholder:font-medium"
                       placeholder="고객 이름 또는 연락처 검색"
                       value={selectedClientName}
                       onChange={(e) => setSelectedClientName(e.target.value)}
@@ -796,7 +791,7 @@ export default function WorklogsPage() {
                             setSelectedClientId(c.id);
                             setIsClientSearchFocused(false);
                           }}
-                          className="px-4 py-2 text-sm font-bold text-slate-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer transition-colors flex items-center justify-between"
+                          className="px-4 py-3 md:py-2 text-sm font-bold text-slate-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer transition-colors flex items-center justify-between"
                         >
                           <span>{c.name}</span>
                           {c.phone && <span className="text-[11px] font-medium text-slate-400 tracking-tight">{c.phone}</span>}
@@ -811,7 +806,7 @@ export default function WorklogsPage() {
                   <select 
                     value={logCategory}
                     onChange={(e) => setLogCategory(e.target.value)}
-                    className="w-full text-sm font-bold border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white cursor-pointer"
+                    className="w-full text-sm font-bold border border-slate-200 rounded-xl px-3 py-3 md:py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white cursor-pointer appearance-none"
                   >
                     {CATEGORY_OPTIONS.map(opt => (
                       <option key={opt} value={opt}>{opt}</option>
@@ -820,14 +815,14 @@ export default function WorklogsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-100">
+              <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-100 shrink-0">
                 <div>
                   <label className="text-xs font-bold text-slate-500 mb-1.5 block ml-1">날짜 (필수)</label>
                   <input 
                     type="date" 
                     value={logDate}
                     onChange={(e) => setLogDate(e.target.value)}
-                    className="w-full text-sm font-bold border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white"
+                    className="w-full text-sm font-bold border border-slate-200 rounded-xl px-3 py-3 md:py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white"
                   />
                 </div>
                 <div>
@@ -836,33 +831,34 @@ export default function WorklogsPage() {
                     type="time" 
                     value={logTime}
                     onChange={(e) => setLogTime(e.target.value)}
-                    className="w-full text-sm font-bold border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white"
+                    className="w-full text-sm font-bold border border-slate-200 rounded-xl px-3 py-3 md:py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white"
                   />
                 </div>
               </div>
 
-              <div>
+              {/* ⭐️ 텍스트 영역: flex-1과 min-h-[180px]로 모바일에서 남은 공간을 꽉 채우도록 설정 */}
+              <div className="flex-1 flex flex-col min-h-[180px]">
                 <label className="text-xs font-bold text-slate-500 mb-1.5 block ml-1">업무 상세 내용</label>
                 <textarea 
                   value={logContent}
                   onChange={(e) => setLogContent(e.target.value)}
                   placeholder="진행하신 업무 내역이나 메모를 상세히 남겨주세요."
-                  className="w-full h-32 md:h-40 text-sm font-medium border border-slate-200 rounded-xl p-3.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-slate-50 focus:bg-white resize-none leading-relaxed"
+                  className="w-full flex-1 text-sm font-medium border border-slate-200 rounded-xl p-3.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-slate-50 focus:bg-white resize-none leading-relaxed"
                 />
               </div>
 
             </div>
 
-            <div className="bg-white border-t border-slate-200 px-6 py-4 flex justify-end gap-2 shrink-0">
+            <div className="bg-white border-t border-slate-200 px-5 md:px-6 py-4 pb-safe flex justify-end gap-2 shrink-0">
               <button 
                 onClick={() => setIsWriteModalOpen(false)}
-                className="px-5 py-2.5 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
+                className="px-5 py-3 md:py-2.5 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
               >
                 취소
               </button>
               <button 
                 onClick={handleAddLog}
-                className="flex items-center gap-1.5 px-6 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-sm cursor-pointer active:scale-95"
+                className="flex items-center gap-1.5 px-6 py-3 md:py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-sm cursor-pointer active:scale-95"
               >
                 <Check className="w-4 h-4" /> 일지 등록
               </button>
