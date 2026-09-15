@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
-import { Shield, X, Plus, ChevronRight, TrendingUp, Sparkles, FileText, Loader2, CheckSquare, Trash2, AlertCircle, Check, PenTool, CheckCircle2, Save, Undo, Banknote, TrendingDown, Edit2, ChevronUp, ChevronDown, Search, MinusCircle, RotateCcw, AlertTriangle } from "lucide-react";
-import { COVERAGE_OPTIONS, mapToStandardCoverage } from "@/lib/coverageMapper"; 
-import { analyzeInsuranceEngine, formatAmountWithComma } from "@/lib/insuranceParser";
+import { Shield, X, Plus, ChevronRight, FileText, Loader2, Trash2, AlertCircle, Check, PenTool, CheckCircle2, Save, Undo, Banknote, TrendingDown, Edit2, ChevronUp, ChevronDown, Search, MinusCircle, RotateCcw, AlertTriangle } from "lucide-react";
+import { COVERAGE_OPTIONS } from "@/lib/coverageMapper"; 
+// import { COVERAGE_OPTIONS, mapToStandardCoverage } from "@/lib/coverageMapper"; 
+// import { analyzeInsuranceEngine, formatAmountWithComma } from "@/lib/insuranceParser";
 import InsuranceModal from "@/app/clients/[id]/components/InsuranceModal";
 import QuickClaimModal from "@/components/QuickClaimModal";
 import Link from "next/link";
