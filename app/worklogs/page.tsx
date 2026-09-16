@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Search, CalendarDays, Plus, MessageSquare, Clock, Trash2, Check, X, FileText, ChevronDown, ChevronUp, User, Users, PenTool, Info, Loader2, MessageCircle, Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
@@ -36,11 +36,11 @@ interface PendingSchedule {
   category: string;
   content: string;
   client_id: number | null;
-  clients?: { name: string };
+  clients?: { name: string } | { name: string }[];
   agent_id: number; 
 }
 
-const CATEGORY_OPTIONS = ["AP", "상담", "계약", "리쿠", "청구", "미팅", "기타"];
+const CATEGORY_OPTIONS = ["AP", "상담", "계약", "리쿠", "청구", "미팅"];
 
 const getCategoryColor = (category: string) => {
   if (category === "AP") return "bg-purple-100 text-purple-700 border-purple-200";
@@ -49,7 +49,6 @@ const getCategoryColor = (category: string) => {
   if (category === "리쿠") return "bg-rose-100 text-rose-700 border-rose-200";
   if (category === "청구") return "bg-orange-100 text-orange-700 border-orange-200";
   if (category === "미팅") return "bg-indigo-100 text-indigo-700 border-indigo-200";
-  if (category === "기타") return "bg-slate-200 text-slate-700 border-slate-300";
   return "bg-slate-100 text-slate-600 border-slate-200"; 
 };
 
@@ -188,7 +187,7 @@ const LogItem = ({ log, selectedMemberId, onDelete, myAgentId, onAddFeedback, on
       )}
 
       <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-        <div className="flex items-center gap-3">
+        {/* <div className="flex items-center gap-3">
           <div className="relative group/read cursor-help flex items-center gap-1">
             <Eye className="w-3.5 h-3.5 text-blue-500" />
             <span className="text-[11px] font-bold text-slate-500 hover:text-blue-600 transition-colors">읽음 {readMembers.length}</span>
@@ -208,7 +207,7 @@ const LogItem = ({ log, selectedMemberId, onDelete, myAgentId, onAddFeedback, on
               </div>
             )}
           </div>
-        </div>
+        </div> */}
 
         <div className="flex-1 flex justify-end">
           {!isFeedbackOpen ? (
@@ -246,14 +245,12 @@ const LogItem = ({ log, selectedMemberId, onDelete, myAgentId, onAddFeedback, on
           )}
         </div>
       </div>
-
     </div>
   );
 };
 
 export default function WorklogsPage() {
   const [isLoading, setIsLoading] = useState(true);
-  
   const [myInfo, setMyInfo] = useState<{ id: number; agency_id: number; branch_name: string; name: string; rank: string } | null>(null);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [logs, setLogs] = useState<WorkLog[]>([]);
@@ -264,7 +261,6 @@ export default function WorklogsPage() {
   const [selectedMemberId, setSelectedMemberId] = useState<number | 'ALL'>('ALL');
   
   const [isWriteModalOpen, setIsWriteModalOpen] = useState(false);
-  
   const [selectedScheduleId, setSelectedScheduleId] = useState<string>("");
   const [logDate, setLogDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [logTime, setLogTime] = useState("");
@@ -275,7 +271,7 @@ export default function WorklogsPage() {
   const [isClientSearchFocused, setIsClientSearchFocused] = useState(false);
 
   const [visibleCount, setVisibleCount] = useState(10);
-  const observerTarget = useRef(null);
+  const observerTarget = useRef<HTMLDivElement>(null);
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -309,11 +305,14 @@ export default function WorklogsPage() {
         .gte("date", "2026-09-14")
         .is("worklog", null); 
 
-    //   const pendingArr = (rawPending || []) as PendingSchedule[];
-      const pendingArr = (rawPending || []) as unknown as PendingSchedule[];
+        const now = new Date();
+        const pendingArr = ((rawPending || []) as unknown as PendingSchedule[]).filter(sch => {
+            // 스케줄의 날짜와 시간을 합쳐서 Date 객체로 생성 (UTC 대신 로컬 타임으로 단순 비교)
+            const schDateTime = new Date(`${sch.date}T${sch.time}`);
+            return schDateTime <= now; // 현재 시간보다 과거인 것만 남김
+        });
       setPendingSchedules(pendingArr.filter(p => p.agent_id === agent.id).sort((a,b) => b.date.localeCompare(a.date)));
 
-      const now = new Date();
       const startOfMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
 
       if (membersData) {
@@ -360,7 +359,6 @@ export default function WorklogsPage() {
 
       if (logsData) {
         const formattedLogs: WorkLog[] = logsData.map(l => {
-            // ⭐️ agents 조인 결과가 배열인지 단일 객체인지 안전하게 처리
             const agentInfo = Array.isArray(l.agents) ? l.agents[0] : l.agents;
             const clientInfo = Array.isArray(l.clients) ? l.clients[0] : l.clients;
   
@@ -381,7 +379,6 @@ export default function WorklogsPage() {
           });
         setLogs(formattedLogs);
       }
-
     } catch (error) {
       console.error(error);
     } finally {
@@ -393,8 +390,8 @@ export default function WorklogsPage() {
     fetchData();
   }, []);
 
-  const fcMembers = teamMembers.filter(m => m.rank?.toUpperCase() === 'FC');
-  const filteredMembers = fcMembers.filter(m => m.name.includes(searchTerm));
+  const fcMembers = useMemo(() => teamMembers.filter(m => m.rank?.toUpperCase() === 'FC'), [teamMembers]);
+  const filteredMembers = useMemo(() => fcMembers.filter(m => m.name.includes(searchTerm)), [fcMembers, searchTerm]);
   const isManager = myInfo?.rank.toUpperCase().includes('SM');
 
   const displayLogs = useMemo(() => {
@@ -408,15 +405,13 @@ export default function WorklogsPage() {
     });
   }, [logs, selectedMemberId]);
 
-  const visibleLogs = useMemo(() => {
-    return displayLogs.slice(0, visibleCount);
-  }, [displayLogs, visibleCount]);
+  const visibleLogs = useMemo(() => displayLogs.slice(0, visibleCount), [displayLogs, visibleCount]);
 
-  const groupedLogs = visibleLogs.reduce((acc, log) => {
+  const groupedLogs = useMemo(() => visibleLogs.reduce((acc, log) => {
     if (!acc[log.date]) acc[log.date] = [];
     acc[log.date].push(log);
     return acc;
-  }, {} as Record<string, WorkLog[]>);
+  }, {} as Record<string, WorkLog[]>), [visibleLogs]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -448,8 +443,10 @@ export default function WorklogsPage() {
         setLogDate(target.date);
         setLogTime(target.time);
         if (target.category) setLogCategory(target.category);
-        if (target.clients?.name) {
-          setSelectedClientName(target.clients.name);
+        
+        const targetClient = Array.isArray(target.clients) ? target.clients[0] : target.clients;
+        if (targetClient?.name) {
+          setSelectedClientName(targetClient.name);
           setSelectedClientId(target.client_id);
         } else {
           setSelectedClientName("");
@@ -561,10 +558,10 @@ export default function WorklogsPage() {
   }
 
   return (
-    <div className="w-full max-w-[1500px] mx-auto p-4 md:p-6 lg:p-8 space-y-6 bg-slate-50 min-h-[calc(100vh-64px)] pb-20 relative">
+    <div className="w-full max-w-[1500px] mx-auto md:p-6 lg:p-8 space-y-6 bg-slate-50 min-h-[calc(100vh)] md:pb-20 relative">
       
-      {/* 🟢 상단 헤더 영역 */}
-      <div className="bg-white p-5 md:p-6 rounded-2xl shadow-sm border border-slate-200 shrink-0">
+      {/* 상단 헤더 영역 */}
+      <div className="bg-white p-5 md:p-6 md:rounded-2xl shadow-sm border border-slate-200 shrink-0">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
@@ -602,8 +599,8 @@ export default function WorklogsPage() {
 
       <div className="flex flex-col lg:flex-row gap-6 items-start">
         
-        {/* 🟢 좌측: 팀원 리스트 패널 */}
-        <div className="w-full lg:w-[320px] bg-white rounded-2xl border border-slate-200 shadow-sm shrink-0 flex flex-col overflow-hidden h-[auto] lg:h-[calc(100vh-220px)] lg:sticky lg:top-[90px]">
+        {/* 좌측: 팀원 리스트 패널 */}
+        <div className="w-full lg:w-[320px] bg-white md:rounded-2xl border border-slate-200 shadow-sm shrink-0 flex flex-col overflow-hidden h-[auto] lg:h-[calc(100vh-190px)] lg:sticky lg:top-[90px]">
           
           <div className="p-4 border-b border-slate-100 bg-slate-50/50">
             <div className="relative">
@@ -674,9 +671,7 @@ export default function WorklogsPage() {
             })}
           </div>
         </div>
-
-        {/* 🟢 우측: 타임라인 리스트 */}
-        <div className="flex-1 w-full flex flex-col gap-6 h-[auto] lg:h-[calc(100vh-220px)] bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="flex-1 w-full flex flex-col md:gap-6 h-[auto] lg:h-[calc(100vh-190px)] bg-white md:rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           
           <div className="bg-slate-50/80 px-5 py-4 border-b border-slate-100 flex items-center justify-between sticky top-0 z-10 shrink-0">
             <h3 className="font-black text-slate-800 text-base flex items-center gap-2">
@@ -687,9 +682,6 @@ export default function WorklogsPage() {
                 <span><span className="text-blue-600">{teamMembers.find(m => m.id === selectedMemberId)?.name}</span>님의 업무 히스토리</span>
               )}
             </h3>
-            <span className="text-xs font-bold bg-white border border-slate-200 text-slate-500 px-2.5 py-1 rounded-md shadow-sm">
-              총 {displayLogs.length}건
-            </span>
           </div>
           
           <div className="p-6 overflow-y-auto flex-1 custom-scrollbar">
@@ -702,7 +694,6 @@ export default function WorklogsPage() {
               <div className="relative border-l-2 border-slate-100 ml-3 md:ml-4 space-y-10 pb-8">
                 {Object.entries(groupedLogs).map(([date, dateLogs]) => (
                   <div key={date} className="relative">
-                    {/* 타임라인 날짜 뱃지 */}
                     <div className="absolute -left-[45px] md:-left-[54px] bg-slate-100 text-slate-600 border border-slate-200 rounded-full px-3 py-1 text-[11px] font-black shadow-sm z-10 flex items-center justify-center">
                        {date.substring(5).replace('-', '/')}
                     </div>
@@ -736,7 +727,7 @@ export default function WorklogsPage() {
 
       </div>
 
-      {/* 🟢 새 업무일지 작성 모달창 (모바일 풀스크린 + textarea 남은 공간 꽉 채움) */}
+      {/* 새 업무일지 작성 모달창 */}
       {isWriteModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm md:p-4 animate-in fade-in" onClick={() => setIsWriteModalOpen(false)}>
           <div 
@@ -843,7 +834,6 @@ export default function WorklogsPage() {
                 </div>
               </div>
 
-              {/* ⭐️ 텍스트 영역: flex-1과 min-h-[180px]로 모바일에서 남은 공간을 꽉 채우도록 설정 */}
               <div className="flex-1 flex flex-col min-h-[180px]">
                 <label className="text-xs font-bold text-slate-500 mb-1.5 block ml-1">업무 상세 내용</label>
                 <textarea 
