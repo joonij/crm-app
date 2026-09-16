@@ -756,11 +756,14 @@ export default function WorklogsPage() {
                   className="w-full text-sm font-bold border border-slate-200 rounded-xl px-3 py-3 md:py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white cursor-pointer appearance-none"
                 >
                   <option value="">-- 기존 스케줄 연동 없이 즉시 등록 --</option>
-                  {pendingSchedules.map(sch => (
-                    <option key={sch.id} value={sch.id}>
-                      {sch.date} {sch.time.substring(0, 5)} | [{sch.category}] {sch.clients?.name ? `${sch.clients.name} - ` : ''} {sch.content}
-                    </option>
-                  ))}
+                  {pendingSchedules.map(sch => {
+                    const clientName = Array.isArray(sch.clients) ? sch.clients[0]?.name : sch.clients?.name;
+                    return (
+                      <option key={sch.id} value={sch.id}>
+                      {sch.date} {sch.time.substring(0, 5)} | [{sch.category}] {clientName ? `${clientName} - ` : ''} {sch.content}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 
