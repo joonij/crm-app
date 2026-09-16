@@ -218,7 +218,7 @@ const LogItem = ({ log, selectedMemberId, onDelete, myAgentId, onAddFeedback, on
               <MessageCircle className="w-3.5 h-3.5" /> 피드백(댓글) 남기기
             </button>
           ) : (
-            <div className="w-full max-w-sm flex items-end gap-2 bg-slate-50 border border-indigo-200 p-2 rounded-xl focus-within:border-indigo-400 transition-colors shadow-inner">
+            <div className="w-full flex items-end gap-2 bg-slate-50 border border-indigo-200 p-2 rounded-xl focus-within:border-indigo-400 transition-colors shadow-inner">
               <textarea
                 value={feedbackText}
                 onChange={(e) => setFeedbackText(e.target.value)}
