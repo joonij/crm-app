@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
-import { Search, CalendarDays, Plus, MessageSquare, Clock, Trash2, Check, X, FileText, ChevronDown, ChevronUp, User, Users, PenTool, Info, Loader2, MessageCircle, Eye, EyeOff } from "lucide-react";
+import { Search, CalendarDays, Plus, MessageSquare, Clock, Trash2, Check, X, FileText, ChevronDown, ChevronUp, User, Users, PenTool, Info, Loader2, MessageCircle, Eye, EyeOff, Pencil } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 // --- 타입 및 상수 정의 ---
@@ -14,6 +14,12 @@ interface TeamMember {
   pendingCount: number; 
 }
 
+interface Feedback {
+  authorId: number | null;
+  fbId: string;
+  text: string;
+}
+
 interface WorkLog {
   id: number;
   authorId: number;   
@@ -21,7 +27,9 @@ interface WorkLog {
   authorRank: string; 
   category: string;
   scheduleContent: string | null; 
-  content: string; 
+  rawContent: string; 
+  mainContent: string; 
+  feedbacks: Feedback[];
   time: string;
   date: string;
   clientName?: string;
@@ -52,57 +60,133 @@ const getCategoryColor = (category: string) => {
   return "bg-slate-100 text-slate-600 border-slate-200"; 
 };
 
-// 개별 로그 컴포넌트
-const LogItem = ({ log, selectedMemberId, onDelete, myAgentId, onAddFeedback, onMarkAsRead, teamMembers }: { 
-  log: WorkLog; 
-  selectedMemberId: number | 'ALL'; 
-  onDelete: (id: number) => void; 
-  myAgentId: number | null; 
-  onAddFeedback: (id: number, feedback: string) => Promise<void>;
-  onMarkAsRead: (id: number, currentReadBy: number[]) => void;
-  teamMembers: TeamMember[];
-}) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const contentRef = useRef<HTMLParagraphElement>(null);
-  const [isOverflowing, setIsOverflowing] = useState(false);
+// ⭐️ 스마트 파싱 유틸리티 (DB 변경 없이 본인 식별 정보 숨기기)
+const parseWorklog = (rawContent: string | null) => {
+    if (!rawContent) return { mainContent: "", feedbacks: [] };
+    let main = rawContent;
+    let parsedFeedbacks: Feedback[] = [];
   
-  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
-  const [feedbackText, setFeedbackText] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const splitContent = log.content ? log.content.split('\n\n---피드백---\n') : [""];
-  const mainContent = splitContent[0];
-  const feedbacks = splitContent.length > 1 ? splitContent.slice(1) : [];
-
-  const isUnreadByMe = myAgentId ? (log.authorId !== myAgentId && !log.readBy.includes(myAgentId)) : false;
-
-  useEffect(() => {
-    if (contentRef.current) {
-      setIsOverflowing(contentRef.current.scrollHeight > 48); 
+    // 1. 신규 포맷 파싱 (식별자 포함)
+    if (main.includes('\n\n---FB|')) {
+      const parts = main.split('\n\n---FB|');
+      main = parts[0];
+      parts.slice(1).forEach(part => {
+        const endIdx = part.indexOf('---\n');
+        if (endIdx !== -1) {
+          const meta = part.substring(0, endIdx).split('|');
+          const text = part.substring(endIdx + 4);
+          parsedFeedbacks.push({ authorId: parseInt(meta[0]), fbId: meta[1], text });
+        }
+      });
     }
-  }, [mainContent]);
-
-  const handleToggleExpand = () => {
-    setIsExpanded(!isExpanded);
-    if (!isExpanded && isUnreadByMe) {
-      onMarkAsRead(log.id, log.readBy);
+  
+    // 2. 구형 포맷 파싱 (호환성 유지)
+    if (main.includes('\n\n---피드백---\n')) {
+      const parts = main.split('\n\n---피드백---\n');
+      main = parts[0];
+      parts.slice(1).forEach((text, i) => {
+        parsedFeedbacks.push({ authorId: null, fbId: `legacy_${i}`, text });
+      });
     }
+  
+    return { mainContent: main, feedbacks: parsedFeedbacks };
   };
-
-  const handleFeedbackSubmit = async () => {
-    if (!feedbackText.trim()) return;
-    setIsSubmitting(true);
-    await onAddFeedback(log.id, feedbackText);
-    setFeedbackText("");
-    setIsFeedbackOpen(false);
-    setIsSubmitting(false);
+  
+  // ⭐️ 재구성 유틸리티 (수정/저장용)
+  const reconstructWorklog = (mainContent: string, feedbacks: Feedback[]) => {
+    let result = mainContent;
+    feedbacks.forEach(f => {
+      if (f.authorId === null) {
+        result += `\n\n---피드백---\n${f.text}`;
+      } else {
+        result += `\n\n---FB|${f.authorId}|${f.fbId}---\n${f.text}`;
+      }
+    });
+    return result;
   };
-
-  const readMembers = teamMembers.filter(m => log.readBy.includes(m.id) && m.id !== log.authorId);
-  const unreadMembers = teamMembers.filter(m => !log.readBy.includes(m.id) && m.id !== log.authorId);
-
-  const showToggleButton = isUnreadByMe || isOverflowing;
-
+  
+  
+  // 🟢 개별 로그 컴포넌트
+  const LogItem = ({ log, selectedMemberId, onDelete, onUpdateWorklogText, myAgentId, onAddFeedback, onMarkAsRead, teamMembers }: { 
+    log: WorkLog; 
+    selectedMemberId: number | 'ALL'; 
+    onDelete: (id: number) => void; 
+    onUpdateWorklogText: (id: number, newText: string) => Promise<void>;
+    myAgentId: number | null; 
+    onAddFeedback: (id: number, logAuthorId: number, feedback: string) => Promise<void>;
+    onMarkAsRead: (id: number, currentReadBy: number[]) => void;
+    teamMembers: TeamMember[];
+  }) => {
+    const [isExpanded, setIsExpanded] = useState(false);
+    const contentRef = useRef<HTMLParagraphElement>(null);
+    const [isOverflowing, setIsOverflowing] = useState(false);
+    
+    const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
+    const [feedbackText, setFeedbackText] = useState("");
+    const [isSubmitting, setIsSubmitting] = useState(false);
+  
+    // ⭐️ 본문 수정 상태
+    const [isEditingMain, setIsEditingMain] = useState(false);
+    const [editMainText, setEditMainText] = useState("");
+  
+    // ⭐️ 피드백 수정 상태
+    const [editingFbId, setEditingFbId] = useState<string | null>(null);
+    const [editFbText, setEditFbText] = useState("");
+  
+    const isUnreadByMe = myAgentId ? (log.authorId !== myAgentId && !log.readBy.includes(myAgentId)) : false;
+  
+    useEffect(() => {
+      if (!isEditingMain && contentRef.current) {
+        setIsOverflowing(contentRef.current.scrollHeight > 48); 
+      }
+    }, [log.mainContent, isEditingMain]);
+  
+    const handleToggleExpand = () => {
+      setIsExpanded(!isExpanded);
+      if (!isExpanded && isUnreadByMe) {
+        onMarkAsRead(log.id, log.readBy);
+      }
+    };
+  
+    const handleFeedbackSubmit = async () => {
+      if (!feedbackText.trim()) return;
+      setIsSubmitting(true);
+      await onAddFeedback(log.id, log.authorId, feedbackText);
+      setFeedbackText("");
+      setIsFeedbackOpen(false);
+      setIsSubmitting(false);
+    };
+  
+    // ⭐️ 본문 수정 저장
+    const handleSaveMain = async () => {
+      if (!editMainText.trim()) return;
+      const newWorklog = reconstructWorklog(editMainText, log.feedbacks);
+      await onUpdateWorklogText(log.id, newWorklog);
+      setIsEditingMain(false);
+    };
+  
+    // ⭐️ 피드백 수정 저장
+    const handleSaveFb = async () => {
+      if (!editFbText.trim()) return;
+      const newFbs = log.feedbacks.map(f => f.fbId === editingFbId ? { ...f, text: editFbText } : f);
+      const newWorklog = reconstructWorklog(log.mainContent, newFbs);
+      await onUpdateWorklogText(log.id, newWorklog);
+      setEditingFbId(null);
+    };
+  
+    // ⭐️ 피드백 삭제
+    const handleDeleteFb = async (fbId: string) => {
+      if (!window.confirm("이 피드백을 정말 삭제하시겠습니까?")) return;
+      const newFbs = log.feedbacks.filter(f => f.fbId !== fbId);
+      const newWorklog = reconstructWorklog(log.mainContent, newFbs);
+      await onUpdateWorklogText(log.id, newWorklog);
+    };
+  
+    const readMembers = teamMembers.filter(m => log.readBy.includes(m.id) && m.id !== log.authorId);
+    const unreadMembers = teamMembers.filter(m => !log.readBy.includes(m.id) && m.id !== log.authorId);
+  
+    const showToggleButton = isUnreadByMe || isOverflowing;
+    const isMyLog = log.authorId === myAgentId;
   return (
     <div className="group relative bg-white border border-slate-200 rounded-2xl p-4 md:p-5 shadow-sm hover:shadow-md hover:border-blue-200 transition-all">
       <div className="absolute top-6 md:top-7 -left-[31px] md:-left-[47px] w-3 h-3 rounded-full bg-blue-500 ring-4 ring-white z-10 group-hover:scale-125 transition-transform" />
@@ -128,10 +212,15 @@ const LogItem = ({ log, selectedMemberId, onDelete, myAgentId, onAddFeedback, on
         </div>
         
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          {log.authorId === myAgentId && (
-            <button onClick={() => onDelete(log.id)} className="text-slate-300 hover:text-red-500 transition-colors cursor-pointer p-1.5 bg-white rounded-md hover:bg-red-50 shrink-0" title="일지 삭제">
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
+          {isMyLog && !isEditingMain && (
+            <>
+              <button onClick={() => { setEditMainText(log.mainContent); setIsEditingMain(true); }} className="text-slate-300 hover:text-blue-500 transition-colors cursor-pointer p-1.5 bg-white rounded-md hover:bg-blue-50 shrink-0" title="일지 수정">
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+              <button onClick={() => onDelete(log.id)} className="text-slate-300 hover:text-red-500 transition-colors cursor-pointer p-1.5 bg-white rounded-md hover:bg-red-50 shrink-0" title="일지 삭제">
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -142,44 +231,88 @@ const LogItem = ({ log, selectedMemberId, onDelete, myAgentId, onAddFeedback, on
             <CalendarDays className="w-3.5 h-3.5" /> {log.scheduleContent}
           </p>
         )}
-        <p 
-          ref={contentRef}
-          className={`text-[13px] md:text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap ${!isExpanded ? 'line-clamp-2' : ''}`}
-        >
-          {mainContent}
-        </p>
-        
-        {showToggleButton && (
-          <button 
-            onClick={handleToggleExpand}
-            className={`mt-2 text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer ${
-              isUnreadByMe && !isExpanded 
-                ? 'text-blue-600 bg-blue-50 border border-blue-100 px-2.5 py-1.5 rounded-lg shadow-sm animate-pulse' 
-                : 'text-slate-500 hover:text-blue-700 mt-1'
-            }`}
-          >
-            {isExpanded ? (
-              <><ChevronUp className="w-3.5 h-3.5" /> 내용 접기</>
-            ) : (
-              <>
-                <ChevronDown className="w-3.5 h-3.5" /> 
-                {isUnreadByMe ? "내용 확인하기 (더보기)" : "본문 더보기"}
-              </>
+        {isEditingMain ? (
+          <div className="flex flex-col gap-2 mt-2">
+            <textarea
+              value={editMainText}
+              onChange={(e) => setEditMainText(e.target.value)}
+              className="w-full text-sm font-medium border border-blue-300 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-100 bg-blue-50/30 resize-none min-h-[100px] leading-relaxed"
+              autoFocus
+            />
+            <div className="flex justify-end gap-1.5">
+              <button onClick={() => setIsEditingMain(false)} className="px-3 py-1.5 text-xs font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer">취소</button>
+              <button onClick={handleSaveMain} className="px-3 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors cursor-pointer">저장</button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <p ref={contentRef} className={`text-[13px] md:text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap ${!isExpanded ? 'line-clamp-2' : ''}`}>
+              {log.mainContent}
+            </p>
+            {showToggleButton && (
+              <button 
+                onClick={handleToggleExpand}
+                className={`mt-2 text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer ${
+                  isUnreadByMe && !isExpanded 
+                    ? 'text-blue-600 bg-blue-50 border border-blue-100 px-2.5 py-1.5 rounded-lg shadow-sm animate-pulse' 
+                    : 'text-slate-500 hover:text-blue-700 mt-1'
+                }`}
+              >
+                {isExpanded ? (
+                  <><ChevronUp className="w-3.5 h-3.5" /> 내용 접기</>
+                ) : (
+                  <>
+                    <ChevronDown className="w-3.5 h-3.5" /> 
+                    {isUnreadByMe ? "내용 확인하기 (더보기)" : "본문 더보기"}
+                  </>
+                )}
+              </button>
             )}
-          </button>
+          </>
         )}
       </div>
 
-      {feedbacks.length > 0 && (
+      {/* 피드백(댓글) 영역 */}
+      {log.feedbacks.length > 0 && (
         <div className="mt-4 pt-3 border-t border-dashed border-slate-200 space-y-2">
-          {feedbacks.map((fb, i) => (
-            <div key={i} className="flex gap-2.5 items-start bg-slate-50 p-3 rounded-xl border border-slate-100">
+          {log.feedbacks.map((fb) => (
+            <div key={fb.fbId} className="group/fb flex gap-2.5 items-start bg-slate-50 hover:bg-indigo-50/30 transition-colors p-3 rounded-xl border border-slate-100">
               <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
                 <MessageCircle className="w-3.5 h-3.5" />
               </div>
-              <div>
-                <span className="text-[10px] font-black text-indigo-600 mb-0.5 block">익명 피드백</span>
-                <p className="text-xs text-slate-600 font-medium whitespace-pre-wrap leading-relaxed">{fb}</p>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between mb-0.5">
+                  <span className="text-[10px] font-black text-indigo-600 block">익명 피드백</span>
+                  
+                  {/* ⭐️ 내가 쓴 피드백일 경우에만 수정/삭제 노출 */}
+                  {fb.authorId === myAgentId && editingFbId !== fb.fbId && (
+                    <div className="flex items-center gap-1 opacity-0 group-hover/fb:opacity-100 transition-opacity">
+                      <button onClick={() => { setEditFbText(fb.text); setEditingFbId(fb.fbId); }} className="text-slate-400 hover:text-indigo-500 transition-colors cursor-pointer" title="수정">
+                        <Pencil className="w-3 h-3" />
+                      </button>
+                      <button onClick={() => handleDeleteFb(fb.fbId)} className="text-slate-400 hover:text-red-500 transition-colors cursor-pointer" title="삭제">
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {editingFbId === fb.fbId ? (
+                  <div className="flex flex-col gap-1.5 mt-1">
+                    <textarea
+                      value={editFbText}
+                      onChange={(e) => setEditFbText(e.target.value)}
+                      className="w-full text-xs font-medium border border-indigo-200 rounded-lg p-2 outline-none focus:ring-2 focus:ring-indigo-100 bg-white resize-none min-h-[60px]"
+                      autoFocus
+                    />
+                    <div className="flex justify-end gap-1">
+                      <button onClick={() => setEditingFbId(null)} className="px-2.5 py-1 text-[10px] font-bold text-slate-500 bg-slate-200 hover:bg-slate-300 rounded transition-colors cursor-pointer">취소</button>
+                      <button onClick={handleSaveFb} className="px-2.5 py-1 text-[10px] font-bold text-white bg-indigo-500 hover:bg-indigo-600 rounded transition-colors cursor-pointer">저장</button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-600 font-medium whitespace-pre-wrap leading-relaxed">{fb.text}</p>
+                )}
               </div>
             </div>
           ))}
@@ -218,15 +351,15 @@ const LogItem = ({ log, selectedMemberId, onDelete, myAgentId, onAddFeedback, on
               <MessageCircle className="w-3.5 h-3.5" /> 피드백(댓글) 남기기
             </button>
           ) : (
-            <div className="w-full flex items-end gap-2 bg-slate-50 border border-indigo-200 p-2 rounded-xl focus-within:border-indigo-400 transition-colors shadow-inner">
+            <div className="w-full flex items-stretch gap-2 bg-slate-50 border border-indigo-200 p-2 rounded-xl focus-within:border-indigo-400 transition-colors shadow-inner">
               <textarea
                 value={feedbackText}
                 onChange={(e) => setFeedbackText(e.target.value)}
-                placeholder="따뜻한 조언이나 익명 피드백을 남겨주세요."
-                className="flex-1 bg-transparent border-none outline-none text-xs text-slate-700 resize-none h-12 p-1 font-medium"
+                placeholder="익명 피드백을 남겨주세요."
+                className="flex-1 bg-transparent border-none outline-none text-xs text-slate-700 resize-none h-full p-1 font-medium"
                 autoFocus
               />
-              <div className="flex flex-col gap-1 shrink-0 pb-1">
+              <div className="flex flex-col justify-end gap-1 shrink-0 pb-1">
                 <button 
                   onClick={handleFeedbackSubmit}
                   disabled={isSubmitting || !feedbackText.trim()}
@@ -307,9 +440,8 @@ export default function WorklogsPage() {
 
         const now = new Date();
         const pendingArr = ((rawPending || []) as unknown as PendingSchedule[]).filter(sch => {
-            // 스케줄의 날짜와 시간을 합쳐서 Date 객체로 생성 (UTC 대신 로컬 타임으로 단순 비교)
             const schDateTime = new Date(`${sch.date}T${sch.time}`);
-            return schDateTime <= now; // 현재 시간보다 과거인 것만 남김
+            return schDateTime <= now;
         });
       setPendingSchedules(pendingArr.filter(p => p.agent_id === agent.id).sort((a,b) => b.date.localeCompare(a.date)));
 
@@ -357,26 +489,31 @@ export default function WorklogsPage() {
         .order("date", { ascending: false })
         .order("time", { ascending: false });
 
-      if (logsData) {
-        const formattedLogs: WorkLog[] = logsData.map(l => {
-            const agentInfo = Array.isArray(l.agents) ? l.agents[0] : l.agents;
-            const clientInfo = Array.isArray(l.clients) ? l.clients[0] : l.clients;
-  
-            return {
-              id: l.id,
-              authorId: l.agent_id,
-              authorName: agentInfo?.name || "알 수 없음",
-              authorRank: agentInfo?.rank || "FC",
-              category: l.category || "일반",
-              scheduleContent: l.content, 
-              content: l.worklog,         
-              time: l.time,
-              date: l.date,
-              clientName: clientInfo?.name,
-              clientId: l.client_id,
-              readBy: Array.isArray(l.read_by) ? l.read_by : [] 
-            };
-          });
+        if (logsData) {
+            const formattedLogs: WorkLog[] = logsData.map(l => {
+                const agentInfo = Array.isArray(l.agents) ? l.agents[0] : l.agents;
+                const clientInfo = Array.isArray(l.clients) ? l.clients[0] : l.clients;
+                
+                // ⭐️ worklog 텍스트를 구조화된 데이터로 파싱
+                const parsed = parseWorklog(l.worklog);
+    
+                return {
+                  id: l.id,
+                  authorId: l.agent_id,
+                  authorName: agentInfo?.name || "알 수 없음",
+                  authorRank: agentInfo?.rank || "FC",
+                  category: l.category || "일반",
+                  scheduleContent: l.content, 
+                  rawContent: l.worklog || "",
+                  mainContent: parsed.mainContent,
+                  feedbacks: parsed.feedbacks,       
+                  time: l.time,
+                  date: l.date,
+                  clientName: clientInfo?.name,
+                  clientId: l.client_id,
+                  readBy: Array.isArray(l.read_by) ? l.read_by : [] 
+                };
+              });
         setLogs(formattedLogs);
       }
     } catch (error) {
@@ -509,22 +646,50 @@ export default function WorklogsPage() {
     }
   };
 
-  const handleAddFeedback = async (id: number, feedback: string) => {
+ // ⭐️ 공통: 텍스트 재구성 후 업데이트 (본문 & 피드백 수정/삭제 시 호출)
+ const handleUpdateWorklogText = async (id: number, newWorklogString: string) => {
     try {
-      const { data: sch } = await supabase.from("schedules").select("worklog").eq("id", id).single();
-      if (!sch) throw new Error("스케줄을 찾을 수 없습니다.");
-      
-      const updatedWorklog = `${sch.worklog || ""}\n\n---피드백---\n${feedback}`;
-      
-      const { error } = await supabase.from("schedules").update({ worklog: updatedWorklog }).eq("id", id);
+      const { error } = await supabase.from("schedules").update({ worklog: newWorklogString }).eq("id", id);
       if (error) throw error;
 
       setLogs(logs.map(log => {
         if (log.id === id) {
-          return { ...log, content: updatedWorklog };
+          const parsed = parseWorklog(newWorklogString);
+          return { ...log, rawContent: newWorklogString, mainContent: parsed.mainContent, feedbacks: parsed.feedbacks };
         }
         return log;
       }));
+    } catch (error: any) {
+      alert("업데이트에 실패했습니다. " + error.message);
+    }
+  };
+
+  // ⭐️ 새 피드백 추가 & 알림 발송
+  const handleAddFeedback = async (id: number, logAuthorId: number, feedback: string) => {
+    if (!myInfo) return;
+    try {
+      const log = logs.find(l => l.id === id);
+      if (!log) return;
+
+      const fbId = Date.now().toString();
+      const newFb: Feedback = { authorId: myInfo.id, fbId, text: feedback };
+      const newFbs = [...log.feedbacks, newFb];
+      const newWorklog = reconstructWorklog(log.mainContent, newFbs);
+      
+      await handleUpdateWorklogText(id, newWorklog);
+
+      // ⭐️ 3번 요구사항: 남의 글에 피드백을 남긴 경우 알림 발송
+      if (logAuthorId !== myInfo.id) {
+        try {
+          await supabase.from('notifications').insert({
+            agent_id: logAuthorId,
+            content: `[업무일지] 익명 피드백을 남겼습니다.`,
+            is_read: false
+          });
+        } catch (err) {
+          console.error("알림 발송 실패:", err);
+        }
+      }
     } catch (error: any) {
       alert("피드백 등록에 실패했습니다. " + error.message);
     }
@@ -694,7 +859,7 @@ export default function WorklogsPage() {
               <div className="relative border-l-2 border-slate-100 ml-3 md:ml-4 space-y-10 pb-8">
                 {Object.entries(groupedLogs).map(([date, dateLogs]) => (
                   <div key={date} className="relative">
-                    <div className="absolute -left-[45px] md:-left-[54px] bg-slate-100 text-slate-600 border border-slate-200 rounded-full px-3 py-1 text-[11px] font-black shadow-sm z-10 flex items-center justify-center">
+                    <div className="absolute -left-[48px] md:-left-[52px] bg-slate-100 text-slate-600 border border-slate-200 rounded-full px-3 py-1 text-[11px] font-black shadow-sm z-10 flex items-center justify-center">
                        {date.substring(5).replace('-', '/')}
                     </div>
 
@@ -705,6 +870,7 @@ export default function WorklogsPage() {
                           log={log} 
                           selectedMemberId={selectedMemberId} 
                           onDelete={handleDeleteLog} 
+                          onUpdateWorklogText={handleUpdateWorklogText}
                           myAgentId={myInfo?.id || null}
                           onAddFeedback={handleAddFeedback}
                           onMarkAsRead={handleMarkAsRead} 
@@ -755,15 +921,12 @@ export default function WorklogsPage() {
                   onChange={(e) => handleSelectSchedule(e.target.value)}
                   className="w-full text-sm font-bold border border-slate-200 rounded-xl px-3 py-3 md:py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white cursor-pointer appearance-none"
                 >
-                  <option value="">-- 기존 스케줄 연동 없이 즉시 등록 --</option>
-                  {pendingSchedules.map(sch => {
-                    const clientName = Array.isArray(sch.clients) ? sch.clients[0]?.name : sch.clients?.name;
-                    return (
-                      <option key={sch.id} value={sch.id}>
-                      {sch.date} {sch.time.substring(0, 5)} | [{sch.category}] {clientName ? `${clientName} - ` : ''} {sch.content}
-                      </option>
-                    );
-                  })}
+                  <option value="">- 기존 스케줄 연동 없이 즉시 등록 -</option>
+                  {pendingSchedules.map(sch => (
+                    <option key={sch.id} value={sch.id}>
+                      {sch.date} {sch.time.substring(0, 5)} | [{sch.category}] {sch.clients?.name ? `${sch.clients.name} - ` : ''} {sch.content}
+                    </option>
+                  ))}
                 </select>
               </div>
 
