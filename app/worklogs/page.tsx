@@ -917,16 +917,21 @@ export default function WorklogsPage() {
                   {!isManager && pendingSchedules.length > 0 && <span className="text-red-500 text-[10px]">미작성 {pendingSchedules.length}건</span>}
                 </label>
                 <select 
-                  value={selectedScheduleId}
-                  onChange={(e) => handleSelectSchedule(e.target.value)}
-                  className="w-full text-sm font-bold border border-slate-200 rounded-xl px-3 py-3 md:py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white cursor-pointer appearance-none"
+                value={selectedScheduleId}
+                onChange={(e) => handleSelectSchedule(e.target.value)}
+                className="w-full text-sm font-bold border border-slate-200 rounded-xl px-3 py-3 md:py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white cursor-pointer appearance-none"
                 >
-                  <option value="">- 기존 스케줄 연동 없이 즉시 등록 -</option>
-                  {pendingSchedules.map(sch => (
+                <option value="">-- 기존 스케줄 연동 없이 즉시 등록 --</option>
+                {pendingSchedules.map(sch => {
+                    // ⭐️ clients가 배열일 경우와 단일 객체일 경우를 안전하게 체크
+                    const clientName = Array.isArray(sch.clients) ? sch.clients[0]?.name : sch.clients?.name;
+                    
+                    return (
                     <option key={sch.id} value={sch.id}>
-                      {sch.date} {sch.time.substring(0, 5)} | [{sch.category}] {sch.clients?.name ? `${sch.clients.name} - ` : ''} {sch.content}
+                        {sch.date} {sch.time.substring(0, 5)} | [{sch.category}] {clientName ? `${clientName} - ` : ''} {sch.content}
                     </option>
-                  ))}
+                    );
+                })}
                 </select>
               </div>
 
