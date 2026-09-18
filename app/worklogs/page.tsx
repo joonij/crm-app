@@ -821,7 +821,7 @@ export default function WorklogsPage() {
                         {member.rank}
                       </span>
                     </div>
-                    {isManager && member.pendingCount > 0 && (
+                    {member.pendingCount > 0 && (
                       <span className="bg-red-50 text-red-600 border border-red-200 text-[10px] font-black px-1.5 py-0.5 rounded-full shadow-sm">
                         미작성 {member.pendingCount}
                       </span>

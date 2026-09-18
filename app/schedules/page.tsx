@@ -591,6 +591,7 @@ export default function SchedulePage() {
       >
         <div className="items-center border-b border-black/10 pb-1.5 sm:pb-1 w-full">
           <span className="justify-between font-black sm:font-extrabold flex items-center gap-1.5 sm:gap-1 text-[13px] sm:text-xs whitespace-nowrap shrink-0">
+            {/* {evt.id} / */}
             {evt.time}
             {evt.clients?.name && (<span className="text-[10px] font-bold px-1.5 py-0.5 text-slate-700 truncate max-w-[60px]">{evt.clients.name}</span>)}
             {evt.category && <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${catColor}`}>{evt.category}</span>}
