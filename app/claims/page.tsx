@@ -106,29 +106,21 @@ function SearchableSelect({
 
 export default function ClaimManagementPage() {
   const [agentRank, setAgentRank] = useState(""); 
-  
   const [branchFCs, setBranchFCs] = useState<any[]>([]); 
   const [selectedFC, setSelectedFC] = useState(""); 
-  
   const [fcClients, setFcClients] = useState<any[]>([]); 
   const [selectedClient, setSelectedClient] = useState(""); 
-  
   const [clientInsurances, setClientInsurances] = useState<any[]>([]); 
   const [selectedInsurance, setSelectedInsurance] = useState("");
-
   const [claims, setClaims] = useState<ClaimRecord[]>([]);
   const [insuranceCompanies, setInsuranceCompanies] = useState<{company_type: string, company_name: string, has_claim_form?: boolean}[]>([]);
   const [selectedNewCompany, setSelectedNewCompany] = useState("");
-  
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
-
   const [displayCount, setDisplayCount] = useState(20);
-
   const [modalClient, setModalClient] = useState<any>(null);
   const [modalInsurance, setModalInsurance] = useState<any>(null);
-
   const sortNameEngThenKor = (a: {name: string}, b: {name: string}) => {
     const nameA = a.name || "";
     const nameB = b.name || "";
@@ -138,7 +130,6 @@ export default function ClaimManagementPage() {
     if (!aIsEng && bIsEng) return 1;  
     return nameA.localeCompare(nameB, 'ko-KR'); 
   };
-
   const isSupportedCompany = (companyName: string) => {
     if (!companyName) return false;
     const comp = insuranceCompanies.find(c => companyName.includes(c.company_name) || c.company_name.includes(companyName));

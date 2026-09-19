@@ -13,15 +13,16 @@ const supabase = createClient(
 );
 
 // ⭐️ 분리해둔 보험사별 모듈 불러오기
-import { fillLifeHeungkukHealth } from "./handlers/LifeHeungkukHealth";
+import { fillLifeAblHealth } from "./handlers/LifeAblHealth";
 import { fillLifeLinaHealth } from "./handlers/LifeLinaHealth";
+import { fillLifeHeungkukHealth } from "./handlers/LifeHeungkukHealth";
 
-import { fillPropertyMeritzHealth } from "./handlers/PropertyMeritzHealth";
-import { fillPropertyHyundaiHealth } from "./handlers/PropertyHyundaiHealth";
 import { fillPropertyDbHealth } from "./handlers/PropertyDbHealth";
+import { fillPropertyKbHealth } from "./handlers/PropertyKbHealth";
+import { fillPropertyMeritzHealth } from "./handlers/PropertyMeritzHealth";
 import { fillPropertSamsungHealth } from "./handlers/PropertSamsungHealth";
 import { fillPropertyHanwhaHealth } from "./handlers/PropertyHanwhaHealth";
-import { fillPropertyKbHealth } from "./handlers/PropertyKbHealth";
+import { fillPropertyHyundaiHealth } from "./handlers/PropertyHyundaiHealth";
 
 export async function POST(req: NextRequest) {
   try {
@@ -70,26 +71,30 @@ export async function POST(req: NextRequest) {
     let fileName = "";
     let fillFunction: any = null; 
 
-    if (claimData.insuranceCompany.includes("흥국생명")) {
-      fileName = "lifeheungkuk_health.pdf";
-      fillFunction = fillLifeHeungkukHealth;
+    if (claimData.insuranceCompany.includes("ABL생명")) {
+      fileName = "lifeabl_health.pdf";
+      fillFunction = fillLifeAblHealth;
     } 
     if (claimData.insuranceCompany.includes("라이나생명")) {
       fileName = "lifelina_health.pdf";
       fillFunction = fillLifeLinaHealth;
     } 
+    if (claimData.insuranceCompany.includes("흥국생명")) {
+      fileName = "lifeheungkuk_health.pdf";
+      fillFunction = fillLifeHeungkukHealth;
+    } 
 
-    if (claimData.insuranceCompany.includes("메리츠화재")) {
-      fileName = "propertymeritz_health.pdf";
-      fillFunction = fillPropertyMeritzHealth;
-    } 
-    if (claimData.insuranceCompany.includes("현대해상")) {
-      fileName = "propertyhyundai_health.pdf";
-      fillFunction = fillPropertyHyundaiHealth;
-    } 
     if (claimData.insuranceCompany.includes("DB손해")) {
       fileName = "propertydb_health.pdf";
       fillFunction = fillPropertyDbHealth;
+    } 
+    if (claimData.insuranceCompany.includes("KB손해")) {
+      fileName = "propertykb_health.pdf";
+      fillFunction = fillPropertyKbHealth;
+    } 
+    if (claimData.insuranceCompany.includes("메리츠화재")) {
+      fileName = "propertymeritz_health.pdf";
+      fillFunction = fillPropertyMeritzHealth;
     } 
     if (claimData.insuranceCompany.includes("삼성화재")) {
       fileName = "propertsamsung_health.pdf";
@@ -99,9 +104,9 @@ export async function POST(req: NextRequest) {
       fileName = "propertyhanwha_health.pdf";
       fillFunction = fillPropertyHanwhaHealth;
     } 
-    if (claimData.insuranceCompany.includes("KB손해")) {
-      fileName = "propertykb_health.pdf";
-      fillFunction = fillPropertyKbHealth;
+    if (claimData.insuranceCompany.includes("현대해상")) {
+      fileName = "propertyhyundai_health.pdf";
+      fillFunction = fillPropertyHyundaiHealth;
     } 
 
     if (!fileName || !fillFunction) {

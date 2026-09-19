@@ -118,15 +118,12 @@ function SearchableSelect({
 
 export default function QuickClaimModal({ isOpen, onClose, client, insurance }: QuickClaimModalProps) {
   const [isLoading, setIsLoading] = useState(false);
-
   const [userRank, setUserRank] = useState("");
   const [branchFCs, setBranchFCs] = useState<any[]>([]);
   const [selectedFC, setSelectedFC] = useState("");
-
   const [policyholder, setPolicyholder] = useState({ id: null as number | null, name: "", rrn: "", phone: "", address: "" });
   const [insured, setInsured] = useState({ id: null as number | null, name: "", rrn: "", phone: "", address: "" });
   const [beneficiary, setBeneficiary] = useState({ id: null as number | null, name: "", rrn: "", phone: "", address: "" });
-
   const [accidentDesc, setAccidentDesc] = useState("");
   const [bankName, setBankName] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
@@ -135,31 +132,29 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
   const [clientsList, setClientsList] = useState<any[]>([]);
   const [bankLists, setBankLists] = useState<{ id: number; bank: string }[]>([]);
   const [focusedClientField, setFocusedClientField] = useState<'policyholder' | 'insured' | 'beneficiary' | null>(null);
-  
   const [readyToShareFile, setReadyToShareFile] = useState<File | null>(null);
   const [isCopied, setIsCopied] = useState(false);
-  
   const insuredCanvasRef = useRef<HTMLCanvasElement>(null);
   const beneficiaryCanvasRef = useRef<HTMLCanvasElement>(null);
   const [isInsuredDrawing, setIsInsuredDrawing] = useState(false);
   const [isBeneficiaryDrawing, setIsBeneficiaryDrawing] = useState(false);
   const [hasInsuredSignature, setHasInsuredSignature] = useState(false); 
   const [hasBeneficiarySignature, setHasBeneficiarySignature] = useState(false);
-
   const companyName = insurance?.insurance_company || "";
-  let needsInsuredSignature = true; 
-  let needsBeneficiarySignature = true; 
-  let supportsSavedAccount = true; 
+  let needsInsuredSignature = true; // 피보험자
+  let needsBeneficiarySignature = true; // 수익자
+  let supportsSavedAccount = true; // 자동통장
   const currentFaxNumber = Object.entries(FAX_NUMBERS).find(([key]) => companyName.includes(key))?.[1] || "번호 확인 필요";
 
-  if (companyName.includes("흥국생명")) { supportsSavedAccount = false; }
+  if (companyName.includes("ABL생명")) { supportsSavedAccount = false; }
   if (companyName.includes("라이나생명")) { supportsSavedAccount = false; }
-  if (companyName.includes("메리츠화재")) { needsInsuredSignature = false; supportsSavedAccount = true; } 
-  if (companyName.includes("현대해상")) { needsInsuredSignature = false; }
+  if (companyName.includes("흥국생명")) { supportsSavedAccount = false; }
   if (companyName.includes("DB손해")) { }
+  if (companyName.includes("KB손해")) { needsInsuredSignature = false; }
+  if (companyName.includes("메리츠화재")) { needsInsuredSignature = false; supportsSavedAccount = true; } 
   if (companyName.includes("삼성화재")) { supportsSavedAccount = false; }
   if (companyName.includes("한화손해")) { needsBeneficiarySignature = false; }
-  if (companyName.includes("KB손해")) { needsInsuredSignature = false; }
+  if (companyName.includes("현대해상")) { needsInsuredSignature = false; }
 
   useEffect(() => { if (!supportsSavedAccount) setUseSavedAccount(false); }, [supportsSavedAccount]);
   useEffect(() => {
