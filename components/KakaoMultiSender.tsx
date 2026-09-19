@@ -3,23 +3,19 @@
 
 import { useEffect, useState, useRef } from "react";
 import { MessageCircle, Gift, FileText, ShieldCheck, PenTool, Image as ImageIcon, Loader2, Send, X } from "lucide-react";
-import { supabase } from "@/lib/supabase"; // ⭐️ Supabase 기능 추가
+import { supabase } from "@/lib/supabase";
 
 export default function KakaoMultiSender({ profileName }: { profileName: string }) {
   const [isCustomMode, setIsCustomMode] = useState(false);
-  const [customTitle, setCustomTitle] = useState("");
   const [customDesc, setCustomDesc] = useState("");
-  // 기본 썸네일 이미지 세팅
   const [customImageUrl, setCustomImageUrl] = useState("https://images.unsplash.com/photo-1612222869049-d8ec83637a3c?auto=format&fit=crop&q=80&w=800"); 
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 1. 카카오 시스템 초기화
   useEffect(() => {
     const initKakao = () => {
       const globalWindow = window as any;
       if (globalWindow.Kakao && !globalWindow.Kakao.isInitialized()) {
-        // 🚨 대표님의 JavaScript 키가 맞습니다.
         globalWindow.Kakao.init("ccb428fb9e389bec1c8579c12828fd97"); 
       }
     };
@@ -27,7 +23,6 @@ export default function KakaoMultiSender({ profileName }: { profileName: string 
     return () => clearTimeout(timer);
   }, []);
 
-  // 2. 템플릿 기반 발송 (기존 기능)
   const sendKakaoMessage = (type: string) => {
     const globalWindow = window as any;
     if (!globalWindow.Kakao || !globalWindow.Kakao.isInitialized()) {
@@ -64,40 +59,43 @@ export default function KakaoMultiSender({ profileName }: { profileName: string 
     executeKakaoShare(msgTitle, msgDesc, msgImage, linkUrl, btnText);
   };
 
-  // 3. ⭐️ 직접 작성(Custom) 발송 기능
+  // ⭐️ 직접 작성 시 제목과 버튼 없이 발송
   const sendCustomMessage = () => {
-    if (!customTitle.trim()) return alert("메시지 제목을 입력해주세요.");
     if (!customDesc.trim()) return alert("메시지 내용을 입력해주세요.");
     
     executeKakaoShare(
-      customTitle, 
+      "", // 제목 제거
       customDesc, 
       customImageUrl, 
-      window.location.origin, 
-      "자세히 보기"
+      window.location.origin
+      // 버튼 텍스트 생략
     );
   };
 
-  // 공통 카카오 API 호출 함수
-  const executeKakaoShare = (title: string, desc: string, imageUrl: string, link: string, btnText: string) => {
+  // ⭐️ btnText가 없으면 버튼 배열을 아예 생성하지 않음
+  const executeKakaoShare = (title: string, desc: string, imageUrl: string, link: string, btnText?: string) => {
     const globalWindow = window as any;
     if (!globalWindow.Kakao || !globalWindow.Kakao.isInitialized()) return;
 
-    globalWindow.Kakao.Share.sendDefault({
+    const payload: any = {
       objectType: 'feed',
       content: {
         title: title,
         description: desc,
         imageUrl: imageUrl,
         link: { mobileWebUrl: link, webUrl: link },
-      },
-      buttons: [
-        { title: btnText, link: { mobileWebUrl: link, webUrl: link } },
-      ],
-    });
+      }
+    };
+
+    if (btnText) {
+      payload.buttons = [
+        { title: btnText, link: { mobileWebUrl: link, webUrl: link } }
+      ];
+    }
+
+    globalWindow.Kakao.Share.sendDefault(payload);
   };
 
-  // 4. ⭐️ 이미지 업로드 기능 (Supabase 연동)
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -107,14 +105,12 @@ export default function KakaoMultiSender({ profileName }: { profileName: string 
       const fileExt = file.name.split('.').pop();
       const fileName = `kakao_${Date.now()}.${fileExt}`;
 
-      // kakao_images 버킷에 업로드
       const { error: uploadError } = await supabase.storage
         .from('kakao_images')
         .upload(fileName, file, { upsert: false });
 
       if (uploadError) throw uploadError;
 
-      // 퍼블릭 URL 가져와서 상태에 저장
       const { data } = supabase.storage.from('kakao_images').getPublicUrl(fileName);
       setCustomImageUrl(data.publicUrl);
     } catch (error) {
@@ -157,7 +153,6 @@ export default function KakaoMultiSender({ profileName }: { profileName: string 
               <span className="text-xs font-bold text-blue-900">보장 분석 제안</span>
             </button>
 
-            {/* ⭐️ 직접 작성하기 토글 버튼 */}
             <button onClick={() => setIsCustomMode(true)} className="flex flex-col items-center justify-center gap-2 p-4 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl transition-colors cursor-pointer group">
               <PenTool className="w-6 h-6 text-slate-600 group-hover:scale-110 transition-transform" />
               <span className="text-xs font-bold text-slate-800">직접 작성하기</span>
@@ -165,7 +160,6 @@ export default function KakaoMultiSender({ profileName }: { profileName: string 
           </div>
         </>
       ) : (
-        // ⭐️ 직접 작성 모드 UI
         <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 animate-in fade-in duration-200">
           <div className="flex justify-between items-center mb-4">
             <h4 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
@@ -177,9 +171,8 @@ export default function KakaoMultiSender({ profileName }: { profileName: string 
           </div>
 
           <div className="space-y-4">
-            {/* 사진 업로드 영역 */}
             <div>
-              <label className="block text-xs font-bold text-gray-600 mb-1.5">썸네일 이미지</label>
+              <label className="block text-xs font-bold text-gray-600 mb-1.5">메시지 이미지 (썸네일)</label>
               <div className="flex items-center gap-3">
                 <img src={customImageUrl} alt="썸네일 미리보기" className="w-16 h-16 object-cover rounded-lg border border-gray-200 bg-white" />
                 <button 
@@ -194,21 +187,12 @@ export default function KakaoMultiSender({ profileName }: { profileName: string 
               </div>
             </div>
 
-            {/* 제목/내용 입력 영역 */}
-            <div>
-              <label className="block text-xs font-bold text-gray-600 mb-1.5">메시지 제목</label>
-              <input 
-                type="text" 
-                placeholder="예: [10월 이벤트] 암보험 점검 안내" 
-                value={customTitle}
-                onChange={(e) => setCustomTitle(e.target.value)}
-                className="w-full border border-gray-200 rounded-lg p-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-sm bg-white"
-              />
-            </div>
+            {/* ⭐️ 제목 입력칸 완전 제거됨 */}
+
             <div>
               <label className="block text-xs font-bold text-gray-600 mb-1.5">메시지 내용</label>
               <textarea 
-                rows={3}
+                rows={4}
                 placeholder="고객님께 전달할 내용을 자유롭게 적어주세요." 
                 value={customDesc}
                 onChange={(e) => setCustomDesc(e.target.value)}
@@ -216,7 +200,6 @@ export default function KakaoMultiSender({ profileName }: { profileName: string 
               />
             </div>
 
-            {/* 발송 버튼 */}
             <button 
               onClick={sendCustomMessage}
               className="w-full flex items-center justify-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-950 py-3 rounded-xl font-black text-sm transition-colors shadow-sm cursor-pointer"
