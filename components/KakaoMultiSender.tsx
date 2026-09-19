@@ -1,17 +1,24 @@
+// components/KakaoMultiSender.tsx
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { MessageCircle, Gift, FileText, ShieldCheck, PenTool, Image as ImageIcon, Loader2, Send, X } from "lucide-react";
+import { MessageCircle, Gift, FileText, ShieldCheck, PenTool, Image as ImageIcon, Loader2, Send, X, Link as LinkIcon } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 export default function KakaoMultiSender({ profileName }: { profileName: string }) {
   const [isCustomMode, setIsCustomMode] = useState(false);
+  const [customTitle, setCustomTitle] = useState("");
   const [customDesc, setCustomDesc] = useState("");
+  const [customLink, setCustomLink] = useState(""); 
   const [customImageUrl, setCustomImageUrl] = useState("https://images.unsplash.com/photo-1612222869049-d8ec83637a3c?auto=format&fit=crop&q=80&w=800"); 
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // ⭐️ 접속한 설계사의 연락처를 저장할 상태
+  const [agentPhone, setAgentPhone] = useState("");
 
   useEffect(() => {
+    // 1. 카카오 SDK 초기화
     const initKakao = () => {
       const globalWindow = window as any;
       if (globalWindow.Kakao && !globalWindow.Kakao.isInitialized()) {
@@ -19,6 +26,18 @@ export default function KakaoMultiSender({ profileName }: { profileName: string 
       }
     };
     const timer = setTimeout(initKakao, 1000);
+
+    // 2. ⭐️ 내 연락처(phone) DB에서 가져오기
+    const fetchMyPhone = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        // agents 테이블에서 내 번호 가져오기 (DB에 phone 컬럼이 존재해야 함)
+        const { data } = await supabase.from('agents').select('phone').eq('auth_id', user.id).single();
+        if (data?.phone) setAgentPhone(data.phone);
+      }
+    };
+    fetchMyPhone();
+
     return () => clearTimeout(timer);
   }, []);
 
@@ -59,43 +78,36 @@ export default function KakaoMultiSender({ profileName }: { profileName: string 
   };
 
   const sendCustomMessage = () => {
+    if (!customTitle.trim()) return alert("메시지 제목을 입력해주세요.");
     if (!customDesc.trim()) return alert("메시지 내용을 입력해주세요.");
     
+    const finalLink = customLink.trim() ? customLink.trim() : window.location.origin;
+
     executeKakaoShare(
-      "", // 제목 완전히 비움
+      customTitle, 
       customDesc, 
       customImageUrl, 
-      window.location.origin
-      // 버튼 텍스트 생략
+      finalLink, 
+      "자세히 보기"
     );
   };
 
-  // ⭐️ 제목과 버튼이 없을 경우 데이터에서 아예 빼버려서 텍스트 공간을 최대로 확보
-  const executeKakaoShare = (title: string, desc: string, imageUrl: string, link: string, btnText?: string) => {
+  const executeKakaoShare = (title: string, desc: string, imageUrl: string, link: string, btnText: string) => {
     const globalWindow = window as any;
     if (!globalWindow.Kakao || !globalWindow.Kakao.isInitialized()) return;
 
-    // 카카오톡 필수 형식 (link는 에러 방지용으로 무조건 필요함)
-    const payload: any = {
+    globalWindow.Kakao.Share.sendDefault({
       objectType: 'feed',
       content: {
+        title: title,
         description: desc,
         imageUrl: imageUrl,
         link: { mobileWebUrl: link, webUrl: link },
-      }
-    };
-
-    // 값이 있을 때만 title과 button을 추가 (직접 작성 시에는 이 부분이 스킵됨)
-    if (title) {
-      payload.content.title = title;
-    }
-    if (btnText) {
-      payload.buttons = [
-        { title: btnText, link: { mobileWebUrl: link, webUrl: link } }
-      ];
-    }
-
-    globalWindow.Kakao.Share.sendDefault(payload);
+      },
+      buttons: [
+        { title: btnText, link: { mobileWebUrl: link, webUrl: link } },
+      ],
+    });
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -121,6 +133,14 @@ export default function KakaoMultiSender({ profileName }: { profileName: string 
     } finally {
       setIsUploading(false);
     }
+  };
+
+  // ⭐️ 담당자 연락처를 포함하여 링크 생성
+  const copyPromoLink = (promoId: number) => {
+    // URL 끝에 파라미터로 담당자 이름과 폰번호를 숨겨서 보냅니다.
+    const url = `${window.location.origin}/promo/${promoId}?name=${encodeURIComponent(profileName)}&phone=${encodeURIComponent(agentPhone || "01000000000")}`;
+    setCustomLink(url);
+    alert(`${promoId}번 홍보 페이지 주소가 링크 칸에 셋팅되었습니다.\n(고객이 버튼 클릭 시 대표님 번호로 연결됩니다)`);
   };
 
   return (
@@ -174,7 +194,7 @@ export default function KakaoMultiSender({ profileName }: { profileName: string 
 
           <div className="space-y-4">
             <div>
-              <label className="block text-xs font-bold text-gray-600 mb-1.5">메시지 이미지 (썸네일)</label>
+              <label className="block text-xs font-bold text-gray-600 mb-1.5">메시지 썸네일</label>
               <div className="flex items-center gap-3">
                 <img src={customImageUrl} alt="썸네일 미리보기" className="w-16 h-16 object-cover rounded-lg border border-gray-200 bg-white" />
                 <button 
@@ -183,21 +203,53 @@ export default function KakaoMultiSender({ profileName }: { profileName: string 
                   className="flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs font-bold text-gray-700 hover:bg-gray-50 transition-colors shadow-sm cursor-pointer"
                 >
                   {isUploading ? <Loader2 className="w-4 h-4 animate-spin text-blue-500" /> : <ImageIcon className="w-4 h-4 text-blue-500" />}
-                  {isUploading ? "사진 올리는 중..." : "사진 변경하기"}
+                  {isUploading ? "업로드 중..." : "사진 변경하기"}
                 </button>
                 <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleImageUpload} />
               </div>
             </div>
 
             <div>
+              <label className="block text-xs font-bold text-gray-600 mb-1.5">메시지 제목</label>
+              <input 
+                type="text" 
+                placeholder="예: 당신의 미래를 지키는 든든한 달러 연금" 
+                value={customTitle}
+                onChange={(e) => setCustomTitle(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg p-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-sm bg-white"
+              />
+            </div>
+
+            <div>
               <label className="block text-xs font-bold text-gray-600 mb-1.5">메시지 내용</label>
               <textarea 
-                rows={4}
-                placeholder="고객님께 전달할 내용을 자유롭게 적어주세요. (최대 200자 내외 노출)" 
+                rows={3}
+                placeholder="간략한 설명을 적어주세요." 
                 value={customDesc}
                 onChange={(e) => setCustomDesc(e.target.value)}
                 className="w-full border border-gray-200 rounded-lg p-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-sm bg-white resize-none"
               />
+            </div>
+
+            <div>
+              <div className="flex flex-col gap-1.5 mb-2">
+                <label className="block text-xs font-bold text-gray-600">연결할 링크 (자세히 보기)</label>
+                <div className="flex flex-wrap gap-1.5">
+                  <button onClick={() => copyPromoLink(1)} className="text-[10px] font-bold text-blue-600 bg-blue-50 border border-blue-100 px-2 py-1 rounded cursor-pointer hover:bg-blue-100 transition-colors">
+                    + [1번] 달러 연금 플랜
+                  </button>
+                </div>
+              </div>
+              <div className="relative">
+                <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input 
+                  type="text" 
+                  placeholder="https://..." 
+                  value={customLink}
+                  onChange={(e) => setCustomLink(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-sm bg-white"
+                />
+              </div>
             </div>
 
             <button 

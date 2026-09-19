@@ -1,3 +1,5 @@
+// crm-app\components\Sidebar.tsx
+
 "use client";
 
 import { useState, useEffect } from "react";
