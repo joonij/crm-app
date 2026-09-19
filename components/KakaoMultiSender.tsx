@@ -1,4 +1,3 @@
-// components/KakaoMultiSender.tsx
 "use client";
 
 import { useEffect, useState, useRef } from "react";
@@ -59,12 +58,11 @@ export default function KakaoMultiSender({ profileName }: { profileName: string 
     executeKakaoShare(msgTitle, msgDesc, msgImage, linkUrl, btnText);
   };
 
-  // ⭐️ 직접 작성 시 제목과 버튼 없이 발송
   const sendCustomMessage = () => {
     if (!customDesc.trim()) return alert("메시지 내용을 입력해주세요.");
     
     executeKakaoShare(
-      "", // 제목 제거
+      "", // 제목 완전히 비움
       customDesc, 
       customImageUrl, 
       window.location.origin
@@ -72,21 +70,25 @@ export default function KakaoMultiSender({ profileName }: { profileName: string 
     );
   };
 
-  // ⭐️ btnText가 없으면 버튼 배열을 아예 생성하지 않음
+  // ⭐️ 제목과 버튼이 없을 경우 데이터에서 아예 빼버려서 텍스트 공간을 최대로 확보
   const executeKakaoShare = (title: string, desc: string, imageUrl: string, link: string, btnText?: string) => {
     const globalWindow = window as any;
     if (!globalWindow.Kakao || !globalWindow.Kakao.isInitialized()) return;
 
+    // 카카오톡 필수 형식 (link는 에러 방지용으로 무조건 필요함)
     const payload: any = {
       objectType: 'feed',
       content: {
-        title: title,
         description: desc,
         imageUrl: imageUrl,
         link: { mobileWebUrl: link, webUrl: link },
       }
     };
 
+    // 값이 있을 때만 title과 button을 추가 (직접 작성 시에는 이 부분이 스킵됨)
+    if (title) {
+      payload.content.title = title;
+    }
     if (btnText) {
       payload.buttons = [
         { title: btnText, link: { mobileWebUrl: link, webUrl: link } }
@@ -187,13 +189,11 @@ export default function KakaoMultiSender({ profileName }: { profileName: string 
               </div>
             </div>
 
-            {/* ⭐️ 제목 입력칸 완전 제거됨 */}
-
             <div>
               <label className="block text-xs font-bold text-gray-600 mb-1.5">메시지 내용</label>
               <textarea 
                 rows={4}
-                placeholder="고객님께 전달할 내용을 자유롭게 적어주세요." 
+                placeholder="고객님께 전달할 내용을 자유롭게 적어주세요. (최대 200자 내외 노출)" 
                 value={customDesc}
                 onChange={(e) => setCustomDesc(e.target.value)}
                 className="w-full border border-gray-200 rounded-lg p-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all shadow-sm bg-white resize-none"
