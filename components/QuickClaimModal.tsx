@@ -16,19 +16,6 @@ type QuickClaimModalProps = {
   insurance: any;
 };
 
-const FAX_NUMBERS: Record<string, string> = {
-  "메리츠화재": "0505-021-3400",
-  "현대해상": "0507-774-6060",
-  "DB손해": "0505-181-4861",
-  "삼성화재": "0505-116-1600",
-  "KB손해": "0505-136-6500",
-  "한화손해": "0505-154-2062",
-  "흥국화재": "0505-135-3344",
-  "롯데손해": "0505-134-0077",
-  "농협손해": "0505-136-4100",
-  "MG손해": "0505-081-1983",
-};
-
 function SearchableSelect({ 
   options, value, onChange, placeholder, disabled 
 }: { 
@@ -134,17 +121,21 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
   const [focusedClientField, setFocusedClientField] = useState<'policyholder' | 'insured' | 'beneficiary' | null>(null);
   const [readyToShareFile, setReadyToShareFile] = useState<File | null>(null);
   const [isCopied, setIsCopied] = useState(false);
+  
+  // ⭐️ DB 연동용 팩스번호 상태 추가
+  const [currentFaxNumber, setCurrentFaxNumber] = useState<string>("번호 확인 필요");
+  
   const insuredCanvasRef = useRef<HTMLCanvasElement>(null);
   const beneficiaryCanvasRef = useRef<HTMLCanvasElement>(null);
   const [isInsuredDrawing, setIsInsuredDrawing] = useState(false);
   const [isBeneficiaryDrawing, setIsBeneficiaryDrawing] = useState(false);
   const [hasInsuredSignature, setHasInsuredSignature] = useState(false); 
   const [hasBeneficiarySignature, setHasBeneficiarySignature] = useState(false);
+  
   const companyName = insurance?.insurance_company || "";
-  let needsInsuredSignature = true; // 피보험자
-  let needsBeneficiarySignature = true; // 수익자
-  let supportsSavedAccount = true; // 자동통장
-  const currentFaxNumber = Object.entries(FAX_NUMBERS).find(([key]) => companyName.includes(key))?.[1] || "번호 확인 필요";
+  let needsInsuredSignature = true; 
+  let needsBeneficiarySignature = true; 
+  let supportsSavedAccount = true; 
 
   if (companyName.includes("ABL생명")) { supportsSavedAccount = false; }
   if (companyName.includes("라이나생명")) { supportsSavedAccount = false; }
@@ -155,6 +146,28 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
   if (companyName.includes("삼성화재")) { supportsSavedAccount = false; }
   if (companyName.includes("한화손해")) { needsBeneficiarySignature = false; }
   if (companyName.includes("현대해상")) { needsInsuredSignature = false; }
+
+  // ⭐️ 보험사 팩스번호 DB 연동 useEffect
+  useEffect(() => {
+    const fetchFaxNumber = async () => {
+      if (!isOpen || !companyName) return;
+      
+      const { data } = await supabase
+        .from("insurance_companies")
+        .select("company_name, phone_fax");
+        
+      if (data) {
+        // 이름이 서로 포함되는지 교차 매칭 (예: DB '메리츠화재', 청구 '메리츠화재해상보험')
+        const matched = data.find(c => companyName.includes(c.company_name) || c.company_name.includes(companyName));
+        if (matched && matched.phone_fax) {
+          setCurrentFaxNumber(matched.phone_fax);
+        } else {
+          setCurrentFaxNumber("번호 확인 필요");
+        }
+      }
+    };
+    fetchFaxNumber();
+  }, [isOpen, companyName]);
 
   useEffect(() => { if (!supportsSavedAccount) setUseSavedAccount(false); }, [supportsSavedAccount]);
   useEffect(() => {
