@@ -140,9 +140,11 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
   if (companyName.includes("ABL생명")) { supportsSavedAccount = false; }
   if (companyName.includes("라이나생명")) { supportsSavedAccount = false; }
   if (companyName.includes("흥국생명")) { supportsSavedAccount = false; }
+
   if (companyName.includes("DB손해")) { }
   if (companyName.includes("KB손해")) { needsInsuredSignature = false; }
-  if (companyName.includes("메리츠화재")) { needsInsuredSignature = false; supportsSavedAccount = true; } 
+  if (companyName.includes("라이나손해")) { needsInsuredSignature = false; supportsSavedAccount = false; } 
+  if (companyName.includes("메리츠화재")) { needsInsuredSignature = false; } 
   if (companyName.includes("삼성화재")) { supportsSavedAccount = false; }
   if (companyName.includes("한화손해")) { needsBeneficiarySignature = false; }
   if (companyName.includes("현대해상")) { needsInsuredSignature = false; }
@@ -468,7 +470,8 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
       formData.append("accountNumber", accountNumber);
       formData.append("accidentDesc", accidentDesc);
       formData.append("useSavedAccount", String(useSavedAccount));
-
+      formData.append("faxNumber", currentFaxNumber !== "번호 확인 필요" ? currentFaxNumber : "");
+      
       const actualClientName = client?.name || insured.name || policyholder.name || "미지정고객";
       formData.append("clientName", actualClientName);
       

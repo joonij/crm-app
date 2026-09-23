@@ -1,6 +1,6 @@
 import { PDFDocument, PDFFont, rgb } from "pdf-lib";
 
-export const fillLifeAblHealth = async (pdfDoc: PDFDocument, data: any, font: PDFFont) => {
+export const fillPropertyLinaHealth = async (pdfDoc: PDFDocument, data: any, font: PDFFont) => {
   const pages = pdfDoc.getPages();
   
   // ⭐️ [페이지 인덱스 주의] 라이나생명 폼의 실제 시작 페이지에 맞춰 배열 인덱스를 조절하세요.
@@ -9,7 +9,6 @@ export const fillLifeAblHealth = async (pdfDoc: PDFDocument, data: any, font: PD
   const secondPage = pages.length > 1 ? pages[1] : null; // 2페이지
   const thirdPage = pages.length > 2 ? pages[2] : null;  // 3페이지
   const fourthPage = pages.length > 3 ? pages[3] : null; // 4페이지
-  const fifthPage = pages.length > 4 ? pages[4] : null; // 5페이지
 
   // ==========================================
   // ⭐️ [좌표 튜닝용] 촘촘한 모눈종이(Grid) 그리기 함수
@@ -30,12 +29,11 @@ export const fillLifeAblHealth = async (pdfDoc: PDFDocument, data: any, font: PD
   //   }
   // };
 
-  // 튜닝 시 아래 주석을 풀고 확인하세요.
+  // // 튜닝 시 아래 주석을 풀고 확인하세요.
   // if (firstPage) drawGrid(firstPage);
   // if (secondPage) drawGrid(secondPage);
   // if (thirdPage) drawGrid(thirdPage);
   // if (fourthPage) drawGrid(fourthPage); 
-  // if (fifthPage) drawGrid(fifthPage); 
 
   // ==========================================
   // 헬퍼 함수 모음 (안전장치 포함)
@@ -73,9 +71,9 @@ export const fillLifeAblHealth = async (pdfDoc: PDFDocument, data: any, font: PD
   // ==========================================
   // [서명 이미지 렌더링 로직]
   // ==========================================
-  const sigDims = { width: 60, height: 20 };
+  const sigDims = { width: 45, height: 15 };
   let insuredSignatureImg: any = null;
-  let signatureImg: any = null;        
+  let signatureImg: any = null;
 
   if (data.insuredSignatureImage) {
     const base64Data = data.insuredSignatureImage.includes('base64,') 
@@ -95,39 +93,29 @@ export const fillLifeAblHealth = async (pdfDoc: PDFDocument, data: any, font: PD
   // [1페이지] 보험금 청구서 작성
   // ==========================================
   if (firstPage) {
-    // 1. 피보험자 인적사항
-    drawText(firstPage,       data.insuredName,  135, 737, 11); // 성명
-    drawText(firstPage,       data.insuredRrn,   285, 737, 11); // 주민번호
-    drawText(firstPage,       data.insuredPhone, 470, 737, 11); // 연락처
+    
+    // 1. 계약의 수익자 인적사항
+    drawText(firstPage,       data.beneficiaryName,  150, 635, 10); // 성명
+    drawCenterText(firstPage, data.beneficiaryRrn,   352, 634, 10, 1.5); // 주민번호
+    drawText(firstPage,       data.beneficiaryPhone, 470, 635, 10); // 연락처
 
-    // 2. 계약의 수익자 인적사항
-    drawText(firstPage,       data.beneficiaryName,  135, 687, 11); // 성명
-    drawText(firstPage,       data.beneficiaryRrn,   285, 687, 11); // 주민번호
-    drawText(firstPage,       data.beneficiaryPhone, 470, 687, 11); // 연락처
-    drawText(firstPage,       data.beneficiaryAddress,135, 652, 11); // 주소
+    // 2. 피보험자 인적사항
+    drawText(firstPage,       data.insuredName,  150, 610, 10); // 성명
+    drawCenterText(firstPage, data.insuredRrn,   352, 610, 10, 1.5); // 주민번호
+    drawText(firstPage,       data.insuredPhone, 470, 610, 10); // 연락처
+    drawText(firstPage,       data.insuredAddress,150, 585, 10); // 주소
 
-    // 3. 보험금 수령계좌
-    drawText(firstPage,      data.bankName,        180, 613, 10); // 은행명
-    drawText(firstPage,      data.beneficiaryName,  275, 613, 10); // 성명
-    drawText(firstPage,      data.accountNumber,   395, 613, 10); // 계좌번호
+    // 3. 보험금 청구 세부내용
+    drawCheck(firstPage, 223, 560); // 수익자
+    drawText(firstPage,  data.beneficiaryPhone, 140, 545, 10); // 연락처
+    drawCheck(firstPage, 150, 508); // SMS
+    drawText(firstPage, data.accidentDesc, 100, 350, 10); // 사고경위
 
-    drawCheck(firstPage, 108, 582); // 일시금
-    drawCheck(firstPage, 129, 482); // 진행단계
-    drawCheck(firstPage, 154, 462); // 지급지연안내
-    drawCheck(firstPage, 154, 437); // 지급내역
-
-    // 4. 보험금 청구 세부내용
-
-    // 하단 날짜 및 서명
-    drawText(firstPage, data.todayYear,   84.5, 217.5, 10.7);
-    drawText(firstPage, data.todayMonth,  130, 217.5, 10.7);
-    drawText(firstPage, data.todayDay,    165, 217.5, 10.7);
-
-    // 수익자 서명
-    drawCenterText(firstPage, data.beneficiaryName, 355, 215, 11); 
-    if (signatureImg) {
-      firstPage.drawImage(signatureImg, { x: 485, y: 210, ...sigDims }); 
-    }
+    // 4. 보험금 수령계좌
+    drawText(firstPage,      data.beneficiaryName,  100, 187, 10); // 성명
+    drawCenterText(firstPage,data.beneficiaryRrn,   334, 186, 10, 1.5); // 주민번호
+    drawText(firstPage,      data.bankName,         100, 163, 10); // 은행명
+    drawCenterText(firstPage,data.accountNumber,    330, 163, 10); // 계좌번호
   }
 
   // ==========================================
@@ -135,64 +123,38 @@ export const fillLifeAblHealth = async (pdfDoc: PDFDocument, data: any, font: PD
   // ==========================================
 
   if (secondPage) {
-    drawText(secondPage, data.accidentDesc, 325, 640, 11); // 사고경위
+    drawCheck(secondPage, 503, 385);
+    drawCheck(secondPage, 503, 318);
+    drawCheck(secondPage, 503, 200);
   }
   // ==========================================
   // [3페이지] 
   // ==========================================
   if (thirdPage) {
-    drawCheck(thirdPage, 290, 385);
-    drawCheck(thirdPage, 502, 385);
-
-    drawCheck(thirdPage, 460, 249);
-
-    drawCheck(thirdPage, 290, 92);
-    drawCheck(thirdPage, 502, 92);
+    drawCheck(thirdPage, 503, 339);
+    drawCheck(thirdPage, 503, 275);
+    drawCheck(thirdPage, 503, 183);
   }
   // ==========================================
   // [4페이지]
   // ==========================================
   
   if (fourthPage) {
-    drawCheck(fourthPage, 292, 372);
-    drawCheck(fourthPage, 508, 372);
+    drawCheck(fourthPage, 503, 525);
+    drawCheck(fourthPage, 503, 487);
+    drawCheck(fourthPage, 503, 282);
+    drawCheck(fourthPage, 503, 240);
+    drawCheck(fourthPage, 503, 185);
 
-    drawCheck(fourthPage, 463, 252);
-
-    drawCheck(fourthPage, 292, 116);
-    drawCheck(fourthPage, 508, 116);
-  }
-  // ==========================================
-  // [5페이지]
-  // ==========================================
-  
-  if (fifthPage) {
-    drawCheck(fifthPage, 290, 562);
-    drawCheck(fifthPage, 502, 562);
-
-    drawCheck(fifthPage, 460, 480);
-
-    drawCheck(fifthPage, 290, 387);
-    drawCheck(fifthPage, 502, 387);
-
-    drawCheck(fifthPage, 290, 173);
-    drawCheck(fifthPage, 502, 173);
-
-
-    // 피보험자 최종 서명
-    drawCenterText(fifthPage, data.insuredName, 138, 117, 11); 
-    if (insuredSignatureImg) {
-      fifthPage.drawImage(insuredSignatureImg, { x: 222, y: 112, ...sigDims }); 
-    }
+    // 하단 날짜 및 서명
+    drawText(fourthPage, data.todayYear,  429, 128, 10);
+    drawText(fourthPage, data.todayMonth, 480, 128, 10);
+    drawText(fourthPage, data.todayDay,   515, 128, 10);
 
     // 수익자 최종 서명
-    drawCenterText(fifthPage, data.beneficiaryName, 138, 85, 11); 
+    drawText(fourthPage, data.beneficiaryName, 390, 110, 10); 
     if (signatureImg) {
-      fifthPage.drawImage(signatureImg, { x: 222, y: 80, ...sigDims }); 
+      fourthPage.drawImage(signatureImg, { x: 510, y: 105, ...sigDims }); 
     }
-    // 하단 날짜 및 서명
-    drawText(fifthPage, data.todayYear,  118.7, 59, 11.5);
-    drawText(fifthPage, data.todayMonth, 195, 59, 11.5);
-    drawText(fifthPage, data.todayDay,   242, 59, 11.5);
   }
 };

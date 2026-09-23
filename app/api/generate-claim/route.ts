@@ -1,24 +1,22 @@
 // app/api/generate-claim/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, rgb } from "pdf-lib"; // ⭐️ rgb 추가
 import fontkit from "@pdf-lib/fontkit";
 import fs from "fs/promises";
 import path from "path";
-import { createClient } from "@supabase/supabase-js"; // ⭐️ Supabase 추가
+import { createClient } from "@supabase/supabase-js"; 
 
-// ⭐️ Supabase 클라이언트 초기화 (백엔드용)
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
 );
 
-// ⭐️ 분리해둔 보험사별 모듈 불러오기
 import { fillLifeAblHealth } from "./handlers/LifeAblHealth";
 import { fillLifeLinaHealth } from "./handlers/LifeLinaHealth";
 import { fillLifeHeungkukHealth } from "./handlers/LifeHeungkukHealth";
-
 import { fillPropertyDbHealth } from "./handlers/PropertyDbHealth";
 import { fillPropertyKbHealth } from "./handlers/PropertyKbHealth";
+import { fillPropertyLinaHealth } from "./handlers/PropertyLinaHealth";
 import { fillPropertyMeritzHealth } from "./handlers/PropertyMeritzHealth";
 import { fillPropertSamsungHealth } from "./handlers/PropertSamsungHealth";
 import { fillPropertyHanwhaHealth } from "./handlers/PropertyHanwhaHealth";
@@ -55,19 +53,20 @@ export async function POST(req: NextRequest) {
       signatureImage: formData.get("signatureImage") as string || "",
       insuredSignatureImage: formData.get("insuredSignatureImage") as string || "",
       
+      // ⭐️ 프론트엔드에서 넘긴 팩스 번호 받기
+      faxNumber: formData.get("faxNumber") as string || "",
+      
       todayYear: String(today.getFullYear()),
       todayMonth: String(today.getMonth() + 1).padStart(2, '0'),
       todayDay: String(today.getDate()).padStart(2, '0'),
     };
     
-    // ⭐️ 프론트엔드에서 넘어온 식별자 변수
     const agentIdStr = formData.get("agentId") as string;
     const clientNameStr = formData.get("clientName") as string || claimData.policyholderName;
 
     const receipts = formData.getAll("receipts") as File[];
     console.log(`📌 선택된 보험사: ${claimData.insuranceCompany}`);
 
-    // 2. 보험사별 매핑 로직
     let fileName = "";
     let fillFunction: any = null; 
 
@@ -83,7 +82,6 @@ export async function POST(req: NextRequest) {
       fileName = "lifeheungkuk_health.pdf";
       fillFunction = fillLifeHeungkukHealth;
     } 
-
     if (claimData.insuranceCompany.includes("DB손해")) {
       fileName = "propertydb_health.pdf";
       fillFunction = fillPropertyDbHealth;
@@ -91,6 +89,10 @@ export async function POST(req: NextRequest) {
     if (claimData.insuranceCompany.includes("KB손해")) {
       fileName = "propertykb_health.pdf";
       fillFunction = fillPropertyKbHealth;
+    } 
+    if (claimData.insuranceCompany.includes("라이나손해")) {
+      fileName = "propertylina_health.pdf";
+      fillFunction = fillPropertyLinaHealth;
     } 
     if (claimData.insuranceCompany.includes("메리츠화재")) {
       fileName = "propertymeritz_health.pdf";
@@ -116,11 +118,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 3. PDF 양식 로드
     const templatePath = path.join(process.cwd(), "public", "templates", fileName);
     const templateBytes = await fs.readFile(templatePath);
 
-    // 4. 폰트 로드
     const fontUrl = "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/nanumgothic/NanumGothic-Regular.ttf";
     const fontRes = await fetch(fontUrl);
     if (!fontRes.ok) throw new Error("폰트 다운로드 실패");
@@ -134,60 +134,67 @@ export async function POST(req: NextRequest) {
     await fillFunction(pdfDoc, claimData, customFont);
     console.log(`✅ ${claimData.insuranceCompany} 템플릿 데이터 작성 완료`);
 
-    // 6. 영수증 이미지 첨부 (공통 로직)
-// 6. 영수증 이미지 첨부 (공통 로직)
-for (const file of receipts) {
-  const arrayBuffer = await file.arrayBuffer();
-  const fileType = file.type;
-
-  if (fileType === "application/pdf") {
-    // PDF 파일이면 기존 그대로 페이지 복사
-    const attachedPdf = await PDFDocument.load(arrayBuffer);
-    const copiedPages = await pdfDoc.copyPages(attachedPdf, attachedPdf.getPageIndices());
-    copiedPages.forEach((page) => pdfDoc.addPage(page));
-    
-  } else if (fileType === "image/jpeg" || fileType === "image/jpg" || fileType === "image/png") {
-    let image;
-    if (fileType === "image/jpeg" || fileType === "image/jpg") {
-      image = await pdfDoc.embedJpg(arrayBuffer);
-    } else if (fileType === "image/png") {
-      image = await pdfDoc.embedPng(arrayBuffer);
-    } else {
-      continue; 
+    // ⭐️ [신규] 모든 청구서 1페이지 우측 상단에 팩스번호 공통으로 찍기
+    if (claimData.faxNumber) {
+      const pages = pdfDoc.getPages();
+      if (pages.length > 0) {
+        const firstPage = pages[0];
+        const { width, height } = firstPage.getSize(); 
+        
+        firstPage.drawText(`[팩스 수신처: ${claimData.faxNumber}]`, {
+          x: width - 160, // 우측 여백
+          y: height - 10, // 상단 여백
+          size: 11,
+          font: customFont,
+          color: rgb(0.1, 0.4, 0.8), // 시인성 높은 파란색 텍스트
+        });
+        console.log(`✅ 팩스번호 우측 상단 인쇄 완료: ${claimData.faxNumber}`);
+      }
     }
 
-    // ⭐️ 원본 이미지의 1:1 실제 크기를 가져옵니다.
-    const { width, height } = image.scale(1);
-    
-    // ⭐️ A4가 아닌, 이미지 원본과 정확히 동일한 크기의 도화지(페이지)를 생성합니다!
-    const newPage = pdfDoc.addPage([width, height]);
-    
-    // ⭐️ 여백(x: 0, y: 0) 없이 도화지 전체에 이미지를 꽉 채워서 그립니다.
-    newPage.drawImage(image, {
-      x: 0,
-      y: 0,
-      width,
-      height,
-    });
-  } else {
-    continue; 
-  }
-}
+    // 6. 영수증 이미지 첨부 (공통 로직)
+    for (const file of receipts) {
+      const arrayBuffer = await file.arrayBuffer();
+      const fileType = file.type;
+
+      if (fileType === "application/pdf") {
+        const attachedPdf = await PDFDocument.load(arrayBuffer);
+        const copiedPages = await pdfDoc.copyPages(attachedPdf, attachedPdf.getPageIndices());
+        copiedPages.forEach((page) => pdfDoc.addPage(page));
+        
+      } else if (fileType === "image/jpeg" || fileType === "image/jpg" || fileType === "image/png") {
+        let image;
+        if (fileType === "image/jpeg" || fileType === "image/jpg") {
+          image = await pdfDoc.embedJpg(arrayBuffer);
+        } else if (fileType === "image/png") {
+          image = await pdfDoc.embedPng(arrayBuffer);
+        } else {
+          continue; 
+        }
+
+        const { width, height } = image.scale(1);
+        const newPage = pdfDoc.addPage([width, height]);
+        
+        newPage.drawImage(image, {
+          x: 0,
+          y: 0,
+          width,
+          height,
+        });
+      } else {
+        continue; 
+      }
+    }
 
     // 7. 최종 저장 (바이트 추출)
     const pdfBytesOut = await pdfDoc.save();
 
-    // ⭐️ 8. [신규] PDF 생성 직후 Supabase에 바로 저장하고 기록하기!
+    // 8. Supabase 저장 로직
     try {
       if (agentIdStr && clientNameStr) {
-        // ⭐️ [버그 해결] 스토리지(DB) 에러를 막기 위해 파일명을 100% 영문+숫자 난수로 생성합니다.
-        // (고객이 화면에서 다운로드할 때는 정상적으로 'OO고객_DB손해_청구서.pdf'로 다운받아집니다.)
         const randomStr = Math.random().toString(36).substring(2, 8);
         const storageFileName = `claim_${Date.now()}_${randomStr}.pdf`;
 
-        // ① Storage 업로드
-
-        // ① Storage 업로드
         const { error: uploadError } = await supabase.storage
           .from('claims_pdf')
           .upload(storageFileName, pdfBytesOut, {
@@ -198,12 +205,10 @@ for (const file of receipts) {
         if (uploadError) {
           console.error("❌ Supabase 스토리지 업로드 실패:", uploadError.message);
         } else {
-          // ② 퍼블릭 URL 가져오기
           const { data: publicUrlData } = supabase.storage
             .from('claims_pdf')
             .getPublicUrl(storageFileName);
           
-          // ③ Claims 테이블에 한 줄 기록 남기기
           const { error: dbError } = await supabase.from('claims').insert({
             agent_id: parseInt(agentIdStr, 10),
             client_name: clientNameStr,
@@ -221,10 +226,8 @@ for (const file of receipts) {
       }
     } catch (supaErr) {
       console.error("❌ Supabase 연동 중 예외 발생:", supaErr);
-      // 저장이 실패해도 고객에게 보내는 PDF 자체는 정상적으로 생성되도록 throw하지 않습니다.
     }
 
-    // 완성된 PDF 클라이언트로 쏴주기
     return new NextResponse(new Uint8Array(pdfBytesOut), {
       headers: {
         "Content-Type": "application/pdf",
