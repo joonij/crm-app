@@ -16,9 +16,10 @@ export default function LayoutWrapper({ children }: { children: React.ReactNode 
   const isCardPage = pathname?.startsWith("/card");
   const isAuthPage = pathname === "/login" || pathname === "/signup";
   const isPromoPage = pathname?.startsWith("/promo");
+  const isDailyClosingPage = pathname?.startsWith("/daily-closing");
 
   // 2. 예외 페이지일 경우 사이드바와 알림을 완전히 제외한 단독 레이아웃 반환
-  if (isReportPage || isAuthPage || isCardPage || isFindEmailPage || isResetPasswordPage || isUpdatePasswordPage || isPromoPage) {
+  if (isReportPage || isAuthPage || isCardPage || isFindEmailPage || isResetPasswordPage || isUpdatePasswordPage || isPromoPage || isDailyClosingPage) {
     return (
       <div className="flex-1 w-full h-screen overflow-y-auto bg-slate-100">
         {children}
