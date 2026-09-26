@@ -477,7 +477,7 @@ export default function DashboardPage() {
             {activeTab === 'team' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 rounded-t-md"></span>}
           </button>
         </div>
-      )}
+      )} 
 
       {(!isManager || activeTab === 'personal') && (
         <div className="flex flex-col gap-6 w-full shrink-0 lg:h-[calc(100vh-190px)] overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-thumb]:rounded-full pr-1">
