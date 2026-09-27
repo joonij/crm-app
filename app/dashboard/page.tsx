@@ -196,7 +196,7 @@ export default function DashboardPage() {
           const clientInsurances = myInsurances.filter(ins => Number(ins.client_id) === Number(c.id));
           const clientSchedules = mySchedules.filter(sch => Number(sch.client_id) === Number(c.id));
           const insDates = clientInsurances.map(i => new Date(i.created_at || 0).getTime());
-          const schDates = clientSchedules.map(s => new Date(s.schedule_date || s.created_at || 0).getTime()); 
+          const schDates = clientSchedules.map(s => new Date(s.date || s.created_at || 0).getTime());
           const allDates = [new Date(c.created_at || 0).getTime(), ...insDates, ...schDates];
           const lastUpdate = new Date(Math.max(...allDates)); 
           const daysSinceUpdate = Math.floor((new Date().getTime() - lastUpdate.getTime()) / (1000 * 3600 * 24));
@@ -571,18 +571,24 @@ export default function DashboardPage() {
                       <div className="relative z-10 grid h-full" style={{ gridTemplateColumns: 'repeat(14, minmax(0, 1fr))' }}>
                         {timelineDays.map((d, i) => {
                           const dateStr = getLocalString(d); 
-                          const daySchedules = schedules.filter(s => s.schedule_date === dateStr);
+                          const daySchedules = schedules.filter(s => s.date === dateStr);
                           return (
-                            <div key={i} className="p-1.5 flex flex-col gap-1.5">
-                              {daySchedules.map(sch => (
-                                <div key={sch.id} className="bg-emerald-50 border border-emerald-200 rounded-md px-1.5 py-1.5 shadow-sm flex flex-col hover:bg-emerald-100 transition-colors group/tag cursor-pointer">
-                                  <span className="text-[10px] font-black text-emerald-800 truncate leading-tight flex items-center gap-1">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></div>
-                                    {sch.title || sch.content}
-                                  </span>
-                                  {sch.description && <span className="text-[9px] text-emerald-600/90 truncate leading-tight mt-1 pl-2.5">{sch.description}</span>}
-                                </div>
-                              ))}
+                            <div key={i} className="p-1.5 flex flex-col gap-1.5 min-h-[70px]">
+                              {daySchedules.map(sch => {
+                                const cName = sch.client_id ? clientMap.get(Number(sch.client_id)) : '';
+                                const displayTitle = cName ? `${cName} ${sch.category || ''}` : (sch.category || '일정');
+                                
+                                return (
+                                  <div key={sch.id} className="bg-emerald-50 border border-emerald-200 rounded-md px-1.5 py-1.5 shadow-sm flex flex-col hover:bg-emerald-100 transition-colors group/tag cursor-pointer">
+                                    <span className="text-[10px] font-black text-emerald-800 truncate leading-tight flex items-center gap-1 mb-0.5">
+                                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></div>
+                                      {displayTitle}
+                                    </span>
+                                    {sch.content && <span className="text-[9px] text-emerald-700/80 leading-tight pl-2.5 truncate">{sch.content}</span>}
+                                    {sch.worklog && <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100/60 p-1 mt-1 rounded pl-2.5 truncate">결과: {sch.worklog}</span>}
+                                  </div>
+                                );
+                              })}
                             </div>
                           )
                         })}
