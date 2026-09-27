@@ -9,25 +9,15 @@ import {
   CalendarDays, Edit3, Plus, Search, ChevronDown, X
 } from "lucide-react";
 
-// ⭐️ 1. SALES_STEPS 객체 배열로 변경 및 "미진행" 추가
 const SALES_STEPS = [
   { id: "step00", label: "미진행" },
-  { id: "step01", label: "첫 연락 (TA)" },
-  { id: "step02", label: "1차 미팅 픽스" },
-  { id: "step03", label: "1차 미팅 진행" },
-  { id: "step04", label: "기본 인적사항 확보" },
-  { id: "step05", label: "보험심사평가원 확보" },
-  { id: "step06", label: "상담 요청" },
-  { id: "step07", label: "비교분석표 작성" },
-  { id: "step08", label: "고등요청" },
-  { id: "step09", label: "설계요청" },
-  { id: "step10", label: "추가 미팅 픽스" },
-  { id: "step11", label: "추가 미팅 진행" },
-  { id: "step12", label: "청약 진행" },
-  { id: "step13", label: "비교안내확인서 진행" },
-  { id: "step14", label: "모니터링 처리" },
-  { id: "step15", label: "소개 요청" },
-  { id: "step16", label: "증권 전달" },
+  { id: "step01", label: "TA" },
+  { id: "step02", label: "미팅 픽스" },
+  { id: "step03", label: "미팅 진행" },
+  { id: "step04", label: "비교분석표 작성" },
+  { id: "step05", label: "청약 완료" },
+  { id: "step06", label: "비교안내확인서 진행" },
+  { id: "step07", label: "증권 전달" },
 ];
 
 const formatPhoneNumber = (phone: string | null) => {
@@ -216,9 +206,7 @@ export default function DailyClosingPage() {
     setIsSaving(true);
     try {
       if (step === 1) {
-        for (const p of pipelines) {
-          await supabase.from('sales_pipelines').update({ status: p.status, history: p.history }).eq('id', p.id);
-        }
+        await new Promise(resolve => setTimeout(resolve, 300)); 
       } else if (step === 2) {
         for (const s of todaySchedules) {
           await supabase.from('schedules').update({ description: s.description }).eq('id', s.id);
@@ -247,7 +235,13 @@ export default function DailyClosingPage() {
         if (newSchedules.length > 0) {
           await supabase.from('schedules').insert(newSchedules);
         }
+        const nowKst = new Date();
+        nowKst.setHours(nowKst.getHours() + 9); // 한국 시간(KST)으로 맞춤
         
+        await supabase
+          .from('agents')
+          .update({ last_closing_time: nowKst.toISOString() })
+          .eq('id', agentId);
         localStorage.removeItem("dailyClosingDraft");
         
         const next = 4;
@@ -305,9 +299,6 @@ export default function DailyClosingPage() {
           {step === 1 && (
             <div className="animate-in fade-in slide-in-from-right-4 duration-300">
               <h3 className="text-[17px] font-black text-slate-800 mb-3 flex items-center gap-2"><CalendarDays className="w-5 h-5 text-indigo-600" /> 현재 진행중인 계약 리스트</h3>
-              <p className="text-xs text-slate-500 mb-5 bg-indigo-50 p-3 rounded-lg border border-indigo-100 break-keep leading-relaxed font-medium">
-                고객별로 오늘의 최종 진행 상태를 터치해 주세요. (대시보드 차트에 태그로 기록됩니다)
-              </p>
               
               <div className="space-y-5">
                 {pipelines.map(p => (
@@ -377,9 +368,6 @@ export default function DailyClosingPage() {
           {step === 3 && (
             <div className="animate-in fade-in slide-in-from-right-4 duration-300">
               <h3 className="text-[17px] font-black text-slate-800 mb-3 flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-rose-500" /> 내일의 일정(스케줄) 관리</h3>
-              <p className="text-[11px] text-slate-500 mb-5 break-keep leading-relaxed bg-slate-50 p-2.5 rounded-lg border border-slate-100 font-medium">
-                내일({tomorrowStr}) 예정된 일정을 확인하고, 누락된 활동들을 폼에 작성한 뒤 <span className="font-bold text-indigo-600">[+ 목록에 추가]</span> 버튼을 눌러 등록하세요.
-              </p>
               
               <div className="mb-6">
                 <h4 className="text-xs font-black text-slate-600 mb-2 px-1">등록된 내일 일정 ({tomorrowSchedules.length}건)</h4>

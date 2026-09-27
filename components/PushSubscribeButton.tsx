@@ -2,55 +2,67 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from "@/lib/supabase";
+import { Bell, BellRing, AlertCircle } from "lucide-react";
 
-export default function PushSubscribeButton() {
-  const [status, setStatus] = useState('영업 마감 알림 켜기 🔔');
+export default function PushSubscribeManager() {
+  const [permission, setPermission] = useState<string>('loading');
+  const [isSubscribing, setIsSubscribing] = useState(false);
 
   useEffect(() => {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(console.error);
+    // 1. 브라우저 지원 여부 확인
+    if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+      setPermission('unsupported');
+      return;
+    }
+
+    const currentPermission = Notification.permission;
+    setPermission(currentPermission);
+
+    // 2. 이미 권한을 허용한 유저라면, 화면에 띄우지 않고 백그라운드에서 조용히 DB 토큰만 최신화 (자동화)
+    if (currentPermission === 'granted') {
+      handleSubscribe(true);
     }
   }, []);
 
-  const handleSubscribe = async () => {
+  const handleSubscribe = async (isSilent = false) => {
     try {
-      setStatus('설정 중... (1/4)');
-      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-        throw new Error('푸시 알림을 지원하지 않는 기기입니다.');
-      }
-
-      setStatus('설정 중... (2/4)');
-      const permission = await Notification.requestPermission();
-      if (permission !== 'granted') {
-        throw new Error('알림 권한이 거부되었습니다.');
-      }
-
-      setStatus('설정 중... (3/4)');
-      const registration = await navigator.serviceWorker.register('/sw.js');
+      setIsSubscribing(true);
       
+      // 권한 요청 (최초 클릭 시에만 팝업 뜸, silent 모드일 땐 무시됨)
+      if (!isSilent) {
+        const perm = await Notification.requestPermission();
+        setPermission(perm);
+        if (perm !== 'granted') throw new Error('권한 거부됨');
+      }
+
+      // 서비스 워커 등록 및 VAPID 키 세팅
+      const registration = await navigator.serviceWorker.register('/sw.js?v=3');
       const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-      if (!vapidPublicKey) throw new Error('VAPID 공개키가 없습니다. Vercel 환경변수를 확인하세요.');
+      if (!vapidPublicKey) throw new Error('VAPID 키 누락');
       
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
       });
 
-      setStatus('설정 중... (4/4)');
-      const { error } = await supabase
-        .from('agents')
-        .update({ push_subscription: JSON.parse(JSON.stringify(subscription)) })
-        .eq('name', '정준희');
+      // 현재 로그인한 유저 DB에 토큰 갱신
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase
+          .from('agents')
+          .update({ push_subscription: JSON.parse(JSON.stringify(subscription)) })
+          .eq('auth_id', user.id);
+      }
 
-      if (error) throw new Error('DB 저장 실패: ' + error.message);
+      if (!isSilent) {
+        alert('알림 설정이 완료되었습니다.');
+      }
 
-      setStatus('✅ 알림 설정 완료');
-      alert('스마트폰 알림 설정이 완료되었습니다! 이제 테스트를 진행해보세요.');
-
-    } catch (error: any) {
-      console.error(error);
-      setStatus('❌ 오류 발생');
-      alert('에러 상세 원인: ' + (error.message || '알 수 없는 오류'));
+    } catch (error) {
+      console.error('Push Setup Error:', error);
+      if (!isSilent) alert('알림 설정 중 문제가 발생했습니다.');
+    } finally {
+      setIsSubscribing(false);
     }
   };
 
@@ -65,12 +77,44 @@ export default function PushSubscribeButton() {
     return outputArray;
   }
 
+  // 화면 렌더링 분기 처리
+  if (permission === 'loading') return null;
+  if (permission === 'unsupported') return null;
+
+  // ⭐️ 이미 허용된 상태라면 화면에 버튼이나 배너를 아예 그리지 않음 (투명화)
+  if (permission === 'granted') {
+    return null; 
+  }
+
+  // ⭐️ 차단한 유저에게 보여줄 안내
+  if (permission === 'denied') {
+    return (
+      <div className="flex items-center gap-2 text-rose-500 text-sm font-semibold bg-rose-50 p-3 rounded-lg border border-rose-100 shrink-0">
+        <AlertCircle className="w-5 h-5" />
+        알림이 차단되었습니다. 브라우저 주소창 왼쪽의 설정에서 알림을 허용해주세요.
+      </div>
+    );
+  }
+
+  // ⭐️ 최초 접속 유저에게 보여줄 눈에 띄는 배너
   return (
     <button 
-      onClick={handleSubscribe}
-      className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg shadow-md hover:bg-blue-700 transition-colors shrink-0"
+      onClick={() => handleSubscribe(false)}
+      disabled={isSubscribing}
+      className="flex items-center justify-between gap-4 w-full sm:w-auto px-5 py-3 bg-indigo-600 text-white rounded-xl shadow-md hover:bg-indigo-700 transition-all shrink-0 text-left group cursor-pointer"
     >
-      {status}
+      <div className="flex items-center gap-3">
+        <div className="bg-white/20 p-2 rounded-full group-hover:scale-110 transition-transform">
+          <BellRing className="w-5 h-5 text-white" />
+        </div>
+        <div>
+          <p className="font-bold text-sm">영업 마감 리마인드 켜기</p>
+          <p className="text-[11px] text-indigo-100 mt-0.5">매일 20시, 22시에 알림을 보내드립니다.</p>
+        </div>
+      </div>
+      <span className="text-xs font-black bg-white text-indigo-600 px-3 py-1.5 rounded-lg">
+        {isSubscribing ? '연동 중...' : '허용하기'}
+      </span>
     </button>
   );
 }
