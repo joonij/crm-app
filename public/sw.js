@@ -1,16 +1,20 @@
-self.addEventListener('push', function(event) {
-    const data = event.data ? event.data.json() : {};
+// public/sw.js
+self.addEventListener('push', function (event) {
+  if (event.data) {
+    const data = event.data.json();
     const options = {
-      body: data.body || '오늘의 영업 마감을 작성해주세요!',
-      icon: '/icon.png',
-      badge: '/icon.png',
+      body: data.body,
+      icon: '/favicon.ico', // 기본 아이콘 활용
       vibrate: [200, 100, 200],
-      data: { url: data.url || '/daily-closing' }
+      data: {
+        dateOfArrival: Date.now(),
+      }
     };
-    event.waitUntil(self.registration.showNotification(data.title || '알림', options));
-  });
-  
-  self.addEventListener('notificationclick', function(event) {
-    event.notification.close();
-    event.waitUntil(clients.openWindow(event.notification.data.url));
-  });
+    event.waitUntil(self.registration.showNotification(data.title, options));
+  }
+});
+
+self.addEventListener('notificationclick', function (event) {
+  event.notification.close();
+  event.waitUntil(self.clients.openWindow('/dashboard'));
+});

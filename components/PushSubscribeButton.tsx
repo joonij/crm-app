@@ -1,10 +1,17 @@
 'use client';
 
-import { useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { useState, useEffect } from 'react';
+import { supabase } from "@/lib/supabase"; // ✅ 프로젝트의 인증된 DB 클라이언트 사용
 
 export default function PushSubscribeButton() {
   const [status, setStatus] = useState('영업 마감 알림 켜기 🔔');
+
+  // 컴포넌트 실행 시 서비스 워커 자동 등록
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(console.error);
+    }
+  }, []);
 
   const handleSubscribe = async () => {
     try {
@@ -18,26 +25,23 @@ export default function PushSubscribeButton() {
 
       const permission = await Notification.requestPermission();
       if (permission !== 'granted') {
-        alert('알림 권한이 거부되었습니다. 기기 설정에서 알림을 허용해주세요.');
+        alert('알림 권한이 거부되었습니다. 브라우저 설정에서 알림을 허용해주세요.');
         setStatus('권한 거부됨');
         return;
       }
 
-      const registration = await navigator.serviceWorker.ready;
+      // ✅ 서비스 워커 강제 호출 (무한 로딩 방지)
+      const registration = await navigator.serviceWorker.register('/sw.js');
       
       const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-      if (!vapidPublicKey) throw new Error('VAPID 공개키가 없습니다.');
+      if (!vapidPublicKey) throw new Error('VAPID 공개키가 환경변수에 없습니다.');
       
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
       });
 
-      const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-      );
-
+      // ✅ DB 업데이트 (기기 토큰 저장)
       const { error } = await supabase
         .from('agents')
         .update({ push_subscription: JSON.parse(JSON.stringify(subscription)) })
@@ -46,10 +50,10 @@ export default function PushSubscribeButton() {
       if (error) throw error;
 
       setStatus('✅ 알림 설정 완료');
-      alert('스마트폰 알림 설정이 완료되었습니다!');
+      alert('스마트폰 알림 설정이 완료되었습니다! 이제 테스트를 진행해보세요.');
 
     } catch (error) {
-      console.error(error);
+      console.error('푸시 등록 에러:', error);
       setStatus('❌ 오류 발생');
       alert('알림 설정 중 문제가 발생했습니다.');
     }
