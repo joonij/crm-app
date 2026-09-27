@@ -8,7 +8,7 @@ import {
   Car, FileText, CheckCircle2, ChevronLeft,
   ChevronRight, Calendar, Clock, Loader2, TrendingUp, Users, Gift, Bell, Presentation, Kanban, UserPlus, X, Plus, BarChart3, Edit3
 } from "lucide-react";
-import PushSubscribeButton from '@/components/PushSubscribeButton';
+import PushSubscribeButton from '@/app/components/PushSubscribeButton';
 
 const MOCK_TARGET_RECRUIT_PER_FC = 2; 
 const RECRUITING_STEPS = [
