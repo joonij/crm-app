@@ -1,12 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from "@/lib/supabase"; // ✅ 프로젝트의 인증된 DB 클라이언트 사용
+import { supabase } from "@/lib/supabase";
 
 export default function PushSubscribeButton() {
   const [status, setStatus] = useState('영업 마감 알림 켜기 🔔');
 
-  // 컴포넌트 실행 시 서비스 워커 자동 등록
   useEffect(() => {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch(console.error);
@@ -15,47 +14,43 @@ export default function PushSubscribeButton() {
 
   const handleSubscribe = async () => {
     try {
-      setStatus('설정 중...');
-      
+      setStatus('설정 중... (1/4)');
       if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-        alert('푸시 알림을 지원하지 않는 기기/브라우저입니다.');
-        setStatus('지원하지 않음');
-        return;
+        throw new Error('푸시 알림을 지원하지 않는 기기입니다.');
       }
 
+      setStatus('설정 중... (2/4)');
       const permission = await Notification.requestPermission();
       if (permission !== 'granted') {
-        alert('알림 권한이 거부되었습니다. 브라우저 설정에서 알림을 허용해주세요.');
-        setStatus('권한 거부됨');
-        return;
+        throw new Error('알림 권한이 거부되었습니다.');
       }
 
-      // ✅ 서비스 워커 강제 호출 (무한 로딩 방지)
+      setStatus('설정 중... (3/4)');
       const registration = await navigator.serviceWorker.register('/sw.js');
       
       const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-      if (!vapidPublicKey) throw new Error('VAPID 공개키가 환경변수에 없습니다.');
+      if (!vapidPublicKey) throw new Error('VAPID 공개키가 없습니다. Vercel 환경변수를 확인하세요.');
       
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
       });
 
-      // ✅ DB 업데이트 (기기 토큰 저장)
+      setStatus('설정 중... (4/4)');
       const { error } = await supabase
         .from('agents')
         .update({ push_subscription: JSON.parse(JSON.stringify(subscription)) })
         .eq('name', '정준희');
 
-      if (error) throw error;
+      if (error) throw new Error('DB 저장 실패: ' + error.message);
 
       setStatus('✅ 알림 설정 완료');
       alert('스마트폰 알림 설정이 완료되었습니다! 이제 테스트를 진행해보세요.');
 
-    } catch (error) {
-      console.error('푸시 등록 에러:', error);
+    } catch (error: any) {
+      console.error(error);
       setStatus('❌ 오류 발생');
-      alert('알림 설정 중 문제가 발생했습니다.');
+      alert('에러 상세 원인: ' + (error.message || '알 수 없는 오류'));
     }
   };
 
