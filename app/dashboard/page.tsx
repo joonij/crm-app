@@ -103,6 +103,7 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [agentId, setAgentId] = useState<number | null>(null);
   const [currentAgentName, setCurrentAgentName] = useState("");
+  const [isPushSubscribed, setIsPushSubscribed] = useState(false); // ⭐️ 푸시 알림 등록 상태 확인
   const [activeTab, setActiveTab] = useState<'personal' | 'team'>('personal');
   const [oldClients, setOldClients] = useState<any[]>([]);
   const [sangryungClients, setSangryungClients] = useState<any[]>([]);
@@ -143,7 +144,8 @@ export default function DashboardPage() {
 
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data: agentData } = await supabase.from("agents").select("id, name, rank, agency_id, monthly_target").eq("auth_id", user.id).single();
+        // ⭐️ push_subscription 필드 추가 조회
+        const { data: agentData } = await supabase.from("agents").select("id, name, rank, agency_id, monthly_target, push_subscription").eq("auth_id", user.id).single();
         if (agentData) {
           myName = agentData.name;
           myAgentId = agentData.id;
@@ -151,6 +153,11 @@ export default function DashboardPage() {
           setAgentId(myAgentId);
           setCurrentAgentName(myName);
           setMyTargetAmount(agentData.monthly_target || 800000); 
+          
+          if (agentData.push_subscription) {
+            setIsPushSubscribed(true); // 알림이 이미 켜져있는 유저 확인
+          }
+
           const userRank = agentData.rank ? String(agentData.rank).toUpperCase() : "";
           managerAuth = userRank.includes("SM");
           setIsManager(managerAuth);
@@ -162,18 +169,16 @@ export default function DashboardPage() {
         return;
       }
 
-      // ⭐️ 1. DB에서 모든 실데이터 병렬로 가져오기 (파이프라인 포함)
       const [clientsRes, insRes, schedulesRes, pipelineRes] = await Promise.all([
         supabase.from("clients").select("*").eq("agent_id", myAgentId),
         supabase.from("subscription_insurance").select("*").eq("agent_name", myName),
         supabase.from("schedules").select("*"),
-        supabase.from("sales_pipelines").select("*").eq("agent_id", myAgentId) // 실제 DB 호출
+        supabase.from("sales_pipelines").select("*").eq("agent_id", myAgentId) 
       ]);
 
       const myClients = clientsRes.data || [];
       setClientsList(myClients);
       
-      // ⭐️ 2. 파이프라인 세팅 (Mock 제거)
       setPipelines(pipelineRes.data || []);
 
       const myInsurances = insRes.data || [];
@@ -182,7 +187,6 @@ export default function DashboardPage() {
       const allSchedules = schedulesRes.data || [];
       const mySchedules = allSchedules.filter(sch => sch.agent_id === myAgentId || myClientIds.includes(Number(sch.client_id)));
       
-      // ⭐️ 3. 스케줄 세팅 (태그 렌더링용)
       setSchedules(mySchedules);
       
       const generatedNotis: any[] = [];
@@ -372,7 +376,6 @@ export default function DashboardPage() {
   
   const TOTAL_TIMELINE_MS = 14 * 86400000;
 
-  // ⭐️ 4. 파이프라인 실제 DB 삽입 로직
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value.replace(/[^0-9]/g, '');
     if (!val) setPipelineForm({ ...pipelineForm, amount: '' });
@@ -406,7 +409,6 @@ export default function DashboardPage() {
     }
   };
 
-  // ⭐️ 5. 파이프라인 실제 DB 삭제 로직
   const handleDeletePipeline = async (id: number) => {
     if(!confirm("리스트에서 완전히 삭제하시겠습니까?")) return;
     
@@ -436,7 +438,8 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="w-full max-w-[1500px] mx-auto p-4 md:p-8 bg-gray-50/50 min-h-screen flex flex-col overflow-hidden">
+    // ⭐️ 3번 요청 반영: overflow-hidden 제거, min-h-screen으로 전체 스크롤 가능하게 만듦
+    <div className="w-full max-w-[1500px] mx-auto p-4 md:p-8 bg-gray-50/50 min-h-screen flex flex-col">
       <div className="flex justify-between items-end mb-4 relative shrink-0">
         <div>
           <h1 className="text-2xl font-black text-slate-800 flex items-center gap-2"><Presentation className="w-5 h-5 text-blue-600" />영업 현황 보드</h1>
@@ -444,24 +447,9 @@ export default function DashboardPage() {
             <strong className="text-blue-600">{currentAgentName}</strong> 님의 오늘 챙겨야 할 핵심 업무 현황입니다.
           </p>
         </div>
-
-        <div>
-          <Link 
-            href="/notifications"
-            className="p-2.5 bg-white border border-gray-200 rounded-full shadow-sm hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-colors relative cursor-pointer flex items-center justify-center group"
-            title="알림 센터 가기"
-          >
-            <Bell className="w-6 h-6 text-gray-700 group-hover:text-blue-600 transition-colors" />
-            {unreadCount > 0 && (
-              <span className="absolute top-0 right-0 translate-x-1 -translate-y-1 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full z-10 border border-white">
-                {unreadCount > 99 ? '99+' : unreadCount}
-              </span>
-            )}
-          </Link>
-        </div>
       </div>
       
-      {isManager && (
+      {/* {isManager && (
         <div className="flex items-center gap-6 border-b border-gray-200 shrink-0 mb-6 px-1">
           <button
             onClick={() => setActiveTab('personal')}
@@ -478,29 +466,33 @@ export default function DashboardPage() {
             {activeTab === 'team' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 rounded-t-md"></span>}
           </button>
         </div>
-      )} 
+      )}  */}
 
       {(!isManager || activeTab === 'personal') && (
-        <div className="flex flex-col gap-6 w-full shrink-0 lg:h-[calc(100vh-190px)] overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-thumb]:rounded-full pr-1">
-          {/* ⭐️ 여기에 푸시 알림 설정 배너를 새로 끼워 넣습니다 ⭐️ */}
-          <section className="bg-blue-50/80 p-5 rounded-2xl border border-blue-100 flex flex-col sm:flex-row items-center justify-between shadow-sm shrink-0">
-            <div>
-              <h2 className="text-base font-bold text-blue-900 flex items-center gap-2">
-                <Bell className="w-5 h-5 text-blue-500" /> 일일 영업 마감 알림
-              </h2>
-              <p className="text-xs text-blue-700 mt-1 font-medium">
-                매일 20시, 22시에 마감 리마인드 푸시 알림을 받으려면 우측 버튼을 눌러 기기를 등록해주세요.
-              </p>
-            </div>
-            <div className="mt-3 sm:mt-0 shrink-0">
-              <PushSubscribeButton />
-            </div>
-          </section>
-          {/* ⭐️ 추가 끝 ⭐️ */}
-          <div className="bg-white border border-indigo-200 rounded-2xl shadow-sm p-5 shrink-0 flex flex-col min-h-[450px] overflow-hidden">
+        // ⭐️ 3번 요청 반영: 고정 높이 제거
+        <div className="flex flex-col gap-6 w-full">
+          
+          {/* ⭐️ 1번 요청 반영: 등록된 상태면 안보이게 처리 */}
+          {!isPushSubscribed && (
+            <section className="bg-blue-50/80 p-5 rounded-2xl border border-blue-100 flex flex-col sm:flex-row items-center justify-between shadow-sm">
+              <div>
+                <h2 className="text-base font-bold text-blue-900 flex items-center gap-2">
+                  <Bell className="w-5 h-5 text-blue-500" /> 일일 영업 마감 알림
+                </h2>
+                <p className="text-xs text-blue-700 mt-1 font-medium">
+                  매일 20시, 22시에 마감 리마인드 푸시 알림을 받으려면 우측 버튼을 눌러 기기를 등록해주세요.
+                </p>
+              </div>
+              <div className="mt-3 sm:mt-0 shrink-0">
+                <PushSubscribeButton />
+              </div>
+            </section>
+          )}
+
+          <div className="bg-white border border-indigo-200 rounded-2xl shadow-sm p-5 flex flex-col">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
               <h3 className="font-black text-indigo-900 flex items-center gap-2">
-                <BarChart3 className="w-5 h-5 text-indigo-600" /> 계약 진행 파이프라인
+                <BarChart3 className="w-5 h-5 text-indigo-600" /> 계약 진행리스트
               </h3>
               <Link href="/daily-closing" className="bg-slate-800 text-white text-xs font-bold px-4 py-2 rounded-xl hover:bg-slate-700 transition-colors flex items-center gap-1 shadow-sm">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" /> 일일 마감 보고 작성하기
@@ -529,168 +521,174 @@ export default function DashboardPage() {
               <input type="text" placeholder="계약 내용 (예: 종신 10만)" value={pipelineForm.details} onChange={(e) => setPipelineForm({...pipelineForm, details: e.target.value})} className="w-full text-sm p-2.5 rounded-lg border border-gray-200 outline-none focus:border-indigo-400" />
               <input type="text" placeholder="예상 금액" value={pipelineForm.amount} onChange={handleAmountChange} className="w-full text-sm p-2.5 rounded-lg border border-gray-200 outline-none focus:border-indigo-400 font-bold text-indigo-700" />
               <input type="date" value={pipelineForm.date} onChange={(e) => setPipelineForm({...pipelineForm, date: e.target.value})} className="w-full text-sm p-2.5 rounded-lg border border-gray-200 outline-none focus:border-indigo-400 text-gray-600" />
-              <button onClick={handleAddPipeline} className="bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center gap-1 cursor-pointer"><Plus className="w-4 h-4"/> 리스트 추가</button>
+              <button onClick={handleAddPipeline} className="pt-2 pb-2 text-sm bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center gap-1 cursor-pointer"><Plus className="w-4 h-4"/> 리스트 추가</button>
             </div>
 
-            <div className="border border-slate-200 rounded-xl bg-white shadow-sm flex flex-col flex-1 overflow-x-auto min-w-[800px]">
-              <div className="flex bg-slate-50 border-b border-slate-200 shrink-0">
-                <div className="w-[280px] shrink-0 border-r border-slate-200 p-3 flex items-center justify-between">
-                  <span className="font-bold text-xs text-slate-500">계약별 진행 현황</span>
-                  <div className="flex items-center gap-1.5">
-                    <button onClick={() => setTimelineOffset(p => p - 1)} className="p-1 hover:bg-white rounded border border-transparent hover:border-slate-200 cursor-pointer"><ChevronLeft className="w-4 h-4 text-slate-500"/></button>
-                    <button onClick={() => setTimelineOffset(0)} className="text-[10px] font-bold bg-white px-2 py-0.5 rounded border border-slate-200 shadow-sm text-slate-600 hover:text-indigo-600 cursor-pointer">오늘</button>
-                    <button onClick={() => setTimelineOffset(p => p + 1)} className="p-1 hover:bg-white rounded border border-transparent hover:border-slate-200 cursor-pointer"><ChevronRight className="w-4 h-4 text-slate-500"/></button>
-                  </div>
-                </div>
+            {/* ⭐️ 2번 요청 반영: 세로+가로 스크롤 완전 분리 및 고정 헤더 적용 */}
+            <div className="overflow-auto max-h-[600px] border border-slate-200 rounded-xl bg-white shadow-sm w-full">
+              <div className="min-w-[1000px] flex flex-col relative">
                 
-                <div className="flex-1 grid" style={{ gridTemplateColumns: 'repeat(14, minmax(0, 1fr))' }}>
-                  {timelineDays.map((d, i) => {
-                    const isToday = d.getTime() === today.getTime();
-                    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-                    return (
-                      <div key={i} className={`flex flex-col items-center justify-center py-2 border-r border-slate-100 last:border-r-0 ${isToday ? 'bg-indigo-50 text-indigo-700' : isWeekend ? 'text-rose-400' : 'text-slate-500'}`}>
-                        <span className="text-[10px] font-bold">{['일','월','화','수','목','금','토'][d.getDay()]}</span>
-                        <span className={`text-xs font-black mt-0.5 ${isToday ? 'bg-indigo-600 text-white w-5 h-5 flex items-center justify-center rounded-full' : ''}`}>{d.getDate()}</span>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-
-              <div className="flex-1 overflow-y-auto max-h-[350px] relative pb-4">
-                <div className="flex border-b border-slate-200 bg-slate-50/80 relative z-20">
-                  <div className="w-[280px] shrink-0 border-r border-slate-200 p-3 relative flex items-start pt-4">
-                    <div className="flex flex-col gap-1">
-                      <span className="font-black text-[13px] text-slate-800 flex items-center gap-1.5"><Edit3 className="w-4 h-4 text-emerald-600"/> 일일 활동 / 마감 내역</span>
-                      <span className="text-[10px] text-slate-500 font-medium break-keep">일일마감에서 작성한 업무일지와 일정이 달력 하단에 표시됩니다.</span>
-                    </div>
+                {/* 달력 상단 헤더 (스크롤 내려도 위에 고정) */}
+                <div className="sticky top-0 z-40 flex bg-slate-50 border-b border-slate-200 shadow-sm">
+                  <div className="w-[280px] shrink-0 border-r border-slate-200 p-3 flex items-center justify-between bg-slate-50">
+                    <span className="font-bold text-xs text-slate-500">계약별 진행 현황</span>
+                    {/* <div className="flex items-center gap-1.5">
+                      <button onClick={() => setTimelineOffset(p => p - 1)} className="p-1 hover:bg-white rounded border border-transparent hover:border-slate-200 cursor-pointer"><ChevronLeft className="w-4 h-4 text-slate-500"/></button>
+                      <button onClick={() => setTimelineOffset(0)} className="text-[10px] font-bold bg-white px-2 py-0.5 rounded border border-slate-200 shadow-sm text-slate-600 hover:text-indigo-600 cursor-pointer">오늘</button>
+                      <button onClick={() => setTimelineOffset(p => p + 1)} className="p-1 hover:bg-white rounded border border-transparent hover:border-slate-200 cursor-pointer"><ChevronRight className="w-4 h-4 text-slate-500"/></button>
+                    </div> */}
                   </div>
-                  <div className="flex-1 relative">
-                    <div className="absolute inset-0 grid" style={{ gridTemplateColumns: 'repeat(14, minmax(0, 1fr))' }}>
-                      {timelineDays.map((d, i) => (
-                        <div key={i} className={`border-r border-slate-200/60 h-full ${d.getTime() === today.getTime() ? 'bg-indigo-50/50' : ''}`}></div>
-                      ))}
-                    </div>
-                    <div className="relative z-10 grid h-full" style={{ gridTemplateColumns: 'repeat(14, minmax(0, 1fr))' }}>
-                      {timelineDays.map((d, i) => {
-                        const dateStr = getLocalString(d); 
-                        const daySchedules = schedules.filter(s => s.schedule_date === dateStr);
-                        return (
-                          <div key={i} className="p-1.5 flex flex-col gap-1.5 min-h-[70px]">
-                            {daySchedules.map(sch => (
-                              <div key={sch.id} className="bg-emerald-50 border border-emerald-200 rounded-md px-1.5 py-1.5 shadow-sm flex flex-col hover:bg-emerald-100 transition-colors group/tag cursor-pointer">
-                                <span className="text-[10px] font-black text-emerald-800 truncate leading-tight flex items-center gap-1">
-                                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></div>
-                                  {sch.title || sch.content}
-                                </span>
-                                {sch.description && <span className="text-[9px] text-emerald-600/90 truncate leading-tight mt-1 pl-2.5">{sch.description}</span>}
-                              </div>
-                            ))}
-                          </div>
-                        )
-                      })}
-                    </div>
+                  
+                  <div className="flex-1 grid bg-slate-50" style={{ gridTemplateColumns: 'repeat(14, minmax(0, 1fr))' }}>
+                    {timelineDays.map((d, i) => {
+                      const isToday = d.getTime() === today.getTime();
+                      const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                      return (
+                        <div key={i} className={`flex flex-col items-center justify-center py-2 border-r border-slate-200 last:border-r-0 ${isToday ? 'bg-indigo-50 text-indigo-700' : isWeekend ? 'text-rose-400' : 'text-slate-500'}`}>
+                          <span className="text-[10px] font-bold">{['일','월','화','수','목','금','토'][d.getDay()]}</span>
+                          <span className={`text-xs font-black mt-0.5 ${isToday ? 'bg-indigo-600 text-white w-5 h-5 flex items-center justify-center rounded-full shadow-sm' : ''}`}>{d.getDate()}</span>
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
 
-                {pipelines.sort((a,b) => parseLocalDate(a.expected_date).getTime() - parseLocalDate(b.expected_date).getTime()).map(p => {
-                  const pStart = p.created_at ? parseLocalDate(p.created_at) : today; 
-                  const pEnd = parseLocalDate(p.expected_date); 
-                  
-                  const pStartMs = pStart.getTime();
-                  const pEndMs = pEnd.getTime();
-                  const tlStartMs = timelineStart.getTime();
-                  const tlEndMs = tlStartMs + TOTAL_TIMELINE_MS;
-
-                  const isOutOfView = pEndMs < tlStartMs || pStartMs >= tlEndMs;
-                  const barStart = Math.max(pStartMs, tlStartMs);
-                  const barEnd = Math.min(pEndMs + 86400000, tlEndMs); 
-
-                  const leftPercent = ((barStart - tlStartMs) / TOTAL_TIMELINE_MS) * 100;
-                  const widthPercent = ((barEnd - barStart) / TOTAL_TIMELINE_MS) * 100;
-
-                  const totalDuration = pEndMs - pStartMs + 86400000;
-                  const passedDuration = today.getTime() - pStartMs + 86400000;
-                  let progress = (passedDuration / totalDuration) * 100;
-                  if (progress < 0) progress = 0;
-                  if (progress > 100) progress = 100;
-                  
-                  const statusColor = p.status === '계약' || p.status === '증권 전달' ? 'bg-emerald-100 text-emerald-700' : p.status === '거절' ? 'bg-rose-100 text-rose-700' : p.status === '보류' || p.status === '미진행' ? 'bg-gray-200 text-gray-700' : 'bg-indigo-100 text-indigo-700';
-
-                  return (
-                    <div key={p.id} className="flex border-b border-slate-100 last:border-b-0 hover:bg-slate-50/50 transition-colors group">
-                      
-                      <div className="w-[280px] shrink-0 border-r border-slate-100 p-3 relative z-20 bg-white group-hover:bg-slate-50/50">
-                        <button onClick={() => handleDeletePipeline(p.id)} className="absolute top-3 right-3 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"><X className="w-3.5 h-3.5"/></button>
-                        <div className="flex items-center gap-1.5 mb-1.5 pr-4">
-                          <span className={`text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm ${statusColor}`}>{p.status}</span>
-                          <span className="font-bold text-sm text-slate-800">{p.client_name}</span>
-                        </div>
-                        <p className="text-[11px] text-slate-500 truncate mb-1.5 pr-4">{p.contract_details}</p>
-                        <div className="flex justify-between items-center pr-4 mt-auto">
-                          <p className="text-xs font-black text-indigo-600">{p.expected_amount.toLocaleString()}원</p>
-                          <span className="text-[10px] font-bold text-slate-400 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded shadow-sm">{totalDuration / 86400000}일 소요</span>
-                        </div>
+                {/* 달력 본문 (스크롤 내릴 때 같이 올라감) */}
+                <div className="flex flex-col relative pb-4">
+                  <div className="flex border-b border-slate-200 bg-slate-50/80 relative z-20">
+                    <div className="w-[280px] shrink-0 border-r border-slate-200 p-3 relative flex items-start pt-4 bg-slate-50/80">
+                      <div className="flex flex-col gap-1">
+                        <span className="font-black text-[13px] text-slate-800 flex items-center gap-1.5"><Edit3 className="w-4 h-4 text-emerald-600"/> 일일 활동 / 마감 내역</span>
+                        {/* <span className="text-[10px] text-slate-500 font-medium break-keep">일일마감에서 작성한 업무일지와 일정이 달력 하단에 표시됩니다.</span> */}
                       </div>
-
-                      <div className="flex-1 relative">
-                        <div className="absolute inset-0 grid" style={{ gridTemplateColumns: 'repeat(14, minmax(0, 1fr))' }}>
-                          {timelineDays.map((d, i) => (
-                            <div key={i} className={`border-r border-slate-100/50 h-full ${d.getTime() === today.getTime() ? 'bg-indigo-50/30' : ''}`}></div>
-                          ))}
-                        </div>
-
-                        {!isOutOfView && (
-                          <div className="absolute top-[60%] -translate-y-1/2 h-5 z-10" style={{ left: `${leftPercent}%`, width: `${widthPercent}%` }}>
-                            <div className={`w-full h-full bg-slate-200 overflow-hidden relative shadow-sm border border-slate-300/50 flex items-center
-                              ${pStartMs < tlStartMs ? 'rounded-r-md border-l-0' : 'rounded-l-md'}
-                              ${pEndMs >= tlEndMs ? 'rounded-l-md border-r-0' : 'rounded-r-md'}
-                              ${pStartMs >= tlStartMs && pEndMs < tlEndMs ? 'rounded-md' : ''}
-                            `}>
-                              <div className="absolute left-0 top-0 h-full bg-indigo-500 transition-all duration-1000" style={{ width: `${progress}%` }}>
-                                <div className="absolute inset-0 bg-white/10 w-full -skew-x-12 translate-x-2"></div>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {p.history && p.history.map((h: any, idx: number) => {
-                          const hTime = parseLocalDate(h.date).getTime();
-                          if (hTime < tlStartMs || hTime >= tlEndMs) return null;
-                          
-                          const hLeft = ((hTime - tlStartMs + 43200000) / TOTAL_TIMELINE_MS) * 100;
-                          
-                          let tagClass = "bg-white text-slate-600 border-slate-300";
-                          let dotClass = "border-slate-400";
-                          if (h.status.includes('거절')) { tagClass = "bg-rose-50 text-rose-700 border-rose-300"; dotClass = "border-rose-500"; }
-                          else if (h.status.includes('보류') || h.status.includes('미진행')) { tagClass = "bg-gray-100 text-gray-700 border-gray-300"; dotClass = "border-gray-500"; }
-                          else if (h.status.includes('계약') || h.status.includes('증권')) { tagClass = "bg-emerald-50 text-emerald-700 border-emerald-300"; dotClass = "border-emerald-500"; }
-                          else if (h.status.includes('픽스')) { tagClass = "bg-indigo-50 text-indigo-700 border-indigo-300"; dotClass = "border-indigo-500"; }
-
+                    </div>
+                    <div className="flex-1 relative">
+                      <div className="absolute inset-0 grid" style={{ gridTemplateColumns: 'repeat(14, minmax(0, 1fr))' }}>
+                        {timelineDays.map((d, i) => (
+                          <div key={i} className={`border-r border-slate-200/60 h-full ${d.getTime() === today.getTime() ? 'bg-indigo-50/50' : ''}`}></div>
+                        ))}
+                      </div>
+                      <div className="relative z-10 grid h-full" style={{ gridTemplateColumns: 'repeat(14, minmax(0, 1fr))' }}>
+                        {timelineDays.map((d, i) => {
+                          const dateStr = getLocalString(d); 
+                          const daySchedules = schedules.filter(s => s.schedule_date === dateStr);
                           return (
-                            <div key={idx} className="absolute z-20 flex flex-col items-center top-[60%] -translate-y-1/2" style={{ left: `${hLeft}%`, transform: 'translate(-50%, -50%)' }}>
-                              <div className={`absolute bottom-full mb-1 whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-black shadow-sm border ${tagClass} z-10`}>
-                                {h.status}
-                              </div>
-                              <div className={`w-2.5 h-2.5 rounded-full bg-white border-[2.5px] shadow-sm mt-3 relative z-0 ${dotClass}`}></div>
+                            <div key={i} className="p-1.5 flex flex-col gap-1.5">
+                              {daySchedules.map(sch => (
+                                <div key={sch.id} className="bg-emerald-50 border border-emerald-200 rounded-md px-1.5 py-1.5 shadow-sm flex flex-col hover:bg-emerald-100 transition-colors group/tag cursor-pointer">
+                                  <span className="text-[10px] font-black text-emerald-800 truncate leading-tight flex items-center gap-1">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></div>
+                                    {sch.title || sch.content}
+                                  </span>
+                                  {sch.description && <span className="text-[9px] text-emerald-600/90 truncate leading-tight mt-1 pl-2.5">{sch.description}</span>}
+                                </div>
+                              ))}
                             </div>
-                          );
+                          )
                         })}
                       </div>
                     </div>
-                  )
-                })}
-                {pipelines.length === 0 && (
-                  <div className="flex items-center justify-center h-32 text-sm text-slate-400 font-bold">진행 중인 계약 내역이 없습니다.</div>
-                )}
+                  </div>
+
+                  {pipelines.sort((a,b) => parseLocalDate(a.expected_date).getTime() - parseLocalDate(b.expected_date).getTime()).map(p => {
+                    const pStart = p.created_at ? parseLocalDate(p.created_at) : today; 
+                    const pEnd = parseLocalDate(p.expected_date); 
+                    
+                    const pStartMs = pStart.getTime();
+                    const pEndMs = pEnd.getTime();
+                    const tlStartMs = timelineStart.getTime();
+                    const tlEndMs = tlStartMs + TOTAL_TIMELINE_MS;
+
+                    const isOutOfView = pEndMs < tlStartMs || pStartMs >= tlEndMs;
+                    const barStart = Math.max(pStartMs, tlStartMs);
+                    const barEnd = Math.min(pEndMs + 86400000, tlEndMs); 
+
+                    const leftPercent = ((barStart - tlStartMs) / TOTAL_TIMELINE_MS) * 100;
+                    const widthPercent = ((barEnd - barStart) / TOTAL_TIMELINE_MS) * 100;
+
+                    const totalDuration = pEndMs - pStartMs + 86400000;
+                    const passedDuration = today.getTime() - pStartMs + 86400000;
+                    let progress = (passedDuration / totalDuration) * 100;
+                    if (progress < 0) progress = 0;
+                    if (progress > 100) progress = 100;
+                    
+                    const statusColor = p.status === '계약' || p.status === '증권 전달' ? 'bg-emerald-100 text-emerald-700' : p.status === '거절' ? 'bg-rose-100 text-rose-700' : p.status === '보류' || p.status === '미진행' ? 'bg-gray-200 text-gray-700' : 'bg-indigo-100 text-indigo-700';
+
+                    return (
+                      <div key={p.id} className="flex border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
+                        
+                        <div className="w-[280px] shrink-0 border-r border-slate-100 p-3 relative z-20 bg-white group-hover:bg-slate-50/50">
+                          <button onClick={() => handleDeletePipeline(p.id)} className="absolute top-3 right-3 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"><X className="w-3.5 h-3.5"/></button>
+                          <div className="flex items-center gap-1.5 mb-1.5 pr-4">
+                            <span className={`text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm ${statusColor}`}>{p.status}</span>
+                            <span className="font-bold text-sm text-slate-800">{p.client_name}</span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 truncate mb-1.5 pr-4">{p.contract_details}</p>
+                          <div className="flex justify-between items-center pr-4 mt-auto">
+                            <p className="text-xs font-black text-indigo-600">{p.expected_amount.toLocaleString()}원</p>
+                            <span className="text-[10px] font-bold text-slate-400 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded shadow-sm">{totalDuration / 86400000}일 소요</span>
+                          </div>
+                        </div>
+
+                        <div className="flex-1 relative">
+                          <div className="absolute inset-0 grid" style={{ gridTemplateColumns: 'repeat(14, minmax(0, 1fr))' }}>
+                            {timelineDays.map((d, i) => (
+                              <div key={i} className={`border-r border-slate-100/50 h-full ${d.getTime() === today.getTime() ? 'bg-indigo-50/30' : ''}`}></div>
+                            ))}
+                          </div>
+
+                          {!isOutOfView && (
+                            <div className="absolute top-[60%] -translate-y-1/2 h-5 z-10" style={{ left: `${leftPercent}%`, width: `${widthPercent}%` }}>
+                              <div className={`w-full h-full bg-slate-200 overflow-hidden relative shadow-sm border border-slate-300/50 flex items-center
+                                ${pStartMs < tlStartMs ? 'rounded-r-md border-l-0' : 'rounded-l-md'}
+                                ${pEndMs >= tlEndMs ? 'rounded-l-md border-r-0' : 'rounded-r-md'}
+                                ${pStartMs >= tlStartMs && pEndMs < tlEndMs ? 'rounded-md' : ''}
+                              `}>
+                                <div className="absolute left-0 top-0 h-full bg-indigo-500 transition-all duration-1000" style={{ width: `${progress}%` }}>
+                                  <div className="absolute inset-0 bg-white/10 w-full -skew-x-12 translate-x-2"></div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {p.history && p.history.map((h: any, idx: number) => {
+                            const hTime = parseLocalDate(h.date).getTime();
+                            if (hTime < tlStartMs || hTime >= tlEndMs) return null;
+                            
+                            const hLeft = ((hTime - tlStartMs + 43200000) / TOTAL_TIMELINE_MS) * 100;
+                            
+                            let tagClass = "bg-white text-slate-600 border-slate-300";
+                            let dotClass = "border-slate-400";
+                            if (h.status.includes('거절')) { tagClass = "bg-rose-50 text-rose-700 border-rose-300"; dotClass = "border-rose-500"; }
+                            else if (h.status.includes('보류') || h.status.includes('미진행')) { tagClass = "bg-gray-100 text-gray-700 border-gray-300"; dotClass = "border-gray-500"; }
+                            else if (h.status.includes('계약') || h.status.includes('증권')) { tagClass = "bg-emerald-50 text-emerald-700 border-emerald-300"; dotClass = "border-emerald-500"; }
+                            else if (h.status.includes('픽스')) { tagClass = "bg-indigo-50 text-indigo-700 border-indigo-300"; dotClass = "border-indigo-500"; }
+
+                            return (
+                              <div key={idx} className="absolute z-20 flex flex-col items-center top-[60%] -translate-y-1/2" style={{ left: `${hLeft}%`, transform: 'translate(-50%, -50%)' }}>
+                                <div className={`absolute bottom-full mb-1 whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-black shadow-sm border ${tagClass} z-10`}>
+                                  {h.status}
+                                </div>
+                                <div className={`w-2.5 h-2.5 rounded-full bg-white border-[2.5px] shadow-sm mt-3 relative z-0 ${dotClass}`}></div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })}
+                  {pipelines.length === 0 && (
+                    <div className="flex items-center justify-center h-32 text-sm text-slate-400 font-bold">진행 중인 계약 내역이 없습니다.</div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
 
-          {/* 기존 3분할 대시보드 */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 shrink-0 lg:h-[calc(100vh-620px)] min-h-[400px]">
-            <div className="lg:col-start-1 lg:col-span-1 lg:row-start-1 lg:row-span-2 h-[400px] lg:h-full bg-white border border-rose-200 rounded-2xl shadow-sm flex flex-col overflow-hidden min-h-0">
-              <div className="bg-rose-50/80 p-4 border-b border-rose-100 flex justify-between items-center shrink-0">
+          {/* ⭐️ 기존 3분할 대시보드: 전체 높이제한 풀고 자연스럽게 표시되도록 수정 */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-start-1 lg:col-span-1 lg:row-start-1 lg:row-span-2 h-[350px] lg:h-[724px] bg-white border border-rose-200 rounded-2xl shadow-sm flex flex-col">
+              <div className="bg-rose-50/80 p-4 border-b border-rose-100 flex justify-between items-center shrink-0 rounded-t-2xl">
                 <div>
                   <h3 className="font-black text-rose-900 flex items-center gap-2 text-base">
                     <Clock className="w-5 h-5 text-rose-500" /> 재터치 필요
@@ -734,8 +732,8 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="lg:col-start-1 lg:col-span-1 lg:row-start-3 lg:row-span-1 h-[300px] lg:h-full bg-white border border-purple-200 rounded-2xl shadow-sm flex flex-col overflow-hidden min-h-0">
-              <div className="bg-purple-50/80 p-4 border-b border-purple-100 flex justify-between items-center shrink-0">
+            <div className="lg:col-start-1 lg:col-span-1 lg:row-start-3 lg:row-span-1 h-[350px] bg-white border border-purple-200 rounded-2xl shadow-sm flex flex-col">
+              <div className="bg-purple-50/80 p-4 border-b border-purple-100 flex justify-between items-center shrink-0 rounded-t-2xl">
                 <div>
                   <h3 className="font-black text-purple-900 flex items-center gap-2 text-base">
                     <Gift className="w-5 h-5 text-purple-500" /> 상령일 임박
@@ -771,8 +769,8 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="lg:col-start-2 lg:col-span-2 lg:row-start-1 lg:row-span-1 h-[300px] lg:h-full bg-white border border-amber-200 rounded-2xl shadow-sm flex flex-col overflow-hidden min-h-0">
-              <div className="bg-amber-50/50 p-4 border-b border-amber-100 flex justify-between items-center shrink-0">
+            <div className="lg:col-start-2 lg:col-span-2 lg:row-start-1 lg:row-span-1 h-[350px] bg-white border border-amber-200 rounded-2xl shadow-sm flex flex-col">
+              <div className="bg-amber-50/50 p-4 border-b border-amber-100 flex justify-between items-center shrink-0 rounded-t-2xl">
                 <h3 className="font-bold text-amber-900 flex items-center gap-2">
                   <Car className="w-5 h-5 text-amber-500" /> 자동차보험 갱신 리스트
                 </h3>
@@ -807,8 +805,8 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="lg:col-start-2 lg:col-span-2 lg:row-start-2 lg:row-span-1 h-[300px] lg:h-full bg-white border border-blue-200 rounded-2xl shadow-sm flex flex-col overflow-hidden min-h-0">
-              <div className="bg-blue-50/50 p-4 border-b border-blue-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 shrink-0">
+            <div className="lg:col-start-2 lg:col-span-2 lg:row-start-2 lg:row-span-1 h-[350px] bg-white border border-blue-200 rounded-2xl shadow-sm flex flex-col">
+              <div className="bg-blue-50/50 p-4 border-b border-blue-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 shrink-0 rounded-t-2xl">
                 <h3 className="font-bold text-blue-900 flex items-center gap-2">
                   <FileText className="w-5 h-5 text-blue-500" /> 진행 중 계약
                 </h3>
@@ -841,12 +839,11 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="lg:col-start-2 lg:col-span-2 lg:row-start-3 lg:row-span-1 h-[400px] lg:h-full bg-white border border-emerald-200 rounded-2xl shadow-sm flex flex-col overflow-hidden min-h-0">
-              <div className="bg-emerald-50/50 p-4 border-b border-emerald-100 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 shrink-0">
+            <div className="lg:col-start-2 lg:col-span-2 lg:row-start-3 lg:row-span-1 h-[350px] bg-white border border-emerald-200 rounded-2xl shadow-sm flex flex-col">
+              <div className="bg-emerald-50/50 p-4 border-b border-emerald-100 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 shrink-0 rounded-t-2xl">
                 <h3 className="font-bold text-emerald-900 flex items-center gap-2 shrink-0">
                   <CheckCircle2 className="w-5 h-5 text-emerald-500" /> 체결 완료 현황
                 </h3>
-                
                 <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto">
                   <div className="flex flex-col items-end bg-emerald-600 text-white border border-emerald-700 px-3 py-1.5 rounded-lg shadow-sm flex-1 xl:flex-none relative overflow-hidden">
                     <span className="text-[10px] text-emerald-100 font-bold mb-0.5">이번달 ({getMonthString(0).slice(5)}월)</span>
