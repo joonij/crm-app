@@ -575,7 +575,9 @@ export default function DashboardPage() {
                           return (
                             <div key={i} className="p-1.5 flex flex-col gap-1.5 min-h-[70px]">
                               {daySchedules.map(sch => {
-                                const cName = sch.client_id ? clientMap.get(Number(sch.client_id)) : '';
+                                // ⭐️ clientMap 대신 clientsList 상태를 사용해 이름 검색
+                                const client = sch.client_id ? clientsList.find(c => Number(c.id) === Number(sch.client_id)) : null;
+                                const cName = client ? client.name : '';
                                 const displayTitle = cName ? `${cName} ${sch.category || ''}` : (sch.category || '일정');
                                 
                                 return (
