@@ -1,71 +1,63 @@
-// app/api/cron/daily-closing/route.ts
-import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+import webpush from 'web-push';
 
-// 백엔드용 서비스 키 사용 (권한 우회)
+webpush.setVapidDetails(
+  'mailto:joonij93@gmail.com', // 👈 대표님 이메일 그대로 유지
+  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
+  process.env.VAPID_PRIVATE_KEY!
+);
+
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ""
+  process.env.NEXT_PUBLIC_SUPABASE_URL!, 
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 export async function GET(req: Request) {
   try {
-    // 1. 보안 체크 (외부에서 아무나 이 주소를 실행하지 못하도록 Vercel Cron 시크릿 키 확인)
-    const authHeader = req.headers.get('authorization');
-    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    const { searchParams } = new URL(req.url);
+    if (searchParams.get('secret') !== process.env.CRON_SECRET) {
       return new NextResponse('Unauthorized', { status: 401 });
     }
 
-    // 2. 전체 FC(설계사) 목록 가져오기
-    const { data: agents } = await supabase.from('agents').select('id, name, phone');
-    if (!agents) return NextResponse.json({ success: true, message: "No agents found." });
+    // ⭐️ URL 끝에 &test=true 가 붙어있는지 확인
+    const isTest = searchParams.get('test') === 'true';
 
-    // 3. 오늘 자정(00:00)부터 현재까지 등록된 '내일 일정' 스케줄 조회 (마감 완료의 증거)
-    const today = new Date();
-    const todayKstString = new Date(today.getTime() + (9 * 60 * 60 * 1000)).toISOString().split('T')[0];
-    
-    const { data: todaySchedules } = await supabase
+    const { data: agents } = await supabase
+      .from('agents')
+      .select('id, name, push_subscription')
+      .not('push_subscription', 'is', null);
+      
+    if (!agents) return NextResponse.json({ success: true });
+
+    const todayKst = new Date(new Date().getTime() + 9 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const { data: schedules } = await supabase
       .from('schedules')
       .select('agent_id')
-      .gte('created_at', `${todayKstString}T00:00:00Z`);
-
-    // 마감 완료한 FC의 ID 목록 추출
-    const completedAgentIds = new Set(todaySchedules?.map(s => s.agent_id) || []);
-
-    // 4. 마감하지 않은 FC 필터링
-    const targetAgents = agents.filter(agent => !completedAgentIds.has(agent.id));
-
-    if (targetAgents.length === 0) {
-      return NextResponse.json({ success: true, message: "All agents have completed the closing." });
-    }
-
-    // 5. 알리고(또는 솔라피) API를 통해 카카오 알림톡 발송
-    for (const agent of targetAgents) {
-      // 💡 실제로는 솔라피(Solapi)나 알리고(Aligo)의 발송 API 규격에 맞춰 POST 요청을 보냅니다.
-      console.log(`[알림톡 발송 대상] ${agent.name} (${agent.phone}) - 마감 미완료`);
+      .gte('created_at', `${todayKst}T00:00:00Z`);
       
-      /* (솔라피 발송 예시 코드)
-      await fetch("https://api.solapi.com/messages/v4/send", {
-        method: "POST",
-        headers: { "Authorization": `HMAC-SHA256 ...`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: {
-            to: agent.phone,
-            from: "대표님_발신번호",
-            kakaoOptions: {
-              pfId: "카카오톡채널ID",
-              templateId: "승인받은_템플릿_아이디",
-              variables: { "#{이름}": agent.name } // 템플릿 변수 치환
-            }
-          }
-        })
-      });
-      */
+    let targetAgents = [];
+
+    if (isTest) {
+      // 🧪 테스트 모드: 오늘 마감을 했든 안 했든 정준희 대표님에게만 무조건 발송
+      targetAgents = agents.filter(a => a.name === '정준희');
+    } else {
+      // ⏰ 일반 모드 (cron-job.org 호출용): 마감을 안 한 사람만 추려내기
+      const completedAgentIds = new Set(schedules?.map(s => s.agent_id) || []);
+      targetAgents = agents.filter(a => !completedAgentIds.has(a.id));
     }
 
-    return NextResponse.json({ success: true, sentCount: targetAgents.length });
-    
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    for (const agent of targetAgents) {
+      const payload = JSON.stringify({
+        title: isTest ? '🧪 [테스트] 영업 마감 알림' : '⏰ 영업 마감 시간입니다!',
+        body: `${agent.name} 대표님, 퇴근 전 1분 마감을 완료해주세요!`,
+        url: '/dashboard'
+      });
+      await webpush.sendNotification(agent.push_subscription, payload).catch(e => console.error(e));
+    }
+
+    return NextResponse.json({ success: true, isTest, sent: targetAgents.length });
+  } catch (error) {
+    return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 }

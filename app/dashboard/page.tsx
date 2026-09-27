@@ -8,6 +8,7 @@ import {
   Car, FileText, CheckCircle2, ChevronLeft,
   ChevronRight, Calendar, Clock, Loader2, TrendingUp, Users, Gift, Bell, Presentation, Kanban, UserPlus, X, Plus, BarChart3, Edit3
 } from "lucide-react";
+import PushSubscribeButton from '@/components/PushSubscribeButton';
 
 const MOCK_TARGET_RECRUIT_PER_FC = 2; 
 const RECRUITING_STEPS = [
@@ -481,8 +482,22 @@ export default function DashboardPage() {
 
       {(!isManager || activeTab === 'personal') && (
         <div className="flex flex-col gap-6 w-full shrink-0 lg:h-[calc(100vh-190px)] overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-thumb]:rounded-full pr-1">
-          
-          {/* <div className="bg-white border border-indigo-200 rounded-2xl shadow-sm p-5 shrink-0 flex flex-col min-h-[450px] overflow-hidden">
+          {/* ⭐️ 여기에 푸시 알림 설정 배너를 새로 끼워 넣습니다 ⭐️ */}
+          <section className="bg-blue-50/80 p-5 rounded-2xl border border-blue-100 flex flex-col sm:flex-row items-center justify-between shadow-sm shrink-0">
+            <div>
+              <h2 className="text-base font-bold text-blue-900 flex items-center gap-2">
+                <Bell className="w-5 h-5 text-blue-500" /> 일일 영업 마감 알림
+              </h2>
+              <p className="text-xs text-blue-700 mt-1 font-medium">
+                매일 20시, 22시에 마감 리마인드 푸시 알림을 받으려면 우측 버튼을 눌러 기기를 등록해주세요.
+              </p>
+            </div>
+            <div className="mt-3 sm:mt-0 shrink-0">
+              <PushSubscribeButton />
+            </div>
+          </section>
+          {/* ⭐️ 추가 끝 ⭐️ */}
+          <div className="bg-white border border-indigo-200 rounded-2xl shadow-sm p-5 shrink-0 flex flex-col min-h-[450px] overflow-hidden">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
               <h3 className="font-black text-indigo-900 flex items-center gap-2">
                 <BarChart3 className="w-5 h-5 text-indigo-600" /> 계약 진행 파이프라인
@@ -670,7 +685,7 @@ export default function DashboardPage() {
                 )}
               </div>
             </div>
-          </div> */}
+          </div>
 
           {/* 기존 3분할 대시보드 */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 shrink-0 lg:h-[calc(100vh-620px)] min-h-[400px]">
