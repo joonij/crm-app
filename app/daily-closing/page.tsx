@@ -69,7 +69,7 @@ export default function DailyClosingPage() {
       if (!agentData) return;
       const myAgentId = agentData.id;
       setAgentId(myAgentId);
-      setAgencyId(agentData.agency_id);
+      setAgencyId((agentData as any).agency_id);
       const { data: cData } = await supabase.from('clients').select('id, name, phone').eq('agent_id', myAgentId);
       if(cData) setClients(cData);
 
