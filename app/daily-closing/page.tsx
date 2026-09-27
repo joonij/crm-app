@@ -41,7 +41,7 @@ export default function DailyClosingPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [agentId, setAgentId] = useState<number | null>(null);
-  
+  const [agencyId, setAgencyId] = useState<number | null>(null);
   const [pipelines, setPipelines] = useState<any[]>([]);
   const [todaySchedules, setTodaySchedules] = useState<any[]>([]);
   const [tomorrowSchedules, setTomorrowSchedules] = useState<any[]>([]); 
@@ -69,7 +69,7 @@ export default function DailyClosingPage() {
       if (!agentData) return;
       const myAgentId = agentData.id;
       setAgentId(myAgentId);
-
+      setAgencyId(agentData.agency_id);
       const { data: cData } = await supabase.from('clients').select('id, name, phone').eq('agent_id', myAgentId);
       if(cData) setClients(cData);
 
@@ -221,6 +221,7 @@ export default function DailyClosingPage() {
         // ⭐️ DB 스키마에 완벽히 매핑 (date, time, schedule_type, content)
         const newSchedules = finalTomorrowSchedules.filter(s => s.isNew).map(s => ({
           agent_id: agentId,
+          agency_id: agencyId,
           client_id: s.client_id ? Number(s.client_id) : null,
           date: tomorrowStr,
           time: s.time,
@@ -512,6 +513,16 @@ export default function DailyClosingPage() {
                   <span className="text-indigo-600">{tomorrowSchedules.length}건</span>
                 </div>
               </div>
+              <button 
+                onClick={() => {
+                  window.close(); // PWA(앱)나 푸시알림으로 연 창 강제 종료
+                  // 브라우저 보안 상 window.close()가 무시될 경우를 대비해 0.3초 뒤 대시보드로 이동
+                  setTimeout(() => router.push('/dashboard'), 300);
+                }}
+                className="w-full max-w-sm bg-slate-900 text-white font-black py-4 rounded-xl shadow-lg hover:bg-slate-800 transition-colors"
+              >
+                어플 종료하기 (퇴근)
+              </button>
             </div>
           )}
         </div>
