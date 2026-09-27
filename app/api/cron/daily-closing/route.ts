@@ -46,7 +46,7 @@ export async function GET(req: Request) {
     for (const agent of targetAgents) {
       const payload = JSON.stringify({
         title: '⏰ 영업 마감 시간입니다!',
-        body: `${agent.name}, 퇴근 전 1분 마감을 완료해주세요!`,
+        body: `${agent.name}님, 일일 마감 보고을 완료해주세요!`,
         url: '/daily-closing' 
       });
       
