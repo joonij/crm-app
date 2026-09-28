@@ -65,13 +65,12 @@ export default function DailyClosingPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return router.push("/login");
       
-      // ⭐️ select('id, agency_id') 로 변경하여 두 값을 모두 가져오게 합니다.
       const { data: agentData } = await supabase.from('agents').select('id, agency_id').eq('auth_id', user.id).single();
       if (!agentData) return;
 
       const myAgentId = agentData.id;
       setAgentId(myAgentId);
-      setAgencyId((agentData as any).agency_id); // 이제 정상적으로 지점 ID 값이 들어갑니다.
+      setAgencyId((agentData as any).agency_id); 
       const { data: cData } = await supabase.from('clients').select('id, name, phone').eq('agent_id', myAgentId);
       if(cData) setClients(cData);
 
@@ -97,7 +96,6 @@ export default function DailyClosingPage() {
         .order('expected_date', { ascending: true });
       if(pData) setPipelines(pData);
 
-      // ⭐️ DB 스키마에 맞춰 date 컬럼으로 검색하도록 수정
       const { data: sData } = await supabase.from('schedules')
         .select('*')
         .eq('agent_id', myAgentId)
@@ -161,7 +159,6 @@ export default function DailyClosingPage() {
     }));
   };
 
-  // ⭐️ DB 스키마에 맞춰 worklog 항목으로 상태 변경
   const handleWorklogChange = (id: number, text: string) => {
     setTodaySchedules(todaySchedules.map(s => s.id === id ? { ...s, worklog: text } : s));
   };
@@ -204,11 +201,12 @@ export default function DailyClosingPage() {
     setIsSaving(true);
     try {
       if (step === 1) {
-        // DB 연동 해제됨 (임시 저장만 됨)
-        await new Promise(resolve => setTimeout(resolve, 300)); 
+        // ⭐️ 수정 1: 대시보드 반영을 위해 sales_pipelines DB 업데이트 로직 복구
+        for (const p of pipelines) {
+          await supabase.from('sales_pipelines').update({ status: p.status, history: p.history }).eq('id', p.id);
+        }
       } else if (step === 2) {
         for (const s of todaySchedules) {
-          // ⭐️ DB 스키마에 맞춰 description -> worklog 로 변경하여 업데이트
           await supabase.from('schedules').update({ worklog: s.worklog }).eq('id', s.id);
         }
       } else if (step === 3) {
@@ -220,7 +218,6 @@ export default function DailyClosingPage() {
           });
         }
         
-        // ⭐️ DB 스키마에 완벽히 매핑 (date, time, schedule_type, content)
         const newSchedules = finalTomorrowSchedules.filter(s => s.isNew).map(s => ({
           agent_id: agentId,
           agency_id: agencyId,
@@ -515,11 +512,18 @@ export default function DailyClosingPage() {
                   <span className="text-indigo-600">{tomorrowSchedules.length}건</span>
                 </div>
               </div>
+              {/* ⭐️ 수정 2: 어플 강제 종료 로직 (안드로이드 홈으로 튕겨내기) 적용 */}
               <button 
                 onClick={() => {
-                  window.close(); // PWA(앱)나 푸시알림으로 연 창 강제 종료
-                  // 브라우저 보안 상 window.close()가 무시될 경우를 대비해 0.3초 뒤 대시보드로 이동
-                  setTimeout(() => router.push('/dashboard'), 300);
+                  if (/android/i.test(navigator.userAgent)) {
+                    // 안드로이드: 강제로 홈 화면으로 내보내기 (가장 확실한 방법)
+                    window.location.href = "intent://#Intent;action=android.intent.action.MAIN;category=android.intent.category.HOME;end";
+                  } else {
+                    // 아이폰, PC: 기존 창닫기 방식 시도
+                    window.close();
+                  }
+                  // 브라우저에 의해 안 꺼졌을 경우를 대비해 0.5초 뒤 대시보드로 이동
+                  setTimeout(() => router.push('/dashboard'), 500);
                 }}
                 className="w-full max-w-sm bg-slate-900 text-white font-black py-4 rounded-xl shadow-lg hover:bg-slate-800 transition-colors"
               >

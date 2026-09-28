@@ -480,7 +480,7 @@ export default function DashboardPage() {
                   <Bell className="w-5 h-5 text-blue-500" /> 일일 영업 마감 알림
                 </h2>
                 <p className="text-xs text-blue-700 mt-1 font-medium">
-                  매일 20시, 22시에 마감 리마인드 푸시 알림을 받으려면 우측 버튼을 눌러 기기를 등록해주세요.
+                  마감 푸시 알림을 위해 우측 버튼을 눌러 기기를 등록해주세요.
                 </p>
               </div>
               <div className="mt-3 sm:mt-0 shrink-0">
@@ -532,11 +532,11 @@ export default function DashboardPage() {
                 <div className="sticky top-0 z-40 flex bg-slate-50 border-b border-slate-200 shadow-sm">
                   <div className="w-[280px] shrink-0 border-r border-slate-200 p-3 flex items-center justify-between bg-slate-50">
                     <span className="font-bold text-xs text-slate-500">계약별 진행 현황</span>
-                    {/* <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5">
                       <button onClick={() => setTimelineOffset(p => p - 1)} className="p-1 hover:bg-white rounded border border-transparent hover:border-slate-200 cursor-pointer"><ChevronLeft className="w-4 h-4 text-slate-500"/></button>
                       <button onClick={() => setTimelineOffset(0)} className="text-[10px] font-bold bg-white px-2 py-0.5 rounded border border-slate-200 shadow-sm text-slate-600 hover:text-indigo-600 cursor-pointer">오늘</button>
                       <button onClick={() => setTimelineOffset(p => p + 1)} className="p-1 hover:bg-white rounded border border-transparent hover:border-slate-200 cursor-pointer"><ChevronRight className="w-4 h-4 text-slate-500"/></button>
-                    </div> */}
+                    </div>
                   </div>
                   
                   <div className="flex-1 grid bg-slate-50" style={{ gridTemplateColumns: 'repeat(14, minmax(0, 1fr))' }}>
