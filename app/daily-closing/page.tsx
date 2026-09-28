@@ -65,11 +65,13 @@ export default function DailyClosingPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return router.push("/login");
       
-      const { data: agentData } = await supabase.from('agents').select('id').eq('auth_id', user.id).single();
+      // ⭐️ select('id, agency_id') 로 변경하여 두 값을 모두 가져오게 합니다.
+      const { data: agentData } = await supabase.from('agents').select('id, agency_id').eq('auth_id', user.id).single();
       if (!agentData) return;
+
       const myAgentId = agentData.id;
       setAgentId(myAgentId);
-      setAgencyId((agentData as any).agency_id);
+      setAgencyId((agentData as any).agency_id); // 이제 정상적으로 지점 ID 값이 들어갑니다.
       const { data: cData } = await supabase.from('clients').select('id, name, phone').eq('agent_id', myAgentId);
       if(cData) setClients(cData);
 
