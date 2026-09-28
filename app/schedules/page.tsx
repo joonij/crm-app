@@ -1,3 +1,4 @@
+// app/schedule/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -84,7 +85,6 @@ const getMonthString = (offsetMonths: number = 0) => {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 };
 
-// ⭐️ 긴 겸직 랭크(예: ADMIN/SM)를 대표 랭크(예: SM)로 단순화해주는 헬퍼 함수
 const simplifyRank = (rankStr: string | null) => {
   if (!rankStr) return "FC";
   const upStr = rankStr.toUpperCase();
@@ -224,7 +224,6 @@ export default function SchedulePage() {
         
         const agencyData = Array.isArray(info.agencies) ? info.agencies[0] : info.agencies;
         
-        // ⭐️ 내 랭크를 불러올 때도 단순화 함수 적용
         const myRankStr = (info.rank || 'FC').toUpperCase();
         const simplifiedMyRank = simplifyRank(myRankStr);
         
@@ -240,7 +239,6 @@ export default function SchedulePage() {
 
         let membersQuery = supabase.from("agents").select("id, name, rank").order('id', { ascending: true });
         
-        // ⭐️ [수정] 배열 includes 대신 .includes() 메소드로 팀장/관리자 여부를 판단
         const isManager = myRankStr.includes('SM') || myRankStr.includes('BM') || myRankStr.includes('RM');
         
         if (isManager) membersQuery = membersQuery.eq('agency_id', myAgencyId);
@@ -371,12 +369,11 @@ export default function SchedulePage() {
             return nameA.localeCompare(nameB, 'ko-KR');
           });
 
-          // ⭐️ 팀원의 직급을 화면에 뿌려줄 때도 단순화 함수 적용
           const simplifiedMemberRank = simplifyRank(member.rank);
 
           return {
             id: member.id, 
-            name: `${member.name} (${simplifiedMemberRank})`, // 👈 깔끔하게 SM으로 표기됨
+            name: `${member.name} (${simplifiedMemberRank})`,
             role: member.id === info.id ? "Me" : "Member",
             events: memberEvents,
             stats: statsMap[member.name]
@@ -416,21 +413,6 @@ export default function SchedulePage() {
       if (detailModalEvent?.id === id) setDetailModalEvent(null);
       setRefreshTrigger(prev => prev + 1);
     } catch (error: any) { alert("삭제 실패: " + error.message); }
-  };
-
-  const handleTargetChange = async () => {
-    if (!myInfo?.id) return;
-    const input = prompt("이번 달 목표액(월납)을 숫자로만 입력해주세요.", String(monthlyTarget));
-    if (input && !isNaN(Number(input))) {
-      const newTarget = Number(input);
-      try {
-        const { error } = await supabase.from('agents').update({ monthly_target: newTarget }).eq('id', myInfo.id);
-        if (error) throw error;
-        setMonthlyTarget(newTarget);
-      } catch (error: any) {
-        alert("업데이트 실패: " + error.message);
-      }
-    }
   };
 
   const renderEvent = (evt: ScheduleEvent, isMonthlyView: boolean = false) => {
@@ -484,7 +466,6 @@ export default function SchedulePage() {
             </span>
           </div>
           
-          {/* ⭐️ 내 랭크가 관리자(SM,ADMIN 등)일 때만 팀원의 이름을 보여줌 */}
           {myInfo?.rank && myInfo.rank !== "FC" && evt.ownerName && (
             <div className="flex justify-between items-center mt-0.5">
               <span className="text-[10px] opacity-70 truncate">{evt.ownerName} FC</span>
@@ -591,7 +572,6 @@ export default function SchedulePage() {
       >
         <div className="items-center border-b border-black/10 pb-1.5 sm:pb-1 w-full">
           <span className="justify-between font-black sm:font-extrabold flex items-center gap-1.5 sm:gap-1 text-[13px] sm:text-xs whitespace-nowrap shrink-0">
-            {/* {evt.id} / */}
             {evt.time}
             {evt.clients?.name && (<span className="text-[10px] font-bold px-1.5 py-0.5 text-slate-700 truncate max-w-[60px]">{evt.clients.name}</span>)}
             {evt.category && <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${catColor}`}>{evt.category}</span>}
@@ -738,7 +718,6 @@ export default function SchedulePage() {
           <div className="relative z-10 flex flex-col xl:flex-row gap-4 xl:gap-6 xl:items-stretch justify-between">
             
             <div className="flex flex-col md:flex-row gap-4 md:gap-8 items-start md:items-center xl:w-[45%]">
-              {/* ① 영업 실적 요약 */}
               <div className="flex items-center gap-4">
                 <div>
                   <p className="text-slate-500 text-xs font-bold mb-1">나의 영업 실적 ({currentDate.getMonth() + 1}월)</p>
@@ -759,7 +738,6 @@ export default function SchedulePage() {
               <div className="hidden md:block w-px h-12 bg-slate-200"></div>
               <div className="md:hidden w-full h-px bg-slate-100"></div>
 
-              {/* ② 리쿠르팅 현황 요약 */}
               <div className="flex items-center gap-4">
                 <div>
                   <p className="text-slate-500 text-xs font-bold mb-1">나의 리쿠르팅 현황 ({currentDate.getMonth() + 1}월)</p>
@@ -779,7 +757,6 @@ export default function SchedulePage() {
             </div>
 
             <div className="flex flex-col sm:flex-row xl:flex-row gap-4 w-full xl:w-[50%] xl:justify-end items-stretch">
-              {/* 월간 보험사별 체결 내역 박스 */}
               <div className="flex flex-col w-full sm:w-[50%] xl:w-[260px] bg-slate-50/80 border border-slate-200 rounded-xl p-3 shadow-sm h-full max-h-[100px] overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 <span className="text-[11px] font-bold text-slate-500 mb-1.5 flex items-center gap-1 sticky top-0 bg-slate-50/80 backdrop-blur-sm z-10 pb-0.5">
                   <Building2 className="w-3 h-3 text-blue-500"/> 이번 달 보험사별 체결 (단위: 원)
@@ -798,14 +775,14 @@ export default function SchedulePage() {
                 </div>
               </div>
 
-              {/* 월간 목표 달성률 바 */}
               <div className="flex flex-col w-full sm:w-[50%] xl:w-[260px] gap-2 bg-slate-50/80 border border-slate-200 xl:border-none xl:bg-transparent p-3 xl:p-0 rounded-xl justify-center shadow-sm xl:shadow-none">
                 <div className="flex justify-between items-end">
+                  {/* ⭐️ 스케줄 페이지: 목표 금액 설정 기능 제거하고 '조회'만 남김 */}
                   <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1">
                     <Target className="w-3.5 h-3.5 text-blue-500"/> 월간 목표: 
-                    <button onClick={handleTargetChange} className="underline underline-offset-2 text-blue-600 hover:text-blue-800 cursor-pointer">
+                    <span className="text-blue-600 font-bold ml-0.5">
                       {monthlyTarget.toLocaleString()}원
-                    </button>
+                    </span>
                   </span>
                   <span className="text-xs font-black text-blue-600 flex items-center gap-0.5">
                     {progressPercent}% 달성 <TrendingUp className="w-3.5 h-3.5"/>
@@ -824,7 +801,6 @@ export default function SchedulePage() {
 
           </div>
 
-          {/* ⭐️ 내 랭크가 관리자(SM 등)일 때 팀 실적 요약 바를 표시 */}
           {myInfo?.rank && myInfo.rank !== "FC" && (
             <div className="relative z-10 pt-4 border-t border-slate-100 flex flex-col gap-3">
               <div className="flex flex-col md:flex-row gap-4 md:gap-6 items-start md:items-center">
@@ -862,7 +838,6 @@ export default function SchedulePage() {
           <h1 className="text-xl sm:text-2xl font-black text-slate-800 flex items-center gap-2"><CalendarIcon className="w-5 h-5 text-blue-600" /> 스케줄 보드</h1>
           <div className="flex items-center gap-2 sm:gap-3">
             
-            {/* ⭐️ 2. 설계사 필터링 셀렉트박스 추가 */}
             {teamSchedules.length > 1 && (
               <select
                 value={selectedAgentId}

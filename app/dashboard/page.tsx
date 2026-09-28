@@ -103,7 +103,6 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [agentId, setAgentId] = useState<number | null>(null);
   const [currentAgentName, setCurrentAgentName] = useState("");
-  const [isPushSubscribed, setIsPushSubscribed] = useState(false); 
   const [activeTab, setActiveTab] = useState<'personal' | 'team'>('personal');
   const [oldClients, setOldClients] = useState<any[]>([]);
   const [sangryungClients, setSangryungClients] = useState<any[]>([]);
@@ -119,7 +118,6 @@ export default function DashboardPage() {
   const [teamContractsByAgent, setTeamContractsByAgent] = useState<any[]>([]);
   const [animateBar, setAnimateBar] = useState(false);
 
-  // ⭐️ 파이프라인 전용 상태
   const [pipelines, setPipelines] = useState<any[]>([]);
   const [schedules, setSchedules] = useState<any[]>([]);
   const [clientsList, setClientsList] = useState<any[]>([]);
@@ -133,7 +131,6 @@ export default function DashboardPage() {
     date: getLocalString(new Date(Date.now() + 86400000 * 3))
   });
 
-  // ⭐️ [신규 기능] 인라인 수정 폼 상태
   const [editingPipelineId, setEditingPipelineId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState({ client_name: '', contract_details: '', expected_amount: '', expected_date: '' });
 
@@ -148,7 +145,7 @@ export default function DashboardPage() {
 
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data: agentData } = await supabase.from("agents").select("id, name, rank, agency_id, monthly_target, push_subscription").eq("auth_id", user.id).single();
+        const { data: agentData } = await supabase.from("agents").select("id, name, rank, agency_id, monthly_target").eq("auth_id", user.id).single();
         if (agentData) {
           myName = agentData.name;
           myAgentId = agentData.id;
@@ -156,10 +153,6 @@ export default function DashboardPage() {
           setAgentId(myAgentId);
           setCurrentAgentName(myName);
           setMyTargetAmount(agentData.monthly_target || 800000); 
-          
-          if (agentData.push_subscription) {
-            setIsPushSubscribed(true); 
-          }
 
           const userRank = agentData.rank ? String(agentData.rank).toUpperCase() : "";
           managerAuth = userRank.includes("SM");
@@ -172,24 +165,32 @@ export default function DashboardPage() {
         return;
       }
 
-      const [clientsRes, insRes, schedulesRes, pipelineRes] = await Promise.all([
+      const [clientsRes, insRes, pipelineRes] = await Promise.all([
         supabase.from("clients").select("*").eq("agent_id", myAgentId),
         supabase.from("subscription_insurance").select("*").eq("agent_name", myName),
-        supabase.from("schedules").select("*"),
         supabase.from("sales_pipelines").select("*").eq("agent_id", myAgentId) 
       ]);
 
       const myClients = clientsRes.data || [];
       setClientsList(myClients);
-      
       setPipelines(pipelineRes.data || []);
 
       const myInsurances = insRes.data || [];
       const myClientIds = myClients.map(c => Number(c.id));
       const clientMap = new Map(myClients.map(c => [Number(c.id), c.name]));
-      const allSchedules = schedulesRes.data || [];
-      const mySchedules = allSchedules.filter(sch => sch.agent_id === myAgentId || myClientIds.includes(Number(sch.client_id)));
-      
+
+      const orFilter = myClientIds.length > 0 
+        ? `agent_id.eq.${myAgentId},client_id.in.(${myClientIds.join(',')})` 
+        : `agent_id.eq.${myAgentId}`;
+
+      const { data: mySchedulesData } = await supabase
+        .from("schedules")
+        .select("*")
+        .or(orFilter)
+        .order("date", { ascending: false })
+        .limit(1000);
+
+      const mySchedules = mySchedulesData || [];
       setSchedules(mySchedules);
       
       const generatedNotis: any[] = [];
@@ -423,7 +424,6 @@ export default function DashboardPage() {
     }
   };
 
-  // ⭐️ [신규 기능] 파이프라인 항목 인라인 수정 핸들러 로직
   const handleEditAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value.replace(/[^0-9]/g, '');
     if (!val) setEditForm({ ...editForm, expected_amount: '' });
@@ -452,11 +452,23 @@ export default function DashboardPage() {
     }
   };
 
-  const totalTeamTargetAmount = teamContractsByAgent.reduce((acc, curr) => acc + curr.targetAmount, 0);
-  const totalTeamInProgressAmount = teamContractsByAgent.reduce((acc, curr) => acc + curr.inProgressAmount, 0);
-  const totalTeamCompletedAmount = teamContractsByAgent.reduce((acc, curr) => acc + curr.completedAmount, 0);
-  const totalTeamTargetRecruit = teamRecruitingByAgent.reduce((acc, curr) => acc + curr.targetCount, 0);
-  const totalTeamCurrentRecruit = teamRecruitingByAgent.reduce((acc, curr) => acc + curr.currentCount, 0);
+  const handleTargetChange = async () => {
+    if (!agentId) return;
+    const input = prompt("이번 달 목표액(월납)을 숫자로만 입력해주세요.", String(myTargetAmount));
+    if (input && !isNaN(Number(input))) {
+      const newTarget = Number(input);
+      try {
+        const { error } = await supabase.from('agents').update({ monthly_target: newTarget }).eq('id', agentId);
+        if (error) throw error;
+        setMyTargetAmount(newTarget);
+      } catch (error: any) {
+        alert("목표 금액 변경 실패: " + error.message);
+      }
+    }
+  };
+
+  const safeTarget = myTargetAmount > 0 ? myTargetAmount : 1;
+  const myAchievementRate = Math.min(100, Math.round((monthlyStats.thisMonth / safeTarget) * 100)) || 0;
 
   if (isLoading) {
     return (
@@ -479,7 +491,7 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        <div>
+        <div className="flex items-center gap-3">
           <Link 
             href="/notifications"
             className="p-2.5 bg-white border border-gray-200 rounded-full shadow-sm hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-colors relative cursor-pointer flex items-center justify-center group"
@@ -494,7 +506,14 @@ export default function DashboardPage() {
           </Link>
         </div>
       </div>
-      
+
+      <div className="sm:hidden flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200 shadow-sm mb-4">
+        <span className="text-xs font-bold text-slate-600">이번 달 영업 목표</span>
+        <button onClick={handleTargetChange} className="text-sm font-black text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer transition-colors">
+          {myTargetAmount.toLocaleString()}원 <Edit3 className="w-4 h-4" />
+        </button>
+      </div>
+
       {isManager && (
         <div className="flex items-center gap-6 border-b border-gray-200 shrink-0 mb-6 px-1">
           <button
@@ -517,16 +536,27 @@ export default function DashboardPage() {
       {(!isManager || activeTab === 'personal') && (
         <div className="flex flex-col gap-6 w-full">
           
-          {!isPushSubscribed && (
+          <div className="block sm:hidden">
             <PushSubscribeButton />
-          )}
+          </div>
 
           <div className="bg-white border border-indigo-200 rounded-2xl shadow-sm p-5 flex flex-col">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
-              <h3 className="font-black text-indigo-900 flex items-center gap-2">
-                <BarChart3 className="w-5 h-5 text-indigo-600" /> 계약 진행 파이프라인
-              </h3>
-              <Link href="/daily-closing" className="bg-slate-800 text-white text-xs font-bold px-4 py-2 rounded-xl hover:bg-slate-700 transition-colors flex items-center gap-1 shadow-sm">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-3 mb-4">
+              
+              <div className="flex flex-wrap items-center gap-3">
+                
+                <h3 className="font-black text-indigo-900 flex items-center gap-1.5 shrink-0">
+                  <BarChart3 className="w-5 h-5 text-indigo-600" /> 진행사항
+                </h3>
+                <div className="hidden sm:flex items-center gap-2 bg-indigo-50 px-3 py-2 rounded-xl border border-indigo-100 shadow-sm shrink-0">
+                  <span className="text-[11px] font-bold text-indigo-500">이번 달 목표액 설정</span>
+                  <button onClick={handleTargetChange} className="text-sm font-black text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer transition-colors">
+                    {myTargetAmount.toLocaleString()}원 <Edit3 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              <Link href="/daily-closing" className="bg-slate-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl hover:bg-slate-700 transition-colors flex items-center gap-1 shadow-sm shrink-0">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" /> 일일 마감 보고 작성하기
               </Link>
             </div>
@@ -587,7 +617,7 @@ export default function DashboardPage() {
                   <div className="flex border-b border-slate-200 bg-slate-50/80 relative z-20">
                     <div className="w-[280px] shrink-0 border-r border-slate-200 p-3 relative flex items-start pt-4 bg-slate-50/80">
                       <div className="flex flex-col gap-1">
-                        <span className="font-black text-[13px] text-slate-800 flex items-center gap-1.5"><Edit3 className="w-4 h-4 text-emerald-600"/> 일일 활동 / 마감 내역</span>
+                        <span className="font-black text-[13px] text-slate-800 flex items-center gap-1.5"><Edit3 className="w-4 h-4 text-emerald-600"/> 활동 내역</span>
                         {/* <span className="text-[10px] text-slate-500 font-medium break-keep">일일마감에서 작성한 업무일지와 일정이 달력 하단에 표시됩니다.</span> */}
                       </div>
                     </div>
@@ -600,13 +630,15 @@ export default function DashboardPage() {
                       <div className="relative z-10 grid h-full" style={{ gridTemplateColumns: 'repeat(14, minmax(0, 1fr))' }}>
                         {timelineDays.map((d, i) => {
                           const dateStr = getLocalString(d); 
-                          const daySchedules = schedules.filter(s => s.date === dateStr);
+                          const daySchedules = schedules
+                            .filter(s => s.date === dateStr)
+                            .sort((a, b) => (a.time || "").localeCompare(b.time || ""));
+                            
                           return (
                             <div key={i} className="p-1.5 flex flex-col gap-1.5">
                               {daySchedules.map(sch => {
                                 const client = sch.client_id ? clientsList.find(c => Number(c.id) === Number(sch.client_id)) : null;
-                                const cName = client ? client.name : '';
-                                const displayTitle = cName ? `${cName} ${sch.category || ''}` : (sch.category || '일정');
+                                const displayTitle = (sch.category || '일정');
                                 
                                 return (
                                   <div key={sch.id} className="bg-emerald-50 border border-emerald-200 rounded-md px-1.5 py-1.5 shadow-sm flex flex-col hover:bg-emerald-100 transition-colors group/tag cursor-pointer">
@@ -614,8 +646,6 @@ export default function DashboardPage() {
                                       <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></div>
                                       {displayTitle}
                                     </span>
-                                    {sch.content && <span className="text-[9px] text-emerald-700/80 leading-tight pl-2.5 truncate">{sch.content}</span>}
-                                    {sch.worklog && <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100/60 p-1 mt-1 rounded pl-2.5 truncate">결과: {sch.worklog}</span>}
                                   </div>
                                 );
                               })}
@@ -629,8 +659,6 @@ export default function DashboardPage() {
                   {pipelines.sort((a,b) => parseLocalDate(a.expected_date).getTime() - parseLocalDate(b.expected_date).getTime()).map(p => {
                     const pStart = p.created_at ? parseLocalDate(p.created_at) : today; 
                     const pStartMs = pStart.getTime();
-
-                    // ⭐️ 요청 적용: 막대 길이를 언제나 오늘까지만 그리도록 고정
                     const pEndMs = Math.max(pStartMs, today.getTime()); 
                     
                     const tlStartMs = timelineStart.getTime();
@@ -643,7 +671,6 @@ export default function DashboardPage() {
                     const leftPercent = ((barStart - tlStartMs) / TOTAL_TIMELINE_MS) * 100;
                     const widthPercent = ((barEnd - barStart) / TOTAL_TIMELINE_MS) * 100;
 
-                    // ⭐️ 오늘까지만 그려지므로 바 안을 무조건 100% 색칠
                     const progress = 100;
                     
                     const statusColor = p.status === '계약' || p.status === '증권 전달' ? 'bg-emerald-100 text-emerald-700' : p.status === '거절' ? 'bg-rose-100 text-rose-700' : p.status === '보류' || p.status === '미진행' ? 'bg-gray-200 text-gray-700' : 'bg-indigo-100 text-indigo-700';
@@ -653,7 +680,6 @@ export default function DashboardPage() {
                         
                         <div className="w-[280px] shrink-0 border-r border-slate-100 p-3 relative z-20 bg-white group-hover:bg-slate-50/50">
                           
-                          {/* ⭐️ [신규 기능] 수정 모드(입력 폼) vs 일반 모드 분기 */}
                           {editingPipelineId === p.id ? (
                             <div className="flex flex-col gap-2 p-1">
                               <input type="text" value={editForm.client_name} onChange={e => setEditForm({...editForm, client_name: e.target.value})} className="border border-indigo-200 p-1.5 text-xs rounded outline-none focus:ring-1 focus:ring-indigo-400 font-bold" placeholder="고객명"/>
@@ -668,7 +694,6 @@ export default function DashboardPage() {
                             </div>
                           ) : (
                             <>
-                              {/* ⭐️ 수정 및 삭제 버튼 표시 */}
                               <button onClick={() => {
                                 setEditingPipelineId(p.id);
                                 setEditForm({
@@ -692,7 +717,6 @@ export default function DashboardPage() {
                               
                               <div className="flex justify-between items-center pr-4 mt-auto">
                                 <p className="text-xs font-black text-indigo-600">{p.expected_amount.toLocaleString()}원</p>
-                                {/* ⭐️ 요청 적용: 계약 예정일을 금액 옆쪽에 표시 */}
                                 <span className="text-[10px] font-bold text-slate-500 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded shadow-sm">{p.expected_date.slice(5).replace('-', '/')} 예정</span>
                               </div>
                             </>
@@ -924,9 +948,6 @@ export default function DashboardPage() {
 
               <div className="p-3 flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-emerald-200 [&::-webkit-scrollbar-thumb]:rounded-full">
                 {(() => {
-                  const safeTarget = myTargetAmount > 0 ? myTargetAmount : 1;
-                  const myAchievementRate = Math.min(100, Math.round((monthlyStats.thisMonth / safeTarget) * 100)) || 0;
-                  
                   return (
                     <div className="flex flex-col gap-2 mb-3 bg-emerald-50/50 p-3 rounded-xl border border-emerald-100">
                       <div className="flex items-center justify-between gap-4">

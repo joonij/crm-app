@@ -1,3 +1,4 @@
+// components/PushSubscribeButton.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -16,7 +17,6 @@ export default function PushSubscribeButton() {
     const currentPermission = Notification.permission;
     setPermission(currentPermission);
 
-    // 이미 허용한 기기라면 조용히 토큰 갱신
     if (currentPermission === 'granted') {
       handleSubscribe(true);
     }
@@ -29,49 +29,55 @@ export default function PushSubscribeButton() {
       if (!isSilent) {
         const perm = await Notification.requestPermission();
         setPermission(perm);
-        if (perm !== 'granted') throw new Error('권한 거부됨');
+        if (perm !== 'granted') throw new Error('알림 권한이 거부되었습니다.');
       }
 
-      const registration = await navigator.serviceWorker.register('/sw.js?v=4');
+      const registration = await navigator.serviceWorker.register('/sw.js?v=5'); // 버전업
       const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-      if (!vapidPublicKey) throw new Error('VAPID 키 누락');
+      if (!vapidPublicKey) throw new Error('서버 VAPID 키 설정이 누락되었습니다.');
       
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
       });
 
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        // ⭐️ 핵심: 기존에 등록된 다른 기기(PC 등)의 토큰 목록을 먼저 불러옴
-        const { data: agent } = await supabase.from('agents').select('push_subscription').eq('auth_id', user.id).single();
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) throw new Error('사용자 로그인 정보를 찾을 수 없습니다.');
+
+      const { data: agent, error: fetchError } = await supabase.from('agents').select('push_subscription').eq('auth_id', user.id).single();
+      if (fetchError) throw new Error('DB 정보 조회에 실패했습니다.');
+
+      // ⭐️ 기존 토큰 객체 호환성 및 배열 파싱 에러 완벽 해결
+      let existingSubs = agent?.push_subscription;
+      if (!existingSubs) {
+        existingSubs = [];
+      } else if (!Array.isArray(existingSubs)) {
+        if (typeof existingSubs === 'object' && existingSubs.endpoint) {
+          existingSubs = [existingSubs];
+        } else {
+          existingSubs = [];
+        }
+      }
+
+      const newSub = JSON.parse(JSON.stringify(subscription));
+      const isDuplicate = existingSubs.some((sub: any) => sub.endpoint === newSub.endpoint);
+
+      if (!isDuplicate) {
+        const updatedSubs = [...existingSubs, newSub];
+        const { error: updateError } = await supabase
+          .from('agents')
+          .update({ push_subscription: updatedSubs })
+          .eq('auth_id', user.id);
         
-        let existingSubs = agent?.push_subscription || [];
-        // (과거의 단일 객체 데이터를 배열로 변환하는 호환성 처리)
-        if (!Array.isArray(existingSubs)) {
-          existingSubs = Object.keys(existingSubs).length > 0 ? [existingSubs] : [];
-        }
-
-        const newSub = JSON.parse(JSON.stringify(subscription));
-        // 현재 기기가 이미 목록에 있는지 중복 검사
-        const isDuplicate = existingSubs.some((sub: any) => sub.endpoint === newSub.endpoint);
-
-        if (!isDuplicate) {
-          // 중복이 아니면 기존 목록에 현재 기기 추가
-          const updatedSubs = [...existingSubs, newSub];
-          await supabase
-            .from('agents')
-            .update({ push_subscription: updatedSubs })
-            .eq('auth_id', user.id);
-        }
+        if (updateError) throw new Error('DB 토큰 저장 실패: ' + updateError.message);
       }
 
       if (!isSilent) {
-        alert('이 기기에서 알림 설정이 완료되었습니다.');
+        alert('이 기기에서 마감 알림 설정이 정상적으로 완료되었습니다.');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Push Setup Error:', error);
-      if (!isSilent) alert('알림 설정 중 문제가 발생했습니다.');
+      if (!isSilent) alert(`알림 등록 실패: ${error.message || '알 수 없는 오류'}`);
     } finally {
       setIsSubscribing(false);
     }
@@ -88,7 +94,6 @@ export default function PushSubscribeButton() {
     return outputArray;
   }
 
-  // 로딩중이거나, 지원안하거나, 이미 허용한 기기(PC)에서는 화면에 안 보임
   if (permission === 'loading' || permission === 'unsupported' || permission === 'granted') {
     return null; 
   }
@@ -97,12 +102,11 @@ export default function PushSubscribeButton() {
     return (
       <div className="flex items-center gap-2 text-rose-500 text-sm font-semibold bg-rose-50 p-4 rounded-2xl border border-rose-100 mb-6 shrink-0">
         <AlertCircle className="w-5 h-5" />
-        이 기기에서 알림이 차단되었습니다. 브라우저 설정에서 알림을 허용해주세요.
+        알림이 차단되었습니다. 기기 설정에서 허용으로 변경해주세요.
       </div>
     );
   }
 
-  // 권한이 없는 새 기기(모바일 등)에서만 나타나는 배너
   return (
     <section className="bg-blue-50/80 p-5 rounded-2xl border border-blue-100 flex flex-col sm:flex-row items-center justify-between shadow-sm mb-6 shrink-0">
       <div>

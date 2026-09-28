@@ -74,7 +74,8 @@ export default function DailyClosingPage() {
       const { data: cData } = await supabase.from('clients').select('id, name, phone').eq('agent_id', myAgentId);
       if(cData) setClients(cData);
 
-      const draft = localStorage.getItem("dailyClosingDraft");
+      // ⭐️ 핵심: 임시 저장 데이터를 가져올 때 '내 고유 ID'가 붙은 파일만 가져옵니다.
+      const draft = localStorage.getItem(`dailyClosingDraft_${myAgentId}`);
       if (draft) {
         try {
           const parsed = JSON.parse(draft);
@@ -122,12 +123,13 @@ export default function DailyClosingPage() {
   }, []);
 
   useEffect(() => {
-    if (!isLoading && step !== 4) {
-      localStorage.setItem("dailyClosingDraft", JSON.stringify({
+    // ⭐️ 핵심: 임시 데이터를 저장할 때도 '내 고유 ID'를 꼬리표로 붙여서 저장합니다.
+    if (!isLoading && step !== 4 && agentId) {
+      localStorage.setItem(`dailyClosingDraft_${agentId}`, JSON.stringify({
         pipelines, todaySchedules, tomorrowSchedules, form
       }));
     }
-  }, [pipelines, todaySchedules, tomorrowSchedules, form, isLoading, step]);
+  }, [pipelines, todaySchedules, tomorrowSchedules, form, isLoading, step, agentId]);
 
   const cleanSearchInput = clientSearch.replace(/\s+/g, "").toLowerCase();
   const cleanPhoneSearch = clientSearch.replace(/[^0-9]/g, "");
@@ -201,7 +203,6 @@ export default function DailyClosingPage() {
     setIsSaving(true);
     try {
       if (step === 1) {
-        // ⭐️ 수정 1: 대시보드 반영을 위해 sales_pipelines DB 업데이트 로직 복구
         for (const p of pipelines) {
           await supabase.from('sales_pipelines').update({ status: p.status, history: p.history }).eq('id', p.id);
         }
@@ -245,7 +246,8 @@ export default function DailyClosingPage() {
           .update({ last_closing_time: nowKst.toISOString() })
           .eq('id', agentId);
         
-        localStorage.removeItem("dailyClosingDraft");
+        // ⭐️ 핵심: 내 고유 ID가 붙은 임시 저장 파일만 삭제합니다.
+        localStorage.removeItem(`dailyClosingDraft_${agentId}`);
         
         const next = 4;
         window.history.pushState(null, '', `?step=${next}`);
@@ -512,17 +514,14 @@ export default function DailyClosingPage() {
                   <span className="text-indigo-600">{tomorrowSchedules.length}건</span>
                 </div>
               </div>
-              {/* ⭐️ 수정 2: 어플 강제 종료 로직 (안드로이드 홈으로 튕겨내기) 적용 */}
+              
               <button 
                 onClick={() => {
                   if (/android/i.test(navigator.userAgent)) {
-                    // 안드로이드: 강제로 홈 화면으로 내보내기 (가장 확실한 방법)
                     window.location.href = "intent://#Intent;action=android.intent.action.MAIN;category=android.intent.category.HOME;end";
                   } else {
-                    // 아이폰, PC: 기존 창닫기 방식 시도
                     window.close();
                   }
-                  // 브라우저에 의해 안 꺼졌을 경우를 대비해 0.5초 뒤 대시보드로 이동
                   setTimeout(() => router.push('/dashboard'), 500);
                 }}
                 className="w-full max-w-sm bg-slate-900 text-white font-black py-4 rounded-xl shadow-lg hover:bg-slate-800 transition-colors"
