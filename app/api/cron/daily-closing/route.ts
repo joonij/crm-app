@@ -42,6 +42,7 @@ export async function GET(req: Request) {
     });
 
     // 4. 필터링된 대상자(미마감자)에게 실전 알림 쏘기
+
     let successCount = 0;
     for (const agent of targetAgents) {
       const payload = JSON.stringify({
@@ -50,11 +51,17 @@ export async function GET(req: Request) {
         url: '/daily-closing' 
       });
       
-      try {
-        await webpush.sendNotification(agent.push_subscription, payload);
-        successCount++;
-      } catch (e) {
-        console.error(`알림 발송 실패 (${agent.name}):`, e);
+      // ⭐️ 단일 객체든 배열이든 무조건 배열로 묶어서 반복 처리 (다중 기기 발송)
+      const subs = Array.isArray(agent.push_subscription) ? agent.push_subscription : [agent.push_subscription];
+      
+      for (const sub of subs) {
+        if (!sub) continue;
+        try {
+          await webpush.sendNotification(sub, payload);
+          successCount++;
+        } catch (e) {
+          console.error(`알림 발송 실패 (${agent.name}):`, e);
+        }
       }
     }
 

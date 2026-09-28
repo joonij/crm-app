@@ -4,21 +4,19 @@ import { useState, useEffect } from 'react';
 import { supabase } from "@/lib/supabase";
 import { Bell, BellRing, AlertCircle } from "lucide-react";
 
-export default function PushSubscribeManager() {
+export default function PushSubscribeButton() {
   const [permission, setPermission] = useState<string>('loading');
   const [isSubscribing, setIsSubscribing] = useState(false);
 
   useEffect(() => {
-    // 1. 브라우저 지원 여부 확인
     if (!('Notification' in window) || !('serviceWorker' in navigator)) {
       setPermission('unsupported');
       return;
     }
-
     const currentPermission = Notification.permission;
     setPermission(currentPermission);
 
-    // 2. 이미 권한을 허용한 유저라면, 화면에 띄우지 않고 백그라운드에서 조용히 DB 토큰만 최신화 (자동화)
+    // 이미 허용한 기기라면 조용히 토큰 갱신
     if (currentPermission === 'granted') {
       handleSubscribe(true);
     }
@@ -28,15 +26,13 @@ export default function PushSubscribeManager() {
     try {
       setIsSubscribing(true);
       
-      // 권한 요청 (최초 클릭 시에만 팝업 뜸, silent 모드일 땐 무시됨)
       if (!isSilent) {
         const perm = await Notification.requestPermission();
         setPermission(perm);
         if (perm !== 'granted') throw new Error('권한 거부됨');
       }
 
-      // 서비스 워커 등록 및 VAPID 키 세팅
-      const registration = await navigator.serviceWorker.register('/sw.js?v=3');
+      const registration = await navigator.serviceWorker.register('/sw.js?v=4');
       const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
       if (!vapidPublicKey) throw new Error('VAPID 키 누락');
       
@@ -45,19 +41,34 @@ export default function PushSubscribeManager() {
         applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
       });
 
-      // 현재 로그인한 유저 DB에 토큰 갱신
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        await supabase
-          .from('agents')
-          .update({ push_subscription: JSON.parse(JSON.stringify(subscription)) })
-          .eq('auth_id', user.id);
+        // ⭐️ 핵심: 기존에 등록된 다른 기기(PC 등)의 토큰 목록을 먼저 불러옴
+        const { data: agent } = await supabase.from('agents').select('push_subscription').eq('auth_id', user.id).single();
+        
+        let existingSubs = agent?.push_subscription || [];
+        // (과거의 단일 객체 데이터를 배열로 변환하는 호환성 처리)
+        if (!Array.isArray(existingSubs)) {
+          existingSubs = Object.keys(existingSubs).length > 0 ? [existingSubs] : [];
+        }
+
+        const newSub = JSON.parse(JSON.stringify(subscription));
+        // 현재 기기가 이미 목록에 있는지 중복 검사
+        const isDuplicate = existingSubs.some((sub: any) => sub.endpoint === newSub.endpoint);
+
+        if (!isDuplicate) {
+          // 중복이 아니면 기존 목록에 현재 기기 추가
+          const updatedSubs = [...existingSubs, newSub];
+          await supabase
+            .from('agents')
+            .update({ push_subscription: updatedSubs })
+            .eq('auth_id', user.id);
+        }
       }
 
       if (!isSilent) {
-        alert('알림 설정이 완료되었습니다.');
+        alert('이 기기에서 알림 설정이 완료되었습니다.');
       }
-
     } catch (error) {
       console.error('Push Setup Error:', error);
       if (!isSilent) alert('알림 설정 중 문제가 발생했습니다.');
@@ -77,44 +88,50 @@ export default function PushSubscribeManager() {
     return outputArray;
   }
 
-  // 화면 렌더링 분기 처리
-  if (permission === 'loading') return null;
-  if (permission === 'unsupported') return null;
-
-  // ⭐️ 이미 허용된 상태라면 화면에 버튼이나 배너를 아예 그리지 않음 (투명화)
-  if (permission === 'granted') {
+  // 로딩중이거나, 지원안하거나, 이미 허용한 기기(PC)에서는 화면에 안 보임
+  if (permission === 'loading' || permission === 'unsupported' || permission === 'granted') {
     return null; 
   }
 
-  // ⭐️ 차단한 유저에게 보여줄 안내
   if (permission === 'denied') {
     return (
-      <div className="flex items-center gap-2 text-rose-500 text-sm font-semibold bg-rose-50 p-3 rounded-lg border border-rose-100 shrink-0">
+      <div className="flex items-center gap-2 text-rose-500 text-sm font-semibold bg-rose-50 p-4 rounded-2xl border border-rose-100 mb-6 shrink-0">
         <AlertCircle className="w-5 h-5" />
-        알림이 차단되었습니다. 브라우저 주소창 왼쪽의 설정에서 알림을 허용해주세요.
+        이 기기에서 알림이 차단되었습니다. 브라우저 설정에서 알림을 허용해주세요.
       </div>
     );
   }
 
-  // ⭐️ 최초 접속 유저에게 보여줄 눈에 띄는 배너
+  // 권한이 없는 새 기기(모바일 등)에서만 나타나는 배너
   return (
-    <button 
-      onClick={() => handleSubscribe(false)}
-      disabled={isSubscribing}
-      className="flex items-center justify-between gap-4 w-full sm:w-auto px-5 py-3 bg-indigo-600 text-white rounded-xl shadow-md hover:bg-indigo-700 transition-all shrink-0 text-left group cursor-pointer"
-    >
-      <div className="flex items-center gap-3">
-        <div className="bg-white/20 p-2 rounded-full group-hover:scale-110 transition-transform">
-          <BellRing className="w-5 h-5 text-white" />
-        </div>
-        <div>
-          <p className="font-bold text-sm">영업 마감 리마인드 켜기</p>
-          <p className="text-[11px] text-indigo-100 mt-0.5">매일 20시, 22시에 알림을 보내드립니다.</p>
-        </div>
+    <section className="bg-blue-50/80 p-5 rounded-2xl border border-blue-100 flex flex-col sm:flex-row items-center justify-between shadow-sm mb-6 shrink-0">
+      <div>
+        <h2 className="text-base font-bold text-blue-900 flex items-center gap-2">
+          <Bell className="w-5 h-5 text-blue-500" /> 기기 알림 켜기
+        </h2>
+        <p className="text-xs text-blue-700 mt-1 font-medium">
+          현재 접속하신 기기에 마감 푸시 알림을 받으시려면 버튼을 눌러 기기를 등록해주세요.
+        </p>
       </div>
-      <span className="text-xs font-black bg-white text-indigo-600 px-3 py-1.5 rounded-lg">
-        {isSubscribing ? '연동 중...' : '허용하기'}
-      </span>
-    </button>
+      <div className="mt-3 sm:mt-0 shrink-0">
+        <button 
+          onClick={() => handleSubscribe(false)}
+          disabled={isSubscribing}
+          className="flex items-center justify-between gap-4 w-full sm:w-auto px-5 py-3 bg-indigo-600 text-white rounded-xl shadow-md hover:bg-indigo-700 transition-all cursor-pointer"
+        >
+          <div className="flex items-center gap-3">
+            <div className="bg-white/20 p-2 rounded-full">
+              <BellRing className="w-5 h-5 text-white" />
+            </div>
+            <div className="text-left">
+              <p className="font-bold text-sm">알림 허용하기</p>
+            </div>
+          </div>
+          <span className="text-xs font-black bg-white text-indigo-600 px-3 py-1.5 rounded-lg">
+            {isSubscribing ? '연동 중...' : '등록'}
+          </span>
+        </button>
+      </div>
+    </section>
   );
 }

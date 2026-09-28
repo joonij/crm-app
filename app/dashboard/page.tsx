@@ -518,19 +518,7 @@ export default function DashboardPage() {
         <div className="flex flex-col gap-6 w-full">
           
           {!isPushSubscribed && (
-            <section className="bg-blue-50/80 p-5 rounded-2xl border border-blue-100 flex flex-col sm:flex-row items-center justify-between shadow-sm">
-              <div>
-                <h2 className="text-base font-bold text-blue-900 flex items-center gap-2">
-                  <Bell className="w-5 h-5 text-blue-500" /> 일일 영업 마감 알림
-                </h2>
-                <p className="text-xs text-blue-700 mt-1 font-medium">
-                  매일 20시, 22시에 마감 리마인드 푸시 알림을 받으려면 우측 버튼을 눌러 기기를 등록해주세요.
-                </p>
-              </div>
-              <div className="mt-3 sm:mt-0 shrink-0">
-                <PushSubscribeButton />
-              </div>
-            </section>
+            <PushSubscribeButton />
           )}
 
           <div className="bg-white border border-indigo-200 rounded-2xl shadow-sm p-5 flex flex-col">
