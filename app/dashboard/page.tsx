@@ -8,7 +8,7 @@ import {
   Car, FileText, CheckCircle2, ChevronLeft,
   ChevronRight, Calendar, Clock, Loader2, TrendingUp, Users, Gift, Bell, Presentation, Kanban, UserPlus, X, Plus, BarChart3, Edit3
 } from "lucide-react";
-import PushSubscribeButton from '@/components/PushSubscribeButton';
+import PushSubscribeButton from '@/app/components/PushSubscribeButton';
 
 const MOCK_TARGET_RECRUIT_PER_FC = 2; 
 const RECRUITING_STEPS = [
@@ -103,7 +103,7 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [agentId, setAgentId] = useState<number | null>(null);
   const [currentAgentName, setCurrentAgentName] = useState("");
-  const [isPushSubscribed, setIsPushSubscribed] = useState(false); // ⭐️ 푸시 알림 등록 상태 확인
+  const [isPushSubscribed, setIsPushSubscribed] = useState(false); 
   const [activeTab, setActiveTab] = useState<'personal' | 'team'>('personal');
   const [oldClients, setOldClients] = useState<any[]>([]);
   const [sangryungClients, setSangryungClients] = useState<any[]>([]);
@@ -119,7 +119,7 @@ export default function DashboardPage() {
   const [teamContractsByAgent, setTeamContractsByAgent] = useState<any[]>([]);
   const [animateBar, setAnimateBar] = useState(false);
 
-  // 파이프라인 전용 상태
+  // ⭐️ 파이프라인 전용 상태
   const [pipelines, setPipelines] = useState<any[]>([]);
   const [schedules, setSchedules] = useState<any[]>([]);
   const [clientsList, setClientsList] = useState<any[]>([]);
@@ -133,6 +133,10 @@ export default function DashboardPage() {
     date: getLocalString(new Date(Date.now() + 86400000 * 3))
   });
 
+  // ⭐️ [신규 기능] 인라인 수정 폼 상태
+  const [editingPipelineId, setEditingPipelineId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState({ client_name: '', contract_details: '', expected_amount: '', expected_date: '' });
+
   useEffect(() => {
     const fetchDashboardData = async () => {
       setIsLoading(true);
@@ -144,7 +148,6 @@ export default function DashboardPage() {
 
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        // ⭐️ push_subscription 필드 추가 조회
         const { data: agentData } = await supabase.from("agents").select("id, name, rank, agency_id, monthly_target, push_subscription").eq("auth_id", user.id).single();
         if (agentData) {
           myName = agentData.name;
@@ -155,7 +158,7 @@ export default function DashboardPage() {
           setMyTargetAmount(agentData.monthly_target || 800000); 
           
           if (agentData.push_subscription) {
-            setIsPushSubscribed(true); // 알림이 이미 켜져있는 유저 확인
+            setIsPushSubscribed(true); 
           }
 
           const userRank = agentData.rank ? String(agentData.rank).toUpperCase() : "";
@@ -196,7 +199,7 @@ export default function DashboardPage() {
           const clientInsurances = myInsurances.filter(ins => Number(ins.client_id) === Number(c.id));
           const clientSchedules = mySchedules.filter(sch => Number(sch.client_id) === Number(c.id));
           const insDates = clientInsurances.map(i => new Date(i.created_at || 0).getTime());
-          const schDates = clientSchedules.map(s => new Date(s.date || s.created_at || 0).getTime());
+          const schDates = clientSchedules.map(s => new Date(s.date || s.created_at || 0).getTime()); 
           const allDates = [new Date(c.created_at || 0).getTime(), ...insDates, ...schDates];
           const lastUpdate = new Date(Math.max(...allDates)); 
           const daysSinceUpdate = Math.floor((new Date().getTime() - lastUpdate.getTime()) / (1000 * 3600 * 24));
@@ -420,6 +423,35 @@ export default function DashboardPage() {
     }
   };
 
+  // ⭐️ [신규 기능] 파이프라인 항목 인라인 수정 핸들러 로직
+  const handleEditAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value.replace(/[^0-9]/g, '');
+    if (!val) setEditForm({ ...editForm, expected_amount: '' });
+    else setEditForm({ ...editForm, expected_amount: Number(val).toLocaleString() });
+  };
+
+  const handleSaveEdit = async (id: number) => {
+    const amountNum = Number(editForm.expected_amount.replace(/,/g, ''));
+    if (!editForm.client_name || !editForm.contract_details || !editForm.expected_date) {
+      return alert("모든 항목을 입력해주세요.");
+    }
+    
+    const updatePayload = {
+      client_name: editForm.client_name,
+      contract_details: editForm.contract_details,
+      expected_amount: amountNum,
+      expected_date: editForm.expected_date,
+    };
+    
+    const { error } = await supabase.from('sales_pipelines').update(updatePayload).eq('id', id);
+    if (error) {
+      alert("수정 실패: " + error.message);
+    } else {
+      setPipelines(pipelines.map(p => p.id === id ? { ...p, ...updatePayload } : p));
+      setEditingPipelineId(null);
+    }
+  };
+
   const totalTeamTargetAmount = teamContractsByAgent.reduce((acc, curr) => acc + curr.targetAmount, 0);
   const totalTeamInProgressAmount = teamContractsByAgent.reduce((acc, curr) => acc + curr.inProgressAmount, 0);
   const totalTeamCompletedAmount = teamContractsByAgent.reduce((acc, curr) => acc + curr.completedAmount, 0);
@@ -438,7 +470,6 @@ export default function DashboardPage() {
   }
 
   return (
-    // ⭐️ 3번 요청 반영: overflow-hidden 제거, min-h-screen으로 전체 스크롤 가능하게 만듦
     <div className="w-full max-w-[1500px] mx-auto p-4 md:p-8 bg-gray-50/50 min-h-screen flex flex-col">
       <div className="flex justify-between items-end mb-4 relative shrink-0">
         <div>
@@ -447,9 +478,24 @@ export default function DashboardPage() {
             <strong className="text-blue-600">{currentAgentName}</strong> 님의 오늘 챙겨야 할 핵심 업무 현황입니다.
           </p>
         </div>
+
+        <div>
+          <Link 
+            href="/notifications"
+            className="p-2.5 bg-white border border-gray-200 rounded-full shadow-sm hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-colors relative cursor-pointer flex items-center justify-center group"
+            title="알림 센터 가기"
+          >
+            <Bell className="w-6 h-6 text-gray-700 group-hover:text-blue-600 transition-colors" />
+            {unreadCount > 0 && (
+              <span className="absolute top-0 right-0 translate-x-1 -translate-y-1 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full z-10 border border-white">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
+          </Link>
+        </div>
       </div>
       
-      {/* {isManager && (
+      {isManager && (
         <div className="flex items-center gap-6 border-b border-gray-200 shrink-0 mb-6 px-1">
           <button
             onClick={() => setActiveTab('personal')}
@@ -466,13 +512,11 @@ export default function DashboardPage() {
             {activeTab === 'team' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 rounded-t-md"></span>}
           </button>
         </div>
-      )}  */}
+      )} 
 
       {(!isManager || activeTab === 'personal') && (
-        // ⭐️ 3번 요청 반영: 고정 높이 제거
         <div className="flex flex-col gap-6 w-full">
           
-          {/* ⭐️ 1번 요청 반영: 등록된 상태면 안보이게 처리 */}
           {!isPushSubscribed && (
             <section className="bg-blue-50/80 p-5 rounded-2xl border border-blue-100 flex flex-col sm:flex-row items-center justify-between shadow-sm">
               <div>
@@ -480,7 +524,7 @@ export default function DashboardPage() {
                   <Bell className="w-5 h-5 text-blue-500" /> 일일 영업 마감 알림
                 </h2>
                 <p className="text-xs text-blue-700 mt-1 font-medium">
-                  마감 푸시 알림을 위해 우측 버튼을 눌러 기기를 등록해주세요.
+                  매일 20시, 22시에 마감 리마인드 푸시 알림을 받으려면 우측 버튼을 눌러 기기를 등록해주세요.
                 </p>
               </div>
               <div className="mt-3 sm:mt-0 shrink-0">
@@ -492,7 +536,7 @@ export default function DashboardPage() {
           <div className="bg-white border border-indigo-200 rounded-2xl shadow-sm p-5 flex flex-col">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
               <h3 className="font-black text-indigo-900 flex items-center gap-2">
-                <BarChart3 className="w-5 h-5 text-indigo-600" /> 계약 진행리스트
+                <BarChart3 className="w-5 h-5 text-indigo-600" /> 계약 진행 파이프라인
               </h3>
               <Link href="/daily-closing" className="bg-slate-800 text-white text-xs font-bold px-4 py-2 rounded-xl hover:bg-slate-700 transition-colors flex items-center gap-1 shadow-sm">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" /> 일일 마감 보고 작성하기
@@ -521,14 +565,12 @@ export default function DashboardPage() {
               <input type="text" placeholder="계약 내용 (예: 종신 10만)" value={pipelineForm.details} onChange={(e) => setPipelineForm({...pipelineForm, details: e.target.value})} className="w-full text-sm p-2.5 rounded-lg border border-gray-200 outline-none focus:border-indigo-400" />
               <input type="text" placeholder="예상 금액" value={pipelineForm.amount} onChange={handleAmountChange} className="w-full text-sm p-2.5 rounded-lg border border-gray-200 outline-none focus:border-indigo-400 font-bold text-indigo-700" />
               <input type="date" value={pipelineForm.date} onChange={(e) => setPipelineForm({...pipelineForm, date: e.target.value})} className="w-full text-sm p-2.5 rounded-lg border border-gray-200 outline-none focus:border-indigo-400 text-gray-600" />
-              <button onClick={handleAddPipeline} className="pt-2 pb-2 text-sm bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center gap-1 cursor-pointer"><Plus className="w-4 h-4"/> 리스트 추가</button>
+              <button onClick={handleAddPipeline} className="bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center gap-1 cursor-pointer"><Plus className="w-4 h-4"/> 리스트 추가</button>
             </div>
 
-            {/* ⭐️ 2번 요청 반영: 세로+가로 스크롤 완전 분리 및 고정 헤더 적용 */}
             <div className="overflow-auto max-h-[600px] border border-slate-200 rounded-xl bg-white shadow-sm w-full">
               <div className="min-w-[1000px] flex flex-col relative">
                 
-                {/* 달력 상단 헤더 (스크롤 내려도 위에 고정) */}
                 <div className="sticky top-0 z-40 flex bg-slate-50 border-b border-slate-200 shadow-sm">
                   <div className="w-[280px] shrink-0 border-r border-slate-200 p-3 flex items-center justify-between bg-slate-50">
                     <span className="font-bold text-xs text-slate-500">계약별 진행 현황</span>
@@ -553,13 +595,12 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                {/* 달력 본문 (스크롤 내릴 때 같이 올라감) */}
                 <div className="flex flex-col relative pb-4">
                   <div className="flex border-b border-slate-200 bg-slate-50/80 relative z-20">
                     <div className="w-[280px] shrink-0 border-r border-slate-200 p-3 relative flex items-start pt-4 bg-slate-50/80">
                       <div className="flex flex-col gap-1">
                         <span className="font-black text-[13px] text-slate-800 flex items-center gap-1.5"><Edit3 className="w-4 h-4 text-emerald-600"/> 일일 활동 / 마감 내역</span>
-                        {/* <span className="text-[10px] text-slate-500 font-medium break-keep">일일마감에서 작성한 업무일지와 일정이 달력 하단에 표시됩니다.</span> */}
+                        <span className="text-[10px] text-slate-500 font-medium break-keep">일일마감에서 작성한 업무일지와 일정이 달력 하단에 표시됩니다.</span>
                       </div>
                     </div>
                     <div className="flex-1 relative">
@@ -575,7 +616,6 @@ export default function DashboardPage() {
                           return (
                             <div key={i} className="p-1.5 flex flex-col gap-1.5 min-h-[70px]">
                               {daySchedules.map(sch => {
-                                // ⭐️ clientMap 대신 clientsList 상태를 사용해 이름 검색
                                 const client = sch.client_id ? clientsList.find(c => Number(c.id) === Number(sch.client_id)) : null;
                                 const cName = client ? client.name : '';
                                 const displayTitle = cName ? `${cName} ${sch.category || ''}` : (sch.category || '일정');
@@ -600,10 +640,11 @@ export default function DashboardPage() {
 
                   {pipelines.sort((a,b) => parseLocalDate(a.expected_date).getTime() - parseLocalDate(b.expected_date).getTime()).map(p => {
                     const pStart = p.created_at ? parseLocalDate(p.created_at) : today; 
-                    const pEnd = parseLocalDate(p.expected_date); 
-                    
                     const pStartMs = pStart.getTime();
-                    const pEndMs = pEnd.getTime();
+
+                    // ⭐️ 요청 적용: 막대 길이를 언제나 오늘까지만 그리도록 고정
+                    const pEndMs = Math.max(pStartMs, today.getTime()); 
+                    
                     const tlStartMs = timelineStart.getTime();
                     const tlEndMs = tlStartMs + TOTAL_TIMELINE_MS;
 
@@ -614,11 +655,8 @@ export default function DashboardPage() {
                     const leftPercent = ((barStart - tlStartMs) / TOTAL_TIMELINE_MS) * 100;
                     const widthPercent = ((barEnd - barStart) / TOTAL_TIMELINE_MS) * 100;
 
-                    const totalDuration = pEndMs - pStartMs + 86400000;
-                    const passedDuration = today.getTime() - pStartMs + 86400000;
-                    let progress = (passedDuration / totalDuration) * 100;
-                    if (progress < 0) progress = 0;
-                    if (progress > 100) progress = 100;
+                    // ⭐️ 오늘까지만 그려지므로 바 안을 무조건 100% 색칠
+                    const progress = 100;
                     
                     const statusColor = p.status === '계약' || p.status === '증권 전달' ? 'bg-emerald-100 text-emerald-700' : p.status === '거절' ? 'bg-rose-100 text-rose-700' : p.status === '보류' || p.status === '미진행' ? 'bg-gray-200 text-gray-700' : 'bg-indigo-100 text-indigo-700';
 
@@ -626,16 +664,51 @@ export default function DashboardPage() {
                       <div key={p.id} className="flex border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
                         
                         <div className="w-[280px] shrink-0 border-r border-slate-100 p-3 relative z-20 bg-white group-hover:bg-slate-50/50">
-                          <button onClick={() => handleDeletePipeline(p.id)} className="absolute top-3 right-3 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"><X className="w-3.5 h-3.5"/></button>
-                          <div className="flex items-center gap-1.5 mb-1.5 pr-4">
-                            <span className={`text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm ${statusColor}`}>{p.status}</span>
-                            <span className="font-bold text-sm text-slate-800">{p.client_name}</span>
-                          </div>
-                          <p className="text-[11px] text-slate-500 truncate mb-1.5 pr-4">{p.contract_details}</p>
-                          <div className="flex justify-between items-center pr-4 mt-auto">
-                            <p className="text-xs font-black text-indigo-600">{p.expected_amount.toLocaleString()}원</p>
-                            <span className="text-[10px] font-bold text-slate-400 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded shadow-sm">{totalDuration / 86400000}일 소요</span>
-                          </div>
+                          
+                          {/* ⭐️ [신규 기능] 수정 모드(입력 폼) vs 일반 모드 분기 */}
+                          {editingPipelineId === p.id ? (
+                            <div className="flex flex-col gap-2 p-1">
+                              <input type="text" value={editForm.client_name} onChange={e => setEditForm({...editForm, client_name: e.target.value})} className="border border-indigo-200 p-1.5 text-xs rounded outline-none focus:ring-1 focus:ring-indigo-400 font-bold" placeholder="고객명"/>
+                              <input type="text" value={editForm.contract_details} onChange={e => setEditForm({...editForm, contract_details: e.target.value})} className="border border-indigo-200 p-1.5 text-[11px] rounded outline-none focus:ring-1 focus:ring-indigo-400" placeholder="계약 내용"/>
+                              <input type="text" value={editForm.expected_amount} onChange={handleEditAmountChange} className="border border-indigo-200 p-1.5 text-xs rounded outline-none focus:ring-1 focus:ring-indigo-400 font-bold text-indigo-600" placeholder="예상 금액"/>
+                              <input type="date" value={editForm.expected_date} onChange={e => setEditForm({...editForm, expected_date: e.target.value})} className="border border-indigo-200 p-1.5 text-xs rounded outline-none focus:ring-1 focus:ring-indigo-400 text-slate-600"/>
+                              
+                              <div className="flex gap-1.5 mt-1">
+                                <button onClick={() => handleSaveEdit(p.id)} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold py-1.5 rounded cursor-pointer transition-colors shadow-sm">저장</button>
+                                <button onClick={() => setEditingPipelineId(null)} className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 text-[10px] font-bold py-1.5 rounded cursor-pointer transition-colors shadow-sm">취소</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              {/* ⭐️ 수정 및 삭제 버튼 표시 */}
+                              <button onClick={() => {
+                                setEditingPipelineId(p.id);
+                                setEditForm({
+                                  client_name: p.client_name,
+                                  contract_details: p.contract_details,
+                                  expected_amount: p.expected_amount.toLocaleString(),
+                                  expected_date: p.expected_date
+                                });
+                              }} className="absolute top-3 right-8 text-slate-300 hover:text-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                                <Edit3 className="w-3.5 h-3.5"/>
+                              </button>
+                              <button onClick={() => handleDeletePipeline(p.id)} className="absolute top-3 right-3 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                                <X className="w-3.5 h-3.5"/>
+                              </button>
+                              
+                              <div className="flex items-center gap-1.5 mb-1.5 pr-4">
+                                <span className={`text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm ${statusColor}`}>{p.status}</span>
+                                <span className="font-bold text-sm text-slate-800">{p.client_name}</span>
+                              </div>
+                              <p className="text-[11px] text-slate-500 truncate mb-1.5 pr-4">{p.contract_details}</p>
+                              
+                              <div className="flex justify-between items-center pr-4 mt-auto">
+                                <p className="text-xs font-black text-indigo-600">{p.expected_amount.toLocaleString()}원</p>
+                                {/* ⭐️ 요청 적용: 계약 예정일을 금액 옆쪽에 표시 */}
+                                <span className="text-[10px] font-bold text-slate-500 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded shadow-sm">{p.expected_date.slice(5).replace('-', '/')} 예정</span>
+                              </div>
+                            </>
+                          )}
                         </div>
 
                         <div className="flex-1 relative">
@@ -647,7 +720,7 @@ export default function DashboardPage() {
 
                           {!isOutOfView && (
                             <div className="absolute top-[60%] -translate-y-1/2 h-5 z-10" style={{ left: `${leftPercent}%`, width: `${widthPercent}%` }}>
-                              <div className={`w-full h-full bg-slate-200 overflow-hidden relative shadow-sm border border-slate-300/50 flex items-center
+                              <div className={`w-full h-full bg-slate-200 overflow-hidden relative shadow-sm flex items-center border border-slate-300/50
                                 ${pStartMs < tlStartMs ? 'rounded-r-md border-l-0' : 'rounded-l-md'}
                                 ${pEndMs >= tlEndMs ? 'rounded-l-md border-r-0' : 'rounded-r-md'}
                                 ${pStartMs >= tlStartMs && pEndMs < tlEndMs ? 'rounded-md' : ''}
@@ -693,7 +766,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* ⭐️ 기존 3분할 대시보드: 전체 높이제한 풀고 자연스럽게 표시되도록 수정 */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-start-1 lg:col-span-1 lg:row-start-1 lg:row-span-2 h-[350px] lg:h-[724px] bg-white border border-rose-200 rounded-2xl shadow-sm flex flex-col">
               <div className="bg-rose-50/80 p-4 border-b border-rose-100 flex justify-between items-center shrink-0 rounded-t-2xl">
