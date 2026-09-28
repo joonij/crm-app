@@ -588,7 +588,7 @@ export default function DashboardPage() {
                     <div className="w-[280px] shrink-0 border-r border-slate-200 p-3 relative flex items-start pt-4 bg-slate-50/80">
                       <div className="flex flex-col gap-1">
                         <span className="font-black text-[13px] text-slate-800 flex items-center gap-1.5"><Edit3 className="w-4 h-4 text-emerald-600"/> 일일 활동 / 마감 내역</span>
-                        <span className="text-[10px] text-slate-500 font-medium break-keep">일일마감에서 작성한 업무일지와 일정이 달력 하단에 표시됩니다.</span>
+                        {/* <span className="text-[10px] text-slate-500 font-medium break-keep">일일마감에서 작성한 업무일지와 일정이 달력 하단에 표시됩니다.</span> */}
                       </div>
                     </div>
                     <div className="flex-1 relative">
@@ -602,7 +602,7 @@ export default function DashboardPage() {
                           const dateStr = getLocalString(d); 
                           const daySchedules = schedules.filter(s => s.date === dateStr);
                           return (
-                            <div key={i} className="p-1.5 flex flex-col gap-1.5 min-h-[70px]">
+                            <div key={i} className="p-1.5 flex flex-col gap-1.5">
                               {daySchedules.map(sch => {
                                 const client = sch.client_id ? clientsList.find(c => Number(c.id) === Number(sch.client_id)) : null;
                                 const cName = client ? client.name : '';
