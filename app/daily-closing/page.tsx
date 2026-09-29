@@ -51,7 +51,7 @@ export default function DailyClosingPage() {
   const [form, setForm] = useState({
     date: tomorrowStr,
     time: "09:00",
-    category: "AP", 
+    category: "신규고객AP",
     content: "",
     client_id: "", 
   });
@@ -305,34 +305,42 @@ export default function DailyClosingPage() {
               <h3 className="text-[17px] font-black text-slate-800 mb-3 flex items-center gap-2"><CalendarDays className="w-5 h-5 text-indigo-600" /> 현재 진행중인 계약 리스트</h3>
               
               <div className="space-y-5">
-                {pipelines.map(p => (
-                  <div key={p.id} className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm">
-                    <div className="flex justify-between items-center mb-3 pb-3 border-b border-slate-100">
-                      <div>
-                        <span className="font-black text-lg text-slate-800">{p.client_name}</span>
-                        <span className="text-[11px] font-bold text-slate-400 ml-2">{p.expected_date} 예상</span>
+                {pipelines.map(p => {
+                  // ⭐️ 오늘 내가 버튼을 눌러서 업데이트한 기록이 있는지 확인합니다.
+                  const todayStr = getLocalString(new Date());
+                  const todayHistory = p.history?.find((h: any) => h.date === todayStr);
+                  const selectedToday = todayHistory ? todayHistory.status : null;
+
+                  return (
+                    <div key={p.id} className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm">
+                      <div className="flex justify-between items-center mb-3 pb-3 border-b border-slate-100">
+                        <div className="flex items-center flex-wrap gap-2">
+                          <span className="font-black text-lg text-slate-800">{p.client_name}</span>
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">현재: {p.status}</span>
+                          <span className="text-[11px] font-bold text-slate-400">{p.expected_date} 예상</span>
+                        </div>
+                        <span className="font-black text-indigo-600 text-base">{p.expected_amount.toLocaleString()}원</span>
                       </div>
-                      <span className="font-black text-indigo-600 text-base">{p.expected_amount.toLocaleString()}원</span>
+                      <p className="text-[13px] text-slate-600 mb-4 font-medium bg-slate-50 p-2.5 rounded-lg border border-slate-100">{p.contract_details}</p>
+                      
+                      <div className="flex flex-wrap gap-1.5 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                        {SALES_STEPS.map(stepObj => (
+                          <button
+                            key={stepObj.id}
+                            onClick={() => handleStatusChange(p.id, stepObj.label)}
+                            className={`px-2.5 py-1.5 rounded-md text-[11px] font-bold transition-all border cursor-pointer flex-grow sm:flex-grow-0 text-center ${
+                              selectedToday === stepObj.label 
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' 
+                                : 'bg-white text-slate-500 border-slate-200 hover:bg-indigo-50'
+                            }`}
+                          >
+                            {stepObj.label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                    <p className="text-[13px] text-slate-600 mb-4 font-medium bg-slate-50 p-2.5 rounded-lg border border-slate-100">{p.contract_details}</p>
-                    
-                    <div className="flex flex-wrap gap-1.5 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                      {SALES_STEPS.map(stepObj => (
-                        <button
-                          key={stepObj.id}
-                          onClick={() => handleStatusChange(p.id, stepObj.label)}
-                          className={`px-2.5 py-1.5 rounded-md text-[11px] font-bold transition-all border cursor-pointer flex-grow sm:flex-grow-0 text-center ${
-                            p.status === stepObj.label 
-                              ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' 
-                              : 'bg-white text-slate-500 border-slate-200 hover:bg-indigo-50'
-                          }`}
-                        >
-                          {stepObj.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
                 {pipelines.length === 0 && (
                   <div className="text-center py-10 text-slate-400 font-bold text-sm">진행 중인 계약 내역이 없습니다.</div>
                 )}
@@ -458,14 +466,16 @@ export default function DailyClosingPage() {
                     <label className="block text-xs font-bold text-slate-600 mb-1.5">카테고리</label>
                     <div className="relative">
                       <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="w-full text-sm font-bold p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none appearance-none bg-white shadow-sm cursor-pointer">
-                        <option value="AP">AP</option>
+                        <option value="신규고객AP">신규고객AP</option>
+                        <option value="업셀링AP">업셀링AP</option>
                         <option value="상담">상담</option>
                         <option value="계약">계약</option>
+                        <option value="증권전달">증권전달</option>
+                        <option value="소개요청">소개요청</option>
                         <option value="리쿠">리쿠</option>
                         <option value="청구">청구</option>
-                        <option value="교육">교육</option>
-                        <option value="회의">회의</option>
                         <option value="미팅">미팅</option>
+                        <option value="교육">교육</option>
                         <option value="기타">기타</option>
                       </select>
                       <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
