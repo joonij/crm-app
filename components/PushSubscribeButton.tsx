@@ -3,14 +3,14 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from "@/lib/supabase";
-import { Bell, BellRing, AlertCircle, Info } from "lucide-react";
+import { Bell, BellRing, AlertCircle, Info, CheckCircle2 } from "lucide-react";
 
 export default function PushSubscribeButton() {
   const [permission, setPermission] = useState<string>('loading');
   const [isSubscribing, setIsSubscribing] = useState(false);
 
   useEffect(() => {
-    // ⭐️ 아이폰(iOS) 기기 및 홈 화면 추가(PWA) 상태 감지
+    // 아이폰(iOS) 기기 및 홈 화면 추가(PWA) 상태 감지
     const isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.userAgent.includes("Mac") && "ontouchend" in document);
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || ('standalone' in navigator && (navigator as any).standalone === true);
     
@@ -19,6 +19,7 @@ export default function PushSubscribeButton() {
       return;
     }
 
+    // 서비스 워커나 푸시를 지원하지 않는 브라우저 (카카오톡, 네이버 인앱 브라우저 등)
     if (!('Notification' in window) || !('serviceWorker' in navigator)) {
       setPermission('unsupported');
       return;
@@ -27,6 +28,7 @@ export default function PushSubscribeButton() {
     const currentPermission = Notification.permission;
     setPermission(currentPermission);
 
+    // 이미 허용한 기기면 백그라운드에서 조용히 토큰만 최신화
     if (currentPermission === 'granted') {
       handleSubscribe(true);
     }
@@ -36,7 +38,7 @@ export default function PushSubscribeButton() {
     try {
       setIsSubscribing(true);
       
-      const registration = await navigator.serviceWorker.register('/sw.js?v=6'); // 서비스워커 버전업
+      const registration = await navigator.serviceWorker.register('/sw.js?v=6');
       
       if (!isSilent) {
         const perm = await Notification.requestPermission();
@@ -54,7 +56,6 @@ export default function PushSubscribeButton() {
           applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
         });
       } catch (subError) {
-        // ⭐️ 핵심 에러 픽스: 과거의 푸시 구독 정보가 충돌할 경우 강제로 해지 후 재시도
         const existingSub = await registration.pushManager.getSubscription();
         if (existingSub) {
           await existingSub.unsubscribe();
@@ -73,7 +74,6 @@ export default function PushSubscribeButton() {
       const { data: agent, error: fetchError } = await supabase.from('agents').select('push_subscription').eq('auth_id', user.id).single();
       if (fetchError) throw new Error('DB 조회 실패');
 
-      // ⭐️ DB 파싱 에러 방지용 강력한 예외 처리
       let existingSubs = agent?.push_subscription;
       if (typeof existingSubs === 'string') {
          try { existingSubs = JSON.parse(existingSubs); } catch(e) { existingSubs = []; }
@@ -86,7 +86,6 @@ export default function PushSubscribeButton() {
         }
       }
 
-      // 혹시 모를 null 값 제거
       existingSubs = existingSubs.filter((s: any) => s && s.endpoint);
       const newSub = JSON.parse(JSON.stringify(subscription));
       const isDuplicate = existingSubs.some((sub: any) => sub.endpoint === newSub.endpoint);
@@ -123,32 +122,59 @@ export default function PushSubscribeButton() {
     return outputArray;
   }
 
-  // 로딩중이거나, 이미 허용되었거나, 애초에 지원 안하는 기기(PC 사파리 구버전 등)에서는 숨김
-  if (permission === 'loading' || permission === 'granted' || permission === 'unsupported') {
+  // 1. 로딩 중
+  if (permission === 'loading') {
     return null; 
   }
 
-  // ⭐️ 아이폰에서 홈 화면에 추가하지 않고 들어온 경우 뜨는 안내 배너
+  // 2. 이미 허용 완료된 안드로이드 기기
+  if (permission === 'granted') {
+    return (
+      <div className="flex items-center justify-between gap-2 text-emerald-700 text-sm font-semibold bg-emerald-50/80 p-4 sm:p-5 rounded-2xl border border-emerald-200 mb-6 shrink-0 shadow-sm">
+        <div className="flex items-center gap-2">
+          <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
+          현재 기기는 마감 알림 수신이 켜져 있습니다.
+        </div>
+        {isSubscribing && <span className="text-[10px] bg-emerald-100 px-2 py-1 rounded text-emerald-800 font-bold shrink-0">연동 확인 중...</span>}
+      </div>
+    );
+  }
+
+  // 3. 지원하지 않는 브라우저 (카카오톡, 네이버 인앱 브라우저 등)
+  if (permission === 'unsupported') {
+    return (
+      <div className="flex items-start sm:items-center gap-3 text-slate-600 text-sm font-semibold bg-slate-50 p-4 sm:p-5 rounded-2xl border border-slate-200 mb-6 shrink-0 shadow-sm flex-col sm:flex-row">
+        <Info className="w-5 h-5 shrink-0 text-slate-400 mt-0.5 sm:mt-0" />
+        <div className="flex-1 leading-relaxed break-keep text-xs">
+          현재 사용 중인 브라우저(카카오톡, 네이버 등)는 알림 기능을 지원하지 않습니다. <strong className="text-blue-600">크롬(Chrome)이나 삼성 인터넷 브라우저</strong>로 다시 접속해주세요.
+        </div>
+      </div>
+    );
+  }
+
+  // 4. 아이폰(iOS)에서 홈 화면에 추가하지 않고 들어온 경우
   if (permission === 'unsupported_ios') {
     return (
       <div className="flex items-start sm:items-center gap-3 text-blue-800 text-sm font-semibold bg-blue-50/80 p-4 sm:p-5 rounded-2xl border border-blue-200 mb-6 shrink-0 shadow-sm flex-col sm:flex-row">
         <Info className="w-5 h-5 shrink-0 text-blue-500 mt-0.5 sm:mt-0" />
-        <div className="flex-1 leading-relaxed break-keep">
+        <div className="flex-1 leading-relaxed break-keep text-xs">
           아이폰(iOS)에서 마감 알림을 받으시려면, 브라우저 하단의 <span className="bg-white px-1.5 py-0.5 rounded border border-blue-200 text-xs shadow-sm mx-1">공유(↑) 버튼</span>을 누르고 <span className="bg-white px-1.5 py-0.5 rounded border border-blue-200 text-xs shadow-sm mx-1">홈 화면에 추가</span>를 하신 뒤, 생성된 바탕화면 앱으로 접속해주세요.
         </div>
       </div>
     );
   }
 
+  // 5. 사용자가 직접 알림을 '차단'한 기기
   if (permission === 'denied') {
     return (
-      <div className="flex items-center gap-2 text-rose-500 text-sm font-semibold bg-rose-50 p-4 rounded-2xl border border-rose-100 mb-6 shrink-0">
-        <AlertCircle className="w-5 h-5" />
-        알림이 차단되었습니다. 기기(브라우저) 설정에서 알림을 허용으로 변경해주세요.
+      <div className="flex items-center gap-2 text-rose-500 text-sm font-semibold bg-rose-50 p-4 sm:p-5 rounded-2xl border border-rose-100 mb-6 shrink-0 shadow-sm">
+        <AlertCircle className="w-5 h-5 shrink-0" />
+        <span className="text-xs break-keep">알림이 차단되었습니다. 기기(브라우저) 설정에서 알림을 허용으로 변경해주세요.</span>
       </div>
     );
   }
 
+  // 6. 아직 아무 선택도 안 한 새 안드로이드 기기
   return (
     <section className="bg-blue-50/80 p-5 rounded-2xl border border-blue-100 flex flex-col sm:flex-row items-center justify-between shadow-sm mb-6 shrink-0">
       <div>
