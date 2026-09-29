@@ -182,10 +182,10 @@ export default function PortalsPage() {
 
         setCompanies(formattedCompanies);
 
-        const defaultCompany = formattedCompanies.find(c => c.name === "ABL생명");
-        if (defaultCompany) {
-          setSelectedCompany(defaultCompany);
-        }
+        // const defaultCompany = formattedCompanies.find(c => c.name === "ABL생명");
+        // if (defaultCompany) {
+        //   setSelectedCompany(defaultCompany);
+        // }
       }
 
       setIsLoading(false);

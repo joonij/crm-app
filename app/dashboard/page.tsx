@@ -6,7 +6,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { 
   Car, FileText, CheckCircle2, ChevronLeft,
-  ChevronRight, Calendar, Clock, Loader2, TrendingUp, Users, Gift, Bell, Presentation, Kanban, UserPlus, X, Plus, BarChart3, Edit3
+  ChevronRight, Calendar, Clock, Loader2, TrendingUp, Users, Gift, Bell, Presentation, Kanban, UserPlus, X, Plus, BarChart3, Edit3, DollarSign
 } from "lucide-react";
 import PushSubscribeButton from '@/components/PushSubscribeButton';
 
@@ -99,24 +99,36 @@ const getRetouchTheme = (days: number) => {
   return { bg: "bg-blue-100", text: "text-blue-700", label: "30일+" };
 };
 
+// ⭐️ 진행 상태(Status)에 따라 색상을 통일되게 입혀주는 함수 추가
+const getStatusColor = (status: string | undefined) => {
+  if (!status) return "bg-slate-50 text-slate-500 border-slate-200";
+  // ⭐️ 미진행: 눈에 띄지 않게 흐리게
+  if (status.includes("미진행")) return "bg-slate-50 text-slate-400 border-slate-200 font-medium";
+  if (status.includes("거절")) return "bg-rose-50 text-rose-700 border-rose-200";
+  if (status.includes("보류")) return "bg-gray-100 text-gray-500 border-gray-200";
+  if (status.includes("계약") || status.includes("증권") || status.includes("청약 완료")) return "bg-emerald-50 text-emerald-700 border-emerald-200";
+  if (status.includes("픽스") || status.includes("TA")) return "bg-indigo-50 text-indigo-700 border-indigo-200";
+  if (status.includes("진행") || status.includes("작성") || status.includes("비교")) return "bg-blue-50 text-blue-700 border-blue-200";
+  return "bg-slate-50 text-slate-700 border-slate-200";
+};
+
 export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [agentId, setAgentId] = useState<number | null>(null);
   const [currentAgentName, setCurrentAgentName] = useState("");
   const [activeTab, setActiveTab] = useState<'personal' | 'team'>('personal');
+  const [completedTab, setCompletedTab] = useState<0 | 1 | 2>(0); 
+  const [animateBar, setAnimateBar] = useState(false);
+  
   const [oldClients, setOldClients] = useState<any[]>([]);
   const [sangryungClients, setSangryungClients] = useState<any[]>([]);
   const [autoRenewals, setAutoRenewals] = useState<any[]>([]);
-  const [inProgress, setInProgress] = useState<any[]>([]);
   const [completed, setCompleted] = useState<any[]>([]);
-  const [totalInProgressPremium, setTotalInProgressPremium] = useState(0);
   const [monthlyStats, setMonthlyStats] = useState({ thisMonth: 0, lastMonth: 0, twoMonthsAgo: 0 });
   const [myTargetAmount, setMyTargetAmount] = useState(800000); 
   const [unreadCount, setUnreadCount] = useState(0);
   const [isManager, setIsManager] = useState(false);
-  const [teamRecruitingByAgent, setTeamRecruitingByAgent] = useState<any[]>([]);
   const [teamContractsByAgent, setTeamContractsByAgent] = useState<any[]>([]);
-  const [animateBar, setAnimateBar] = useState(false);
 
   const [pipelines, setPipelines] = useState<any[]>([]);
   const [schedules, setSchedules] = useState<any[]>([]);
@@ -173,7 +185,7 @@ export default function DashboardPage() {
 
       const myClients = clientsRes.data || [];
       setClientsList(myClients);
-      setPipelines(pipelineRes.data || []);
+      setPipelines((pipelineRes.data || []).filter(p => !["계약", "거절", "증권 전달"].includes(p.status)));
 
       const myInsurances = insRes.data || [];
       const myClientIds = myClients.map(c => Number(c.id));
@@ -206,15 +218,10 @@ export default function DashboardPage() {
           const daysSinceUpdate = Math.floor((new Date().getTime() - lastUpdate.getTime()) / (1000 * 3600 * 24));
           return { ...c, lastUpdate, daysSinceUpdate };
         })
-        .filter(c => c.daysSinceUpdate >= 30) 
+        .filter(c => c.daysSinceUpdate >= 60) 
         .sort((a, b) => b.daysSinceUpdate - a.daysSinceUpdate); 
 
       setOldClients(retouchList);
-
-      retouchList.forEach(c => {
-        let bucket = c.daysSinceUpdate >= 180 ? 180 : c.daysSinceUpdate >= 90 ? 90 : c.daysSinceUpdate >= 60 ? 60 : 30;
-        generatedNotis.push({ id: `retouch_${c.id}_${bucket}` });
-      });
 
       const sangryungList = myClients
         .map(c => {
@@ -222,7 +229,7 @@ export default function DashboardPage() {
           return { ...c, dDay };
         })
         .filter(c => c.dDay !== null && c.dDay >= 0 && c.dDay <= 30)
-        .sort((a, b) => a.dDay - b.dDay);
+        .sort((a, b) => (a.dDay || 0) - (b.dDay || 0));
       setSangryungClients(sangryungList);
 
       sangryungList.forEach(c => {
@@ -241,24 +248,15 @@ export default function DashboardPage() {
       setUnreadCount(unreadLocalCount + (dbUnreadCount || 0));
 
       const autoList = myInsurances 
-        .filter(ins => ins.product_name && ins.product_name.includes("자동차") && ins.maturity_date)
+        .filter(ins => ins.product_name && (ins.product_name.includes("자동차") || ins.product_name.includes("다이렉트")) && ins.maturity_date)
         .map(ins => ({ 
           ...ins, 
           dDay: calculateDDay(ins.maturity_date), 
           clientName: clientMap.get(Number(ins.client_id)) || ins.contractor_name 
         }))
-        .filter(ins => ins.dDay !== null && ins.dDay >= 0 && ins.dDay <= 60)
+        .filter(ins => ins.dDay !== null && ins.dDay >= 1 && ins.dDay <= 60)
         .sort((a, b) => (a.dDay || 0) - (b.dDay || 0));
       setAutoRenewals(autoList);
-
-      const newPolicies = myInsurances
-        .filter(ins => ins.policy_status === "new")
-        .map(ins => ({ ...ins, clientName: clientMap.get(Number(ins.client_id)) || ins.contractor_name }))
-        .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
-      setInProgress(newPolicies);
-      
-      const totalNewPremium = newPolicies.reduce((acc, curr) => acc + (curr.monthly_premium || 0), 0);
-      setTotalInProgressPremium(totalNewPremium);
 
       const thisMonthStr = getMonthString(0);
       const lastMonthStr = getMonthString(1);
@@ -271,53 +269,44 @@ export default function DashboardPage() {
           let cleanSubDate = ins.subscription_date!.replace(/\./g, '-').replace(/\s/g, '');
           if (cleanSubDate.endsWith('-')) cleanSubDate = cleanSubDate.slice(0, -1);
 
-          if (cleanSubDate.startsWith(thisMonthStr)) statThisMonth += (ins.monthly_premium || 0);
-          else if (cleanSubDate.startsWith(lastMonthStr)) statLastMonth += (ins.monthly_premium || 0);
-          else if (cleanSubDate.startsWith(twoMonthsAgoStr)) statTwoMonthsAgo += (ins.monthly_premium || 0);
+          let tabIndex = -1;
+          if (cleanSubDate.startsWith(thisMonthStr)) { tabIndex = 0; statThisMonth += (ins.monthly_premium || 0); }
+          else if (cleanSubDate.startsWith(lastMonthStr)) { tabIndex = 1; statLastMonth += (ins.monthly_premium || 0); }
+          else if (cleanSubDate.startsWith(twoMonthsAgoStr)) { tabIndex = 2; statTwoMonthsAgo += (ins.monthly_premium || 0); }
           
-          return { ...ins, clientName: clientMap.get(Number(ins.client_id)) || ins.contractor_name };
+          return { ...ins, clientName: clientMap.get(Number(ins.client_id)) || ins.contractor_name, tabIndex };
         })
-        .sort((a, b) => new Date(b.subscription_date || 0).getTime() - new Date(a.subscription_date || 0).getTime())
-        .slice(0, 10); 
+        .filter(ins => ins.tabIndex !== -1)
+        .sort((a, b) => new Date(b.subscription_date || 0).getTime() - new Date(a.subscription_date || 0).getTime());
 
       setCompleted(completedPolicies);
       setMonthlyStats({ thisMonth: statThisMonth, lastMonth: statLastMonth, twoMonthsAgo: statTwoMonthsAgo });
 
       if (managerAuth && myAgencyId) {
-        const { data: members } = await supabase.from("agents").select("id, name, monthly_target").eq("agency_id", myAgencyId);
+        const { data: members } = await supabase.from("agents").select("id, name, rank, monthly_target").eq("agency_id", myAgencyId);
         
         if (members && members.length > 0) {
           const memberIds = members.map(m => m.id);
           const memberNames = members.map(m => m.name);
 
-          const [tClientsRes, tInsRes] = await Promise.all([
+          const [tClientsRes, tInsRes, tPipelinesRes] = await Promise.all([
              supabase.from("clients").select("*, agents(name)").in("agent_id", memberIds),
-             supabase.from("subscription_insurance").select("*").in("agent_name", memberNames)
+             supabase.from("subscription_insurance").select("*").in("agent_name", memberNames),
+             supabase.from("sales_pipelines").select("*").in("agent_id", memberIds).not('status', 'in', '("계약","거절","증권 전달")')
           ]);
 
           const tClients = tClientsRes.data || [];
           const tIns = tInsRes.data || [];
-          const sortByName = (a: any, b: any) => a.name.localeCompare(b.name, 'ko-KR');
-          const sortedMembers = [...members].sort(sortByName);
-          const groupedRecruiting = sortedMembers.map(member => {
-            const memberClients = tClients
-              .filter(c => c.agent_id === member.id && parseSteps(c.recruiting_status).length > 0)
-              .map(c => {
-                 const steps = parseSteps(c.recruiting_status);
-                 const percent = Math.round((steps.length / RECRUITING_STEPS.length) * 100);
-                 return { ...c, recSteps: steps.length, recPercent: percent };
-              })
-              .sort((a, b) => b.recPercent - a.recPercent);
-            
-            return {
-              agentName: member.name,
-              targetCount: MOCK_TARGET_RECRUIT_PER_FC,
-              currentCount: memberClients.length,
-              clients: memberClients
-            };
+          const tPipelines = tPipelinesRes.data || [];
+          
+          const sortedMembers = [...members].sort((a, b) => {
+            const aIsSM = (a.rank || '').toUpperCase().includes('SM');
+            const bIsSM = (b.rank || '').toUpperCase().includes('SM');
+            if (aIsSM && !bIsSM) return -1;
+            if (!aIsSM && bIsSM) return 1;
+            return a.name.localeCompare(b.name, 'ko-KR');
           });
-          setTeamRecruitingByAgent(groupedRecruiting);
-
+          
           const tCont = tIns
              .filter(ins => ins.policy_status === "new" || ins.policy_status === "maintain")
              .map(ins => {
@@ -326,26 +315,25 @@ export default function DashboardPage() {
                 if (!dateStr) dateStr = '-';
                 const cName = tClients.find(c => Number(c.id) === Number(ins.client_id))?.name || ins.contractor_name;
                 return { ...ins, isCompleted, dateStr, clientName: cName };
-             })
-             .filter(ins => {
-                let cleanDate = ins.dateStr.replace(/\./g, '-').replace(/\s/g, '');
-                return cleanDate.startsWith(thisMonthStr);
              });
 
           const groupedContracts = sortedMembers.map(member => {
-            const memberContracts = tCont
-              .filter(ins => ins.agent_name === member.name)
-              .sort((a, b) => new Date(b.dateStr === '-' ? 0 : b.dateStr).getTime() - new Date(a.dateStr === '-' ? 0 : a.dateStr).getTime());
+            const memberContracts = tCont.filter(ins => ins.agent_name === member.name && ins.dateStr.replace(/\./g, '-').replace(/\s/g, '').startsWith(thisMonthStr)).sort((a, b) => new Date(b.dateStr === '-' ? 0 : b.dateStr).getTime() - new Date(a.dateStr === '-' ? 0 : a.dateStr).getTime());
+            const memberPipes = tPipelines.filter(p => p.agent_id === member.id).sort((a, b) => parseLocalDate(a.expected_date).getTime() - parseLocalDate(b.expected_date).getTime());
             
-            const inProgressAmt = memberContracts.filter(i => !i.isCompleted).reduce((sum, i) => sum + (i.monthly_premium || 0), 0);
+            const inProgressAmt = memberContracts.filter(i => !i.isCompleted).reduce((sum, i) => sum + (i.monthly_premium || 0), 0) + 
+                                  memberPipes.reduce((sum, p) => sum + ((p.expected_date === '9999-12-31' || p.status === '보류') ? 0 : (p.expected_amount || 0)), 0);
+            
             const completedAmt = memberContracts.filter(i => i.isCompleted).reduce((sum, i) => sum + (i.monthly_premium || 0), 0);
 
             return {
                 agentName: member.name,
+                rank: member.rank,
                 targetAmount: member.monthly_target || 800000, 
                 inProgressAmount: inProgressAmt,
                 completedAmount: completedAmt,
-                contracts: memberContracts
+                contracts: memberContracts,
+                pipelines: memberPipes
             };
           }); 
 
@@ -365,6 +353,8 @@ export default function DashboardPage() {
       return () => clearTimeout(timer);
     }
   }, [isLoading]);
+
+  const totalPipelineAmount = pipelines.reduce((sum, p) => sum + ((p.expected_date === '9999-12-31' || p.status === '보류') ? 0 : (p.expected_amount || 0)), 0);
 
   const today = new Date();
   today.setHours(0,0,0,0);
@@ -467,9 +457,6 @@ export default function DashboardPage() {
     }
   };
 
-  const safeTarget = myTargetAmount > 0 ? myTargetAmount : 1;
-  const myAchievementRate = Math.min(100, Math.round((monthlyStats.thisMonth / safeTarget) * 100)) || 0;
-
   if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center bg-gray-50">
@@ -481,6 +468,12 @@ export default function DashboardPage() {
     );
   }
 
+  const filteredCompleted = completed.filter(c => c.tabIndex === completedTab);
+  const currentTabTotalAmount = filteredCompleted.reduce((sum, item) => sum + (item.monthly_premium || 0), 0);
+
+  const totalTeamInProgress = teamContractsByAgent.reduce((sum, m) => sum + m.inProgressAmount, 0);
+  const totalTeamCompleted = teamContractsByAgent.reduce((sum, m) => sum + m.completedAmount, 0);
+
   return (
     <div className="w-full max-w-[1500px] mx-auto p-4 md:p-8 bg-gray-50/50 min-h-screen flex flex-col">
       <div className="flex justify-between items-end mb-4 relative shrink-0">
@@ -490,28 +483,20 @@ export default function DashboardPage() {
             <strong className="text-blue-600">{currentAgentName}</strong> 님의 오늘 챙겨야 할 핵심 업무 현황입니다.
           </p>
         </div>
-
-        <div className="flex items-center gap-3">
-          <Link 
-            href="/notifications"
-            className="p-2.5 bg-white border border-gray-200 rounded-full shadow-sm hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-colors relative cursor-pointer flex items-center justify-center group"
-            title="알림 센터 가기"
-          >
-            <Bell className="w-6 h-6 text-gray-700 group-hover:text-blue-600 transition-colors" />
-            {unreadCount > 0 && (
-              <span className="absolute top-0 right-0 translate-x-1 -translate-y-1 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full z-10 border border-white">
-                {unreadCount > 99 ? '99+' : unreadCount}
-              </span>
-            )}
-          </Link>
-        </div>
       </div>
 
-      <div className="sm:hidden flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200 shadow-sm mb-4">
-        <span className="text-xs font-bold text-slate-600">이번 달 영업 목표</span>
-        <button onClick={handleTargetChange} className="text-sm font-black text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer transition-colors">
-          {myTargetAmount.toLocaleString()}원 <Edit3 className="w-4 h-4" />
-        </button>
+      {/* ⭐️ 모바일용 최상단 목표/합산액 박스 */}
+      <div className="sm:hidden flex flex-col gap-2 bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-4">
+        <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+          <span className="text-xs font-bold text-slate-600">이번 달 영업 목표</span>
+          <button onClick={handleTargetChange} className="text-sm font-black text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer transition-colors">
+            {myTargetAmount.toLocaleString()}원 <Edit3 className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="flex justify-between items-center pt-1">
+          <span className="text-xs font-bold text-slate-600">진행 파이프라인 합산</span>
+          <span className="text-sm font-black text-indigo-700">{totalPipelineAmount.toLocaleString()}원</span>
+        </div>
       </div>
 
       {isManager && (
@@ -540,28 +525,33 @@ export default function DashboardPage() {
             <PushSubscribeButton />
           </div>
 
-          <div className="bg-white border border-indigo-200 rounded-2xl shadow-sm p-5 flex flex-col">
+          <div className="bg-white border border-indigo-200 rounded-2xl shadow-sm p-4 sm:p-5 flex flex-col w-full">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-3 mb-4">
-              
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto">
                 
-                <h3 className="font-black text-indigo-900 flex items-center gap-1.5 shrink-0">
-                  <BarChart3 className="w-5 h-5 text-indigo-600" /> 진행사항
+                <h3 className="font-black text-indigo-900 flex items-center gap-1.5 shrink-0 w-full sm:w-auto justify-between sm:justify-start">
+                  <div className="flex items-center gap-1.5"><BarChart3 className="w-5 h-5 text-indigo-600" /> 현재 진행 사항</div>
+                  <Link href="/daily-closing" className="sm:hidden bg-slate-800 text-white text-[11px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 shadow-sm">
+                    마감 작성
+                  </Link>
                 </h3>
-                <div className="hidden sm:flex items-center gap-2 bg-indigo-50 px-3 py-2 rounded-xl border border-indigo-100 shadow-sm shrink-0">
-                  <span className="text-[11px] font-bold text-indigo-500">이번 달 목표액 설정</span>
-                  <button onClick={handleTargetChange} className="text-sm font-black text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer transition-colors">
-                    {myTargetAmount.toLocaleString()}원 <Edit3 className="w-3.5 h-3.5" />
+                
+                <div className="hidden sm:flex items-center bg-indigo-50 px-3 py-1.5 rounded-xl border border-indigo-100 shadow-sm shrink-0">
+                  <span className="text-[11px] font-bold text-indigo-500 mr-2">목표 설정</span>
+                  <button onClick={handleTargetChange} className="text-sm font-black text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer transition-colors border-r border-indigo-200 pr-3 mr-3">
+                    {myTargetAmount.toLocaleString()} <Edit3 className="w-3.5 h-3.5" />
                   </button>
+                  <span className="text-[11px] font-bold text-indigo-500 mr-2">예상 합산</span>
+                  <span className="text-sm font-black text-indigo-700">{totalPipelineAmount.toLocaleString()}원</span>
                 </div>
               </div>
 
-              <Link href="/daily-closing" className="bg-slate-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl hover:bg-slate-700 transition-colors flex items-center gap-1 shadow-sm shrink-0">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" /> 일일 마감 보고 작성하기
+              <Link href="/daily-closing" className="hidden sm:flex bg-slate-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl hover:bg-slate-700 transition-colors items-center gap-1 shadow-sm shrink-0">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" /> 일일 마감 보고 작성
               </Link>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-5 bg-indigo-50/50 p-3 rounded-xl border border-indigo-100">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 mb-5 bg-indigo-50/50 p-3 rounded-xl border border-indigo-100">
               <div className="relative">
                 <input 
                   type="text" 
@@ -582,11 +572,19 @@ export default function DashboardPage() {
               </div>
               <input type="text" placeholder="계약 내용 (예: 종신 10만)" value={pipelineForm.details} onChange={(e) => setPipelineForm({...pipelineForm, details: e.target.value})} className="w-full text-sm p-2.5 rounded-lg border border-gray-200 outline-none focus:border-indigo-400" />
               <input type="text" placeholder="예상 금액" value={pipelineForm.amount} onChange={handleAmountChange} className="w-full text-sm p-2.5 rounded-lg border border-gray-200 outline-none focus:border-indigo-400 font-bold text-indigo-700" />
-              <input type="date" value={pipelineForm.date} onChange={(e) => setPipelineForm({...pipelineForm, date: e.target.value})} className="w-full text-sm p-2.5 rounded-lg border border-gray-200 outline-none focus:border-indigo-400 text-gray-600" />
-              <button onClick={handleAddPipeline} className="bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center gap-1 cursor-pointer"><Plus className="w-4 h-4"/> 리스트 추가</button>
+              
+              <div className="flex items-center gap-2 w-full text-sm rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 focus-within:border-indigo-400 focus-within:ring-1 focus-within:ring-indigo-100">
+                <input type="date" value={pipelineForm.date === '9999-12-31' ? '' : pipelineForm.date} disabled={pipelineForm.date === '9999-12-31'} onChange={(e) => setPipelineForm({...pipelineForm, date: e.target.value})} className="w-full outline-none text-gray-600 disabled:opacity-50 bg-transparent" />
+                <label className="flex items-center gap-1 text-[11px] font-bold text-slate-500 cursor-pointer shrink-0 border-l border-slate-200 pl-2">
+                  <input type="checkbox" checked={pipelineForm.date === '9999-12-31'} onChange={(e) => setPipelineForm({...pipelineForm, date: e.target.checked ? '9999-12-31' : getLocalString(new Date(Date.now() + 86400000 * 3))})} className="cursor-pointer" />
+                  보류
+                </label>
+              </div>
+
+              <button onClick={handleAddPipeline} className="min-h-[42px] sm:min-h-[32px] sm:col-span-2 md:col-span-1 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center gap-1 cursor-pointer"><Plus className="w-4 h-4"/> 리스트 추가</button>
             </div>
 
-            <div className="overflow-auto max-h-[600px] border border-slate-200 rounded-xl bg-white shadow-sm w-full">
+            <div className="w-full overflow-x-auto border border-slate-200 rounded-xl bg-white shadow-sm">
               <div className="min-w-[1000px] flex flex-col relative">
                 
                 <div className="sticky top-0 z-40 flex bg-slate-50 border-b border-slate-200 shadow-sm">
@@ -618,7 +616,6 @@ export default function DashboardPage() {
                     <div className="w-[280px] shrink-0 border-r border-slate-200 p-3 relative flex items-start pt-4 bg-slate-50/80">
                       <div className="flex flex-col gap-1">
                         <span className="font-black text-[13px] text-slate-800 flex items-center gap-1.5"><Edit3 className="w-4 h-4 text-emerald-600"/> 활동 내역</span>
-                        {/* <span className="text-[10px] text-slate-500 font-medium break-keep">일일마감에서 작성한 업무일지와 일정이 달력 하단에 표시됩니다.</span> */}
                       </div>
                     </div>
                     <div className="flex-1 relative">
@@ -673,7 +670,9 @@ export default function DashboardPage() {
 
                     const progress = 100;
                     
-                    const statusColor = p.status === '계약' || p.status === '증권 전달' ? 'bg-emerald-100 text-emerald-700' : p.status === '거절' ? 'bg-rose-100 text-rose-700' : p.status === '보류' || p.status === '미진행' ? 'bg-gray-200 text-gray-700' : 'bg-indigo-100 text-indigo-700';
+                    // ⭐️ 상태값 기반 컬러 시스템 연동
+                    const statusColor = getStatusColor(p.status);
+                    const isHold = p.expected_date === '9999-12-31' || p.status === '보류';
 
                     return (
                       <div key={p.id} className="flex border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
@@ -685,7 +684,14 @@ export default function DashboardPage() {
                               <input type="text" value={editForm.client_name} onChange={e => setEditForm({...editForm, client_name: e.target.value})} className="border border-indigo-200 p-1.5 text-xs rounded outline-none focus:ring-1 focus:ring-indigo-400 font-bold" placeholder="고객명"/>
                               <input type="text" value={editForm.contract_details} onChange={e => setEditForm({...editForm, contract_details: e.target.value})} className="border border-indigo-200 p-1.5 text-[11px] rounded outline-none focus:ring-1 focus:ring-indigo-400" placeholder="계약 내용"/>
                               <input type="text" value={editForm.expected_amount} onChange={handleEditAmountChange} className="border border-indigo-200 p-1.5 text-xs rounded outline-none focus:ring-1 focus:ring-indigo-400 font-bold text-indigo-600" placeholder="예상 금액"/>
-                              <input type="date" value={editForm.expected_date} onChange={e => setEditForm({...editForm, expected_date: e.target.value})} className="border border-indigo-200 p-1.5 text-xs rounded outline-none focus:ring-1 focus:ring-indigo-400 text-slate-600"/>
+                              
+                              <div className="flex items-center gap-1.5">
+                                <input type="date" value={editForm.expected_date === '9999-12-31' ? '' : editForm.expected_date} disabled={editForm.expected_date === '9999-12-31'} onChange={e => setEditForm({...editForm, expected_date: e.target.value})} className="flex-1 border border-indigo-200 p-1.5 text-xs rounded outline-none focus:ring-1 focus:ring-indigo-400 text-slate-600 disabled:bg-slate-50 disabled:opacity-50"/>
+                                <label className="flex items-center gap-1 text-[10px] font-bold text-slate-500 cursor-pointer shrink-0 bg-white border border-indigo-200 px-1.5 py-1.5 rounded">
+                                  <input type="checkbox" checked={editForm.expected_date === '9999-12-31'} onChange={(e) => setEditForm({...editForm, expected_date: e.target.checked ? '9999-12-31' : getLocalString(new Date(Date.now() + 86400000 * 3))})} />
+                                  보류
+                                </label>
+                              </div>
                               
                               <div className="flex gap-1.5 mt-1">
                                 <button onClick={() => handleSaveEdit(p.id)} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold py-1.5 rounded cursor-pointer transition-colors shadow-sm">저장</button>
@@ -710,14 +716,16 @@ export default function DashboardPage() {
                               </button>
                               
                               <div className="flex items-center gap-1.5 mb-1.5 pr-4">
-                                <span className={`text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm ${statusColor}`}>{p.status}</span>
-                                <span className="font-bold text-sm text-slate-800">{p.client_name}</span>
+                                <span className={`text-[9px] font-bold px-1.5 py-0.5 border rounded shadow-sm whitespace-nowrap ${statusColor}`}>{p.status}</span>
+                                <span className="font-bold text-sm text-slate-800 truncate">{p.client_name}</span>
                               </div>
                               <p className="text-[11px] text-slate-500 truncate mb-1.5 pr-4">{p.contract_details}</p>
                               
                               <div className="flex justify-between items-center pr-4 mt-auto">
-                                <p className="text-xs font-black text-indigo-600">{p.expected_amount.toLocaleString()}원</p>
-                                <span className="text-[10px] font-bold text-slate-500 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded shadow-sm">{p.expected_date.slice(5).replace('-', '/')} 예정</span>
+                                <p className={`text-xs font-black ${isHold ? 'text-slate-400 line-through decoration-slate-300' : 'text-indigo-600'}`}>{p.expected_amount.toLocaleString()}원</p>
+                                <span className="text-[10px] font-bold text-slate-500 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded shadow-sm whitespace-nowrap">
+                                  {p.expected_date === '9999-12-31' ? '일정 보류' : `${p.expected_date.slice(5).replace('-', '/')} 예정`}
+                                </span>
                               </div>
                             </>
                           )}
@@ -750,16 +758,18 @@ export default function DashboardPage() {
                             
                             const hLeft = ((hTime - tlStartMs + 43200000) / TOTAL_TIMELINE_MS) * 100;
                             
-                            let tagClass = "bg-white text-slate-600 border-slate-300";
+                            // ⭐️ 타임라인 도트 및 히스토리 툴팁 색상 연동
+                            let tagClass = getStatusColor(h.status);
                             let dotClass = "border-slate-400";
-                            if (h.status.includes('거절')) { tagClass = "bg-rose-50 text-rose-700 border-rose-300"; dotClass = "border-rose-500"; }
-                            else if (h.status.includes('보류') || h.status.includes('미진행')) { tagClass = "bg-gray-100 text-gray-700 border-gray-300"; dotClass = "border-gray-500"; }
-                            else if (h.status.includes('계약') || h.status.includes('증권')) { tagClass = "bg-emerald-50 text-emerald-700 border-emerald-300"; dotClass = "border-emerald-500"; }
-                            else if (h.status.includes('픽스')) { tagClass = "bg-indigo-50 text-indigo-700 border-indigo-300"; dotClass = "border-indigo-500"; }
+                            if (h.status.includes('거절')) dotClass = "border-rose-500";
+                            else if (h.status.includes('보류') || h.status.includes('미진행')) dotClass = "border-slate-300";
+                            else if (h.status.includes('계약') || h.status.includes('증권') || h.status.includes('청약 완료')) dotClass = "border-emerald-500";
+                            else if (h.status.includes('픽스') || h.status.includes('TA')) dotClass = "border-indigo-500";
+                            else dotClass = "border-blue-500";
 
                             return (
                               <div key={idx} className="absolute z-20 flex flex-col items-center top-[60%] -translate-y-1/2" style={{ left: `${hLeft}%`, transform: 'translate(-50%, -50%)' }}>
-                                <div className={`absolute bottom-full mb-1 whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-black shadow-sm border ${tagClass} z-10`}>
+                                <div className={`absolute bottom-full mb-1 whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-bold shadow-sm border ${tagClass} z-10`}>
                                   {h.status}
                                 </div>
                                 <div className={`w-2.5 h-2.5 rounded-full bg-white border-[2.5px] shadow-sm mt-3 relative z-0 ${dotClass}`}></div>
@@ -778,14 +788,84 @@ export default function DashboardPage() {
             </div>
           </div>
 
+          <div className="bg-white border border-emerald-200 rounded-2xl shadow-sm p-4 sm:p-5 flex flex-col w-full">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 border-b border-emerald-100 pb-3 gap-3">
+              <h3 className="font-black text-emerald-900 flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600" /> 체결 완료 현황
+              </h3>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 w-full sm:w-auto">
+                <div className="flex gap-1.5 sm:gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
+                  <div className="flex items-center gap-2 text-sm bg-emerald-50 border border-emerald-100 px-3 py-1.5 rounded-lg shadow-sm w-full sm:w-auto justify-between sm:justify-start">
+                    <span className="text-emerald-700 font-bold text-xs">선택월 합산</span>
+                    <span className="font-black text-emerald-700">{formatMoney(currentTabTotalAmount)}</span>
+                  </div>
+                  <button 
+                    onClick={() => setCompletedTab(0)} 
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap flex-1 cursor-pointer sm:flex-none ${completedTab === 0 ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-100 text-slate-500 hover:bg-emerald-50 hover:text-emerald-700'}`}
+                  >
+                    당월
+                  </button>
+                  <button 
+                    onClick={() => setCompletedTab(1)} 
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap flex-1 cursor-pointer sm:flex-none ${completedTab === 1 ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-100 text-slate-500 hover:bg-emerald-50 hover:text-emerald-700'}`}
+                  >
+                    전월
+                  </button>
+                  <button 
+                    onClick={() => setCompletedTab(2)} 
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap flex-1 cursor-pointer sm:flex-none ${completedTab === 2 ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-100 text-slate-500 hover:bg-emerald-50 hover:text-emerald-700'}`}
+                  >
+                    전전월
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            <div className="w-full overflow-x-auto border sm:border-none border-slate-200 rounded-xl sm:rounded-none">
+              {filteredCompleted.length > 0 ? (
+                <table className="w-full min-w-[700px] text-left text-sm text-slate-600">
+                  <thead className="bg-emerald-50/50 text-emerald-800 text-[11px] font-black uppercase border-b border-emerald-100">
+                    <tr>
+                      <th className="px-4 py-3 w-[15%]">고객명</th>
+                      <th className="px-4 py-3 w-[20%]">보험사</th>
+                      <th className="px-4 py-3 w-[30%]">상품명</th>
+                      <th className="px-4 py-3 w-[20%]">월납 보험료</th>
+                      <th className="px-4 py-3 w-[15%]">체결일</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-emerald-50">
+                    {filteredCompleted.map(ins => (
+                      <tr key={ins.id} className="hover:bg-emerald-50/30 transition-colors">
+                        <td className="px-4 py-3 font-bold text-slate-800">{ins.clientName}</td>
+                        <td className="px-4 py-3 text-xs font-semibold text-slate-500">
+                          <span className="border border-slate-200 bg-white px-1.5 py-0.5 rounded shadow-sm">{ins.insurance_company}</span>
+                        </td>
+                        <td className="px-4 py-3 text-xs font-medium text-slate-700">{ins.product_name}</td>
+                        <td className="px-4 py-3 font-black text-blue-600 flex items-center gap-1"><DollarSign className="w-3 h-3"/>{formatMoney(ins.monthly_premium)}</td>
+                        <td className="px-4 py-3 text-xs text-slate-500">
+                          <span className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5"/>{ins.subscription_date}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="py-10 flex flex-col items-center justify-center text-slate-400">
+                  <FileText className="w-8 h-8 opacity-20 mb-2" />
+                  <span className="text-sm font-bold">선택하신 월에 체결된 내역이 없습니다.</span>
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-start-1 lg:col-span-1 lg:row-start-1 lg:row-span-2 h-[350px] lg:h-[724px] bg-white border border-rose-200 rounded-2xl shadow-sm flex flex-col">
+            <div className="bg-white border border-rose-200 rounded-2xl shadow-sm flex flex-col h-[400px]">
               <div className="bg-rose-50/80 p-4 border-b border-rose-100 flex justify-between items-center shrink-0 rounded-t-2xl">
                 <div>
                   <h3 className="font-black text-rose-900 flex items-center gap-2 text-base">
                     <Clock className="w-5 h-5 text-rose-500" /> 재터치 필요
                   </h3>
-                  <p className="text-[10px] text-rose-600/80 font-bold mt-0.5">30일 이상 업데이트 없음</p>
+                  <p className="text-[10px] text-rose-600/80 font-bold mt-0.5">60일 이상 업데이트 없음</p>
                 </div>
                 <span className="bg-rose-100 text-rose-700 px-2.5 py-1 rounded-full text-[10px] font-black shrink-0">
                   {oldClients.length}명
@@ -824,7 +904,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="lg:col-start-1 lg:col-span-1 lg:row-start-3 lg:row-span-1 h-[350px] bg-white border border-purple-200 rounded-2xl shadow-sm flex flex-col">
+            <div className="bg-white border border-purple-200 rounded-2xl shadow-sm flex flex-col h-[400px]">
               <div className="bg-purple-50/80 p-4 border-b border-purple-100 flex justify-between items-center shrink-0 rounded-t-2xl">
                 <div>
                   <h3 className="font-black text-purple-900 flex items-center gap-2 text-base">
@@ -861,16 +941,16 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="lg:col-start-2 lg:col-span-2 lg:row-start-1 lg:row-span-1 h-[350px] bg-white border border-amber-200 rounded-2xl shadow-sm flex flex-col">
+            <div className="bg-white border border-amber-200 rounded-2xl shadow-sm flex flex-col h-[400px]">
               <div className="bg-amber-50/50 p-4 border-b border-amber-100 flex justify-between items-center shrink-0 rounded-t-2xl">
                 <h3 className="font-bold text-amber-900 flex items-center gap-2">
-                  <Car className="w-5 h-5 text-amber-500" /> 자동차보험 갱신 리스트
+                  <Car className="w-5 h-5 text-amber-500" /> 자동차/다이렉트 갱신
                 </h3>
-                <span className="text-[10px] bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full font-bold">만기 D-60 이내</span>
+                <span className="text-[10px] bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full font-bold">만기 60일 이내</span>
               </div>
               <div className="p-3 flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-amber-200 [&::-webkit-scrollbar-thumb]:rounded-full">
                 {autoRenewals.length > 0 ? (
-                  <ul className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <ul className="grid grid-cols-1 gap-2">
                     {autoRenewals.map(ins => (
                       <li key={ins.id} className="flex justify-between items-center p-3 hover:bg-amber-50/30 rounded-xl border border-gray-100 transition-colors group">
                         <div className="flex-1 min-w-0 pr-4">
@@ -891,106 +971,111 @@ export default function DashboardPage() {
                   </ul>
                 ) : (
                   <div className="h-full flex flex-col items-center justify-center text-gray-400 py-8">
-                    <p className="text-xs font-semibold">다가오는 자동차 갱신건이 없습니다.</p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="lg:col-start-2 lg:col-span-2 lg:row-start-2 lg:row-span-1 h-[350px] bg-white border border-blue-200 rounded-2xl shadow-sm flex flex-col">
-              <div className="bg-blue-50/50 p-4 border-b border-blue-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 shrink-0 rounded-t-2xl">
-                <h3 className="font-bold text-blue-900 flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-blue-500" /> 진행 중 계약
-                </h3>
-                <div className="flex items-center gap-2 text-sm bg-white border border-blue-100 px-3 py-1.5 rounded-lg shadow-sm">
-                  <span className="text-gray-500 font-semibold text-xs">합산 월납액</span>
-                  <span className="font-black text-blue-600">{formatMoney(totalInProgressPremium)}</span>
-                </div>
-              </div>
-              <div className="p-3 flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-blue-200 [&::-webkit-scrollbar-thumb]:rounded-full">
-                {inProgress.length > 0 ? (
-                  <ul className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    {inProgress.map(ins => (
-                      <li key={ins.id} className="flex justify-between items-center p-3 hover:bg-blue-50/30 rounded-xl border border-gray-100 transition-colors group">
-                        <div className="flex-1 min-w-0 pr-4">
-                          <p className="font-bold text-sm text-gray-900 truncate">{ins.clientName} <span className="text-xs font-semibold text-gray-400 ml-1">{ins.insurance_company}</span></p>
-                          <p className="text-[11px] text-gray-500 font-medium truncate mt-1">{ins.product_name}</p>
-                        </div>
-                        <div className="flex items-center gap-3 shrink-0">
-                          <p className="text-sm font-black text-blue-600">{formatMoney(ins.monthly_premium)}</p>
-                          <Link href={`/clients/${ins.client_id}`} className="text-gray-300 group-hover:text-blue-500 transition-colors"><ChevronRight className="w-5 h-5" /></Link>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <div className="h-full flex flex-col items-center justify-center text-gray-400 py-8">
-                    <p className="text-xs font-semibold">새로 제안 중인 내역이 없습니다.</p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="lg:col-start-2 lg:col-span-2 lg:row-start-3 lg:row-span-1 h-[350px] bg-white border border-emerald-200 rounded-2xl shadow-sm flex flex-col">
-              <div className="bg-emerald-50/50 p-4 border-b border-emerald-100 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 shrink-0 rounded-t-2xl">
-                <h3 className="font-bold text-emerald-900 flex items-center gap-2 shrink-0">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-500" /> 체결 완료 현황
-                </h3>
-                <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto">
-                  <div className="flex flex-col items-end bg-emerald-600 text-white border border-emerald-700 px-3 py-1.5 rounded-lg shadow-sm flex-1 xl:flex-none relative overflow-hidden">
-                    <span className="text-[10px] text-emerald-100 font-bold mb-0.5">이번달 ({getMonthString(0).slice(5)}월)</span>
-                    <span className="font-black text-white text-sm flex items-center gap-1">
-                      {formatMoney(monthlyStats.thisMonth)} <TrendingUp className="w-3 h-3" />
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-3 flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-emerald-200 [&::-webkit-scrollbar-thumb]:rounded-full">
-                {(() => {
-                  return (
-                    <div className="flex flex-col gap-2 mb-3 bg-emerald-50/50 p-3 rounded-xl border border-emerald-100">
-                      <div className="flex items-center justify-between gap-4">
-                        <span className="bg-emerald-600 text-white text-xs font-black px-2.5 py-1 rounded-md shadow-sm shrink-0 whitespace-nowrap">이번 달 달성률</span>
-                        <div className="flex items-center gap-2 flex-1 w-full">
-                          <div className="flex-1 w-full bg-white border border-emerald-200 rounded-full h-1.5 overflow-hidden shadow-inner">
-                            <div 
-                              className={`h-1.5 rounded-full transition-all duration-1000 ease-out ${myAchievementRate >= 100 ? 'bg-blue-500' : 'bg-emerald-500'}`} 
-                              style={{ width: animateBar ? `${myAchievementRate}%` : '0%' }}
-                            ></div>
-                          </div>
-                          <span className={`text-[10px] font-black shrink-0 ${myAchievementRate >= 100 ? 'text-blue-600' : 'text-emerald-600'}`}>
-                            {animateBar ? myAchievementRate : 0}%
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })()}
-                {completed.length > 0 ? (
-                  <ul className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    {completed.map(ins => (
-                      <li key={ins.id} className="flex justify-between items-center p-3 hover:bg-emerald-50/30 rounded-xl border border-gray-100 transition-colors group">
-                        <div className="flex-1 min-w-0 pr-4">
-                          <p className="font-bold text-sm text-gray-900 truncate">{ins.clientName}</p>
-                          <p className="text-[11px] text-gray-500 mt-1 flex items-center gap-1 font-medium">
-                            <Calendar className="w-3.5 h-3.5" /> {ins.subscription_date} 체결
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-3 shrink-0">
-                          <p className="text-sm font-black text-gray-700">{formatMoney(ins.monthly_premium)}</p>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <div className="flex flex-col items-center justify-center text-gray-400 py-8">
-                    <p className="text-xs font-semibold">최근 체결된 내역이 없습니다.</p>
+                    <p className="text-xs font-semibold">다가오는 자동차/다이렉트 갱신건이 없습니다.</p>
                   </div>
                 )}
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ⭐️ 팀장용 '팀 관리 보드' 탭 */}
+      {isManager && activeTab === 'team' && (
+        <div className="flex flex-col gap-6 w-full">
+          
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 p-4 sm:p-5 rounded-2xl shadow-sm">
+            <div>
+              <h2 className="text-lg font-black text-blue-900 flex items-center gap-2">
+                <Users className="w-5 h-5 text-blue-600"/> 팀 전체 실적 요약
+              </h2>
+              <p className="text-xs text-blue-700 font-bold mt-1">우리 팀의 진행 중인 현황과 이번 달 달성 금액입니다.</p>
+            </div>
+            <div className="flex gap-2 sm:gap-4 w-full sm:w-auto">
+              <div className="flex flex-col items-end bg-white px-3 sm:px-4 py-2 border border-blue-100 rounded-xl shadow-sm flex-1 sm:flex-none">
+                <span className="text-[10px] font-bold text-orange-500">진행 합산</span>
+                <span className="font-black text-orange-600 text-base sm:text-lg">{formatMoney(totalTeamInProgress)}</span>
+              </div>
+              <div className="flex flex-col items-end bg-white px-3 sm:px-4 py-2 border border-blue-100 rounded-xl shadow-sm flex-1 sm:flex-none">
+                <span className="text-[10px] font-bold text-emerald-600">이번 달 체결</span>
+                <span className="font-black text-emerald-600 text-base sm:text-lg">{formatMoney(totalTeamCompleted)}</span>
+              </div>
+            </div>
+          </div>
+
+          {teamContractsByAgent.map(member => (
+            <div key={member.agentName} className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm">
+              
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center border-b border-slate-100 pb-3 mb-4 gap-3">
+                <h3 className="text-lg font-black text-slate-800 flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-start">
+                  <span className="flex items-center gap-2">
+                    <UserPlus className="w-5 h-5 text-indigo-500" /> {member.agentName} FC
+                  </span>
+                  {(member.rank || '').toUpperCase().includes('SM') && <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded text-[10px] font-bold">팀장(SM)</span>}
+                </h3>
+                <div className="flex gap-2 w-full sm:w-auto">
+                  <span className="text-[11px] sm:text-xs font-bold text-orange-600 bg-orange-50 px-2 py-1 border border-orange-100 rounded flex-1 sm:flex-none text-center">진행 합산: {formatMoney(member.inProgressAmount)}</span>
+                  <span className="text-[11px] sm:text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-1 border border-emerald-100 rounded flex-1 sm:flex-none text-center">체결 (당월): {formatMoney(member.completedAmount)}</span>
+                </div>
+              </div>
+              
+              <div className="mb-6">
+                <h4 className="text-sm font-bold text-slate-700 mb-2 border-l-2 border-indigo-500 pl-2">현재 진행 리스트</h4>
+                {member.pipelines.length > 0 ? (
+                  <div className="flex flex-col gap-2">
+                    {member.pipelines.map((p: any) => {
+                      const isHold = p.expected_date === '9999-12-31' || p.status === '보류';
+                      return (
+                        <div key={p.id} className="bg-slate-50 border border-slate-100 p-3 rounded-lg flex flex-col sm:flex-row justify-between sm:items-center text-sm gap-2 sm:gap-0">
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3 flex-1 min-w-0">
+                            <span className="font-bold text-slate-800 text-[13px] flex items-center gap-1.5 sm:w-32 shrink-0">
+                              <span className="truncate max-w-[80px] sm:max-w-full">{p.client_name}</span>
+                              <span className={`text-[10px] font-bold border px-1.5 py-0.5 rounded whitespace-nowrap ${getStatusColor(p.status)}`}>{p.status}</span>
+                            </span>
+                            <span className="text-xs text-slate-500 font-medium truncate sm:max-w-[250px]">{p.contract_details}</span>
+                          </div>
+                          <div className="flex items-center justify-between sm:justify-end gap-4 sm:w-auto shrink-0 mt-1 sm:mt-0 pt-2 sm:pt-0 border-t sm:border-0 border-slate-200/50">
+                            <span className="text-[11px] text-slate-500 font-bold bg-white px-2 py-1 border border-slate-200 rounded whitespace-nowrap">
+                              {p.expected_date === '9999-12-31' ? '일정 보류' : `${p.expected_date.slice(5).replace('-', '/')} 예정`}
+                            </span>
+                            <span className={`font-black text-sm sm:w-28 text-right whitespace-nowrap ${isHold ? 'text-slate-400 line-through decoration-slate-300' : 'text-indigo-600'}`}>{formatMoney(p.expected_amount)}</span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-xs font-semibold text-slate-400 py-2">진행 중인 계약이 없습니다.</p>
+                )}
+              </div>
+
+              <div>
+                <h4 className="text-sm font-bold text-slate-700 mb-2 border-l-2 border-emerald-500 pl-2">이번 달 체결 리스트</h4>
+                {member.contracts.filter((c: any) => c.isCompleted).length > 0 ? (
+                  <div className="flex flex-col gap-2">
+                    {member.contracts.filter((c: any) => c.isCompleted).map((c: any) => (
+                      <div key={c.id} className="bg-emerald-50/50 border border-emerald-100 p-3 rounded-lg flex flex-col sm:flex-row justify-between sm:items-center text-sm gap-2 sm:gap-0">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3 flex-1 min-w-0">
+                          <span className="font-bold text-slate-800 text-[13px] flex items-center gap-1.5 sm:w-32 shrink-0">
+                            <span className="truncate max-w-[80px] sm:max-w-full">{c.clientName}</span>
+                            <span className="text-[10px] font-bold text-emerald-600 bg-white border border-emerald-200 px-1.5 py-0.5 rounded whitespace-nowrap">{c.insurance_company}</span>
+                          </span>
+                          <span className="text-xs text-slate-500 font-medium truncate sm:max-w-[250px]">{c.product_name}</span>
+                        </div>
+                        <div className="flex items-center justify-between sm:justify-end gap-4 sm:w-auto shrink-0 mt-1 sm:mt-0 pt-2 sm:pt-0 border-t sm:border-0 border-emerald-200/50">
+                          <span className="text-[11px] text-slate-500 font-bold bg-white px-2 py-1 border border-slate-200 rounded whitespace-nowrap">{c.dateStr} 체결</span>
+                          <span className="font-black text-emerald-700 text-sm sm:w-28 text-right flex items-center justify-end gap-0.5 whitespace-nowrap"><DollarSign className="w-3.5 h-3.5"/>{formatMoney(c.monthly_premium)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs font-semibold text-slate-400 py-2">이번 달 체결 완료 내역이 없습니다.</p>
+                )}
+              </div>
+
+            </div>
+          ))}
         </div>
       )}
     </div>
