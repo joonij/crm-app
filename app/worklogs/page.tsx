@@ -772,7 +772,7 @@ export default function WorklogsPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input
                 type="text"
-                placeholder="지점 팀원 검색 (FC)..."
+                placeholder="팀원 검색"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 bg-white focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-sm font-bold transition-all shadow-sm"
@@ -792,7 +792,7 @@ export default function WorklogsPage() {
               <div className="flex items-center gap-2">
                 <Users className={`w-4 h-4 ${selectedMemberId === 'ALL' ? 'text-gray-300' : 'text-slate-400'}`} />
                 <span className={`text-sm font-black ${selectedMemberId === 'ALL' ? 'text-white' : 'text-slate-800'}`}>
-                  지점 전체보기
+                  전체보기
                 </span>
               </div>
               <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${selectedMemberId === 'ALL' ? 'bg-gray-800 text-gray-300' : 'bg-slate-100 text-slate-500'}`}>
@@ -842,7 +842,7 @@ export default function WorklogsPage() {
             <h3 className="font-black text-slate-800 text-base flex items-center gap-2">
               <MessageSquare className="w-5 h-5 text-blue-600" />
               {selectedMemberId === 'ALL' ? (
-                <span>지점 <span className="text-blue-600">전체</span> 업무 히스토리</span>
+                <span><span className="text-blue-600">전체</span> 업무 히스토리</span>
               ) : (
                 <span><span className="text-blue-600">{teamMembers.find(m => m.id === selectedMemberId)?.name}</span>님의 업무 히스토리</span>
               )}

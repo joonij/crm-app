@@ -371,7 +371,7 @@ export default function PersonalBoard({ data, actions }: any) {
                       <span className="border border-slate-200 bg-white px-1.5 py-0.5 rounded shadow-sm">{ins.insurance_company}</span>
                     </td>
                     <td className="px-4 py-3 text-xs font-medium text-slate-700">{ins.product_name}</td>
-                    <td className="px-4 py-3 font-black text-blue-600 flex items-center gap-1"><DollarSign className="w-3 h-3"/>{formatMoney(ins.monthly_premium)}</td>
+                    <td className="px-4 py-3 font-black text-blue-600 flex items-center gap-1">{formatMoney(ins.monthly_premium)}</td>
                     <td className="px-4 py-3 text-xs text-slate-500"><span className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5"/>{ins.subscription_date}</span></td>
                   </tr>
                 ))}

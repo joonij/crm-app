@@ -24,9 +24,9 @@ import {
 
 const navItems = [
   { label: "보험사 전산", href: "/portals", icon: ExternalLink, allowedRanks: ["ALL"] },
-  { label: "영업 현황 보드", href: "/dashboard", icon: Presentation, allowedRanks: ["FC", "SM", "BM"] },
+  { label: "영업 현황", href: "/dashboard", icon: Presentation, allowedRanks: ["FC", "SM", "BM"] },
   { label: "고객 관리", href: "/clients", icon: Users, allowedRanks: ["FC", "SM", "BM"] },
-  { label: "스케줄 보드", href: "/schedules", icon: Calendar, allowedRanks: ["FC", "SM", "BM"] },
+  { label: "일정표", href: "/schedules", icon: Calendar, allowedRanks: ["FC", "SM", "BM"] },
   { label: "업무 일지", href: "/worklogs", icon: NotebookPen, allowedRanks: ["FC", "SM", "BM"] },
   { label: "청구 관리", href: "/claims", icon: FileBox, allowedRanks: ["ALL"] },
   { label: "알림 센터", href: "/notifications", icon: Bell, allowedRanks: ["FC", "SM", "BM"] },

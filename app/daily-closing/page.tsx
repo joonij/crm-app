@@ -48,6 +48,8 @@ export default function DailyClosingPage() {
   const [clients, setClients] = useState<any[]>([]);
 
   const tomorrowStr = getLocalString(new Date(Date.now() + 86400000));
+  
+  // 내일 일정 폼
   const [form, setForm] = useState({
     date: tomorrowStr,
     time: "09:00",
@@ -55,9 +57,19 @@ export default function DailyClosingPage() {
     content: "",
     client_id: "", 
   });
-  
   const [clientSearch, setClientSearch] = useState("");
   const [isClientDropdownOpen, setIsClientDropdownOpen] = useState(false);
+
+  // ⭐️ 1단계(Step 1)에서 파이프라인(리스트)을 추가하기 위한 폼 상태
+  const [pipelineForm, setPipelineForm] = useState({ 
+    client_id: null as number | null, 
+    client_name: '', 
+    details: '', 
+    amount: '', 
+    date: getLocalString(new Date(Date.now() + 86400000 * 3))
+  });
+  const [pipelineClientSearch, setPipelineClientSearch] = useState("");
+  const [isPipelineClientDropdownOpen, setIsPipelineClientDropdownOpen] = useState(false);
 
   useEffect(() => {
     const fetchClosingData = async () => {
@@ -74,7 +86,6 @@ export default function DailyClosingPage() {
       const { data: cData } = await supabase.from('clients').select('id, name, phone').eq('agent_id', myAgentId);
       if(cData) setClients(cData);
 
-      // ⭐️ 핵심: 임시 저장 데이터를 가져올 때 '내 고유 ID'가 붙은 파일만 가져옵니다.
       const draft = localStorage.getItem(`dailyClosingDraft_${myAgentId}`);
       if (draft) {
         try {
@@ -120,10 +131,9 @@ export default function DailyClosingPage() {
     
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+  }, [router]);
 
   useEffect(() => {
-    // ⭐️ 핵심: 임시 데이터를 저장할 때도 '내 고유 ID'를 꼬리표로 붙여서 저장합니다.
     if (!isLoading && step !== 4 && agentId) {
       localStorage.setItem(`dailyClosingDraft_${agentId}`, JSON.stringify({
         pipelines, todaySchedules, tomorrowSchedules, form
@@ -131,12 +141,24 @@ export default function DailyClosingPage() {
     }
   }, [pipelines, todaySchedules, tomorrowSchedules, form, isLoading, step, agentId]);
 
+  // 스케줄용 고객 필터링
   const cleanSearchInput = clientSearch.replace(/\s+/g, "").toLowerCase();
   const cleanPhoneSearch = clientSearch.replace(/[^0-9]/g, "");
   const filteredClients = clientSearch
     ? clients.filter(c => {
         const matchName = c.name ? c.name.replace(/\s+/g, "").toLowerCase().includes(cleanSearchInput) : false;
         const matchPhone = cleanPhoneSearch && c.phone ? c.phone.replace(/[^0-9]/g, "").includes(cleanPhoneSearch) : false;
+        return matchName || matchPhone;
+      })
+    : clients;
+
+  // 파이프라인용 고객 필터링
+  const cleanPipelineSearchInput = pipelineClientSearch.replace(/\s+/g, "").toLowerCase();
+  const cleanPipelinePhoneSearch = pipelineClientSearch.replace(/[^0-9]/g, "");
+  const filteredPipelineClients = pipelineClientSearch
+    ? clients.filter(c => {
+        const matchName = c.name ? c.name.replace(/\s+/g, "").toLowerCase().includes(cleanPipelineSearchInput) : false;
+        const matchPhone = cleanPipelinePhoneSearch && c.phone ? c.phone.replace(/[^0-9]/g, "").includes(cleanPipelinePhoneSearch) : false;
         return matchName || matchPhone;
       })
     : clients;
@@ -183,12 +205,49 @@ export default function DailyClosingPage() {
       }
     ]);
 
-    setForm(prev => ({ ...prev, content: "", client_id: "", category: "AP" }));
+    setForm(prev => ({ ...prev, content: "", client_id: "", category: "신규고객AP" }));
     setClientSearch("");
   };
 
   const handleDeleteSchedule = (id: number) => {
     setTomorrowSchedules(tomorrowSchedules.filter(s => s.id !== id));
+  };
+
+  // ⭐️ 1단계(Step 1)에서 파이프라인 리스트를 추가하는 함수
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value.replace(/[^0-9]/g, '');
+    if (!val) setPipelineForm({ ...pipelineForm, amount: '' });
+    else setPipelineForm({ ...pipelineForm, amount: Number(val).toLocaleString() });
+  };
+
+  const handleAddPipeline = async () => {
+    if (!pipelineForm.client_name || !pipelineForm.details || !pipelineForm.amount || !pipelineForm.date) return alert("모든 항목을 입력해주세요.");
+    
+    const amountNum = Number(pipelineForm.amount.replace(/,/g, ''));
+    const todayStr = getLocalString(new Date());
+
+    const insertPayload = {
+      agent_id: agentId, 
+      client_id: pipelineForm.client_id || null, 
+      client_name: pipelineForm.client_name,
+      contract_details: pipelineForm.details, 
+      expected_amount: amountNum, 
+      expected_date: pipelineForm.date, 
+      status: '미진행', 
+      history: [{ date: todayStr, status: '미진행' }] // 오늘 날짜로 기본 상태 세팅
+    };
+
+    const { data, error } = await supabase.from('sales_pipelines').insert(insertPayload).select();
+    if (error) {
+      alert("리스트 추가 실패: " + error.message);
+    } else if (data) {
+      setPipelines([...pipelines, data[0]]);
+      setPipelineForm({ 
+        client_id: null, client_name: '', details: '', amount: '', 
+        date: getLocalString(new Date(Date.now() + 86400000 * 3)) 
+      });
+      setPipelineClientSearch("");
+    }
   };
 
   const handleBack = () => {
@@ -202,13 +261,29 @@ export default function DailyClosingPage() {
   const nextStep = async () => {
     setIsSaving(true);
     try {
+      const todayStr = getLocalString(new Date());
+
       if (step === 1) {
+        // ⭐️ 필수 1: 모든 진행중인 계약 리스트의 상태가 오늘 날짜로 선택되었는지 확인
+        const unselectedPipeline = pipelines.find(p => {
+          const todayHistory = p.history?.find((h: any) => h.date === todayStr);
+          return !todayHistory; // 오늘 선택한 기록이 없으면 true
+        });
+
+        if (unselectedPipeline) {
+          alert(`"${unselectedPipeline.client_name}" 고객님의 현재 진행상태를 선택해주세요.\n모든 리스트를 업데이트해야 다음으로 진행할 수 있습니다.`);
+          setIsSaving(false);
+          return;
+        }
+
         for (const p of pipelines) {
           await supabase.from('sales_pipelines').update({ status: p.status, history: p.history }).eq('id', p.id);
         }
       } else if (step === 2) {
         for (const s of todaySchedules) {
-          await supabase.from('schedules').update({ worklog: s.worklog }).eq('id', s.id);
+          // ⭐️ 필수 2: 업무일지 내용이 없거나 빈 칸만 있는 경우 완벽한 NULL로 저장
+          const finalWorklog = (s.worklog && s.worklog.trim() !== "") ? s.worklog.trim() : null;
+          await supabase.from('schedules').update({ worklog: finalWorklog }).eq('id', s.id);
         }
       } else if (step === 3) {
         let finalTomorrowSchedules = [...tomorrowSchedules];
@@ -246,7 +321,6 @@ export default function DailyClosingPage() {
           .update({ last_closing_time: nowKst.toISOString() })
           .eq('id', agentId);
         
-        // ⭐️ 핵심: 내 고유 ID가 붙은 임시 저장 파일만 삭제합니다.
         localStorage.removeItem(`dailyClosingDraft_${agentId}`);
         
         const next = 4;
@@ -302,11 +376,12 @@ export default function DailyClosingPage() {
           
           {step === 1 && (
             <div className="animate-in fade-in slide-in-from-right-4 duration-300">
-              <h3 className="text-[17px] font-black text-slate-800 mb-3 flex items-center gap-2"><CalendarDays className="w-5 h-5 text-indigo-600" /> 현재 진행중인 계약 리스트</h3>
+              <h3 className="text-[17px] font-black text-slate-800 mb-3 flex items-center gap-2">
+                <CalendarDays className="w-5 h-5 text-indigo-600" /> 현재 진행중인 계약 리스트
+              </h3>
               
               <div className="space-y-5">
                 {pipelines.map(p => {
-                  // ⭐️ 오늘 내가 버튼을 눌러서 업데이트한 기록이 있는지 확인합니다.
                   const todayStr = getLocalString(new Date());
                   const todayHistory = p.history?.find((h: any) => h.date === todayStr);
                   const selectedToday = todayHistory ? todayHistory.status : null;
@@ -316,7 +391,7 @@ export default function DailyClosingPage() {
                       <div className="flex justify-between items-center mb-3 pb-3 border-b border-slate-100">
                         <div className="flex items-center flex-wrap gap-2">
                           <span className="font-black text-lg text-slate-800">{p.client_name}</span>
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">현재: {p.status}</span>
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">{p.status}</span>
                           <span className="text-[11px] font-bold text-slate-400">{p.expected_date} 예상</span>
                         </div>
                         <span className="font-black text-indigo-600 text-base">{p.expected_amount.toLocaleString()}원</span>
@@ -345,6 +420,66 @@ export default function DailyClosingPage() {
                   <div className="text-center py-10 text-slate-400 font-bold text-sm">진행 중인 계약 내역이 없습니다.</div>
                 )}
               </div>
+
+              {/* ⭐️ 필수 4: 1단계 화면에서 누락된 리스트를 즉시 추가할 수 있는 폼 */}
+              <div className="mt-8 bg-indigo-50/40 p-5 rounded-2xl border border-indigo-100">
+                <h4 className="text-sm font-black text-indigo-900 mb-4 flex items-center gap-1.5">
+                  <Plus className="w-4 h-4" /> 새 계약 리스트 추가
+                </h4>
+                
+                <div className="flex flex-col gap-3">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="고객 이름 검색 (선택 사항)"
+                      value={pipelineClientSearch}
+                      onChange={(e) => {
+                        setPipelineClientSearch(e.target.value);
+                        const matched = clients.find(c => `${c.name} (${formatPhoneNumber(c.phone)})` === e.target.value);
+                        setPipelineForm(prev => ({ 
+                          ...prev, 
+                          client_id: matched ? Number(matched.id) : null, 
+                          client_name: matched ? matched.name : e.target.value 
+                        }));
+                      }}
+                      onFocus={() => setIsPipelineClientDropdownOpen(true)}
+                      onBlur={() => setTimeout(() => setIsPipelineClientDropdownOpen(false), 150)}
+                      className="w-full text-sm p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-white shadow-sm"
+                    />
+                    {isPipelineClientDropdownOpen && filteredPipelineClients.length > 0 && (
+                      <ul className="absolute z-50 left-0 right-0 top-full mt-1 max-h-40 overflow-y-auto bg-white border border-indigo-200 rounded-lg shadow-xl py-1">
+                        {filteredPipelineClients.map(c => {
+                          const displayText = `${c.name} (${formatPhoneNumber(c.phone)})`;
+                          return (
+                            <li key={c.id} onClick={() => {
+                              setPipelineClientSearch(displayText);
+                              setPipelineForm(prev => ({ ...prev, client_id: Number(c.id), client_name: c.name }));
+                              setIsPipelineClientDropdownOpen(false);
+                            }} className="px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-indigo-50 cursor-pointer flex justify-between">
+                              <span>{c.name}</span><span className="text-xs text-slate-400">{formatPhoneNumber(c.phone)}</span>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                  
+                  <input type="text" placeholder="계약 내용 (예: 암보험 비교)" value={pipelineForm.details} onChange={e => setPipelineForm({...pipelineForm, details: e.target.value})} className="w-full text-sm p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-white shadow-sm"/>
+                  <input type="text" placeholder="예상 금액" value={pipelineForm.amount} onChange={handleAmountChange} className="w-full text-sm p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-white shadow-sm font-bold text-indigo-700"/>
+                  
+                  <div className="flex items-center gap-2 w-full text-sm bg-white p-3 border border-slate-300 rounded-xl focus-within:ring-2 focus-within:ring-indigo-500 shadow-sm">
+                    <input type="date" value={pipelineForm.date === '9999-12-31' ? '' : pipelineForm.date} disabled={pipelineForm.date === '9999-12-31'} onChange={(e) => setPipelineForm({...pipelineForm, date: e.target.value})} className="w-full outline-none text-slate-600 disabled:opacity-50 bg-transparent" />
+                    <label className="flex items-center gap-1 text-[11px] font-bold text-slate-500 cursor-pointer shrink-0 border-l border-slate-200 pl-2">
+                      <input type="checkbox" checked={pipelineForm.date === '9999-12-31'} onChange={(e) => setPipelineForm({...pipelineForm, date: e.target.checked ? '9999-12-31' : getLocalString(new Date(Date.now() + 86400000 * 3))})} className="cursor-pointer" />보류
+                    </label>
+                  </div>
+
+                  <button onClick={handleAddPipeline} className="mt-1 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 rounded-xl shadow-md transition-colors flex items-center justify-center gap-1.5 cursor-pointer">
+                    <Plus className="w-4 h-4"/> 리스트에 추가
+                  </button>
+                </div>
+              </div>
+
             </div>
           )}
 
@@ -492,9 +627,10 @@ export default function DailyClosingPage() {
                     />
                   </div>
                   
+                  {/* ⭐️ 필수 3: 일정 추가 버튼 색상을 파란색(blue)으로 변경하여 마감 버튼과 차별화 */}
                   <button 
                     onClick={handleAddSchedule}
-                    className="mt-1 w-full bg-indigo-600 text-white font-bold py-3.5 rounded-xl shadow-md hover:bg-indigo-700 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                    className="mt-1 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl shadow-md transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                   >
                     <Plus className="w-4 h-4" /> 내일 일정 목록에 추가하기
                   </button>
@@ -534,9 +670,9 @@ export default function DailyClosingPage() {
                   }
                   setTimeout(() => router.push('/dashboard'), 500);
                 }}
-                className="w-full max-w-sm bg-slate-900 text-white font-black py-4 rounded-xl shadow-lg hover:bg-slate-800 transition-colors"
+                className="w-full max-w-sm bg-slate-900 text-white font-black py-4 rounded-xl shadow-lg hover:bg-slate-800 transition-colors cursor-pointer"
               >
-                어플 종료하기 (퇴근)
+                퇴근하기
               </button>
             </div>
           )}
@@ -551,7 +687,7 @@ export default function DailyClosingPage() {
             className={`w-full flex items-center justify-center gap-2 text-white font-black px-6 py-4 sm:py-3.5 rounded-xl transition-colors shadow-lg cursor-pointer text-[17px] sm:text-base active:scale-[0.98] ${step === 3 ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-slate-900 hover:bg-slate-800'}`}
           >
             {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : (step === 3 ? <CheckCircle2 className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />)}
-            {step === 3 ? "마감 완료 & 퇴근하기" : "저장 후 다음 단계로"}
+            {step === 3 ? "퇴근하기" : "저장 후 다음 단계로"}
           </button>
         </div>
       )}

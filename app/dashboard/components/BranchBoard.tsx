@@ -80,9 +80,6 @@ export default function BranchBoard({ data }: any) {
 
       {branchTopFCs && branchTopFCs.length > 0 && (
         <div className="bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-200 p-4 sm:p-5 rounded-2xl shadow-md flex flex-col xl:flex-row xl:items-center gap-4 relative overflow-hidden">
-          <div className="absolute -right-10 -top-10 text-yellow-200/30">
-            <Trophy className="w-48 h-48" />
-          </div>
           <div className="flex items-center gap-2 font-black text-yellow-800 shrink-0 border-b xl:border-b-0 xl:border-r border-yellow-200/60 pb-3 xl:pb-0 pr-0 xl:pr-5 w-full xl:w-auto justify-start z-10">
             <Medal className="w-6 h-6 text-yellow-600" />
             <div className="flex flex-col">

@@ -57,6 +57,7 @@ export async function signInAction(formData: FormData) {
 
   const supabase = await getSupabaseServer();
 
+  // 1. Supabase Auth를 통한 기본 인증 (이메일, 비밀번호)
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
@@ -69,22 +70,32 @@ export async function signInAction(formData: FormData) {
   let isOS = false;
   
   if (data.user) {
+    // ⭐️ 2. 추가 정보(직급, 재직 상태) 확인 (is_active 컬럼 추가 조회)
     const { data: agentData } = await supabase
       .from("agents")
-      .select("rank")
+      .select("rank, is_active") 
       .eq("auth_id", data.user.id)
       .single();
       
-      if (agentData && agentData.rank) {
-        const userRank = String(agentData.rank).toUpperCase();
-        if (userRank.includes("OS")) {
-          isOS = true;
-        }
-      }
+    // ⭐️ 3. 퇴사자(비활성화 계정) 로그인 차단 방어 로직
+    if (agentData && agentData.is_active === false) {
+      // 이미 위에서 발급된 인증 세션(쿠키)을 즉시 강제 파기합니다.
+      await supabase.auth.signOut();
+      return { error: "정지되거나 퇴사 처리된 계정입니다. 관리자에게 문의하세요." };
     }
 
+    // 4. OS 직급 확인
+    if (agentData && agentData.rank) {
+      const userRank = String(agentData.rank).toUpperCase();
+      if (userRank.includes("OS")) {
+        isOS = true;
+      }
+    }
+  }
+
+  // 5. 직급에 따른 리다이렉트 분기 (향후 OS와 일반 영업조직의 랜딩 페이지가 다를 경우를 대비한 구조)
   if (isOS) {
-    redirect("/portals");
+    redirect("/portals"); // OS 직급 전용 페이지가 있다면 경로 수정 필요
   } else {
     redirect("/portals");
   }

@@ -296,7 +296,7 @@ export default function DashboardPage() {
       <div className="flex h-screen items-center justify-center bg-gray-50">
         <div className="flex flex-col items-center gap-3 text-blue-600">
           <Loader2 className="w-8 h-8 animate-spin" />
-          <p className="font-bold text-sm">대시보드 데이터를 분석 중입니다...</p>
+          <p className="font-bold text-sm">일정현황 데이터를 분석 중입니다...</p>
         </div>
       </div>
     );
@@ -306,7 +306,7 @@ export default function DashboardPage() {
     <div className="w-full max-w-[1500px] mx-auto p-4 md:p-8 bg-gray-50/50 min-h-screen flex flex-col">
       <div className="flex justify-between items-end mb-4 relative shrink-0">
         <div>
-          <h1 className="text-2xl font-black text-slate-800 flex items-center gap-2"><Presentation className="w-5 h-5 text-blue-600" />영업 현황 보드</h1>
+          <h1 className="text-2xl font-black text-slate-800 flex items-center gap-2"><Presentation className="w-5 h-5 text-blue-600" />영업 현황</h1>
           <p className="text-sm font-semibold text-slate-500 mt-1">
             <strong className="text-blue-600">{personalData.currentAgentName}</strong> 님의 오늘 챙겨야 할 핵심 업무 현황입니다.
           </p>

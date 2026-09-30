@@ -761,24 +761,6 @@ export default function SchedulePage() {
             </div>
 
             <div className="flex flex-col sm:flex-row xl:flex-row gap-4 w-full xl:w-[50%] xl:justify-end items-stretch">
-              <div className="flex flex-col w-full sm:w-[50%] xl:w-[260px] bg-slate-50/80 border border-slate-200 rounded-xl p-3 shadow-sm h-full max-h-[100px] overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                <span className="text-[11px] font-bold text-slate-500 mb-1.5 flex items-center gap-1 sticky top-0 bg-slate-50/80 backdrop-blur-sm z-10 pb-0.5">
-                  <Building2 className="w-3 h-3 text-blue-500"/> 이번 달 보험사별 체결 (단위: 원)
-                </span>
-                <div className="flex flex-col gap-1.5">
-                  {companyStats.length === 0 ? (
-                    <span className="text-[11px] text-slate-400 py-1 font-medium">아직 체결 내역이 없습니다.</span>
-                  ) : (
-                    companyStats.map(([comp, amt]) => (
-                      <div key={comp} className="flex justify-between items-center text-[11px]">
-                        <span className="font-bold text-slate-700 truncate pr-2">{comp}</span>
-                        <span className="font-black text-blue-600 shrink-0">{amt.toLocaleString()}</span>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-
               <div className="flex flex-col w-full sm:w-[50%] xl:w-[260px] gap-2 bg-slate-50/80 border border-slate-200 xl:border-none xl:bg-transparent p-3 xl:p-0 rounded-xl justify-center shadow-sm xl:shadow-none">
                 <div className="flex justify-between items-end">
                   {/* ⭐️ 스케줄 페이지: 목표 금액 설정 기능 제거하고 '조회'만 남김 */}
@@ -801,45 +783,32 @@ export default function SchedulePage() {
                   </div>
                 </div>
               </div>
-            </div>
-
-          </div>
-
-          {myInfo?.rank && myInfo.rank !== "FC" && (
-            <div className="relative z-10 pt-4 border-t border-slate-100 flex flex-col gap-3">
-              <div className="flex flex-col md:flex-row gap-4 md:gap-6 items-start md:items-center">
-                <div className="flex gap-4 bg-blue-50 px-5 py-3 rounded-2xl border border-blue-100 shadow-sm shrink-0">
-                  <div className="flex flex-col">
-                    <span className="text-orange-500 text-xs font-bold">팀 총 예정 ({teamMonthlyStats.newCnt}건)</span>
-                    <span className="text-lg font-black text-slate-800">{teamMonthlyStats.newAmt.toLocaleString()}원</span>
-                  </div>
-                  <div className="w-px bg-blue-200"></div>
-                  <div className="flex flex-col">
-                    <span className="text-blue-600 text-xs font-bold">팀 총 체결 ({teamMonthlyStats.maintainCnt}건)</span>
-                    <span className="text-lg font-black text-blue-900">{teamMonthlyStats.maintainAmt.toLocaleString()}원</span>
-                  </div>
-                </div>
-                
-                <div className="flex gap-2.5 overflow-x-auto pb-2 md:pb-0 w-full [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden mask-edge">
-                  {teamSchedules.filter(m => m.role !== 'Me').map(member => (
-                    <div key={member.id} className="bg-white px-3.5 py-2.5 rounded-xl border border-slate-200 flex flex-col min-w-[130px] shrink-0 hover:border-blue-300 hover:shadow-sm transition cursor-pointer">
-                      <span className="font-bold text-slate-800 text-xs mb-1.5 truncate">{member.name}</span>
-                      <div className="flex flex-col gap-0.5">
-                        <span className="text-[12px] text-slate-500 flex justify-between">예정 <strong className="text-orange-500">{member.stats.monthNewAmt.toLocaleString()}</strong></span>
-                        <span className="text-[12px] text-slate-500 flex justify-between">체결 <strong className="text-blue-600">{member.stats.monthMaintainAmt.toLocaleString()}</strong></span>
+              <div className="flex flex-col w-full sm:w-[50%] xl:w-[260px] bg-slate-50/80 border border-slate-200 rounded-xl p-3 shadow-sm h-full max-h-[100px] overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <span className="text-[11px] font-bold text-slate-500 mb-1.5 flex items-center gap-1 bg-slate-50/80 backdrop-blur-sm z-10 pb-0.5">
+                  <Building2 className="w-3 h-3 text-blue-500"/> 이번 달 보험사별 체결 (단위: 원)
+                </span>
+                <div className="flex flex-col gap-1.5">
+                  {companyStats.length === 0 ? (
+                    <span className="text-[11px] text-slate-400 py-1 font-medium">아직 체결 내역이 없습니다.</span>
+                  ) : (
+                    companyStats.map(([comp, amt]) => (
+                      <div key={comp} className="flex justify-between items-center text-[11px]">
+                        <span className="font-bold text-slate-700 truncate pr-2">{comp}</span>
+                        <span className="font-black text-blue-600 shrink-0">{amt.toLocaleString()}</span>
                       </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </div>
+
             </div>
-          )}
+          </div>
         </div>
       </div>
 
       <div className="shrink-0 flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 sm:p-0 bg-white sm:bg-transparent z-10 border-b sm:border-0 border-slate-100">
       <div className="flex items-center gap-3 md:gap-4 justify-between w-full md:w-auto">
-          <h1 className="text-xl sm:text-2xl font-black text-slate-800 flex items-center gap-2"><CalendarIcon className="w-5 h-5 text-blue-600" /> 스케줄 보드</h1>
+          <h1 className="text-xl sm:text-2xl font-black text-slate-800 flex items-center gap-2"><CalendarIcon className="w-5 h-5 text-blue-600" /> 일정표</h1>
           <div className="flex items-center gap-2 sm:gap-3">
             
             {teamSchedules.length > 1 && (
