@@ -128,17 +128,17 @@ export default function PushSubscribeButton() {
   }
 
   // 2. 이미 허용 완료된 안드로이드 기기
-  if (permission === 'granted') {
-    return (
-      <div className="flex items-center justify-between gap-2 text-emerald-700 text-sm font-semibold bg-emerald-50/80 p-4 sm:p-5 rounded-2xl border border-emerald-200 mb-6 shrink-0 shadow-sm">
-        <div className="flex items-center gap-2">
-          <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
-          현재 기기는 마감 알림 수신이 켜져 있습니다.
-        </div>
-        {isSubscribing && <span className="text-[10px] bg-emerald-100 px-2 py-1 rounded text-emerald-800 font-bold shrink-0">연동 확인 중...</span>}
-      </div>
-    );
-  }
+  // if (permission === 'granted') {
+  //   return (
+  //     <div className="flex items-center justify-between gap-2 text-emerald-700 text-sm font-semibold bg-emerald-50/80 p-4 sm:p-5 rounded-2xl border border-emerald-200 mb-6 shrink-0 shadow-sm">
+  //       <div className="flex items-center gap-2">
+  //         <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
+  //         현재 기기는 마감 알림 수신이 켜져 있습니다.
+  //       </div>
+  //       {isSubscribing && <span className="text-[10px] bg-emerald-100 px-2 py-1 rounded text-emerald-800 font-bold shrink-0">연동 확인 중...</span>}
+  //     </div>
+  //   );
+  // }
 
   // 3. 지원하지 않는 브라우저 (카카오톡, 네이버 인앱 브라우저 등)
   if (permission === 'unsupported') {
