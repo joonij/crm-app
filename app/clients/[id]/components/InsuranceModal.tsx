@@ -22,10 +22,11 @@ type InsuranceCompany = {
 
 const POLICY_PERIOD_OPTIONS = ["전기납", "일시납", "5년납", "7년납", "10년납", "15년납", "20년납", "25년납", "30년납"];
 const RENEWAL_OPTIONS = ["전기납", "일시납", "비갱신", "1년 갱신", "3년 갱신", "5년 갱신", "10년 갱신", "15년 갱신", "20년 갱신", "30년 갱신"];
-const EXCLUSION_PERIODS = ["1년", "2년", "3년", "4년", "5년", "전기간"]; // ⭐️ 부담보 기간 옵션
+const EXCLUSION_PERIODS = ["1년", "2년", "3년", "4년", "5년", "전기간"]; 
 
 const initialFormState = {
   policy_status: "maintain",
+  insurance_type: "장기보험", // ⭐️ 추가됨: 기본값 장기보험
   company: "",
   product: "",
   premium: "", 
@@ -57,9 +58,7 @@ export default function InsuranceModal({
     Array(5).fill(null).map(() => ({ name: "", amount: "", renewal_type: "비갱신" }))
   );
   
-  // ⭐️ 추가됨: 부담보 상태 관리
   const [exclusions, setExclusions] = useState<CoverageDetail[]>([]);
-
   const [isSaving, setIsSaving] = useState(false);
   const [companies, setCompanies] = useState<InsuranceCompany[]>([]);
   const [pasteText, setPasteText] = useState("");
@@ -68,7 +67,7 @@ export default function InsuranceModal({
   
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
   const [focusedRenewalIndex, setFocusedRenewalIndex] = useState<number | null>(null);
-  const [focusedExclIndex, setFocusedExclIndex] = useState<number | null>(null); // ⭐️ 부담보 포커스
+  const [focusedExclIndex, setFocusedExclIndex] = useState<number | null>(null); 
   
   const [focusedPolicyPeriod, setFocusedPolicyPeriod] = useState(false);
   const [clientsList, setClientsList] = useState<{ id: number; name: string; phone?: string }[]>([]);
@@ -214,7 +213,6 @@ export default function InsuranceModal({
   const addCovDetail = () => setCovDetails([...covDetails, { name: "", amount: "", renewal_type: "비갱신" }]);
   const removeCovDetail = (index: number) => setCovDetails(covDetails.filter((_, i) => i !== index));
 
-  // ⭐️ 추가됨: 부담보 핸들러
   const updateExclusion = (index: number, field: 'name' | 'amount', value: string) => {
     const newExcl = [...exclusions];
     newExcl[index][field] = value;
@@ -231,15 +229,12 @@ export default function InsuranceModal({
     }
     setIsSaving(true);
     
-    // ⭐️ 1. 일반 특약 유효성 필터링
     const validDetails = covDetails.filter((d) => String(d.name).trim() !== "" && String(d.amount).trim() !== "");
     
-    // ⭐️ 2. 부담보 항목 포맷팅 ('부담보:' 말머리를 달아서 details 배열에 합칩니다)
     const validExclusions = exclusions
       .filter((e) => String(e.name).trim() !== "")
       .map(e => ({ name: `부담보: ${e.name}`, amount: e.amount, renewal_type: "부담보" }));
 
-    // ⭐️ 3. 두 배열 합치기
     const combinedDetails = [...validDetails, ...validExclusions];
 
     try {
@@ -247,6 +242,7 @@ export default function InsuranceModal({
         {
           client_id: parseInt(clientId, 10),
           policy_status: covForm.policy_status,
+          insurance_type: covForm.insurance_type, // ⭐️ DB 저장 시 insurance_type 반영
           insurance_company: covForm.company.trim(),
           product_name: covForm.product.trim(),
           monthly_premium: parseInt(covForm.premiumFormatted.replace(/,/g, ""), 10),
@@ -261,7 +257,7 @@ export default function InsuranceModal({
           beneficiary_name: covForm.beneficiary_name.trim(),
           beneficiary_id: covForm.beneficiary_id,
           agent_name: covForm.agent_name.trim(),
-          details: combinedDetails.length > 0 ? combinedDetails : null, // ⭐️ 합쳐진 배열 전송
+          details: combinedDetails.length > 0 ? combinedDetails : null, 
         },
       ]);
       if (error) throw error;
@@ -402,7 +398,35 @@ export default function InsuranceModal({
           </div>
 
           <div className="space-y-3 pt-4 border-t border-gray-100">
-            <p className="text-sm font-semibold text-gray-700">기본 정보</p>
+            {/* ⭐️ 추가됨: 기본 정보 타이틀 옆에 보험종류(일반/장기) 라디오 버튼 배치 */}
+            <div className="flex justify-between items-end mb-2">
+              <p className="text-sm font-semibold text-gray-700">기본 정보</p>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-1.5 text-sm font-bold text-gray-700 cursor-pointer select-none">
+                  <input 
+                    type="radio" 
+                    name="insurance_type" 
+                    value="장기보험" 
+                    checked={covForm.insurance_type === "장기보험"} 
+                    onChange={(e) => setCovForm({...covForm, insurance_type: e.target.value})} 
+                    className="w-4 h-4 text-blue-600 focus:ring-blue-500 cursor-pointer" 
+                  />
+                  장기보험
+                </label>
+                <label className="flex items-center gap-1.5 text-sm font-bold text-gray-700 cursor-pointer select-none">
+                  <input 
+                    type="radio" 
+                    name="insurance_type" 
+                    value="일반보험" 
+                    checked={covForm.insurance_type === "일반보험"} 
+                    onChange={(e) => setCovForm({...covForm, insurance_type: e.target.value})} 
+                    className="w-4 h-4 text-blue-600 focus:ring-blue-500 cursor-pointer" 
+                  />
+                  일반보험
+                </label>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <select className={`${inputClassName} cursor-pointer`} value={covForm.company} onChange={(e) => setCovForm({ ...covForm, company: e.target.value })}>
                 <option value="">-- 보험사 선택 --</option>
@@ -479,22 +503,38 @@ export default function InsuranceModal({
               {renderClientSearchInput('insured', '피보험자')}
               {renderClientSearchInput('beneficiary', '수익자')}
 
+              {/* ⭐️ 수정됨: 담당설계사 본인설계/직접입력 라디오 버튼 그룹으로 교체 */}
               <div className="flex flex-col">
-                <div className="flex items-center justify-between mb-1 ml-1">
+                <div className="flex items-center justify-between mb-1.5 ml-1">
                   <label className="text-xs text-gray-500 font-semibold">담당설계사</label>
-                  <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer font-bold select-none">
-                    <input 
-                      type="checkbox" 
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                      checked={isCurrentUserAgent}
-                      onChange={(e) => {
-                        const checked = e.target.checked;
-                        setIsCurrentUserAgent(checked);
-                        setCovForm(prev => ({ ...prev, agent_name: checked ? loggedInAgentName : "" }));
-                      }}
-                    />
-                    내(본인)가 담당
-                  </label>
+                  <div className="flex gap-3">
+                    <label className="flex items-center gap-1.5 text-xs text-gray-700 cursor-pointer font-bold select-none">
+                      <input 
+                        type="radio" 
+                        name="agent_type"
+                        className="w-3.5 h-3.5 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        checked={isCurrentUserAgent}
+                        onChange={() => {
+                          setIsCurrentUserAgent(true);
+                          setCovForm(prev => ({ ...prev, agent_name: loggedInAgentName }));
+                        }}
+                      />
+                      본인설계
+                    </label>
+                    <label className="flex items-center gap-1.5 text-xs text-gray-700 cursor-pointer font-bold select-none">
+                      <input 
+                        type="radio" 
+                        name="agent_type"
+                        className="w-3.5 h-3.5 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        checked={!isCurrentUserAgent}
+                        onChange={() => {
+                          setIsCurrentUserAgent(false);
+                          setCovForm(prev => ({ ...prev, agent_name: "" }));
+                        }}
+                      />
+                      직접입력
+                    </label>
+                  </div>
                 </div>
                 <input 
                   type="text" 
@@ -509,7 +549,6 @@ export default function InsuranceModal({
             </div>
           </div>
 
-          {/* ⭐️ 추가된 부담보 입력 섹션 */}
           <div className="space-y-3 pt-4 border-t border-gray-100">
             <div className="flex items-center justify-between">
               <p className="text-sm font-bold flex items-center gap-1.5 text-orange-600">

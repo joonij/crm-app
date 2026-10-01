@@ -241,9 +241,13 @@ export default function CompanyPortalModal({ isOpen, onClose, company, targetAge
                     <span className={`text-[11px] font-bold mb-1 flex items-center gap-1.5 ${isDisabled ? 'text-slate-400' : 'text-gray-500'}`}>
                       <Headset className="w-3.5 h-3.5" /> 고객 센터
                     </span>
-                    <span className={`font-black ${isDisabled ? 'text-slate-400' : 'text-base text-slate-800'}`}>
-                      {company.phones.customer}
-                    </span>
+                      <a 
+                        href={`tel:${company.phones.customer}`} 
+                        className={`font-black ${isDisabled ? 'text-slate-400' : 'text-base text-slate-800'}`}
+                        title="클릭하여 전화 걸기"
+                      >
+                        {company.phones.customer}
+                      </a>
                   </div>
                 );
               })()}
@@ -255,9 +259,13 @@ export default function CompanyPortalModal({ isOpen, onClose, company, targetAge
                     <span className={`text-[11px] font-bold mb-1 flex items-center gap-1.5 ${isDisabled ? 'text-slate-400' : 'text-gray-500'}`}>
                       <PhoneCall className="w-3.5 h-3.5" /> 인콜 모니터링
                     </span>
-                    <span className={`font-black ${isDisabled ? 'text-slate-400' : 'text-base text-slate-800'}`}>
+                    <a 
+                      href={`tel:${company.phones.inbound}`} 
+                      className={`font-black ${isDisabled ? 'text-slate-400' : 'text-base text-slate-800'}`}
+                      title="클릭하여 전화 걸기"
+                    >
                       {company.phones.inbound}
-                    </span>
+                    </a>
                   </div>
                 );
               })()}
@@ -269,9 +277,13 @@ export default function CompanyPortalModal({ isOpen, onClose, company, targetAge
                     <span className={`text-[11px] font-bold mb-1 flex items-center gap-1.5 ${isDisabled ? 'text-slate-400' : 'text-gray-500'}`}>
                       <HandHelping className="w-3.5 h-3.5" /> 헬프데스크
                     </span>
-                    <span className={`font-black ${isDisabled ? 'text-slate-400' : 'text-base text-slate-800'}`}>
+                    <a 
+                      href={`tel:${company.phones.helpdesk}`} 
+                      className={`font-black ${isDisabled ? 'text-slate-400' : 'text-base text-slate-800'}`}
+                      title="클릭하여 전화 걸기"
+                    >
                       {company.phones.helpdesk}
-                    </span>
+                    </a>
                   </div>
                 );
               })()}

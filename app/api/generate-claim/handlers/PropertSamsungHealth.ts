@@ -137,9 +137,9 @@ export const fillPropertSamsungHealth = async (pdfDoc: PDFDocument, data: any, f
     drawCheck(fifthPage, 492, 612); // 민감정보 조회 동의함
     drawCheck(fifthPage, 492, 540); // 개인(신용)정보 조회 동의함
 
-    drawText(fifthPage, data.todayYear, 100, 438, 12);
-    drawText(fifthPage, data.todayMonth, 155, 438, 12);
-    drawText(fifthPage, data.todayDay, 190, 438, 12);
+    drawText(fifthPage, data.todayYear, 97.5, 439.5, 9);
+    drawText(fifthPage, data.todayMonth, 155, 439.5, 9);
+    drawText(fifthPage, data.todayDay, 190, 439.5, 9);
 
     drawCenterText(fifthPage, data.insuredName, 440, 438, 12); // 피보험자 이름
     drawCenterText(fifthPage, data.beneficiaryName, 440, 397, 12); // 수익자 이름

@@ -35,6 +35,23 @@ const getLocalString = (d: Date) => {
   return `${year}-${month}-${day}`;
 };
 
+// ⭐️ 핵심 1: 새벽 6시 이전이면 '전날'로 간주하여 논리적인 '오늘' 날짜를 반환합니다.
+const getLogicalToday = () => {
+  const d = new Date();
+  if (d.getHours() < 6) {
+    d.setDate(d.getDate() - 1);
+  }
+  return getLocalString(d);
+};
+
+// 특정 날짜의 다음 날을 계산하는 유틸리티
+const getTomorrowStr = (dateStr: string) => {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const t = new Date(y, m - 1, d);
+  t.setDate(t.getDate() + 1);
+  return getLocalString(t);
+};
+
 export default function DailyClosingPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
@@ -42,16 +59,18 @@ export default function DailyClosingPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [agentId, setAgentId] = useState<number | null>(null);
   const [agencyId, setAgencyId] = useState<number | null>(null);
+  
+  // ⭐️️ 핵심 2: 마감 기준 날짜 상태 (기본값: 오전 6시 기준 처리된 논리적 오늘)
+  const [closingDate, setClosingDate] = useState<string>(getLogicalToday());
+
   const [pipelines, setPipelines] = useState<any[]>([]);
   const [todaySchedules, setTodaySchedules] = useState<any[]>([]);
   const [tomorrowSchedules, setTomorrowSchedules] = useState<any[]>([]); 
   const [clients, setClients] = useState<any[]>([]);
 
-  const tomorrowStr = getLocalString(new Date(Date.now() + 86400000));
-  
   // 내일 일정 폼
   const [form, setForm] = useState({
-    date: tomorrowStr,
+    date: getTomorrowStr(getLogicalToday()),
     time: "09:00",
     category: "신규고객AP",
     content: "",
@@ -60,7 +79,7 @@ export default function DailyClosingPage() {
   const [clientSearch, setClientSearch] = useState("");
   const [isClientDropdownOpen, setIsClientDropdownOpen] = useState(false);
 
-  // ⭐️ 1단계(Step 1)에서 파이프라인(리스트)을 추가하기 위한 폼 상태
+  // 파이프라인 폼
   const [pipelineForm, setPipelineForm] = useState({ 
     client_id: null as number | null, 
     client_name: '', 
@@ -86,10 +105,17 @@ export default function DailyClosingPage() {
       const { data: cData } = await supabase.from('clients').select('id, name, phone').eq('agent_id', myAgentId);
       if(cData) setClients(cData);
 
+      // 임시 저장 불러오기
+      let currentClosingDate = closingDate;
       const draft = localStorage.getItem(`dailyClosingDraft_${myAgentId}`);
       if (draft) {
         try {
           const parsed = JSON.parse(draft);
+          // 임시 저장된 날짜가 있으면 그 날짜로 덮어씁니다.
+          if (parsed.closingDate) {
+            currentClosingDate = parsed.closingDate;
+            setClosingDate(parsed.closingDate);
+          }
           setPipelines(parsed.pipelines || []);
           setTodaySchedules(parsed.todaySchedules || []);
           setTomorrowSchedules(parsed.tomorrowSchedules || []);
@@ -99,8 +125,7 @@ export default function DailyClosingPage() {
         } catch(e) {}
       }
 
-      const todayStr = getLocalString(new Date());
-
+      // 파이프라인 불러오기
       const { data: pData } = await supabase.from('sales_pipelines')
         .select('*')
         .eq('agent_id', myAgentId)
@@ -108,10 +133,11 @@ export default function DailyClosingPage() {
         .order('expected_date', { ascending: true });
       if(pData) setPipelines(pData);
 
+      // ⭐️ 핵심: 선택된 마감 일자(currentClosingDate)를 기준으로 업무일지용 일정을 불러옵니다.
       const { data: sData } = await supabase.from('schedules')
         .select('*')
         .eq('agent_id', myAgentId)
-        .eq('date', todayStr); 
+        .eq('date', currentClosingDate); 
       if(sData) setTodaySchedules(sData);
 
       setIsLoading(false);
@@ -133,13 +159,34 @@ export default function DailyClosingPage() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [router]);
 
+  // 임시저장
   useEffect(() => {
     if (!isLoading && step !== 4 && agentId) {
       localStorage.setItem(`dailyClosingDraft_${agentId}`, JSON.stringify({
-        pipelines, todaySchedules, tomorrowSchedules, form
+        closingDate, pipelines, todaySchedules, tomorrowSchedules, form
       }));
     }
-  }, [pipelines, todaySchedules, tomorrowSchedules, form, isLoading, step, agentId]);
+  }, [closingDate, pipelines, todaySchedules, tomorrowSchedules, form, isLoading, step, agentId]);
+
+  // ⭐️ 핵심 3: 날짜를 수동으로 변경할 때 실행되는 함수
+  const handleDateChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newDate = e.target.value;
+    setClosingDate(newDate);
+    
+    if (agentId) {
+      setIsLoading(true);
+      // 변경된 날짜의 일정을 불러옵니다.
+      const { data: sData } = await supabase.from('schedules')
+        .select('*')
+        .eq('agent_id', agentId)
+        .eq('date', newDate); 
+      if(sData) setTodaySchedules(sData);
+      
+      // 내일 일정 등록 폼의 날짜도 (변경된 날짜 + 1일)로 자동 세팅해줍니다.
+      setForm(prev => ({ ...prev, date: getTomorrowStr(newDate) }));
+      setIsLoading(false);
+    }
+  };
 
   // 스케줄용 고객 필터링
   const cleanSearchInput = clientSearch.replace(/\s+/g, "").toLowerCase();
@@ -164,17 +211,15 @@ export default function DailyClosingPage() {
     : clients;
 
   const handleStatusChange = (id: number, newStatus: string) => {
-    const todayStr = getLocalString(new Date());
-    
     setPipelines(pipelines.map(p => {
       if (p.id === id) {
         const updatedHistory = p.history ? [...p.history] : [];
-        const todayIdx = updatedHistory.findIndex((h: any) => h.date === todayStr);
+        const todayIdx = updatedHistory.findIndex((h: any) => h.date === closingDate);
         
         if (todayIdx >= 0) {
-          updatedHistory[todayIdx] = { date: todayStr, status: newStatus };
+          updatedHistory[todayIdx] = { date: closingDate, status: newStatus };
         } else {
-          updatedHistory.push({ date: todayStr, status: newStatus });
+          updatedHistory.push({ date: closingDate, status: newStatus });
         }
 
         return { ...p, status: newStatus, history: updatedHistory };
@@ -213,7 +258,6 @@ export default function DailyClosingPage() {
     setTomorrowSchedules(tomorrowSchedules.filter(s => s.id !== id));
   };
 
-  // ⭐️ 1단계(Step 1)에서 파이프라인 리스트를 추가하는 함수
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value.replace(/[^0-9]/g, '');
     if (!val) setPipelineForm({ ...pipelineForm, amount: '' });
@@ -224,7 +268,6 @@ export default function DailyClosingPage() {
     if (!pipelineForm.client_name || !pipelineForm.details || !pipelineForm.amount || !pipelineForm.date) return alert("모든 항목을 입력해주세요.");
     
     const amountNum = Number(pipelineForm.amount.replace(/,/g, ''));
-    const todayStr = getLocalString(new Date());
 
     const insertPayload = {
       agent_id: agentId, 
@@ -234,7 +277,7 @@ export default function DailyClosingPage() {
       expected_amount: amountNum, 
       expected_date: pipelineForm.date, 
       status: '미진행', 
-      history: [{ date: todayStr, status: '미진행' }] // 오늘 날짜로 기본 상태 세팅
+      history: [{ date: closingDate, status: '미진행' }] 
     };
 
     const { data, error } = await supabase.from('sales_pipelines').insert(insertPayload).select();
@@ -261,13 +304,11 @@ export default function DailyClosingPage() {
   const nextStep = async () => {
     setIsSaving(true);
     try {
-      const todayStr = getLocalString(new Date());
-
       if (step === 1) {
-        // ⭐️ 필수 1: 모든 진행중인 계약 리스트의 상태가 오늘 날짜로 선택되었는지 확인
+        // 필수: 마감일자(closingDate) 기준으로 상태가 선택되었는지 확인
         const unselectedPipeline = pipelines.find(p => {
-          const todayHistory = p.history?.find((h: any) => h.date === todayStr);
-          return !todayHistory; // 오늘 선택한 기록이 없으면 true
+          const history = p.history?.find((h: any) => h.date === closingDate);
+          return !history; 
         });
 
         if (unselectedPipeline) {
@@ -281,7 +322,6 @@ export default function DailyClosingPage() {
         }
       } else if (step === 2) {
         for (const s of todaySchedules) {
-          // ⭐️ 필수 2: 업무일지 내용이 없거나 빈 칸만 있는 경우 완벽한 NULL로 저장
           const finalWorklog = (s.worklog && s.worklog.trim() !== "") ? s.worklog.trim() : null;
           await supabase.from('schedules').update({ worklog: finalWorklog }).eq('id', s.id);
         }
@@ -294,11 +334,12 @@ export default function DailyClosingPage() {
           });
         }
         
+        const nextDayStr = getTomorrowStr(closingDate);
         const newSchedules = finalTomorrowSchedules.filter(s => s.isNew).map(s => ({
           agent_id: agentId,
           agency_id: agencyId,
           client_id: s.client_id ? Number(s.client_id) : null,
-          date: tomorrowStr,
+          date: nextDayStr,
           time: s.time,
           category: s.category,
           content: s.content,
@@ -351,19 +392,28 @@ export default function DailyClosingPage() {
         
         <div className="sticky top-0 z-50 bg-slate-900 p-4 sm:p-6 text-white shadow-md">
           <div className="flex justify-between items-center mb-1">
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 flex-wrap">
               {step !== 4 && (
                 <button onClick={handleBack} className="p-1 -ml-1 text-slate-400 hover:text-white transition-colors cursor-pointer rounded-lg hover:bg-white/10">
                   <ChevronLeft className="w-6 h-6"/>
                 </button>
               )}
-              <h2 className="text-lg sm:text-xl font-black">일일 마감 보고</h2>
+              <h2 className="text-lg sm:text-xl font-black">일일 마감</h2>
+              {/* ⭐️ 핵심: 마감 날짜를 수동으로 조정할 수 있는 컴포넌트 추가 */}
+              {step !== 4 && (
+                <input 
+                  type="date" 
+                  value={closingDate}
+                  onChange={handleDateChange}
+                  className="bg-slate-800/80 text-indigo-200 border border-slate-700/50 rounded-md px-2 py-0.5 ml-1 text-xs sm:text-sm font-bold outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-inner"
+                />
+              )}
             </div>
-            <div className="text-lg sm:text-2xl font-black text-indigo-400">
-              {step === 4 ? '마감 완료 🎉' : `Step ${step}/3`}
+            <div className="text-lg sm:text-2xl font-black text-indigo-400 shrink-0 ml-2">
+              {step === 4 ? '완료 🎉' : `Step ${step}/3`}
             </div>
           </div>
-          <p className="text-xs sm:text-sm font-medium text-slate-300 ml-8">
+          <p className="text-xs sm:text-sm font-medium text-slate-300 ml-8 mt-1">
             {step === 1 ? '1. 파이프라인 진도 체크' : 
              step === 2 ? '2. 오늘의 업무 후기' : 
              step === 3 ? '3. 내일의 일정(스케줄) 관리' : 
@@ -382,16 +432,15 @@ export default function DailyClosingPage() {
               
               <div className="space-y-5">
                 {pipelines.map(p => {
-                  const todayStr = getLocalString(new Date());
-                  const todayHistory = p.history?.find((h: any) => h.date === todayStr);
-                  const selectedToday = todayHistory ? todayHistory.status : null;
+                  const historyMatch = p.history?.find((h: any) => h.date === closingDate);
+                  const selectedStatus = historyMatch ? historyMatch.status : null;
 
                   return (
                     <div key={p.id} className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm">
                       <div className="flex justify-between items-center mb-3 pb-3 border-b border-slate-100">
                         <div className="flex items-center flex-wrap gap-2">
                           <span className="font-black text-lg text-slate-800">{p.client_name}</span>
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">{p.status}</span>
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">현재: {p.status}</span>
                           <span className="text-[11px] font-bold text-slate-400">{p.expected_date} 예상</span>
                         </div>
                         <span className="font-black text-indigo-600 text-base">{p.expected_amount.toLocaleString()}원</span>
@@ -404,7 +453,7 @@ export default function DailyClosingPage() {
                             key={stepObj.id}
                             onClick={() => handleStatusChange(p.id, stepObj.label)}
                             className={`px-2.5 py-1.5 rounded-md text-[11px] font-bold transition-all border cursor-pointer flex-grow sm:flex-grow-0 text-center ${
-                              selectedToday === stepObj.label 
+                              selectedStatus === stepObj.label 
                                 ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' 
                                 : 'bg-white text-slate-500 border-slate-200 hover:bg-indigo-50'
                             }`}
@@ -421,7 +470,6 @@ export default function DailyClosingPage() {
                 )}
               </div>
 
-              {/* ⭐️ 필수 4: 1단계 화면에서 누락된 리스트를 즉시 추가할 수 있는 폼 */}
               <div className="mt-8 bg-indigo-50/40 p-5 rounded-2xl border border-indigo-100">
                 <h4 className="text-sm font-black text-indigo-900 mb-4 flex items-center gap-1.5">
                   <Plus className="w-4 h-4" /> 새 계약 리스트 추가
@@ -509,7 +557,7 @@ export default function DailyClosingPage() {
                   );
                 })}
                 {todaySchedules.length === 0 && (
-                  <div className="text-center py-10 text-slate-400 font-bold text-sm">오늘 등록된 일정이 없습니다.</div>
+                  <div className="text-center py-10 text-slate-400 font-bold text-sm">해당 날짜에 등록된 일정이 없습니다.</div>
                 )}
               </div>
             </div>
@@ -627,7 +675,6 @@ export default function DailyClosingPage() {
                     />
                   </div>
                   
-                  {/* ⭐️ 필수 3: 일정 추가 버튼 색상을 파란색(blue)으로 변경하여 마감 버튼과 차별화 */}
                   <button 
                     onClick={handleAddSchedule}
                     className="mt-1 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl shadow-md transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
@@ -672,7 +719,7 @@ export default function DailyClosingPage() {
                 }}
                 className="w-full max-w-sm bg-slate-900 text-white font-black py-4 rounded-xl shadow-lg hover:bg-slate-800 transition-colors cursor-pointer"
               >
-                퇴근하기
+                마감 완료
               </button>
             </div>
           )}
@@ -687,7 +734,7 @@ export default function DailyClosingPage() {
             className={`w-full flex items-center justify-center gap-2 text-white font-black px-6 py-4 sm:py-3.5 rounded-xl transition-colors shadow-lg cursor-pointer text-[17px] sm:text-base active:scale-[0.98] ${step === 3 ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-slate-900 hover:bg-slate-800'}`}
           >
             {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : (step === 3 ? <CheckCircle2 className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />)}
-            {step === 3 ? "퇴근하기" : "저장 후 다음 단계로"}
+            {step === 3 ? "마감 완료" : "저장 후 다음 단계로"}
           </button>
         </div>
       )}

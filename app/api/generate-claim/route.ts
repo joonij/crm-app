@@ -143,7 +143,7 @@ export async function POST(req: NextRequest) {
         
         firstPage.drawText(`[팩스 수신처: ${claimData.faxNumber}]`, {
           x: width - 160, // 우측 여백
-          y: height - 10, // 상단 여백
+          y: height - 20, // 상단 여백
           size: 11,
           font: customFont,
           color: rgb(0.1, 0.4, 0.8), // 시인성 높은 파란색 텍스트
