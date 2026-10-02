@@ -90,6 +90,12 @@ export default function PersonalBoard({ data, actions }: any) {
     setPipelineForm({ ...pipelineForm, amount: val ? Number(val).toLocaleString() : '' });
   };
 
+  // ⭐️ 에러 원인 해결: 누락되었던 수정 폼 금액 변경 핸들러 추가
+  const handleEditAmountChange = (e: any) => {
+    const val = e.target.value.replace(/[^0-9]/g, '');
+    setEditForm({ ...editForm, expected_amount: val ? Number(val).toLocaleString() : '' });
+  };
+
   const handleAddPipeline = async () => {
     if (!pipelineForm.client_name || !pipelineForm.details || !pipelineForm.amount || !pipelineForm.date) return alert("모든 항목을 입력해주세요.");
     const insertPayload = {
@@ -122,9 +128,9 @@ export default function PersonalBoard({ data, actions }: any) {
 
   const getWeeklyStreak = () => {
     const now = new Date();
-    const currentDay = now.getDay() === 0 ? 6 : now.getDay() - 1; // 월요일 기준 보정
+    const currentDay = now.getDay();
     const startOfThisWeek = new Date(now);
-    startOfThisWeek.setDate(now.getDate() - currentDay); // 월요일 시작
+    startOfThisWeek.setDate(now.getDate() - currentDay);
     startOfThisWeek.setHours(0,0,0,0);
 
     const longTermCompleted = safeCompleted.filter((c: any) => c.insurance_type !== '일반보험' && c.subscription_date);
@@ -165,7 +171,6 @@ export default function PersonalBoard({ data, actions }: any) {
   const renderWeeklyTarget = () => {
     const achieved = Math.min(thisWeekCount, 3);
     
-    // ⭐️ 1W 3A 상시 표시 디자인 (달성 여부 상관없이 항상 유지)
     return (
       <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 flex flex-col shadow-sm mt-4 relative overflow-hidden">
         <div className="absolute right-0 top-0 bottom-0 w-48 bg-gradient-to-l from-indigo-200/50 to-transparent opacity-50"></div>
@@ -393,7 +398,7 @@ export default function PersonalBoard({ data, actions }: any) {
                           <button onClick={() => { setEditingPipelineId(p.id); setEditForm({ client_name: p.client_name, contract_details: p.contract_details, expected_amount: p.expected_amount.toLocaleString(), expected_date: p.expected_date }); }} className="absolute top-3 right-8 text-slate-300 hover:text-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity"><Edit3 className="w-3.5 h-3.5"/></button>
                           <button onClick={() => handleDeletePipeline(p.id)} className="absolute top-3 right-3 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><X className="w-3.5 h-3.5"/></button>
                           <div className="flex items-center gap-1.5 mb-1.5 pr-4">
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm whitespace-nowrap border ${badgeStyle}`}>{displayStatus}</span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 border rounded shadow-sm whitespace-nowrap ${badgeStyle}`}>{displayStatus}</span>
                             <span className="font-bold text-sm text-slate-800 truncate">{p.client_name}</span>
                           </div>
                           <p className="text-[11px] text-slate-500 truncate mb-1.5 pr-4">{p.contract_details}</p>
