@@ -352,9 +352,10 @@ export default function ScheduleModal({ isOpen, onClose, onSuccess, myInfo, edit
 
           <div>
             <label className="block text-xs font-bold text-slate-600 mb-1.5">상세 내용</label>
+            {/* ⭐️ value의 null 방지 처리 */}
             <textarea 
               placeholder="세부 일정 내용"
-              value={form.content}
+              value={form.content || ""}
               onChange={e => setForm({...form, content: e.target.value})}
               rows={4}
               className="w-full text-sm p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" 

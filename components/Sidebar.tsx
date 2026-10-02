@@ -1,4 +1,4 @@
-// crm-app\components\Sidebar.tsx
+// crm-app/components/Sidebar.tsx
 
 "use client";
 
@@ -21,6 +21,8 @@ import {
   ExternalLink,
   NotebookPen
 } from "lucide-react";
+import { getSecureClientsData } from "@/app/actions/dashboard";
+import { calculateDDay, calculateSangryungDDay } from "@/app/dashboard/utils";
 
 const navItems = [
   { label: "보험사 전산", href: "/portals", icon: ExternalLink, allowedRanks: ["ALL"] },
@@ -31,7 +33,6 @@ const navItems = [
   { label: "청구 관리", href: "/claims", icon: FileBox, allowedRanks: ["ALL"] },
   { label: "알림 센터", href: "/notifications", icon: Bell, allowedRanks: ["FC", "SM", "BM"] },
   { label: "사내 교육", href: "/training", icon: GraduationCap, allowedRanks: ["FC", "SM", "BM"] },
-  // { label: "지점 통합 관리", href: "/branch-admin", icon: Building2, allowedRanks: ["OS", "총무", "BM", "지점장", "ADMIN"] },
 ] as const;
 
 function isActivePath(pathname: string, href: string) {
@@ -55,6 +56,14 @@ export default function Sidebar() {
   const [agentCode, setAgentCode] = useState<string>("");
   const [unreadCount, setUnreadCount] = useState(0);
 
+  // ⭐️ 성능 최적화: 매번 DB를 긁지 않도록 사이드바용 동적 데이터를 한 번만 캐싱합니다.
+  const [dynamicData, setDynamicData] = useState<{
+    clients: any[];
+    insurances: any[];
+    schedules: any[];
+    lastClosing: Date;
+  } | null>(null);
+
   useEffect(() => {
     const fetchUserProfile = async (userId: string) => {
       setIsLoading(true);
@@ -66,6 +75,7 @@ export default function Sidebar() {
           rank, 
           agent_code,
           avatar_url,
+          last_closing_time,
           agencies (id, corporation_name, branch_name, team_number)
         `)
         .eq("auth_id", userId)
@@ -84,6 +94,29 @@ export default function Sidebar() {
           setCompanyName(agency.corporation_name || "");
           setBranchName(agency.branch_name || "");
           setTeamNumber(agency.team_number || ""); 
+        }
+
+        // 알림 개수 계산을 위한 백그라운드 데이터 1회 로드
+        try {
+          const myClients = await getSecureClientsData(agentData.id);
+          const clientIdsStr = myClients.map((c: any) => c.id).join(',');
+          
+          const insOrFilter = clientIdsStr ? `client_id.in.(${clientIdsStr})` : `agent_name.eq.none`;
+          const schOrFilter = clientIdsStr ? `client_id.in.(${clientIdsStr})` : `agent_id.eq.${agentData.id}`;
+
+          const [insRes, schedulesRes] = await Promise.all([
+            supabase.from("subscription_insurance").select("id, client_id, product_name, maturity_date, created_at").or(insOrFilter),
+            supabase.from("schedules").select("id, client_id, date, created_at").or(schOrFilter)
+          ]);
+
+          setDynamicData({
+            clients: myClients,
+            insurances: insRes.data || [],
+            schedules: schedulesRes.data || [],
+            lastClosing: agentData.last_closing_time ? new Date(agentData.last_closing_time) : new Date(0)
+          });
+        } catch (e) {
+          console.error("동적 알림 데이터 로드 실패", e);
         }
       } else if (error) {
         console.error("유저 정보 로드 실패:", error.message);
@@ -106,6 +139,7 @@ export default function Sidebar() {
         setAvatarUrl(null);
         setUserRank("");
         setUnreadCount(0);
+        setDynamicData(null);
         setIsLoading(false);
         if (event === 'SIGNED_OUT') router.refresh();
       }
@@ -114,48 +148,98 @@ export default function Sidebar() {
     return () => subscription.unsubscribe();
   }, [router]); 
 
-  // 2. 알림 개수 실시간 연동
+  // ⭐️ 2. 알림 개수 실시간 연동 (DB 알림 + 생성형 동적 알림 통합 합산)
   useEffect(() => {
     if (!agentId) return;
 
     let channel: any;
 
     const fetchUnreadCount = async () => {
-      const { count, error } = await supabase
+      // 1. 순수 DB 알림 카운트
+      const { count: dbCount, error } = await supabase
         .from('notifications')
         .select('id', { count: 'exact', head: true }) 
         .eq('agent_id', agentId)
         .eq('is_read', false);
       
-      if (!error && count !== null) {
-        setUnreadCount(count);
+      let totalCount = dbCount || 0;
+
+      // 2. 동적으로 생성되는 비서 알림들 합산
+      if (dynamicData) {
+        const readNotiIds = JSON.parse(localStorage.getItem('readNotis') || '[]');
+        let dynamicCount = 0;
+        
+        const checkAndAdd = (id: string) => {
+          if (!readNotiIds.includes(id)) dynamicCount++;
+        };
+
+        // 상령일
+        dynamicData.clients.forEach((c: any) => {
+          const dDay = calculateSangryungDDay(c.derivedBirthDate);
+          if (dDay !== null && dDay >= 0 && dDay <= 30) checkAndAdd(`sangryung_${c.id}_${new Date().getFullYear()}`);
+        });
+
+        // 재터치
+        dynamicData.clients.forEach((c: any) => {
+          const insDates = dynamicData.insurances.filter((ins: any) => Number(ins.client_id) === Number(c.id)).map((i: any) => new Date(i.created_at || 0).getTime());
+          const schDates = dynamicData.schedules.filter((sch: any) => Number(sch.client_id) === Number(c.id)).map((s: any) => new Date(s.date || s.created_at || 0).getTime()); 
+          const lastUpdate = new Date(Math.max(new Date(c.created_at || 0).getTime(), ...insDates, ...schDates)); 
+          const daysSinceUpdate = Math.floor((new Date().getTime() - lastUpdate.getTime()) / (1000 * 3600 * 24));
+          if (daysSinceUpdate >= 60) checkAndAdd(`retouch_${c.id}_${Math.floor(Date.now() / (1000 * 3600 * 24 * 30))}`);
+        });
+
+        // 자동차 갱신
+        dynamicData.insurances.forEach((ins: any) => {
+          if (ins.product_name && (ins.product_name.includes("자동차") || ins.product_name.includes("다이렉트")) && ins.maturity_date) {
+            const dDay = calculateDDay(ins.maturity_date);
+            if (dDay !== null && dDay >= 1 && dDay <= 60) checkAndAdd(`auto_${ins.id}_${ins.maturity_date}`);
+          }
+        });
+
+        // 일일 마감
+        const now = new Date();
+        const todaySixAM = new Date();
+        todaySixAM.setHours(6, 0, 0, 0);
+        if (now >= todaySixAM && dynamicData.lastClosing < todaySixAM) {
+          checkAndAdd(`closing_${todaySixAM.getTime()}`);
+        }
+
+        totalCount += dynamicCount;
       }
+
+      setUnreadCount(totalCount);
     };
 
     fetchUnreadCount();
 
-    const channelName = `sidebar-noti-${agentId}-${Date.now()}`;
-    channel = supabase
-      .channel(channelName)
+    const uniqueId = Math.random().toString(36).substring(2, 10);
+    const channelName = `sidebar-noti-${agentId}-${Date.now()}-${uniqueId}`;
+    
+    channel = supabase.channel(channelName);
+    channel
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'notifications', filter: `agent_id=eq.${agentId}` },
-        () => fetchUnreadCount()
+        (payload: any) => {
+          fetchUnreadCount();
+        }
       )
       .subscribe();
 
+    // ⭐️ 페이지 이동(메뉴 클릭)이나 탭 돌아올 때마다 자동으로 읽음 수치 재계산 (동기화)
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        fetchUnreadCount();
-      }
+      if (document.visibilityState === "visible") fetchUnreadCount();
     };
+    
     document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleVisibilityChange);
 
     return () => {
       if (channel) supabase.removeChannel(channel);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleVisibilityChange);
     };
-  }, [agentId]);
+  }, [agentId, dynamicData, pathname]); // ⭐️ pathname(페이지 위치) 변경 시 뱃지 숫자 즉시 갱신
 
   useEffect(() => {
     document.title = unreadCount > 0 ? `(${unreadCount}) CareLink` : "CareLink";
@@ -210,6 +294,8 @@ export default function Sidebar() {
             const isAuthorized = userRank && ranks.some(allowed => userRank.includes(allowed));
             const isLocked = isRestricted && !isAuthorized;
             const Icon = OriginalIcon;
+            
+            // ⭐️ 알림 센터 메뉴의 배지 표시 판단 로직
             const isNotificationMenu = label === "알림 센터";
             const hasUnread = isNotificationMenu && unreadCount > 0;
 

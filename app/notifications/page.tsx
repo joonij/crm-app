@@ -1,196 +1,287 @@
+// app/notifications/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { Bell, UserPlus, Calendar, Info, CheckCircle2, ChevronRight, Clock, Gift } from "lucide-react";
+import { Bell, ArrowLeft, Gift, Clock, Car, Edit3, Info, CheckCircle2, Loader2, Trash2 } from "lucide-react";
+import { getSecureClientsData } from "@/app/actions/dashboard";
+import { calculateDDay, calculateSangryungDDay } from "@/app/dashboard/utils";
 
-type Notification = {
-  id: string;
-  agent_id: number;
+// ⭐️ 알림 객체 타입 정의 (DB 알림과 생성형 알림을 통합하기 위함)
+type UnifiedNotification = {
+  id: string | number;
+  type: 'sangryung' | 'retouch' | 'auto_renewal' | 'closing' | 'system';
   title: string;
   message: string;
-  type: string;
-  link_url: string;
-  is_read: boolean;
-  created_at: string;
-};
-
-const getIcon = (type: string) => {
-  switch (type) {
-    case 'referral': return <UserPlus className="w-5 h-5 text-indigo-500" />;
-    case 'schedule': return <Calendar className="w-5 h-5 text-amber-500" />;
-    case 'retouch': return <Clock className="w-5 h-5 text-rose-500" />;
-    case 'sangryung': return <Gift className="w-5 h-5 text-purple-500" />;
-    case 'contract_delay': return <Info className="w-5 h-5 text-orange-500" />; // ⭐️ 계약 지연 아이콘 추가
-    default: return <Info className="w-5 h-5 text-blue-500" />;
-  }
+  date: Date;
+  isRead: boolean;
+  link: string;
+  icon: any;
+  colorClass: string;
 };
 
 export default function NotificationsPage() {
   const router = useRouter();
-  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [agentId, setAgentId] = useState<number | null>(null);
+  const [notifications, setNotifications] = useState<UnifiedNotification[]>([]);
 
   useEffect(() => {
-    let channel: any;
-
-    const initialize = async () => {
+    const fetchAllNotifications = async () => {
       setIsLoading(true);
-      
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      
-      if (authError || !user) {
-        setIsLoading(false);
-        return;
-      }
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return router.push("/login");
 
-      const { data: agentData, error: agentError } = await supabase
-        .from('agents')
-        .select('id')
-        .eq('auth_id', user.id) // ⭐️ email 대신 auth_id로 정확히 매칭
-        .single();
+      const { data: agentData } = await supabase.from("agents").select("id, last_closing_time").eq("auth_id", user.id).single();
+      if (!agentData) return;
+      const myAgentId = agentData.id;
 
-      if (agentError || !agentData) {
-        setIsLoading(false);
-        return;
-      }
+      // 1. 서버 액션으로 고객 정보(주민번호 복호화 포함) 안전하게 불러오기
+      const myClients = await getSecureClientsData(myAgentId);
+      const clientIdsStr = myClients.map((c: any) => c.id).join(',');
 
-      const currentAgentId = agentData.id;
-      setAgentId(currentAgentId);
+      // 2. 고객 관련 보험 및 일정 데이터 불러오기
+      const insOrFilter = clientIdsStr ? `client_id.in.(${clientIdsStr})` : `agent_name.eq.none`;
+      const schOrFilter = clientIdsStr ? `client_id.in.(${clientIdsStr})` : `agent_id.eq.${myAgentId}`;
 
-      // 🚀 가짜 로컬 알림 계산 로직을 전부 삭제하고, 순수하게 DB 알림만 불러옵니다.
-      const fetchNotifications = async () => {
-        const { data: dbData } = await supabase
-          .from('notifications')
-          .select('*')
-          .eq('agent_id', currentAgentId)
-          .order('created_at', { ascending: false });
+      const [insRes, schedulesRes, dbNotiRes] = await Promise.all([
+        supabase.from("subscription_insurance").select("*").or(insOrFilter),
+        supabase.from("schedules").select("*").or(schOrFilter),
+        supabase.from("notifications").select("*").eq("agent_id", myAgentId).order("created_at", { ascending: false }) // DB 저장 알림
+      ]);
 
-        setNotifications(dbData || []);
-      };
+      const myInsurances = insRes.data || [];
+      const mySchedules = schedulesRes.data || [];
+      const dbNotis = dbNotiRes.data || [];
 
-      await fetchNotifications();
-      setIsLoading(false);
+      // 이미 읽은 동적 알림 ID들 가져오기 (localStorage)
+      const readNotiIds = JSON.parse(localStorage.getItem('readNotis') || '[]');
+      const unifiedList: UnifiedNotification[] = [];
 
-      const uniqueChannelName = `notifications-page-${currentAgentId}-${Date.now()}`;
+      // --- [알림 생성 1] 상령일 임박 (D-30) ---
+      myClients.forEach((c: any) => {
+        const dDay = calculateSangryungDDay(c.derivedBirthDate);
+        if (dDay !== null && dDay >= 0 && dDay <= 30) {
+          const notiId = `sangryung_${c.id}_${new Date().getFullYear()}`;
+          unifiedList.push({
+            id: notiId,
+            type: 'sangryung',
+            title: "상령일 임박 안내",
+            message: `${c.name} 고객님의 보험나이 인상(상령일)이 D-${dDay} 남았습니다. 보장 분석 및 터치를 진행해보세요!`,
+            date: new Date(),
+            isRead: readNotiIds.includes(notiId),
+            link: `/clients/${c.id}`,
+            icon: Gift,
+            colorClass: "bg-purple-100 text-purple-600 border-purple-200"
+          });
+        }
+      });
 
-      channel = supabase
-        .channel(uniqueChannelName)
-        .on(
-          'postgres_changes',
-          { 
-            event: '*', 
-            schema: 'public', 
-            table: 'notifications',
-            filter: `agent_id=eq.${currentAgentId}`
-          },
-          () => {
-            fetchNotifications();
+      // --- [알림 생성 2] 장기 미관리 고객 (60일) ---
+      myClients.forEach((c: any) => {
+        const insDates = myInsurances.filter((ins: any) => Number(ins.client_id) === Number(c.id)).map((i: any) => new Date(i.created_at || 0).getTime());
+        const schDates = mySchedules.filter((sch: any) => Number(sch.client_id) === Number(c.id)).map((s: any) => new Date(s.date || s.created_at || 0).getTime()); 
+        const lastUpdate = new Date(Math.max(new Date(c.created_at || 0).getTime(), ...insDates, ...schDates)); 
+        const daysSinceUpdate = Math.floor((new Date().getTime() - lastUpdate.getTime()) / (1000 * 3600 * 24));
+        
+        if (daysSinceUpdate >= 60) {
+          const notiId = `retouch_${c.id}_${Math.floor(Date.now() / (1000 * 3600 * 24 * 30))}`; // 한 달에 한 번만 갱신되도록 ID 생성
+          unifiedList.push({
+            id: notiId,
+            type: 'retouch',
+            title: "고객 재터치 필요",
+            message: `${c.name} 고객님과 소통한 지 ${daysSinceUpdate}일이 지났습니다. 안부 연락을 남겨보세요.`,
+            date: lastUpdate,
+            isRead: readNotiIds.includes(notiId),
+            link: `/clients/${c.id}`,
+            icon: Clock,
+            colorClass: "bg-rose-100 text-rose-600 border-rose-200"
+          });
+        }
+      });
+
+      // --- [알림 생성 3] 자동차/다이렉트 만기 임박 (60일) ---
+      myInsurances.forEach((ins: any) => {
+        if (ins.product_name && (ins.product_name.includes("자동차") || ins.product_name.includes("다이렉트")) && ins.maturity_date) {
+          const dDay = calculateDDay(ins.maturity_date);
+          if (dDay !== null && dDay >= 1 && dDay <= 60) {
+            const notiId = `auto_${ins.id}_${ins.maturity_date}`;
+            const clientName = myClients.find((c:any) => c.id === ins.client_id)?.name || ins.contractor_name;
+            unifiedList.push({
+              id: notiId,
+              type: 'auto_renewal',
+              title: "자동차보험 갱신 안내",
+              message: `${clientName} 고객님의 자동차보험 만기가 D-${dDay} 남았습니다.`,
+              date: new Date(),
+              isRead: readNotiIds.includes(notiId),
+              link: `/clients/${ins.client_id || ''}`,
+              icon: Car,
+              colorClass: "bg-amber-100 text-amber-600 border-amber-200"
+            });
           }
-        )
-        .subscribe();
-    };
+        }
+      });
 
-    initialize();
-
-    return () => {
-      if (channel) supabase.removeChannel(channel);
-    };
-  }, []);
-
-  const handleNotificationClick = async (noti: Notification) => {
-    // 1. 화면 즉시 반영
-    if (!noti.is_read) {
-      setNotifications(prev => prev.map(n => n.id === noti.id ? { ...n, is_read: true } : n));
+      // --- [알림 생성 4] 일일 마감 작성 리마인더 ---
+      const now = new Date();
+      const todaySixAM = new Date();
+      todaySixAM.setHours(6, 0, 0, 0);
       
-      // 2. DB 알림 완벽하게 읽음 처리 (로컬 스토리지 삭제)
-      await supabase
-        .from('notifications')
-        .update({ is_read: true })
-        .eq('id', noti.id);
+      const isPastSixAM = now >= todaySixAM;
+      const lastClosing = agentData.last_closing_time ? new Date(agentData.last_closing_time) : new Date(0);
+      
+      // 오늘 오전 6시가 지났는데, 마지막 마감 시간이 오늘 오전 6시 이전이라면 알림 생성
+      if (isPastSixAM && lastClosing < todaySixAM) {
+        const notiId = `closing_${todaySixAM.getTime()}`;
+        unifiedList.push({
+          id: notiId,
+          type: 'closing',
+          title: "일일 마감 보고 안내",
+          message: `오늘의 활동 내역과 내일 일정을 마감 보드에 업데이트 해주세요!`,
+          date: now,
+          isRead: readNotiIds.includes(notiId),
+          link: `/daily-closing`,
+          icon: Edit3,
+          colorClass: "bg-indigo-100 text-indigo-600 border-indigo-200"
+        });
+      }
+
+      // --- [알림 생성 5] 기존 DB 알림 합치기 ---
+      dbNotis.forEach((dbNoti: any) => {
+        unifiedList.push({
+          id: dbNoti.id,
+          type: 'system',
+          title: dbNoti.title || "시스템 알림",
+          message: dbNoti.content,
+          date: new Date(dbNoti.created_at),
+          isRead: dbNoti.is_read,
+          link: dbNoti.link_url || "#",
+          icon: Info,
+          colorClass: "bg-slate-100 text-slate-600 border-slate-200"
+        });
+      });
+
+      // 통합된 알림 리스트를 최신순(우선순위)으로 정렬
+      unifiedList.sort((a, b) => b.date.getTime() - a.date.getTime());
+      
+      // 안 읽은 알림을 위로 올림
+      unifiedList.sort((a, b) => (a.isRead === b.isRead) ? 0 : a.isRead ? 1 : -1);
+
+      setNotifications(unifiedList);
+      setIsLoading(false);
+    };
+
+    fetchAllNotifications();
+  }, [router]);
+
+  // 알림 읽음 처리 로직 (DB 업데이트 및 로컬스토리지 저장 동시 처리)
+  const handleMarkAsRead = async (noti: UnifiedNotification) => {
+    if (noti.isRead) return;
+
+    if (typeof noti.id === 'string') {
+      // 실시간 생성 알림 (localStorage 처리)
+      const readNotiIds = JSON.parse(localStorage.getItem('readNotis') || '[]');
+      if (!readNotiIds.includes(noti.id)) {
+        readNotiIds.push(noti.id);
+        localStorage.setItem('readNotis', JSON.stringify(readNotiIds));
+      }
+    } else {
+      // DB 알림 (Supabase 업데이트)
+      await supabase.from('notifications').update({ is_read: true }).eq('id', noti.id);
     }
 
-    // 3. 페이지 이동
-    if (noti.link_url) {
-      router.push(noti.link_url);
-    }
+    setNotifications(notifications.map(n => n.id === noti.id ? { ...n, isRead: true } : n));
   };
 
   const handleMarkAllAsRead = async () => {
-    if (!agentId) return;
+    const unreadDBIds = notifications.filter(n => !n.isRead && typeof n.id === 'number').map(n => n.id);
+    const unreadLocalIds = notifications.filter(n => !n.isRead && typeof n.id === 'string').map(n => n.id);
 
-    // 화면 즉시 반영
-    setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+    // DB 전체 읽음 처리
+    if (unreadDBIds.length > 0) {
+      await supabase.from('notifications').update({ is_read: true }).in('id', unreadDBIds);
+    }
 
-    // DB 알림들 모두 읽음 처리
-    await supabase
-      .from('notifications')
-      .update({ is_read: true })
-      .eq('agent_id', agentId)
-      .eq('is_read', false);
+    // 로컬 전체 읽음 처리
+    if (unreadLocalIds.length > 0) {
+      const readNotiIds = JSON.parse(localStorage.getItem('readNotis') || '[]');
+      localStorage.setItem('readNotis', JSON.stringify([...readNotiIds, ...unreadLocalIds]));
+    }
+
+    setNotifications(notifications.map(n => ({ ...n, isRead: true })));
   };
 
   if (isLoading) {
-    return <div className="p-8 text-center text-slate-500 font-bold">알림을 불러오는 중...</div>;
+    return (
+      <div className="flex h-screen items-center justify-center bg-gray-50">
+        <div className="flex flex-col items-center gap-3 text-indigo-600">
+          <Loader2 className="w-8 h-8 animate-spin" />
+          <p className="font-bold text-sm">알림을 불러오는 중입니다...</p>
+        </div>
+      </div>
+    );
   }
 
-  const unreadCount = notifications.filter(n => !n.is_read).length;
+  const unreadCount = notifications.filter(n => !n.isRead).length;
 
   return (
-    <div className="max-w-4xl mx-auto w-full p-4 md:p-8">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-black text-slate-800 flex items-center gap-2">
-            <Bell className="w-6 h-6 text-blue-600" /> 알림 센터
+    <div className="min-h-screen bg-gray-50 pb-20">
+      {/* 헤더 */}
+      <div className="sticky top-0 z-50 bg-white border-b border-gray-200 px-4 py-4 flex items-center justify-between shadow-sm">
+        <div className="flex items-center gap-3">
+          <button onClick={() => router.back()} className="p-2 -ml-2 text-gray-500 hover:text-gray-900 transition-colors rounded-full hover:bg-gray-100">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <h1 className="text-lg font-black text-gray-900 flex items-center gap-2">
+            알림 센터
+            {unreadCount > 0 && <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">{unreadCount}</span>}
           </h1>
-          <p className="text-slate-500 text-sm mt-1 font-medium">새로운 소식과 진행 상황을 확인하세요.</p>
         </div>
         {unreadCount > 0 && (
-          <button 
-            onClick={handleMarkAllAsRead}
-            className="flex items-center gap-1.5 text-sm font-bold text-slate-500 hover:text-slate-800 transition-colors bg-white px-3 py-1.5 rounded-lg border shadow-sm cursor-pointer"
-          >
-            <CheckCircle2 className="w-4 h-4" /> 모두 읽음 처리
+          <button onClick={handleMarkAllAsRead} className="text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1">
+            <CheckCircle2 className="w-3.5 h-3.5" /> 모두 읽음
           </button>
         )}
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden divide-y divide-slate-100 pb-20">
-        {notifications.length === 0 ? (
-          <div className="p-12 text-center text-slate-400 font-medium">
-            새로운 알림이 없습니다.
-          </div>
-        ) : (
+      {/* 알림 리스트 */}
+      <div className="max-w-3xl mx-auto p-4 sm:p-6 space-y-3">
+        {notifications.length > 0 ? (
           notifications.map((noti) => (
             <div 
-              key={noti.id}
-              onClick={() => handleNotificationClick(noti)}
-              className={`p-5 flex items-start gap-4 cursor-pointer transition-colors hover:bg-slate-50 ${noti.is_read ? 'opacity-60 bg-transparent' : 'bg-blue-50/30'}`}
+              key={noti.id} 
+              onClick={() => {
+                handleMarkAsRead(noti);
+                if (noti.link !== "#") router.push(noti.link);
+              }}
+              className={`flex gap-4 p-4 rounded-2xl border transition-all cursor-pointer shadow-sm group ${noti.isRead ? 'bg-white border-gray-100 opacity-70' : 'bg-white border-indigo-200 hover:border-indigo-400 hover:shadow-md'}`}
             >
-              <div className={`p-2 rounded-xl shrink-0 ${noti.is_read ? 'bg-slate-100 grayscale' : 'bg-white shadow-sm border border-slate-100'}`}>
-                {getIcon(noti.type)}
+              <div className={`w-10 h-10 shrink-0 rounded-full flex items-center justify-center border shadow-inner ${noti.colorClass}`}>
+                <noti.icon className="w-5 h-5" />
               </div>
-              
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  {!noti.is_read && <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0"></span>}
-                  <h3 className={`text-sm font-bold truncate ${noti.is_read ? 'text-slate-600' : 'text-slate-900'}`}>
+                <div className="flex justify-between items-start mb-1">
+                  <h3 className={`font-black text-[15px] truncate pr-4 ${noti.isRead ? 'text-gray-600' : 'text-gray-900 group-hover:text-indigo-600'}`}>
                     {noti.title}
                   </h3>
-                  <span className="text-xs text-slate-400 font-medium whitespace-nowrap ml-auto">
-                    {new Date(noti.created_at).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                  </span>
+                  {!noti.isRead && <span className="w-2 h-2 rounded-full bg-red-500 shrink-0 mt-1.5 shadow-sm"></span>}
                 </div>
-                <p className="text-sm text-slate-600 font-medium leading-relaxed">{noti.message}</p>
-              </div>
-
-              <div className="shrink-0 self-center text-slate-300">
-                <ChevronRight className="w-5 h-5" />
+                <p className={`text-[13px] leading-relaxed break-keep mb-2 ${noti.isRead ? 'text-gray-400' : 'text-gray-600'}`}>
+                  {noti.message}
+                </p>
+                <div className="text-[11px] font-bold text-gray-400 flex items-center gap-1.5">
+                  {noti.date.toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </div>
               </div>
             </div>
           ))
+        ) : (
+          <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+            <Bell className="w-12 h-12 mb-4 opacity-20 text-indigo-500" />
+            <p className="text-sm font-bold text-gray-500">새로운 알림이 없습니다.</p>
+            <p className="text-xs font-medium mt-1">오늘도 화이팅 넘치는 하루 되세요!</p>
+          </div>
         )}
       </div>
     </div>
