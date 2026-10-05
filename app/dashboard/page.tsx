@@ -68,7 +68,7 @@ export default function DashboardPage() {
       const myPipelines = pipelineRes.data || [];
       const mySchedules = schedulesRes.data || [];
 
-      // ⭐️ 개인 활동내역: 개인일정 및 팀일정만 필터링
+      // 개인 활동내역 필터링
       const filteredMySchedules = mySchedules.filter((s: any) => 
         s.schedule_type === "personal" || s.schedule_type === "team"
       );
@@ -89,6 +89,7 @@ export default function DashboardPage() {
 
       sangryungList.forEach((c: any) => generatedNotis.push({ id: `sangryung_${c.id}_${new Date().getFullYear()}` }));
 
+      // 자동차 보험은 다른 설계사가 했어도 내 고객의 갱신일이라면 관리 차원에서 띄워줍니다.
       const autoList = myInsurances.filter((ins: any) => ins.product_name && (ins.product_name.includes("자동차") || ins.product_name.includes("다이렉트")) && ins.maturity_date)
         .map((ins: any) => ({ ...ins, dDay: calculateDDay(ins.maturity_date), clientName: clientMap.get(Number(ins.client_id)) || ins.contractor_name }))
         .filter((ins: any) => ins.dDay !== null && ins.dDay >= 1 && ins.dDay <= 60).sort((a: any, b: any) => (a.dDay || 0) - (b.dDay || 0));
@@ -97,16 +98,20 @@ export default function DashboardPage() {
       const lastMonthStr = getMonthString(1);
       const twoMonthsAgoStr = getMonthString(2);
 
-      const completedPolicies = myInsurances.filter((ins: any) => ins.policy_status === "maintain" && ins.subscription_date)
-        .map((ins: any) => {
-          let cleanSubDate = ins.subscription_date!.replace(/\./g, '-').replace(/\s/g, '');
-          if (cleanSubDate.endsWith('-')) cleanSubDate = cleanSubDate.slice(0, -1);
-          let tabIndex = -1;
-          if (cleanSubDate.startsWith(thisMonthStr)) tabIndex = 0; 
-          else if (cleanSubDate.startsWith(lastMonthStr)) tabIndex = 1; 
-          else if (cleanSubDate.startsWith(twoMonthsAgoStr)) tabIndex = 2; 
-          return { ...ins, clientName: clientMap.get(Number(ins.client_id)) || ins.contractor_name, tabIndex };
-        }).filter((ins: any) => ins.tabIndex !== -1).sort((a: any, b: any) => new Date(b.subscription_date || 0).getTime() - new Date(a.subscription_date || 0).getTime());
+      // ⭐️ 핵심 로직: 체결 완료 인정 조건에 '담당 설계사 이름 일치' 항목 추가
+      const completedPolicies = myInsurances.filter((ins: any) => 
+        ins.policy_status === "maintain" && 
+        ins.subscription_date && 
+        ins.agent_name === myName // <-- 로그인한 본인의 체결건만 집계합니다.
+      ).map((ins: any) => {
+        let cleanSubDate = ins.subscription_date!.replace(/\./g, '-').replace(/\s/g, '');
+        if (cleanSubDate.endsWith('-')) cleanSubDate = cleanSubDate.slice(0, -1);
+        let tabIndex = -1;
+        if (cleanSubDate.startsWith(thisMonthStr)) tabIndex = 0; 
+        else if (cleanSubDate.startsWith(lastMonthStr)) tabIndex = 1; 
+        else if (cleanSubDate.startsWith(twoMonthsAgoStr)) tabIndex = 2; 
+        return { ...ins, clientName: clientMap.get(Number(ins.client_id)) || ins.contractor_name, tabIndex };
+      }).filter((ins: any) => ins.tabIndex !== -1).sort((a: any, b: any) => new Date(b.subscription_date || 0).getTime() - new Date(a.subscription_date || 0).getTime());
 
       // ⭐️ 개인 연간 통계 계산 (장기/일반 분리)
       const currentYear = new Date().getFullYear();
@@ -117,7 +122,7 @@ export default function DashboardPage() {
 
       // ⭐️ 1W 3A 달성 현황 (이번주 일요일 ~ 토요일 기준 장기보험 체결 건수)
       const now = new Date();
-      const currentDay = now.getDay(); // 0(일요일) ~ 6(토요일)
+      const currentDay = now.getDay(); 
       const startOfWeek = new Date(now);
       startOfWeek.setDate(now.getDate() - currentDay);
       startOfWeek.setHours(0,0,0,0);
@@ -132,8 +137,7 @@ export default function DashboardPage() {
         return subDate >= startOfWeek && subDate <= endOfWeek;
       });
 
-      // 이번주 요일별 장기보험 체결 카운트
-      const weeklyCounts = [0, 0, 0, 0, 0, 0, 0]; // 일~토
+      const weeklyCounts = [0, 0, 0, 0, 0, 0, 0]; 
       thisWeekLongTermContracts.forEach((ins: any) => {
          const dayIndex = new Date(ins.subscription_date.replace(/\./g, '-')).getDay();
          weeklyCounts[dayIndex]++;
@@ -157,8 +161,8 @@ export default function DashboardPage() {
         pipelines: myPipelines, schedules: filteredMySchedules, clientsList: myClients, 
         oldClients: retouchList, sangryungClients: sangryungList, autoRenewals: autoList, 
         completed: completedPolicies,
-        yearlyStats: myYearlyStats,      // ⭐️ 추가
-        weeklyCounts: weeklyCounts       // ⭐️ 추가
+        yearlyStats: myYearlyStats,
+        weeklyCounts: weeklyCounts
       });
 
       const readNotiIds = JSON.parse(localStorage.getItem('readNotis') || '[]');
