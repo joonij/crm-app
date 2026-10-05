@@ -1,7 +1,7 @@
 // app/schedule/page.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Clock, Loader2, Plus, Megaphone, Building2, Users, Edit2, Trash2, X, Trophy, Target, TrendingUp, DollarSign, AlertCircle, User, Building, UserPlus } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -44,6 +44,8 @@ type TeamMemberSchedule = {
   id: number;
   name: string;
   role: string;
+  agency_id: number; 
+  team_number: string; 
   events: ScheduleEvent[];
   stats: MemberStats;
 };
@@ -91,7 +93,7 @@ const simplifyRank = (rankStr: string | null) => {
   if (upStr.includes("BM")) return "BM";
   if (upStr.includes("SM")) return "SM";
   if (upStr.includes("RM")) return "RM";
-  if (upStr.includes("OS")) return "OS";
+  if (upStr.includes("OS") || upStr.includes("총무")) return "OS";
   return "FC";
 };
 
@@ -130,6 +132,8 @@ export default function SchedulePage() {
   
   const [highlightedClientId, setHighlightedClientId] = useState<number | null>(null);
   const [isScoreboardOpen, setIsScoreboardOpen] = useState(true);
+  
+  const [selectedAgentId, setSelectedAgentId] = useState<string | number>('ALL');
 
   const formatDateStr = (date: Date) => {
     const y = date.getFullYear();
@@ -237,24 +241,37 @@ export default function SchedulePage() {
         });
 
         const myAgencyId = info.agency_id; 
-        const { data: corpAgencies } = await supabase.from("agencies").select("id, branch_name").eq("corporation_name", agencyData.corporation_name);
+        const { data: corpAgencies } = await supabase.from("agencies").select("id, branch_name, team_number").eq("corporation_name", agencyData.corporation_name);
         const corpAgencyIds = corpAgencies?.map(a => a.id) || [];
         const branchAgencyIds = corpAgencies?.filter(a => a.branch_name === agencyData.branch_name).map(a => a.id) || [];
 
-        let membersQuery = supabase.from("agents").select("id, name, rank").order('id', { ascending: true });
-        
-        const isManager = myRankStr.includes('SM') || myRankStr.includes('BM') || myRankStr.includes('RM');
-        
-        if (isManager) membersQuery = membersQuery.eq('agency_id', myAgencyId);
-        else membersQuery = membersQuery.eq('id', info.id);
+        const teamMap = new Map(corpAgencies?.map(a => [a.id, a.team_number ? String(a.team_number) : "직할팀"]));
 
-        const [{ data: members }, { data: schedules }, { data: myClients }] = await Promise.all([
+        let membersQuery = supabase.from("agents").select("id, name, rank, agency_id").order('id', { ascending: true });
+        
+        const isBranchManager = myRankStr.includes('BM') || myRankStr.includes('RM');
+        const isManager = myRankStr.includes('SM') || isBranchManager;
+        
+        if (isBranchManager) {
+          membersQuery = membersQuery.in('agency_id', branchAgencyIds); 
+        } else if (isManager) {
+          membersQuery = membersQuery.eq('agency_id', myAgencyId); 
+        } else {
+          membersQuery = membersQuery.eq('id', info.id); 
+        }
+
+        const [{ data: membersRaw }, { data: schedules }, { data: myClients }] = await Promise.all([
           membersQuery,
           supabase.from("schedules").select("*, clients(name)").in("agency_id", corpAgencyIds).gte("date", startDate).lte("date", endDate).order('time', { ascending: true }),
           supabase.from("clients").select("id, recruiting_status").eq("agent_id", info.id) 
         ]);
 
-        if (!members || !schedules) return;
+        if (!membersRaw || !schedules) return;
+
+        const members = membersRaw.filter((m: any) => {
+          const r = (m.rank || '').toUpperCase();
+          return !r.includes('OS') && !r.includes('총무');
+        });
 
         const thisMonthStr = formatDateStr(currentDate).slice(0, 7);
         const myRecruitSchedules = schedules.filter(s => s.agent_id === info.id && s.category === '리쿠' && s.date.startsWith(thisMonthStr));
@@ -379,12 +396,31 @@ export default function SchedulePage() {
             id: member.id, 
             name: `${member.name} (${simplifiedMemberRank})`,
             role: member.id === info.id ? "Me" : "Member",
+            agency_id: member.agency_id, 
+            team_number: teamMap.get(member.agency_id) || "직할팀", 
             events: memberEvents,
             stats: statsMap[member.name]
           };
-        }).sort((a, b) => a.role === "Me" ? -1 : b.role === "Me" ? 1 : a.name.localeCompare(b.name, 'ko-KR'));
+        });
+
+        formattedMembers.sort((a, b) => {
+          if (a.role === "Me") return -1;
+          if (b.role === "Me") return 1;
+          return a.name.localeCompare(b.name, 'ko-KR');
+        });
 
         setTeamSchedules(formattedMembers);
+        
+        if (isBranchManager) {
+          const directTeamIds = corpAgencies?.filter(a => a.branch_name === agencyData.branch_name && (!a.team_number || a.team_number === "직할팀")).map(a => a.id) || [];
+          if (directTeamIds.length > 0) {
+             setSelectedAgentId(`TEAM_${directTeamIds[0]}`);
+          } else {
+             setSelectedAgentId('ALL');
+          }
+        } else {
+          setSelectedAgentId('ALL');
+        }
 
       } catch (error) {
         console.error(error);
@@ -660,11 +696,29 @@ export default function SchedulePage() {
     monthlyWeeks.push(monthDays.slice(i, i + 7));
   }
 
-  const [selectedAgentId, setSelectedAgentId] = useState<number | 'ALL'>('ALL');
+  const displayMembers = useMemo(() => {
+    if (selectedAgentId === 'ALL') return teamSchedules;
+    if (typeof selectedAgentId === 'string' && selectedAgentId.startsWith('TEAM_')) {
+      const targetAgencyId = Number(selectedAgentId.split('_')[1]);
+      return teamSchedules.filter(m => m.agency_id === targetAgencyId);
+    }
+    return teamSchedules.filter(m => m.id === Number(selectedAgentId));
+  }, [teamSchedules, selectedAgentId]);
 
-  const displayMembers = selectedAgentId === 'ALL' 
-    ? teamSchedules 
-    : teamSchedules.filter(m => m.id === selectedAgentId);
+  const availableTeams = useMemo(() => {
+    const teamsMap = new Map();
+    teamSchedules.forEach(m => {
+      if (!teamsMap.has(m.agency_id)) {
+        teamsMap.set(m.agency_id, m.team_number ? String(m.team_number) : "직할팀");
+      }
+    });
+    
+    return Array.from(teamsMap.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => {
+      if (a.name === "직할팀") return -1;
+      if (b.name === "직할팀") return 1;
+      return String(a.name).localeCompare(String(b.name), 'ko-KR');
+    });
+  }, [teamSchedules]);
 
   const allEventsForMonth = [
     ...companyNotices, 
@@ -763,7 +817,6 @@ export default function SchedulePage() {
             <div className="flex flex-col sm:flex-row xl:flex-row gap-4 w-full xl:w-[50%] xl:justify-end items-stretch">
               <div className="flex flex-col w-full sm:w-[50%] xl:w-[260px] gap-2 bg-slate-50/80 border border-slate-200 xl:border-none xl:bg-transparent p-3 xl:p-0 rounded-xl justify-center shadow-sm xl:shadow-none">
                 <div className="flex justify-between items-end">
-                  {/* ⭐️ 스케줄 페이지: 목표 금액 설정 기능 제거하고 '조회'만 남김 */}
                   <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1">
                     <Target className="w-3.5 h-3.5 text-blue-500"/> 월간 목표: 
                     <span className="text-blue-600 font-bold ml-0.5">
@@ -814,13 +867,28 @@ export default function SchedulePage() {
             {teamSchedules.length > 1 && (
               <select
                 value={selectedAgentId}
-                onChange={(e) => setSelectedAgentId(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
+                onChange={(e) => setSelectedAgentId(e.target.value)}
                 className="text-xs font-bold border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-700 outline-none cursor-pointer hover:bg-slate-50 transition-colors"
               >
-                <option value="ALL">전체 보기</option>
-                {teamSchedules.map(m => (
-                  <option key={m.id} value={m.id}>{m.name}</option>
-                ))}
+                {/* ⭐️ SM(팀장)일 경우 "팀 전체 보기"로 동적 변경 */}
+                <option value="ALL">
+                  {myInfo?.rank && (myInfo.rank === 'BM' || myInfo.rank === 'RM') ? '지사 전체 보기' : '팀 전체 보기'}
+                </option>
+                
+                {myInfo?.rank && (myInfo.rank === 'BM' || myInfo.rank === 'RM') && availableTeams.length > 1 && (
+                  <optgroup label="팀 단위 요약 보기">
+                    {availableTeams.map(team => (
+                      <option key={`team-${team.id}`} value={`TEAM_${team.id}`}>
+                        {team.name === '직할팀' ? '직할팀 보기' : `${team.name}팀 보기`}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                <optgroup label="개인별 상세 보기">
+                  {teamSchedules.map(m => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
+                </optgroup>
               </select>
             )}
 

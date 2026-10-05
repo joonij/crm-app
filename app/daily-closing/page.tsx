@@ -35,7 +35,6 @@ const getLocalString = (d: Date) => {
   return `${year}-${month}-${day}`;
 };
 
-// ⭐️ 핵심 1: 새벽 6시 이전이면 '전날'로 간주하여 논리적인 '오늘' 날짜를 반환합니다.
 const getLogicalToday = () => {
   const d = new Date();
   if (d.getHours() < 6) {
@@ -44,7 +43,6 @@ const getLogicalToday = () => {
   return getLocalString(d);
 };
 
-// 특정 날짜의 다음 날을 계산하는 유틸리티
 const getTomorrowStr = (dateStr: string) => {
   const [y, m, d] = dateStr.split('-').map(Number);
   const t = new Date(y, m - 1, d);
@@ -60,7 +58,6 @@ export default function DailyClosingPage() {
   const [agentId, setAgentId] = useState<number | null>(null);
   const [agencyId, setAgencyId] = useState<number | null>(null);
   
-  // ⭐️️ 핵심 2: 마감 기준 날짜 상태 (기본값: 오전 6시 기준 처리된 논리적 오늘)
   const [closingDate, setClosingDate] = useState<string>(getLogicalToday());
 
   const [pipelines, setPipelines] = useState<any[]>([]);
@@ -68,7 +65,6 @@ export default function DailyClosingPage() {
   const [tomorrowSchedules, setTomorrowSchedules] = useState<any[]>([]); 
   const [clients, setClients] = useState<any[]>([]);
 
-  // 내일 일정 폼
   const [form, setForm] = useState({
     date: getTomorrowStr(getLogicalToday()),
     time: "09:00",
@@ -79,7 +75,6 @@ export default function DailyClosingPage() {
   const [clientSearch, setClientSearch] = useState("");
   const [isClientDropdownOpen, setIsClientDropdownOpen] = useState(false);
 
-  // 파이프라인 폼
   const [pipelineForm, setPipelineForm] = useState({ 
     client_id: null as number | null, 
     client_name: '', 
@@ -105,13 +100,11 @@ export default function DailyClosingPage() {
       const { data: cData } = await supabase.from('clients').select('id, name, phone').eq('agent_id', myAgentId);
       if(cData) setClients(cData);
 
-      // 임시 저장 불러오기
       let currentClosingDate = closingDate;
       const draft = localStorage.getItem(`dailyClosingDraft_${myAgentId}`);
       if (draft) {
         try {
           const parsed = JSON.parse(draft);
-          // 임시 저장된 날짜가 있으면 그 날짜로 덮어씁니다.
           if (parsed.closingDate) {
             currentClosingDate = parsed.closingDate;
             setClosingDate(parsed.closingDate);
@@ -125,7 +118,6 @@ export default function DailyClosingPage() {
         } catch(e) {}
       }
 
-      // 파이프라인 불러오기
       const { data: pData } = await supabase.from('sales_pipelines')
         .select('*')
         .eq('agent_id', myAgentId)
@@ -133,12 +125,16 @@ export default function DailyClosingPage() {
         .order('expected_date', { ascending: true });
       if(pData) setPipelines(pData);
 
-      // ⭐️ 핵심: 선택된 마감 일자(currentClosingDate)를 기준으로 업무일지용 일정을 불러옵니다.
+      const nextDayStr = getTomorrowStr(currentClosingDate);
       const { data: sData } = await supabase.from('schedules')
         .select('*')
         .eq('agent_id', myAgentId)
-        .eq('date', currentClosingDate); 
-      if(sData) setTodaySchedules(sData);
+        .in('date', [currentClosingDate, nextDayStr]); 
+      
+      if(sData) {
+        setTodaySchedules(sData.filter(s => s.date === currentClosingDate));
+        setTomorrowSchedules(sData.filter(s => s.date === nextDayStr)); 
+      }
 
       setIsLoading(false);
     };
@@ -159,7 +155,6 @@ export default function DailyClosingPage() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [router]);
 
-  // 임시저장
   useEffect(() => {
     if (!isLoading && step !== 4 && agentId) {
       localStorage.setItem(`dailyClosingDraft_${agentId}`, JSON.stringify({
@@ -168,27 +163,29 @@ export default function DailyClosingPage() {
     }
   }, [closingDate, pipelines, todaySchedules, tomorrowSchedules, form, isLoading, step, agentId]);
 
-  // ⭐️ 핵심 3: 날짜를 수동으로 변경할 때 실행되는 함수
   const handleDateChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const newDate = e.target.value;
     setClosingDate(newDate);
     
     if (agentId) {
       setIsLoading(true);
-      // 변경된 날짜의 일정을 불러옵니다.
+      const nextDayStr = getTomorrowStr(newDate);
+
       const { data: sData } = await supabase.from('schedules')
         .select('*')
         .eq('agent_id', agentId)
-        .eq('date', newDate); 
-      if(sData) setTodaySchedules(sData);
+        .in('date', [newDate, nextDayStr]); 
+
+      if(sData) {
+        setTodaySchedules(sData.filter(s => s.date === newDate));
+        setTomorrowSchedules(sData.filter(s => s.date === nextDayStr));
+      }
       
-      // 내일 일정 등록 폼의 날짜도 (변경된 날짜 + 1일)로 자동 세팅해줍니다.
-      setForm(prev => ({ ...prev, date: getTomorrowStr(newDate) }));
+      setForm(prev => ({ ...prev, date: nextDayStr }));
       setIsLoading(false);
     }
   };
 
-  // 스케줄용 고객 필터링
   const cleanSearchInput = clientSearch.replace(/\s+/g, "").toLowerCase();
   const cleanPhoneSearch = clientSearch.replace(/[^0-9]/g, "");
   const filteredClients = clientSearch
@@ -199,7 +196,6 @@ export default function DailyClosingPage() {
       })
     : clients;
 
-  // 파이프라인용 고객 필터링
   const cleanPipelineSearchInput = pipelineClientSearch.replace(/\s+/g, "").toLowerCase();
   const cleanPipelinePhoneSearch = pipelineClientSearch.replace(/[^0-9]/g, "");
   const filteredPipelineClients = pipelineClientSearch
@@ -254,7 +250,14 @@ export default function DailyClosingPage() {
     setClientSearch("");
   };
 
-  const handleDeleteSchedule = (id: number) => {
+  const handleDeleteSchedule = async (id: number) => {
+    const isNewSchedule = tomorrowSchedules.find(s => s.id === id)?.isNew;
+    
+    if (!isNewSchedule) {
+      if (!confirm("데이터베이스에 저장된 일정입니다. 정말 삭제하시겠습니까?")) return;
+      await supabase.from('schedules').delete().eq('id', id);
+    }
+    
     setTomorrowSchedules(tomorrowSchedules.filter(s => s.id !== id));
   };
 
@@ -305,7 +308,6 @@ export default function DailyClosingPage() {
     setIsSaving(true);
     try {
       if (step === 1) {
-        // 필수: 마감일자(closingDate) 기준으로 상태가 선택되었는지 확인
         const unselectedPipeline = pipelines.find(p => {
           const history = p.history?.find((h: any) => h.date === closingDate);
           return !history; 
@@ -335,6 +337,7 @@ export default function DailyClosingPage() {
         }
         
         const nextDayStr = getTomorrowStr(closingDate);
+        
         const newSchedules = finalTomorrowSchedules.filter(s => s.isNew).map(s => ({
           agent_id: agentId,
           agency_id: agencyId,
@@ -383,14 +386,15 @@ export default function DailyClosingPage() {
   };
 
   if (isLoading) {
-    return <div className="flex h-screen items-center justify-center bg-white"><Loader2 className="w-8 h-8 animate-spin text-indigo-600" /></div>;
+    return <div className="flex h-[100dvh] items-center justify-center bg-white"><Loader2 className="w-8 h-8 animate-spin text-indigo-600" /></div>;
   }
 
   return (
-    <div className="fixed inset-0 z-[100] w-full h-full min-h-screen bg-white sm:bg-slate-50 flex flex-col pb-24 sm:pb-8 sm:p-8 overflow-y-auto">
+    // ⭐️ 수정됨: h-[100dvh]를 사용하여 Safari 주소창 변화에 완벽히 대응
+    <div className="fixed inset-0 z-[100] w-full h-[100dvh] bg-white sm:bg-slate-50 flex flex-col sm:p-8 overflow-hidden">
       <div className="bg-white sm:rounded-3xl sm:shadow-lg sm:border border-slate-200 flex-1 flex flex-col overflow-hidden max-w-2xl mx-auto w-full relative">
         
-        <div className="sticky top-0 z-50 bg-slate-900 p-4 sm:p-6 text-white shadow-md">
+        <div className="sticky top-0 z-50 bg-slate-900 p-4 sm:p-6 text-white shadow-md shrink-0">
           <div className="flex justify-between items-center mb-1">
             <div className="flex items-center gap-1.5 flex-wrap">
               {step !== 4 && (
@@ -399,7 +403,6 @@ export default function DailyClosingPage() {
                 </button>
               )}
               <h2 className="text-lg sm:text-xl font-black">일일 마감</h2>
-              {/* ⭐️ 핵심: 마감 날짜를 수동으로 조정할 수 있는 컴포넌트 추가 */}
               {step !== 4 && (
                 <input 
                   type="date" 
@@ -422,7 +425,8 @@ export default function DailyClosingPage() {
           <div className="absolute bottom-0 left-0 h-1.5 bg-indigo-500 transition-all duration-500" style={{ width: `${(Math.min(step, 3) / 3) * 100}%` }}></div>
         </div>
 
-        <div className="p-5 sm:p-6 flex-1 overflow-y-auto">
+        {/* ⭐️ 수정됨: pb-32를 추가하여 최하단 요소가 고정 하단 바에 가려지지 않도록 조치 */}
+        <div className="p-5 sm:p-6 pb-32 sm:pb-6 flex-1 overflow-y-auto">
           
           {step === 1 && (
             <div className="animate-in fade-in slide-in-from-right-4 duration-300">
@@ -726,8 +730,9 @@ export default function DailyClosingPage() {
         </div>
       </div>
 
+      {/* ⭐️ 수정됨: 하단 고정 바가 아이폰 홈 인디케이터(safe-area) 영역을 침범하지 않도록 여백(pb-[max...]) 설정 */}
       {step !== 4 && (
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/95 backdrop-blur-md border-t border-slate-200 z-50 sm:static sm:bg-transparent sm:border-t-0 sm:backdrop-blur-none sm:p-0 sm:mt-6 sm:max-w-2xl sm:mx-auto w-full">
+        <div className="fixed bottom-0 left-0 right-0 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] bg-white/95 backdrop-blur-md border-t border-slate-200 z-50 sm:static sm:bg-transparent sm:border-t-0 sm:backdrop-blur-none sm:p-0 sm:mt-6 sm:max-w-2xl sm:mx-auto w-full">
           <button 
             onClick={nextStep} 
             disabled={isSaving}
