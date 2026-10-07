@@ -60,27 +60,27 @@ export const fillPropertyMeritzHealth = async (pdfDoc: PDFDocument, data: any, f
     const signatureImg = await pdfDoc.embedPng(base64Data);
     
     // 3) 서명 크기 세팅 (60x20은 너무 작을 수 있어 80x30 정도로 살짝 키웠습니다)
-    const sigDims = { width: 240, height: 40 };
+    const sigDims = { width: 120, height: 20 };
 
     // ⭐️ 1페이지 서명란 좌표 (수익자 이름인 405, 72의 바로 옆이나 위에 맞게 좌표 조절)
-    firstPage.drawImage(signatureImg, { x: 400, y: 58, ...sigDims });
+    firstPage.drawImage(signatureImg, { x: 452, y: 68, ...sigDims });
 
     // ⭐️ 4페이지 동의서 서명란 좌표 (대표님이 쓰신 이름 좌표 432, 440의 바로 우측)
     if (fourthPage) {
-      fourthPage.drawImage(signatureImg, { x: 408, y: 425, ...sigDims });
+      fourthPage.drawImage(signatureImg, { x: 458, y: 436, ...sigDims });
     }
   }
 
   // ----------------------------------------------------
   // [1페이지] 데이터 입력 (메리츠 좌표)
   // ----------------------------------------------------
-  drawCenterText(firstPage, data.policyholderName, 140, 728);
+  drawCenterText(firstPage, data.policyholderName, 140, 728, 12);
   drawText(firstPage, data.policyholderRrn, 237, 728, 18, 12.7);
 
-  drawCenterText(firstPage, data.insuredName, 140, 701);
+  drawCenterText(firstPage, data.insuredName, 140, 701, 12);
   drawText(firstPage, data.insuredRrn, 237, 701, 18, 12.7);
 
-  drawCenterText(firstPage, data.beneficiaryName, 140, 620);
+  drawCenterText(firstPage, data.beneficiaryName, 140, 620, 12);
   drawText(firstPage, data.beneficiaryPhone, 237, 620, 18, 12.3);
 
   if (data.useSavedAccount === true || data.useSavedAccount === "true") {
@@ -89,7 +89,6 @@ export const fillPropertyMeritzHealth = async (pdfDoc: PDFDocument, data: any, f
     drawText(firstPage, data.bankName, 72, 216, 12);
     drawCenterText(firstPage, data.beneficiaryName, 230, 216, 12);
     drawCenterText(firstPage, data.beneficiaryRrn, 385, 216, 12);
-    drawCenterText(firstPage, "수익자", 540, 216, 12);
     drawText(firstPage, data.accountNumber, 87, 187, 18, 12.9);
   }
 
@@ -99,7 +98,7 @@ export const fillPropertyMeritzHealth = async (pdfDoc: PDFDocument, data: any, f
   drawText(firstPage, data.todayMonth, 183, 72, 14);
   drawText(firstPage, data.todayDay, 213, 72, 14);
   
-  drawCenterText(firstPage, data.beneficiaryName, 405, 72);
+  drawCenterText(firstPage, data.beneficiaryName, 405, 72, 12);
 
   if (secondPage) {
     // 체크박스 위치
@@ -122,6 +121,6 @@ export const fillPropertyMeritzHealth = async (pdfDoc: PDFDocument, data: any, f
     drawText(fourthPage, data.todayYear, 53, 442, 14);
     drawText(fourthPage, data.todayMonth, 132, 442, 14);
     drawText(fourthPage, data.todayDay, 195, 442, 14);
-    drawCenterText(fourthPage, data.beneficiaryName, 432, 440);
+    drawCenterText(fourthPage, data.beneficiaryName, 432, 440, 12);
   }
 };

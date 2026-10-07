@@ -25,10 +25,10 @@ export const fillPropertyKbHealth = async (pdfDoc: PDFDocument, data: any, font:
   };
 
   // 튜닝 시 아래 주석을 풀고 확인하세요.
-  // if (firstPage) drawGrid(firstPage);
-  // if (secondPage) drawGrid(secondPage);
-  // if (thirdPage) drawGrid(thirdPage);
-  // if (fourthPage) drawGrid(fourthPage);
+  if (firstPage) drawGrid(firstPage);
+  if (secondPage) drawGrid(secondPage);
+  if (thirdPage) drawGrid(thirdPage);
+  if (fourthPage) drawGrid(fourthPage);
 
   // ==========================================
   // 헬퍼 함수 모음
@@ -111,9 +111,9 @@ const drawCenterText = (page: any, text: string, centerX: number, y: number, siz
     drawText(firstPage, data.todayMonth,  90, 75, 11);
     drawText(firstPage, data.todayDay,    125, 75, 11);
 
-    drawCenterText(firstPage, data.insuredName, 480, 75, 11); // 청구인 성명
+    drawText(firstPage, data.insuredName, 200, 75, 11); // 청구인 성명
     if (signatureImg) {
-      firstPage.drawImage(signatureImg, { x: 530, y: 70, ...sigDims });
+      firstPage.drawImage(signatureImg, { x: 300, y: 70, ...sigDims });
     }
   }
 

@@ -61,27 +61,27 @@ export const fillPropertyHyundaiHealth = async (pdfDoc: PDFDocument, data: any, 
     const signatureImg = await pdfDoc.embedPng(base64Data);
     
     // 3) 서명 크기 세팅 (60x20은 너무 작을 수 있어 80x30 정도로 살짝 키웠습니다)
-    const sigDims = { width: 240, height: 40 };
+    const sigDims = { width: 120, height: 20 };
 
     // ⭐️ 1페이지 서명란 좌표 (수익자 이름인 405, 72의 바로 옆이나 위에 맞게 좌표 조절)
-    firstPage.drawImage(signatureImg, { x: 395, y: 112, ...sigDims });
+    firstPage.drawImage(signatureImg, { x: 455, y: 122, ...sigDims });
 
     // ⭐️ 4페이지 동의서 서명란 좌표 (대표님이 쓰신 이름 좌표 432, 440의 바로 우측)
     if (fifthPage) {
-      fifthPage.drawImage(signatureImg, { x: 365, y: 315, ...sigDims });
+      fifthPage.drawImage(signatureImg, { x: 435, y: 325, ...sigDims });
     }
   }
 
   // ----------------------------------------------------
   // [1페이지] 데이터 입력 (메리츠 좌표)
   // ----------------------------------------------------
-  drawCenterText(firstPage, data.policyholderName, 163, 558);
+  drawCenterText(firstPage, data.policyholderName, 163, 560, 12);
   drawText(firstPage, data.policyholderRrn, 260, 558, 18, 11.6);
 
-  drawCenterText(firstPage, data.insuredName, 163, 603);
+  drawCenterText(firstPage, data.insuredName, 163, 605, 12);
   drawText(firstPage, data.insuredRrn, 260, 603, 18, 11.6);
 
-  drawCenterText(firstPage, data.beneficiaryName, 163, 536);
+  drawCenterText(firstPage, data.beneficiaryName, 163, 538, 12);
   drawText(firstPage, data.beneficiaryPhone, 260, 536, 18, 10.8);
 
   
@@ -93,34 +93,34 @@ export const fillPropertyHyundaiHealth = async (pdfDoc: PDFDocument, data: any, 
     drawCenterText(firstPage, data.beneficiaryName, 525, 212, 12);
   }
 
-  drawText(firstPage, data.todayYear, 100, 125, 14);
-  drawText(firstPage, data.todayMonth, 165, 125, 14);
-  drawText(firstPage, data.todayDay, 210, 125, 14);
+  drawText(firstPage, data.todayYear, 95, 128, 10.5);
+  drawText(firstPage, data.todayMonth, 165, 128, 10.5);
+  drawText(firstPage, data.todayDay, 210, 128, 10.5);
   
-  drawCenterText(firstPage, data.beneficiaryName, 415, 125);
+  drawCenterText(firstPage, data.beneficiaryName, 415, 125, 12);
 
   if (secondPage) {
-    drawCenterText(secondPage, data.insuredName, 100, 743, 14);
+    drawText(secondPage, data.insuredName, 80, 743, 12);
     drawText(secondPage, data.insuredRrn, 285, 743, 14);
     drawCheck(secondPage, 512, 405);
     drawCheck(secondPage, 512, 302);
     drawCheck(secondPage, 512, 180);
   }
   if (thirdPage) {
-    drawCenterText(thirdPage, data.insuredName, 100, 743, 14);
+    drawText(thirdPage, data.insuredName, 80, 743, 14);
     drawText(thirdPage, data.insuredRrn, 285, 743, 14);
     drawCheck(thirdPage, 508, 275);
     drawCheck(thirdPage, 508, 177);
   }
   if (fourthPage) {
-    drawCenterText(fourthPage, data.insuredName, 100, 743, 14);
+    drawText(fourthPage, data.insuredName, 80, 743, 14);
     drawText(fourthPage, data.insuredRrn, 285, 743, 14);
     drawCheck(fourthPage, 507, 633);
     drawCheck(fourthPage, 507, 215);
     drawCheck(fourthPage, 507, 122);
   }
   if (fifthPage) {
-    drawCenterText(fifthPage, data.insuredName, 100, 743, 14);
+    drawCenterText(fifthPage, data.insuredName, 80, 743, 14);
     drawText(fifthPage, data.insuredRrn, 285, 743, 14);
     drawCheck(fifthPage, 509, 555);
     drawCheck(fifthPage, 509, 507);

@@ -1,52 +1,60 @@
 import { PDFDocument, PDFFont, rgb } from "pdf-lib";
 
-export const fillLifeLinaHealth = async (pdfDoc: PDFDocument, data: any, font: PDFFont) => {
+export const fillLifeMiraeAssetHealth = async (pdfDoc: PDFDocument, data: any, font: PDFFont) => {
   const pages = pdfDoc.getPages();
-  
-  // ⭐️ [페이지 인덱스 주의] 라이나생명 폼의 실제 시작 페이지에 맞춰 배열 인덱스를 조절하세요.
-  // 다운로드 후 1페이지가 청구서가 맞다면 그대로 두시고, 안내장이라면 pages[1]로 변경하시면 됩니다.
-  const firstPage = pages.length > 0 ? pages[0] : null;  // 1페이지: 보험금 청구서
-  const secondPage = pages.length > 1 ? pages[1] : null; // 2페이지: 동의서 (1/3)
-  const thirdPage = pages.length > 2 ? pages[2] : null;  // 3페이지: 동의서 (2/3)
-  const fourthPage = pages.length > 3 ? pages[3] : null; // 4페이지: 동의서 (3/3) 및 최종 서명
+  const firstPage = pages[0];  // 1페이지: 보험금 청구서
+  const secondPage = pages.length > 1 ? pages[1] : null; // 2페이지: 필수 동의서(1) - 수집/이용
+  const thirdPage = pages.length > 2 ? pages[2] : null;  // 3페이지: 필수 동의서(2) - 제공
+  const fourthPage = pages.length > 3 ? pages[3] : null; // 4페이지: 필수 동의서(3) - 국외/조회 및 최종 서명
 
   // ==========================================
-  // ⭐️ [좌표 튜닝용] 촘촘한 모눈종이(Grid) 그리기 함수
+  // ⭐️ [좌표 튜닝용] 모눈종이(Grid) 그리기 함수
+  // 완료 후 주석 처리하거나 지워주세요!
   // ==========================================
   const drawGrid = (page: any) => {
     if (!page) return;
     const { width, height } = page.getSize();
-    for (let x = 0; x < width; x += 50) {
+    
+    // 1. 회색 선 긋기 (50픽셀 간격)
+    for (let x = 0; x < width; x += 20) {
       page.drawLine({ start: { x, y: 0 }, end: { x, y: height }, color: rgb(0.8, 0.8, 0.8), thickness: 1 });
     }
-    for (let y = 0; y < height; y += 50) {
+    for (let y = 0; y < height; y += 20) {
       page.drawLine({ start: { x: 0, y }, end: { x: width, y }, color: rgb(0.8, 0.8, 0.8), thickness: 1 });
     }
+
+    // 2. 모든 칸(교차점)마다 빨간색으로 x, y 좌표 숫자 찍기
     for (let x = 0; x < width; x += 50) {
       for (let y = 0; y < height; y += 50) {
-        page.drawText(`${x},${y}`, { x: x + 2, y: y + 2, size: 7, font, color: rgb(1, 0, 0) });
+        // 선에 안 가려지게 교차점에서 우측 상단으로 2픽셀씩 띄워서 글씨를 씁니다.
+        page.drawText(`${x},${y}`, { 
+          x: x + 2, 
+          y: y + 2, 
+          size: 5, // 글씨가 너무 겹치지 않게 크기를 7로 살짝 줄임
+          font, 
+          color: rgb(1, 0, 0) 
+        });
       }
     }
   };
 
   // 튜닝 시 아래 주석을 풀고 확인하세요.
-  // if (firstPage) drawGrid(firstPage);
-  // if (secondPage) drawGrid(secondPage);
-  // if (thirdPage) drawGrid(thirdPage);
-  // if (fourthPage) drawGrid(fourthPage);
+  if (firstPage) drawGrid(firstPage);
+  if (secondPage) drawGrid(secondPage);
+  if (thirdPage) drawGrid(thirdPage);
+  if (fourthPage) drawGrid(fourthPage);
 
   // ==========================================
-  // 헬퍼 함수 모음 (안전장치 포함)
+  // 헬퍼 함수 모음
   // ==========================================
   const drawText = (page: any, text: string, x: number, y: number, size = 10, spacing = 0) => {
     if (!text || !page) return;
-    const safeText = String(text);
     if (spacing === 0) {
-      page.drawText(safeText, { x, y, size, font, color: rgb(0, 0, 0) });
+      page.drawText(text, { x, y, size, font, color: rgb(0, 0, 0) });
       return;
     }
     let currentX = x;
-    for (const char of safeText) {
+    for (const char of text) {
       page.drawText(char, { x: currentX, y, size, font, color: rgb(0, 0, 0) });
       const charWidth = font.widthOfTextAtSize(char, size);
       currentX += charWidth + spacing; 
@@ -55,12 +63,11 @@ export const fillLifeLinaHealth = async (pdfDoc: PDFDocument, data: any, font: P
 
   const drawCenterText = (page: any, text: string, centerX: number, y: number, size = 10, spacing = 0) => {
     if (!text || !page) return;
-    const safeText = String(text);
-    const rawTextWidth = font.widthOfTextAtSize(safeText, size);
-    const totalSpacing = spacing > 0 ? (safeText.length - 1) * spacing : 0;
+    const rawTextWidth = font.widthOfTextAtSize(text, size);
+    const totalSpacing = spacing > 0 ? (text.length - 1) * spacing : 0;
     const totalWidth = rawTextWidth + totalSpacing;
     const startX = centerX - (totalWidth / 2);
-    drawText(page, safeText, startX, y, size, spacing);
+    drawText(page, text, startX, y, size, spacing);
   };
 
   const drawCheck = (page: any, x: number, y: number, size = 12) => {
