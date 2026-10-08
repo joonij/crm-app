@@ -133,12 +133,13 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
   const [hasBeneficiarySignature, setHasBeneficiarySignature] = useState(false);
   
   const companyName = insurance?.insurance_company || "";
-  let needsInsuredSignature = true; 
-  let needsBeneficiarySignature = true; 
-  let supportsSavedAccount = true; 
+  let needsInsuredSignature = true; // 피보험자
+  let needsBeneficiarySignature = true; // 수익자
+  let supportsSavedAccount = true; // 자동이체계좌
 
   if (companyName.includes("ABL생명")) { supportsSavedAccount = false; }
   if (companyName.includes("라이나생명")) { supportsSavedAccount = false; }
+  if (companyName.includes("미래에셋생명")) { supportsSavedAccount = false; }
   if (companyName.includes("흥국생명")) { supportsSavedAccount = false; }
 
   if (companyName.includes("DB손해")) { }

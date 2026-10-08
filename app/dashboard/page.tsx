@@ -11,6 +11,57 @@ import TeamBoard from "./components/TeamBoard";
 import BranchBoard from "./components/BranchBoard";
 import { getSecureClientsData } from "@/app/actions/dashboard";
 
+// ⭐️ 설계사별 3W(주 3건 장기보험 체결) 연속 달성 주수 계산 함수
+const calculateAgentWeeklyStreak = (allContracts: any[], targetAgentName: string) => {
+  const now = new Date();
+  const currentDay = now.getDay(); // 일요일(0) ~ 토요일(6)
+  const startOfThisWeek = new Date(now);
+  startOfThisWeek.setDate(now.getDate() - currentDay);
+  startOfThisWeek.setHours(0, 0, 0, 0);
+
+  // 해당 설계사의 유지 중인 장기보험만 필터링
+  const validContracts = (allContracts || []).filter((c: any) => 
+    c.agent_name === targetAgentName &&
+    c.policy_status === "maintain" &&
+    c.insurance_type !== "일반보험" &&
+    c.subscription_date
+  );
+
+  const getWeekCount = (weeksAgo: number) => {
+    const wStart = new Date(startOfThisWeek);
+    wStart.setDate(wStart.getDate() - weeksAgo * 7);
+    const wEnd = new Date(wStart);
+    wEnd.setDate(wStart.getDate() + 6);
+    wEnd.setHours(23, 59, 59, 999);
+
+    return validContracts.filter((c: any) => {
+      const cleanDate = c.subscription_date.replace(/\./g, '-').replace(/\s/g, '');
+      const d = parseLocalDate(cleanDate);
+      return d >= wStart && d <= wEnd;
+    }).length;
+  };
+
+  const thisWeekCount = getWeekCount(0);
+  let streakCount = 0;
+  const isThisWeekAchieved = thisWeekCount >= 3;
+
+  if (isThisWeekAchieved) streakCount = 1;
+
+  // 과거 최대 104주(2년)까지 역산하여 연속 달성 여부 확인
+  for (let w = 1; w <= 104; w++) {
+    const count = getWeekCount(w);
+    if (count >= 3) {
+      if (w === 1 && !isThisWeekAchieved) streakCount = 1;
+      else if (streakCount > 0) streakCount++;
+      else break;
+    } else {
+      break;
+    }
+  }
+
+  return { thisWeekCount, streakCount };
+};
+
 export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'personal' | 'team' | 'branch'>('personal');
@@ -68,7 +119,6 @@ export default function DashboardPage() {
       const myPipelines = pipelineRes.data || [];
       const mySchedules = schedulesRes.data || [];
 
-      // 개인 활동내역 필터링
       const filteredMySchedules = mySchedules.filter((s: any) => 
         s.schedule_type === "personal" || s.schedule_type === "team"
       );
@@ -89,7 +139,6 @@ export default function DashboardPage() {
 
       sangryungList.forEach((c: any) => generatedNotis.push({ id: `sangryung_${c.id}_${new Date().getFullYear()}` }));
 
-      // 자동차 보험은 다른 설계사가 했어도 내 고객의 갱신일이라면 관리 차원에서 띄워줍니다.
       const autoList = myInsurances.filter((ins: any) => ins.product_name && (ins.product_name.includes("자동차") || ins.product_name.includes("다이렉트")) && ins.maturity_date)
         .map((ins: any) => ({ ...ins, dDay: calculateDDay(ins.maturity_date), clientName: clientMap.get(Number(ins.client_id)) || ins.contractor_name }))
         .filter((ins: any) => ins.dDay !== null && ins.dDay >= 1 && ins.dDay <= 60).sort((a: any, b: any) => (a.dDay || 0) - (b.dDay || 0));
@@ -98,11 +147,10 @@ export default function DashboardPage() {
       const lastMonthStr = getMonthString(1);
       const twoMonthsAgoStr = getMonthString(2);
 
-      // ⭐️ 핵심 로직: 체결 완료 인정 조건에 '담당 설계사 이름 일치' 항목 추가
       const completedPolicies = myInsurances.filter((ins: any) => 
         ins.policy_status === "maintain" && 
         ins.subscription_date && 
-        ins.agent_name === myName // <-- 로그인한 본인의 체결건만 집계합니다.
+        ins.agent_name === myName
       ).map((ins: any) => {
         let cleanSubDate = ins.subscription_date!.replace(/\./g, '-').replace(/\s/g, '');
         if (cleanSubDate.endsWith('-')) cleanSubDate = cleanSubDate.slice(0, -1);
@@ -113,14 +161,12 @@ export default function DashboardPage() {
         return { ...ins, clientName: clientMap.get(Number(ins.client_id)) || ins.contractor_name, tabIndex };
       }).filter((ins: any) => ins.tabIndex !== -1).sort((a: any, b: any) => new Date(b.subscription_date || 0).getTime() - new Date(a.subscription_date || 0).getTime());
 
-      // ⭐️ 개인 연간 통계 계산 (장기/일반 분리)
       const currentYear = new Date().getFullYear();
       const myYearlyStats = Array.from({length: 12}, (_, i) => ({ 
         month: i+1, monthStr: `${currentYear}-${String(i+1).padStart(2, '0')}`, 
         amount: 0, longTermAmount: 0, generalAmount: 0, contractIds: [] as number[] 
       }));
 
-      // ⭐️ 1W 3A 달성 현황 (이번주 일요일 ~ 토요일 기준 장기보험 체결 건수)
       const now = new Date();
       const currentDay = now.getDay(); 
       const startOfWeek = new Date(now);
@@ -133,26 +179,29 @@ export default function DashboardPage() {
 
       const thisWeekLongTermContracts = completedPolicies.filter((ins: any) => {
         if (ins.insurance_type === '일반보험' || !ins.subscription_date) return false;
-        const subDate = new Date(ins.subscription_date.replace(/\./g, '-'));
+        const subDate = parseLocalDate(ins.subscription_date.replace(/\./g, '-'));
         return subDate >= startOfWeek && subDate <= endOfWeek;
       });
 
       const weeklyCounts = [0, 0, 0, 0, 0, 0, 0]; 
       thisWeekLongTermContracts.forEach((ins: any) => {
-         const dayIndex = new Date(ins.subscription_date.replace(/\./g, '-')).getDay();
+         const dayIndex = parseLocalDate(ins.subscription_date.replace(/\./g, '-')).getDay();
          weeklyCounts[dayIndex]++;
       });
 
-      completedPolicies.forEach((ins: any) => {
-          let dateStr = ins.subscription_date || '-';
-          const cleanDate = dateStr.replace(/\./g, '-').replace(/\s/g, '').slice(0, 7);
-          const yMatch = myYearlyStats.find(y => y.monthStr === cleanDate);
-          if (yMatch) {
-              const amt = ins.monthly_premium || 0;
-              yMatch.amount += amt;
-              if (ins.insurance_type === '일반보험') yMatch.generalAmount += amt;
-              else yMatch.longTermAmount += amt;
-              yMatch.contractIds.push(ins.id);
+      // 연간 통계는 3개월 제한 없는 myInsurances 전체에서 본인 유지 계약으로 집계
+      myInsurances.forEach((ins: any) => {
+          if (ins.policy_status === "maintain" && ins.subscription_date && ins.agent_name === myName) {
+              let dateStr = ins.subscription_date || '-';
+              const cleanDate = dateStr.replace(/\./g, '-').replace(/\s/g, '').slice(0, 7);
+              const yMatch = myYearlyStats.find(y => y.monthStr === cleanDate);
+              if (yMatch) {
+                  const amt = ins.monthly_premium || 0;
+                  yMatch.amount += amt;
+                  if (ins.insurance_type === '일반보험') yMatch.generalAmount += amt;
+                  else yMatch.longTermAmount += amt;
+                  yMatch.contractIds.push(ins.id);
+              }
           }
       });
 
@@ -206,7 +255,22 @@ export default function DashboardPage() {
             const generalCompleted = completedList.filter((i:any) => i.insurance_type === '일반보험').reduce((sum: number, i: any) => sum + (i.monthly_premium || 0), 0);
             const completedAmt = longTermCompleted + generalCompleted;
 
-            return { agentName: member.name, rank: member.rank, targetAmount: member.monthly_target || 800000, inProgressAmount: inProgressAmt, completedAmount: completedAmt, longTermCompleted, generalCompleted, contracts: memberContracts, pipelines: memberPipes };
+            // ⭐️ 전체 기간 계약 데이터(tInsRes.data)에서 해당 팀원의 3W 연속 주수 및 금주 건수 계산
+            const { thisWeekCount, streakCount } = calculateAgentWeeklyStreak(tInsRes.data || [], member.name);
+
+            return { 
+              agentName: member.name, 
+              rank: member.rank, 
+              targetAmount: member.monthly_target || 800000, 
+              inProgressAmount: inProgressAmt, 
+              completedAmount: completedAmt, 
+              longTermCompleted, 
+              generalCompleted, 
+              thisWeekCount, // ⭐️ 팀 보드 전달용
+              streakCount,   // ⭐️ 팀 보드 전달용
+              contracts: memberContracts, 
+              pipelines: memberPipes 
+            };
           }); 
 
           const yStats = Array.from({length: 12}, (_, i) => ({ month: i+1, monthStr: `${currentYear}-${String(i+1).padStart(2, '0')}`, amount: 0, longTermAmount: 0, generalAmount: 0, activeSet: new Set(), contractIds: [] as number[] }));
@@ -276,7 +340,6 @@ export default function DashboardPage() {
                supabase.from("sales_pipelines").select("agent_id, expected_amount, expected_date, status").in("agent_id", bMemberIds).not('status', 'in', '("계약","거절","증권 전달")')
             ]);
 
-            const currentYear = new Date().getFullYear();
             const yStats = Array.from({length: 12}, (_, i) => ({ month: i+1, monthStr: `${currentYear}-${String(i+1).padStart(2, '0')}`, amount: 0, longTermAmount: 0, generalAmount: 0, activeSet: new Set(), contractIds: [] as number[] }));
             const teamMap = new Map();
             bAgencies.forEach(a => teamMap.set(a.team_number ? `${a.team_number}팀` : '직할팀', { teamName: a.team_number ? `${a.team_number}팀` : '직할팀', teamSM: '공석', targetAmount: 0, inProgressAmount: 0, completedAmount: 0, longTermCompleted: 0, generalCompleted: 0, fcs: {}, thisMonthAmt: 0, thisMonthActive: new Set(), lastMonthAmt: 0, lastMonthLongTerm: 0, lastMonthGeneral: 0, lastMonthActive: new Set(), twoMonthsAgoAmt: 0, twoMonthsAgoLongTerm: 0, twoMonthsAgoGeneral: 0, twoMonthsAgoActive: new Set() }));

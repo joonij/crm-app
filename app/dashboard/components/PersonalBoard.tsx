@@ -61,8 +61,10 @@ export default function PersonalBoard({ data, actions }: any) {
 
   const today = new Date();
   today.setHours(0,0,0,0);
+  
+  // ⭐️ 저번 주 일요일 ~ 이번 주 토요일(총 14일)을 표시하도록 시작일 설정
   const timelineStart = new Date(today);
-  timelineStart.setDate(today.getDate() - 3 + (timelineOffset * 7)); 
+  timelineStart.setDate(today.getDate() - today.getDay() - 7 + (timelineOffset * 7)); 
   const timelineDays = Array.from({length: 14}, (_, i) => { const d = new Date(timelineStart); d.setDate(d.getDate() + i); return d; });
   const TOTAL_TIMELINE_MS = 14 * 86400000;
 
@@ -90,7 +92,6 @@ export default function PersonalBoard({ data, actions }: any) {
     setPipelineForm({ ...pipelineForm, amount: val ? Number(val).toLocaleString() : '' });
   };
 
-  // ⭐️ 에러 원인 해결: 누락되었던 수정 폼 금액 변경 핸들러 추가
   const handleEditAmountChange = (e: any) => {
     const val = e.target.value.replace(/[^0-9]/g, '');
     setEditForm({ ...editForm, expected_amount: val ? Number(val).toLocaleString() : '' });

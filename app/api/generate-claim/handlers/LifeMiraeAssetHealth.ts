@@ -15,7 +15,7 @@ export const fillLifeMiraeAssetHealth = async (pdfDoc: PDFDocument, data: any, f
     if (!page) return;
     const { width, height } = page.getSize();
     
-    // 1. 회색 선 긋기 (50픽셀 간격)
+    // 1. 회색 선 긋기 (20픽셀 간격)
     for (let x = 0; x < width; x += 20) {
       page.drawLine({ start: { x, y: 0 }, end: { x, y: height }, color: rgb(0.8, 0.8, 0.8), thickness: 1 });
     }
@@ -24,13 +24,13 @@ export const fillLifeMiraeAssetHealth = async (pdfDoc: PDFDocument, data: any, f
     }
 
     // 2. 모든 칸(교차점)마다 빨간색으로 x, y 좌표 숫자 찍기
-    for (let x = 0; x < width; x += 50) {
-      for (let y = 0; y < height; y += 50) {
+    for (let x = 0; x < width; x += 20) {
+      for (let y = 0; y < height; y += 20) {
         // 선에 안 가려지게 교차점에서 우측 상단으로 2픽셀씩 띄워서 글씨를 씁니다.
         page.drawText(`${x},${y}`, { 
-          x: x + 2, 
-          y: y + 2, 
-          size: 5, // 글씨가 너무 겹치지 않게 크기를 7로 살짝 줄임
+          x: x, 
+          y: y, 
+          size: 4, // 글씨가 너무 겹치지 않게 크기를 7로 살짝 줄임
           font, 
           color: rgb(1, 0, 0) 
         });
@@ -39,10 +39,10 @@ export const fillLifeMiraeAssetHealth = async (pdfDoc: PDFDocument, data: any, f
   };
 
   // 튜닝 시 아래 주석을 풀고 확인하세요.
-  if (firstPage) drawGrid(firstPage);
-  if (secondPage) drawGrid(secondPage);
-  if (thirdPage) drawGrid(thirdPage);
-  if (fourthPage) drawGrid(fourthPage);
+  // if (firstPage) drawGrid(firstPage);
+  // if (secondPage) drawGrid(secondPage);
+  // if (thirdPage) drawGrid(thirdPage);
+  // if (fourthPage) drawGrid(fourthPage);
 
   // ==========================================
   // 헬퍼 함수 모음
@@ -78,7 +78,7 @@ export const fillLifeMiraeAssetHealth = async (pdfDoc: PDFDocument, data: any, f
   // ==========================================
   // [서명 이미지 렌더링 로직]
   // ==========================================
-  const sigDims = { width: 60, height: 20 };
+  const sigDims = { width: 45, height: 15 };
   let insuredSignatureImg: any = null;
   let signatureImg: any = null;        
 
@@ -100,104 +100,92 @@ export const fillLifeMiraeAssetHealth = async (pdfDoc: PDFDocument, data: any, f
   // [1페이지] 보험금 청구서 작성
   // ==========================================
   if (firstPage) {
-    // 1. 피보험자 인적사항
-    drawCenterText(firstPage, data.insuredName,  115, 660, 11); // 성명
-    drawText(firstPage,       data.insuredRrn,   220, 660, 11); // 주민번호
-    drawText(firstPage,       data.insuredPhone, 410, 660, 11); // 연락처
+    // 피보험자 인적사항
+    drawText(firstPage,       data.insuredName,  137, 732, 9); // 성명
+    drawText(firstPage,       data.insuredRrn,   245, 732, 9); // 주민번호
+    drawText(firstPage,       data.insuredPhone, 365, 732, 9); // 연락처
 
-    // 2. 계약의 수익자 인적사항
-    drawCenterText(firstPage, data.beneficiaryName,  115, 597, 11); // 성명
-    drawText(firstPage,       data.beneficiaryRrn,   220, 597, 11); // 주민번호
-    drawText(firstPage,       data.beneficiaryPhone, 410, 597, 11); // 연락처
-    drawText(firstPage,       data.beneficiaryAddress,90, 550, 11); // 주소
+    // 수익자 인적사항
+    drawText(firstPage,       data.beneficiaryName,  137, 687, 9); // 성명
+    drawText(firstPage,       data.beneficiaryRrn,   245, 687, 9); // 주민번호
+    drawText(firstPage,       data.beneficiaryPhone, 365, 687, 9); // 연락처
+    drawText(firstPage,       data.beneficiaryAddress,137, 667, 9); // 주소
 
-    // 3. 보험금 수령계좌
-    drawCenterText(firstPage, data.bankName,        150, 505, 11); // 은행명
-    drawText(firstPage,       data.accountNumber,   245, 505, 11); // 계좌번호
+    // 보험금 수령계좌
+    drawText(firstPage,       data.bankName,        137, 586, 9); // 은행명
+    drawText(firstPage,       data.beneficiaryName, 245, 586, 9); // 수익자성명
+    drawText(firstPage,       data.accountNumber,   365, 586, 9); // 계좌번호
 
-    drawCheck(secondPage, 160, 470); // 고유식별정보
+    drawCheck(firstPage, 145, 570);
 
-    // 4. 보험금 청구 세부내용
-    drawText(firstPage, data.accidentDesc, 160, 295, 10); // 사고경위
+    // 보험금 청구 세부내용
+    drawText(firstPage, data.accidentDesc, 140, 450, 9); // 사고경위
 
-    // 하단 날짜 및 서명
-    drawText(firstPage, data.todayYear,   435, 90, 11);
-    drawText(firstPage, data.todayMonth,  488, 90, 11);
-    drawText(firstPage, data.todayDay,    522, 90, 11);
+    drawCheck(firstPage, 99, 365);
+    drawCheck(firstPage, 278, 354);
+    drawCheck(firstPage, 448, 365);
 
-    // 피보험자 서명
-    drawCenterText(firstPage, data.insuredName, 150, 63, 11); 
-    if (insuredSignatureImg) {
-      firstPage.drawImage(insuredSignatureImg, { x: 225, y: 62, ...sigDims }); 
-    }
+    // 날짜
+    drawText(firstPage, data.todayYear,   85.5, 201.5, 9);
+    drawText(firstPage, data.todayMonth,  140, 201.5, 9);
+    drawText(firstPage, data.todayDay,    180, 201.5, 9);
+
+    // // 피보험자 서명
+    // drawCenterText(firstPage, data.insuredName, 150, 63, 9); 
+    // if (insuredSignatureImg) {
+    //   firstPage.drawImage(insuredSignatureImg, { x: 225, y: 62, ...sigDims }); 
+    // }
 
     // 수익자 서명
-    drawCenterText(firstPage, data.beneficiaryName, 150, 45, 11); 
+    drawText(firstPage, data.beneficiaryName, 290, 200, 9); 
     if (signatureImg) {
-      firstPage.drawImage(signatureImg, { x: 225, y: 42, ...sigDims }); 
+      firstPage.drawImage(signatureImg, { x: 395, y: 195, ...sigDims }); 
     }
   }
 
   // ==========================================
   // [2페이지] 동의서 (1/3)
   // ==========================================
-  // 라이나생명은 피보험자와 수익자의 동의칸이 분리되어 있습니다.
-  drawCenterText(secondPage, data.insuredName, 200, 611, 11); // 상단 피보험자 성명
-  drawCenterText(secondPage, data.insuredRrn, 470, 611, 11); // 상단 피보험자 성명
-  
-  // 피보험자 동의 (X좌표 대략 430 추정)
-  drawCheck(secondPage, 343, 345); // 고유식별정보
-  drawCheck(secondPage, 343, 245); // 민감정보
-  drawCheck(secondPage, 343, 140); // 개인(신용)정보
+  if (secondPage) {
+    drawCheck(secondPage, 510, 375);
+    drawCheck(secondPage, 510, 265);
+    drawCheck(secondPage, 510, 155);
+  }
 
-  // 수익자 동의 (X좌표 대략 510 추정)
-  drawCheck(secondPage, 505, 345); // 고유식별정보
-  drawCheck(secondPage, 505, 245); // 민감정보
-  drawCheck(secondPage, 505, 140); // 개인(신용)정보
 
   // ==========================================
   // [3페이지] 동의서 (2/3)
   // ==========================================
-  // 피보험자 동의
-  drawCheck(thirdPage, 343, 263); // 고유식별정보
-  drawCheck(thirdPage, 343, 165); // 민감정보
-  drawCheck(thirdPage, 343, 70); // 개인(신용)정보
-
-  // 수익자 동의
-  drawCheck(thirdPage, 505, 263); // 고유식별정보
-  drawCheck(thirdPage, 505, 165); // 민감정보
-  drawCheck(thirdPage, 505, 70); // 개인(신용)정보
+  if (thirdPage) {
+    drawCheck(thirdPage, 510, 330);
+    drawCheck(thirdPage, 510, 225);
+    drawCheck(thirdPage, 510, 110);
+  }
 
   // ==========================================
   // [4페이지] 동의서 (3/3) 및 최종 서명
   // ==========================================
   
   if (fourthPage) {
-    // 피보험자 동의
-    drawCheck(fourthPage, 343, 487); // 고유식별정보 조회
-    drawCheck(fourthPage, 343, 437); // 민감정보 조회
-    drawCheck(fourthPage, 343, 332); // 개인(신용)정보 조회
+    drawCheck(fourthPage, 510, 540);
+    drawCheck(fourthPage, 510, 415);
+    drawCheck(fourthPage, 510, 325);
 
-    // 수익자 동의
-    drawCheck(fourthPage, 505, 487); // 고유식별정보 조회
-    drawCheck(fourthPage, 505, 437); // 민감정보 조회
-    drawCheck(fourthPage, 505, 332); // 개인(신용)정보 조회
-
-    // 하단 날짜 및 서명
-    drawText(fourthPage, data.todayYear,  209, 161, 11);
-    drawText(fourthPage, data.todayMonth, 300, 161, 11);
-    drawText(fourthPage, data.todayDay,   350, 161, 11);
+    // 날짜
+    drawText(fourthPage, data.todayYear,  225, 289, 10.5);
+    drawText(fourthPage, data.todayMonth, 295, 289, 10.5);
+    drawText(fourthPage, data.todayDay,   340, 289, 10.5);
 
     // 피보험자 최종 서명
-    drawCenterText(fourthPage, data.insuredName, 190, 110, 11); 
+    drawText(fourthPage, data.insuredName, 90, 190, 10); 
     if (insuredSignatureImg) {
-      fourthPage.drawImage(insuredSignatureImg, { x: 245, y: 107, ...sigDims }); 
+      fourthPage.drawImage(insuredSignatureImg, { x: 175, y: 185, ...sigDims }); 
     }
 
     // 수익자 최종 서명
-    drawCenterText(fourthPage, data.beneficiaryName, 190, 87, 11); 
+    drawText(fourthPage, data.beneficiaryName, 90, 140, 10); 
     if (signatureImg) {
-      fourthPage.drawImage(signatureImg, { x: 245, y: 84, ...sigDims }); 
+      fourthPage.drawImage(signatureImg, { x: 175, y: 135, ...sigDims }); 
     }
   }
 };

@@ -3,7 +3,23 @@
 
 import { useState } from "react";
 import { Users, UserPlus, DollarSign, Calendar, Trophy, Medal, ChevronLeft, ChevronRight } from "lucide-react";
-import { formatMoney, formatAmtShort, getStatusColor, parseLocalDate, getLocalString } from "../utils";
+import { formatMoney, formatAmtShort, parseLocalDate } from "../utils";
+
+const getStatusBadgeStyle = (status: string) => {
+  if (status === '미진행') return 'bg-slate-50 text-slate-400 border-slate-200 opacity-60 font-medium';
+  if (status.includes('거절')) return 'bg-rose-100 text-rose-700 border-rose-200';
+  if (status.includes('보류')) return 'bg-slate-100 text-slate-600 border-slate-200';
+  if (status.includes('계약') || status.includes('증권') || status.includes('청약 완료')) return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+  if (status.includes('픽스') || status.includes('TA')) return 'bg-indigo-100 text-indigo-700 border-indigo-200';
+  return 'bg-blue-100 text-blue-700 border-blue-200';
+};
+
+const getDisplayStatus = (p: any) => {
+  if (p.status !== '미진행') return p.status;
+  if (!p.history || p.history.length === 0) return '미진행';
+  const meaningfulHistory = [...p.history].reverse().find((h: any) => h.status !== '미진행');
+  return meaningfulHistory ? meaningfulHistory.status : '미진행';
+};
 
 export default function TeamBoard({ data }: any) {
   const { 
@@ -33,6 +49,7 @@ export default function TeamBoard({ data }: any) {
   return (
     <div className="flex flex-col gap-6 w-full animate-in fade-in duration-300">
       
+      {/* 연간 누적 실적 및 가동 현황 (선그래프 2줄) */}
       {teamYearlyStats && (
         <div className="bg-white border border-indigo-100 rounded-2xl shadow-sm p-4 sm:p-5">
           <div className="flex flex-col sm:flex-row justify-between sm:items-end border-b border-slate-100 pb-3 mb-4 gap-2">
@@ -43,6 +60,7 @@ export default function TeamBoard({ data }: any) {
               <div className="flex items-center gap-1.5"><span className="w-2 h-2 bg-indigo-500 rounded-full"></span><span className="text-xs font-bold text-slate-600">장기실적</span></div>
               <div className="flex items-center gap-1.5"><span className="w-2 h-2 bg-amber-500 rounded-full"></span><span className="text-xs font-bold text-slate-600">일반실적</span></div>
               <div className="flex items-center gap-1.5"><span className="w-2 h-2 bg-emerald-500 rounded-full"></span><span className="text-xs font-bold text-slate-600">가동인원</span></div>
+              {teamName && <span className="text-xs font-bold text-white bg-slate-800 px-2 py-0.5 rounded-full ml-2">{teamName} (총 {teamTotalMembers}명)</span>}
             </div>
           </div>
 
@@ -88,7 +106,7 @@ export default function TeamBoard({ data }: any) {
         </div>
       )}
 
-      {/* ⭐️ 팀 TOP 3 명예의 전당 (장기보험 기준 타이틀 추가) */}
+      {/* 팀 TOP 3 명예의 전당 */}
       {teamTopFCs && teamTopFCs.length > 0 && (
         <div className="bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-200 p-4 sm:p-5 rounded-2xl shadow-md flex flex-col xl:flex-row xl:items-center gap-4 relative overflow-hidden">
           <div className="absolute -right-10 -top-10 text-yellow-200/30"><Trophy className="w-48 h-48" /></div>
@@ -141,11 +159,17 @@ export default function TeamBoard({ data }: any) {
 
       {(teamContractsByAgent || []).map((member: any) => {
         const offset = timelineOffsets[member.agentName] || 0;
+        
         const timelineStart = new Date(today);
-        timelineStart.setDate(today.getDate() - 3 + (offset * 7));
+        timelineStart.setDate(today.getDate() - today.getDay() - 7 + (offset * 7));
         const timelineDays = Array.from({length: 14}, (_, i) => {
-          const d = new Date(timelineStart); d.setDate(d.getDate() + i); return d;
+          const d = new Date(timelineStart);
+          d.setDate(d.getDate() + i);
+          return d;
         });
+
+        const streakCount = member.streakCount || 0;
+        const thisWeekCount = member.thisWeekCount || 0;
 
         return (
           <div key={member.agentName} className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm">
@@ -154,7 +178,21 @@ export default function TeamBoard({ data }: any) {
                 <span className="flex items-center gap-2"><UserPlus className="w-5 h-5 text-indigo-500" /> {member.agentName} <span className="text-[11px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">{member.rank || 'FC'}</span></span>
                 {(member.rank || '').toUpperCase().includes('SM') && <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded text-[10px] font-bold">팀장(SM)</span>}
               </h3>
-              <div className="flex gap-2 w-full sm:w-auto flex-wrap">
+              <div className="flex gap-2 w-full sm:w-auto flex-wrap items-center">
+                {/* ⭐️ 유저별 목표금액 좌측에 3W 연속 진행 주수 및 금주 달성 건수 표시 */}
+                <span className={`text-[11px] sm:text-xs font-black px-2.5 py-1 border rounded flex-1 sm:flex-none text-center flex items-center justify-center gap-1.5 whitespace-nowrap transition-all ${
+                  streakCount > 0 
+                    ? 'bg-gradient-to-r from-orange-500 to-rose-500 text-white border-transparent shadow-sm' 
+                    : 'bg-indigo-50 text-indigo-700 border-indigo-100'
+                }`}>
+                  {streakCount > 0 ? `🔥 3W ${streakCount}주째` : `3W 도전중`}
+                  <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
+                    streakCount > 0 ? 'bg-black/20 text-white' : 'bg-white text-indigo-600 border border-indigo-200'
+                  }`}>
+                    금주 {thisWeekCount}/3건
+                  </span>
+                </span>
+
                 <span className="text-[11px] sm:text-xs font-bold text-slate-600 bg-slate-50 px-2 py-1 border border-slate-200 rounded flex-1 sm:flex-none text-center">목표: {formatMoney(member.targetAmount)}</span>
                 <span className="text-[11px] sm:text-xs font-bold text-orange-600 bg-orange-50 px-2 py-1 border border-orange-100 rounded flex-1 sm:flex-none text-center">진행: {formatMoney(member.inProgressAmount)}</span>
                 <span className="text-[11px] sm:text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-1 border border-emerald-100 rounded flex-1 sm:flex-none text-center">장기: {formatMoney(member.longTermCompleted)}</span>
@@ -171,35 +209,48 @@ export default function TeamBoard({ data }: any) {
                       <div className="w-[280px] shrink-0 border-r border-slate-200 p-3 flex items-center justify-between bg-slate-50">
                         <span className="font-bold text-xs text-slate-500">진행 현황 막대그래프</span>
                         <div className="flex items-center gap-1.5">
-                          <button onClick={() => setTimelineOffsets(p => ({...p, [member.agentName]: (p[member.agentName] || 0) - 1}))} className="p-1 hover:bg-white rounded border border-transparent hover:border-slate-200"><ChevronLeft className="w-4 h-4 text-slate-500"/></button>
-                          <button onClick={() => setTimelineOffsets(p => ({...p, [member.agentName]: 0}))} className="text-[10px] font-bold bg-white px-2 py-0.5 rounded border border-slate-200 text-slate-600">오늘</button>
-                          <button onClick={() => setTimelineOffsets(p => ({...p, [member.agentName]: (p[member.agentName] || 0) + 1}))} className="p-1 hover:bg-white rounded border border-transparent hover:border-slate-200"><ChevronRight className="w-4 h-4 text-slate-500"/></button>
+                          <button onClick={() => setTimelineOffsets(p => ({...p, [member.agentName]: (p[member.agentName] || 0) - 1}))} className="p-1 hover:bg-white rounded border border-transparent hover:border-slate-200 cursor-pointer"><ChevronLeft className="w-4 h-4 text-slate-500"/></button>
+                          <button onClick={() => setTimelineOffsets(p => ({...p, [member.agentName]: 0}))} className="text-[10px] font-bold bg-white px-2 py-0.5 rounded border border-slate-200 shadow-sm text-slate-600 hover:text-indigo-600 cursor-pointer">오늘</button>
+                          <button onClick={() => setTimelineOffsets(p => ({...p, [member.agentName]: (p[member.agentName] || 0) + 1}))} className="p-1 hover:bg-white rounded border border-transparent hover:border-slate-200 cursor-pointer"><ChevronRight className="w-4 h-4 text-slate-500"/></button>
                         </div>
                       </div>
                       <div className="flex-1 grid bg-slate-50" style={{ gridTemplateColumns: 'repeat(14, minmax(0, 1fr))' }}>
-                        {timelineDays.map((d, i) => (
-                          <div key={i} className={`flex flex-col items-center justify-center py-2 border-r border-slate-200 last:border-r-0 ${d.getTime() === today.getTime() ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500'}`}>
-                            <span className="text-[10px] font-bold">{['일','월','화','수','목','금','토'][d.getDay()]}</span>
-                            <span className={`text-xs font-black mt-0.5 ${d.getTime() === today.getTime() ? 'bg-indigo-600 text-white w-5 h-5 flex items-center justify-center rounded-full shadow-sm' : ''}`}>{d.getDate()}</span>
-                          </div>
-                        ))}
+                        {timelineDays.map((d, i) => {
+                          const isToday = d.getTime() === today.getTime();
+                          const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                          return (
+                            <div key={i} className={`flex flex-col items-center justify-center py-2 border-r border-slate-200 last:border-r-0 ${isToday ? 'bg-indigo-50 text-indigo-700' : isWeekend ? 'text-rose-400' : 'text-slate-500'}`}>
+                              <span className="text-[10px] font-bold">{['일','월','화','수','목','금','토'][d.getDay()]}</span>
+                              <span className={`text-xs font-black mt-0.5 ${isToday ? 'bg-indigo-600 text-white w-5 h-5 flex items-center justify-center rounded-full shadow-sm' : ''}`}>{d.getDate()}</span>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                     <div className="flex flex-col relative pb-4 pt-1">
                       {member.pipelines.map((p: any) => {
                         const pStartMs = (p.created_at ? parseLocalDate(p.created_at) : today).getTime();
                         const pEndMs = Math.max(pStartMs, today.getTime());
-                        const tlStartMs = timelineStart.getTime(), tlEndMs = tlStartMs + TOTAL_TIMELINE_MS;
-                        if (pEndMs < tlStartMs || pStartMs >= tlEndMs) return null;
-                        const barStart = Math.max(pStartMs, tlStartMs), barEnd = Math.min(pEndMs + 86400000, tlEndMs);
+                        const tlStartMs = timelineStart.getTime();
+                        const tlEndMs = tlStartMs + TOTAL_TIMELINE_MS;
+                        const isOutOfView = pEndMs < tlStartMs || pStartMs >= tlEndMs;
+                        const barStart = Math.max(pStartMs, tlStartMs);
+                        const barEnd = Math.min(pEndMs + 86400000, tlEndMs);
                         const leftPercent = ((barStart - tlStartMs) / TOTAL_TIMELINE_MS) * 100;
                         const widthPercent = ((barEnd - barStart) / TOTAL_TIMELINE_MS) * 100;
+                        
+                        const displayStatus = getDisplayStatus(p);
+                        const badgeStyle = getStatusBadgeStyle(displayStatus);
                         const isHold = p.expected_date === '9999-12-31' || p.status === '보류';
+
                         return (
-                          <div key={p.id} className="flex border-b border-slate-100 hover:bg-slate-50/50 group">
+                          <div key={p.id} className="flex border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
                             <div className="w-[280px] shrink-0 border-r border-slate-100 p-3 relative z-20 bg-white group-hover:bg-slate-50/50 flex flex-col justify-center">
-                              <div className="flex items-center gap-1.5 mb-1.5"><span className={`text-[9px] font-bold px-1.5 py-0.5 border rounded shadow-sm whitespace-nowrap ${getStatusColor(p.status)}`}>{p.status}</span><span className="font-bold text-sm text-slate-800 truncate">{p.client_name}</span></div>
-                              <p className="text-[11px] text-slate-500 truncate mb-1.5">{p.contract_details}</p>
+                              <div className="flex items-center gap-1.5 mb-1.5 pr-4">
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 border rounded shadow-sm whitespace-nowrap ${badgeStyle}`}>{displayStatus}</span>
+                                <span className="font-bold text-sm text-slate-800 truncate">{p.client_name}</span>
+                              </div>
+                              <p className="text-[11px] text-slate-500 truncate mb-1.5 pr-4">{p.contract_details}</p>
                               <div className="flex justify-between items-center pr-4 mt-auto">
                                 <p className={`text-xs font-black ${isHold ? 'text-slate-400 line-through decoration-slate-300' : 'text-indigo-600'}`}>{formatMoney(p.expected_amount)}</p>
                                 <span className="text-[10px] font-bold text-slate-500 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded shadow-sm whitespace-nowrap">{p.expected_date === '9999-12-31' ? '일정 보류' : `${p.expected_date.slice(5).replace('-', '/')} 예정`}</span>
@@ -209,27 +260,37 @@ export default function TeamBoard({ data }: any) {
                               <div className="absolute inset-0 grid" style={{ gridTemplateColumns: 'repeat(14, minmax(0, 1fr))' }}>
                                 {timelineDays.map((d, i) => (<div key={i} className={`border-r border-slate-100/50 h-full ${d.getTime() === today.getTime() ? 'bg-indigo-50/30' : ''}`}></div>))}
                               </div>
-                              <div className="absolute top-[50%] -translate-y-1/2 h-5 z-10" style={{ left: `${leftPercent}%`, width: `${widthPercent}%` }}>
-                                <div className={`w-full h-full bg-slate-200 overflow-hidden relative shadow-sm flex items-center border border-slate-300/50 ${pStartMs < tlStartMs ? 'rounded-r-md border-l-0' : 'rounded-l-md'} ${pEndMs >= tlEndMs ? 'rounded-l-md border-r-0' : 'rounded-r-md'} ${pStartMs >= tlStartMs && pEndMs < tlEndMs ? 'rounded-md' : ''}`}>
-                                  <div className="absolute left-0 top-0 h-full bg-indigo-400 transition-all duration-1000" style={{ width: `100%` }}><div className="absolute inset-0 bg-white/10 w-full -skew-x-12 translate-x-2"></div></div>
+                              {!isOutOfView && (
+                                <div className="absolute top-[50%] -translate-y-1/2 h-5 z-10" style={{ left: `${leftPercent}%`, width: `${widthPercent}%` }}>
+                                  <div className={`w-full h-full bg-slate-200 overflow-hidden relative shadow-sm flex items-center border border-slate-300/50 ${pStartMs < tlStartMs ? 'rounded-r-md border-l-0' : 'rounded-l-md'} ${pEndMs >= tlEndMs ? 'rounded-l-md border-r-0' : 'rounded-r-md'} ${pStartMs >= tlStartMs && pEndMs < tlEndMs ? 'rounded-md' : ''}`}>
+                                    <div className="absolute left-0 top-0 h-full bg-indigo-400 transition-all duration-1000" style={{ width: `100%` }}><div className="absolute inset-0 bg-white/10 w-full -skew-x-12 translate-x-2"></div></div>
+                                  </div>
                                 </div>
-                              </div>
+                              )}
                               {p.history && p.history.map((h: any, idx: number) => {
                                 const hTime = parseLocalDate(h.date).getTime();
                                 if (hTime < tlStartMs || hTime >= tlEndMs) return null;
                                 const hLeft = ((hTime - tlStartMs + 43200000) / TOTAL_TIMELINE_MS) * 100;
-                                let dotClass = "border-slate-400";
-                                if (h.status.includes('거절')) dotClass = "border-rose-500"; else if (h.status.includes('보류') || h.status.includes('미진행')) dotClass = "border-slate-300"; else if (h.status.includes('계약') || h.status.includes('증권') || h.status.includes('청약 완료')) dotClass = "border-emerald-500"; else if (h.status.includes('픽스') || h.status.includes('TA')) dotClass = "border-indigo-500"; else dotClass = "border-blue-500";
+                                const hBadgeStyle = getStatusBadgeStyle(h.status);
+
+                                let dotClass = "border-slate-400 bg-white";
+                                if (h.status === '미진행') dotClass = "border-slate-200 bg-slate-100 opacity-60";
+                                else if (h.status.includes('거절')) dotClass = "border-rose-500 bg-white";
+                                else if (h.status.includes('보류')) dotClass = "border-slate-400 bg-white";
+                                else if (h.status.includes('계약') || h.status.includes('증권') || h.status.includes('청약 완료')) dotClass = "border-emerald-500 bg-white";
+                                else if (h.status.includes('픽스') || h.status.includes('TA')) dotClass = "border-indigo-500 bg-white";
+                                else dotClass = "border-blue-500 bg-white";
+
                                 return (
                                   <div key={idx} className="absolute z-20 flex flex-col items-center top-[50%] -translate-y-1/2" style={{ left: `${hLeft}%`, transform: 'translate(-50%, -50%)' }}>
-                                    <div className={`absolute bottom-full mb-1 whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-bold shadow-sm border ${getStatusColor(h.status)} z-10`}>{h.status}</div>
-                                    <div className={`w-2.5 h-2.5 rounded-full bg-white border-[2.5px] shadow-sm mt-3 relative z-0 ${dotClass}`}></div>
+                                    <div className={`absolute bottom-full mb-1 whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] shadow-sm border ${hBadgeStyle} z-10`}>{h.status}</div>
+                                    <div className={`w-2.5 h-2.5 rounded-full border-[2.5px] shadow-sm mt-3 relative z-0 ${dotClass}`}></div>
                                   </div>
                                 );
                               })}
                             </div>
                           </div>
-                        )
+                        );
                       })}
                     </div>
                   </div>
@@ -266,7 +327,7 @@ export default function TeamBoard({ data }: any) {
               )}
             </div>
           </div>
-        )
+        );
       })}
     </div>
   );
