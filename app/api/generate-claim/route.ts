@@ -14,6 +14,8 @@ const supabase = createClient(
 import { fillLifeAblHealth } from "./handlers/LifeAblHealth";
 import { fillLifeLinaHealth } from "./handlers/LifeLinaHealth";
 import { fillLifeMiraeAssetHealth } from "./handlers/LifeMiraeAssetHealth";
+import { fillLifeShinhanHealth } from "./handlers/LifeShinhanHealth";
+import { fillLifeHanaHealth } from "./handlers/LifeHanaHealth";
 import { fillLifeHeungkukHealth } from "./handlers/LifeHeungkukHealth";
 import { fillPropertyDbHealth } from "./handlers/PropertyDbHealth";
 import { fillPropertyKbHealth } from "./handlers/PropertyKbHealth";
@@ -82,6 +84,14 @@ export async function POST(req: NextRequest) {
     if (claimData.insuranceCompany.includes("미래에셋생명")) {
       fileName = "lifemiraeasset_health.pdf";
       fillFunction = fillLifeMiraeAssetHealth;
+    } 
+    if (claimData.insuranceCompany.includes("신한라이프")) {
+      fileName = "lifeshinhan_health.pdf";
+      fillFunction = fillLifeShinhanHealth;
+    } 
+    if (claimData.insuranceCompany.includes("하나생명")) {
+      fileName = "lifehana_health.pdf";
+      fillFunction = fillLifeHanaHealth;
     } 
     if (claimData.insuranceCompany.includes("흥국생명")) {
       fileName = "lifeheungkuk_health.pdf";

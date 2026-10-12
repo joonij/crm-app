@@ -115,7 +115,7 @@ export const fillLifeHeungkukHealth = async (pdfDoc: PDFDocument, data: any, fon
 
     drawText(firstPage, data.bankName,        400, 2070, 46); // 은행명
     drawText(firstPage, data.beneficiaryName, 1800,2070, 46); // 예금주명
-    drawText(firstPage, data.accountNumber,   440, 1965, 52, 67.1); // 계좌번호 (숫자만)
+    drawText(firstPage, data.accountNumber,   440, 1965, 52, 67.5); // 계좌번호 (숫자만)
 
     // 일시금 신청
     drawCheck(firstPage, 1880,1840, 46); 
