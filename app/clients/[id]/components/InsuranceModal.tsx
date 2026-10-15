@@ -821,5 +821,5 @@ export default function InsuranceModal({
         </div>
       </div>
     </div>
-  );
+  ); 
 }
