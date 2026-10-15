@@ -9,10 +9,12 @@ import { analyzeInsuranceEngine, formatAmountWithComma } from "@/lib/insurancePa
 const inputClassName =
   "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20";
 
+// ⭐️ kcredit_name 필드 추가
 type CoverageDetail = {
   name: string;
   amount: string;
   renewal_type?: string; 
+  kcredit_name?: string | null;
 };
 
 type InsuranceCompany = {
@@ -26,7 +28,7 @@ const EXCLUSION_PERIODS = ["1년", "2년", "3년", "4년", "5년", "전기간"];
 
 const initialFormState = {
   policy_status: "maintain",
-  insurance_type: "장기보험", // ⭐️ 추가됨: 기본값 장기보험
+  insurance_type: "장기보험",
   company: "",
   product: "",
   premium: "", 
@@ -44,6 +46,142 @@ const initialFormState = {
   agent_name: "",
 };
 
+// ⭐️ 메리츠화재 보장분석 텍스트 전용 파서 ('보장구분' 및 '실손구분' -> kcredit_name 매칭)
+const parseMeritzTextWithKcredit = (text: string, fallbackName: string) => {
+  // 기본 헤더 정보는 기존 엔진 결과를 우선 활용하되 정규식으로 한 번 더 보완
+  let baseResult: any = { company: "", product: "", premium: "", subDate: "", matDate: "", paymentPeriod: "", details: [] };
+  try {
+    baseResult = analyzeInsuranceEngine(text, fallbackName);
+  } catch (e) {
+    console.warn("기존 파서 실행 중 예외 발생, 내장 파서로 진행합니다.");
+  }
+
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+
+  let company = baseResult.company || "";
+  let product = baseResult.product || "";
+  let premium = baseResult.premium || "";
+  let subDate = baseResult.subDate || "";
+  let matDate = baseResult.matDate || "";
+  let paymentPeriod = baseResult.paymentPeriod || "";
+
+  // 1. 기간 추출 (예: 정상2025.11.27 ~ 2045.11.27)
+  const dateLine = lines.find((l) => /(\d{4}\.\d{2}\.\d{2})\s*~\s*(\d{4}\.\d{2}\.\d{2})/.test(l) && !l.includes("\t") && !l.includes("   "));
+  if (dateLine) {
+    const match = dateLine.match(/(\d{4}\.\d{2}\.\d{2})\s*~\s*(\d{4}\.\d{2}\.\d{2})/);
+    if (match) {
+      subDate = match[1].replace(/\./g, "-");
+      matDate = match[2].replace(/\./g, "-");
+    }
+  }
+
+  // 2. 납입기간 추출 (예: (매월납, 20년) -> 20년납)
+  const periodLine = lines.find((l) => l.startsWith("(") && l.includes("납") && l.endsWith(")"));
+  if (periodLine) {
+    const pMatch = periodLine.match(/(\d+년|전기|일시)/);
+    if (pMatch) {
+      paymentPeriod = pMatch[1].includes("납") ? pMatch[1] : `${pMatch[1]}납`;
+    }
+  }
+
+  // 3. 월 보험료 추출 (납입완료/납입예정 제외)
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    if (/^[\d,]+원$/.test(l) && !lines[i - 1]?.includes("납입")) {
+      premium = l.replace(/[^0-9]/g, "");
+      break;
+    }
+  }
+
+  // 4. 보험사 및 상품명 추출 (증권번호 윗줄 기준)
+  const policyIdx = lines.findIndex((l) => l.startsWith("증권번호"));
+  if (policyIdx >= 2) {
+    product = lines[policyIdx - 1];
+    for (let i = policyIdx - 2; i >= 0; i--) {
+      if (!["계피상이", "정상", "실효", "해지"].includes(lines[i])) {
+        company = lines[i];
+        break;
+      }
+    }
+  }
+
+  // 5. 보장구분 / 실손구분 테이블 특약 추출
+  const details: CoverageDetail[] = [];
+  let inTable = false;
+
+  for (const line of lines) {
+    if ((line.includes("보장구분") || line.includes("실손구분")) && line.includes("보장명")) {
+      inTable = true;
+      continue;
+    }
+    if (line.startsWith("유의사항") || line.startsWith("상기 내용 중")) {
+      inTable = false;
+      continue;
+    }
+
+    if (inTable) {
+      // 탭(\t) 또는 2칸 이상의 연속 공백으로 열(Column) 분리
+      let parts = line.split(/\t+|\s{2,}/).map((s) => s.trim()).filter(Boolean);
+
+      // 만약 단일 공백으로만 복사된 경우를 대비한 정규식 백업 분리
+      if (parts.length < 3) {
+        const fallbackMatch = line.match(/^(\S+)\s+(.+?)\s+([\d,]+(?:억|천|백|십)?[\d,]*만?원)\s+(.*)$/);
+        if (fallbackMatch) {
+          parts = [fallbackMatch[1], fallbackMatch[2], fallbackMatch[3], fallbackMatch[4]];
+        }
+      }
+
+      if (parts.length >= 3) {
+        const kcreditName = parts[0]; // '보장구분' 또는 '실손구분' 값
+        const covName = parts[1];     // '보장명' 값
+        const rawAmt = parts[2];      // '보장금액' 값
+
+        if (kcreditName === "보장구분" || kcreditName === "실손구분") continue;
+
+        // 금액을 '만원' 단위 숫자로 변환 (예: "2억원" -> 20000, "3,000만원" -> 3000)
+        let manWon = 0;
+        const cleanAmt = rawAmt.replace(/,/g, "").replace(/\s+/g, "");
+
+        if (cleanAmt.includes("억")) {
+          const [eokPart, restPart] = cleanAmt.split("억");
+          manWon += (parseInt(eokPart.replace(/[^0-9]/g, ""), 10) || 0) * 10000;
+          if (restPart) {
+            manWon += parseInt(restPart.replace(/[^0-9]/g, ""), 10) || 0;
+          }
+        } else if (cleanAmt.includes("만원") || cleanAmt.includes("만")) {
+          manWon = parseInt(cleanAmt.replace(/[^0-9]/g, ""), 10) || 0;
+        } else if (cleanAmt.includes("원")) {
+          const won = parseInt(cleanAmt.replace(/[^0-9]/g, ""), 10) || 0;
+          manWon = Math.floor(won / 10000);
+        } else {
+          manWon = parseInt(cleanAmt.replace(/[^0-9]/g, ""), 10) || 0;
+        }
+
+        // 중복 특약 방지 (정액형/실손형 전체 복사 시 동일 특약이 중복 들어가는 현상 방지)
+        const isDuplicate = details.some((d) => d.kcredit_name === kcreditName && d.name === covName && d.amount === formatAmountWithComma(String(manWon)));
+        if (!isDuplicate) {
+          details.push({
+            kcredit_name: kcreditName,
+            name: covName,
+            amount: formatAmountWithComma(String(manWon)),
+            renewal_type: covName.includes("갱신") ? "갱신형" : "비갱신",
+          });
+        }
+      }
+    }
+  }
+
+  return {
+    company,
+    product,
+    premium,
+    subDate,
+    matDate,
+    paymentPeriod,
+    details: details.length > 0 ? details : (baseResult.details || []),
+  };
+};
+
 export default function InsuranceModal({
   clientId,
   onClose,
@@ -55,7 +193,7 @@ export default function InsuranceModal({
 }) {
   const [covForm, setCovForm] = useState(initialFormState);
   const [covDetails, setCovDetails] = useState<CoverageDetail[]>(
-    Array(5).fill(null).map(() => ({ name: "", amount: "", renewal_type: "비갱신" }))
+    Array(5).fill(null).map(() => ({ name: "", amount: "", renewal_type: "비갱신", kcredit_name: null }))
   );
   
   const [exclusions, setExclusions] = useState<CoverageDetail[]>([]);
@@ -77,7 +215,7 @@ export default function InsuranceModal({
 
   useEffect(() => {
     setCovForm(initialFormState);
-    setCovDetails(Array(5).fill(null).map(() => ({ name: "", amount: "", renewal_type: "비갱신" })));
+    setCovDetails(Array(5).fill(null).map(() => ({ name: "", amount: "", renewal_type: "비갱신", kcredit_name: null })));
     setExclusions([]);
     setPasteText("");
 
@@ -132,8 +270,9 @@ export default function InsuranceModal({
     if (!pasteText.trim()) return alert("분석할 텍스트를 입력해주세요.");
     setIsAnalyzing(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 800));
-      const result = analyzeInsuranceEngine(pasteText, covForm.contractor_name);
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      // ⭐️ 업그레이드된 메리츠 파서 호출 (kcredit_name 포함 추출)
+      const result = parseMeritzTextWithKcredit(pasteText, covForm.contractor_name);
 
       setCovForm(prev => ({
         ...prev,
@@ -142,7 +281,7 @@ export default function InsuranceModal({
         premium: result.premium || prev.premium,
         premiumFormatted: result.premium ? formatAmountWithComma(result.premium) : prev.premiumFormatted,
         subscriptionDate: result.subDate || prev.subscriptionDate,
-        maturityDate: result.matDate || "",
+        maturityDate: result.matDate || prev.maturityDate,
         paymentPeriod: result.paymentPeriod || prev.paymentPeriod,
       }));
 
@@ -156,61 +295,14 @@ export default function InsuranceModal({
     }
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setIsUploading(true);
-    const formData = new FormData();
-    formData.append("file", file);
-
-    try {
-      const response = await fetch("/api/parse-insurance-pdf", { method: "POST", body: formData });
-      const result = await response.json();
-
-      if (result.success && result.data) {
-        setCovForm(prev => ({
-          ...prev,
-          company: result.data.company || prev.company,
-          product: result.data.productName || prev.product,
-          paymentPeriod: result.data.paymentPeriod || prev.paymentPeriod,
-          maturityDate: result.data.maturityDate || prev.maturityDate,
-          premiumFormatted: result.data.monthlyPremium !== undefined && result.data.monthlyPremium !== null
-            ? formatAmountWithComma(String(result.data.monthlyPremium)) 
-            : prev.premiumFormatted,
-        }));
-        
-        if (result.data.coverages && result.data.coverages.length > 0) {
-           const formattedCoverages = result.data.coverages.map((cov: any) => ({
-             name: String(cov.name || ""),
-             amount: cov.amount !== undefined && cov.amount !== null && String(cov.amount).trim() !== ""
-               ? formatAmountWithComma(String(cov.amount)) 
-               : "",
-             renewal_type: String(cov.renewal_type || "비갱신")
-           }));
-           setCovDetails(formattedCoverages);
-        }
-        alert("PDF 분석이 성공적으로 완료되었습니다!");
-      } else {
-        alert("PDF 파싱에 실패했습니다.\n" + (result.error || ""));
-      }
-    } catch (error) {
-      console.error(error);
-      alert("서버 통신 중 오류가 발생했습니다.");
-    } finally {
-      setIsUploading(false);
-      e.target.value = ''; 
-    }
-  };
-
   const updateCovDetail = (index: number, field: keyof CoverageDetail, value: string) => {
     const newDetails = [...covDetails];
     if (field === "amount") newDetails[index][field] = formatAmountWithComma(value);
-    else newDetails[index][field] = value;
+    else newDetails[index][field] = value as any;
     setCovDetails(newDetails);
   };
 
-  const addCovDetail = () => setCovDetails([...covDetails, { name: "", amount: "", renewal_type: "비갱신" }]);
+  const addCovDetail = () => setCovDetails([...covDetails, { name: "", amount: "", renewal_type: "비갱신", kcredit_name: null }]);
   const removeCovDetail = (index: number) => setCovDetails(covDetails.filter((_, i) => i !== index));
 
   const updateExclusion = (index: number, field: 'name' | 'amount', value: string) => {
@@ -229,7 +321,15 @@ export default function InsuranceModal({
     }
     setIsSaving(true);
     
-    const validDetails = covDetails.filter((d) => String(d.name).trim() !== "" && String(d.amount).trim() !== "");
+    // ⭐️ 저장 시 kcredit_name도 함께 유지하여 JSONB에 저장
+    const validDetails = covDetails
+      .filter((d) => String(d.name).trim() !== "" && String(d.amount).trim() !== "")
+      .map((d) => ({
+        name: d.name.trim(),
+        amount: d.amount.trim(),
+        renewal_type: d.renewal_type || "비갱신",
+        ...(d.kcredit_name ? { kcredit_name: d.kcredit_name } : {}),
+      }));
     
     const validExclusions = exclusions
       .filter((e) => String(e.name).trim() !== "")
@@ -242,7 +342,7 @@ export default function InsuranceModal({
         {
           client_id: parseInt(clientId, 10),
           policy_status: covForm.policy_status,
-          insurance_type: covForm.insurance_type, // ⭐️ DB 저장 시 insurance_type 반영
+          insurance_type: covForm.insurance_type,
           insurance_company: covForm.company.trim(),
           product_name: covForm.product.trim(),
           monthly_premium: parseInt(covForm.premiumFormatted.replace(/,/g, ""), 10),
@@ -348,22 +448,16 @@ export default function InsuranceModal({
           <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-4 space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-indigo-500" />
-                <p className="text-sm font-bold text-indigo-900">가입설계서 자동 분석</p>
+                <p className="text-sm font-bold text-indigo-900">메리츠화재 보장분석 파싱 (보장/실손구분 매칭 지원)</p>
               </div>
-              <label className={`cursor-pointer flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-colors shadow-sm ${isUploading ? 'bg-slate-400 text-white cursor-not-allowed' : 'bg-slate-800 text-white hover:bg-slate-700'}`}>
-                {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                {isUploading ? "PDF 분석 중..." : "PDF 파일 업로드"}
-                <input type="file" accept="application/pdf" className="hidden" onChange={handleFileUpload} disabled={isUploading || isAnalyzing} />
-              </label>
             </div>
             <div className="flex flex-col sm:flex-row gap-2">
               <textarea 
-                placeholder="텍스트를 이곳에 직접 붙여넣기 하셔도 됩니다."
+                placeholder="메리츠 보장분석 텍스트를 이곳에 붙여넣기 해주세요."
                 className="flex-1 rounded-lg border border-indigo-200 bg-white p-2.5 text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 resize-none h-12"
                 value={pasteText} onChange={(e) => setPasteText(e.target.value)}
               />
-              <button onClick={handleAnalyzeText} disabled={isAnalyzing || isUploading} className="cursor-pointer sm:w-28 flex items-center justify-center gap-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold transition-colors hover:bg-indigo-700 disabled:opacity-50 shadow-md">
+              <button onClick={handleAnalyzeText} disabled={isAnalyzing || isUploading} className="cursor-pointer sm:w-28 flex items-center justify-center gap-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold transition-colors hover:bg-indigo-700 disabled:opacity-50 shadow-md py-2.5 sm:py-0">
                 {isAnalyzing ? <><Loader2 className="w-4 h-4 animate-spin" /> 분석중</> : <><FileText className="w-4 h-4" /> 텍스트 추출</>}
               </button>
             </div>
@@ -398,7 +492,6 @@ export default function InsuranceModal({
           </div>
 
           <div className="space-y-3 pt-4 border-t border-gray-100">
-            {/* ⭐️ 추가됨: 기본 정보 타이틀 옆에 보험종류(일반/장기) 라디오 버튼 배치 */}
             <div className="flex justify-between items-end mb-2">
               <p className="text-sm font-semibold text-gray-700">기본 정보</p>
               <div className="flex gap-4">
@@ -503,7 +596,6 @@ export default function InsuranceModal({
               {renderClientSearchInput('insured', '피보험자')}
               {renderClientSearchInput('beneficiary', '수익자')}
 
-              {/* ⭐️ 수정됨: 담당설계사 본인설계/직접입력 라디오 버튼 그룹으로 교체 */}
               <div className="flex flex-col">
                 <div className="flex items-center justify-between mb-1.5 ml-1">
                   <label className="text-xs text-gray-500 font-semibold">담당설계사</label>

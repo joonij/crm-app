@@ -111,6 +111,8 @@ export const fillLifeAblHealth = async (pdfDoc: PDFDocument, data: any, font: PD
     drawText(firstPage,      data.beneficiaryName,  275, 613, 10); // 성명
     drawText(firstPage,      data.accountNumber,   395, 613, 10); // 계좌번호
 
+    drawText(firstPage,       data.beneficiaryName,  390, 565, 11); // 성명
+
     drawCheck(firstPage, 108, 582); // 일시금
     drawCheck(firstPage, 129, 482); // 진행단계
     drawCheck(firstPage, 154, 462); // 지급지연안내

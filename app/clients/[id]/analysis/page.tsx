@@ -1,3 +1,4 @@
+// app/clients/[id]/analysis/page.tsx
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
@@ -5,7 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Scale, Coins, ArrowLeft, ShieldCheck, Printer, AlertCircle, Stethoscope, CheckCircle2, Info, FileText, AlertTriangle, Save, Loader2, Settings2, ShieldAlert, Target } from "lucide-react";
 import { COVERAGE_OPTIONS, calculateCoverageScores, getStandardCoverageInfo, applyCoverageToMap } from "@/lib/coverageMapper";
-import SettingsModal from '../components/SettingsModal';
+import SettingsModal, { MASTER_COVERAGES, DEFAULT_VISIBLE_COVERAGES, MasterCoverageItem, isKcreditMatch } from '../components/SettingsModal';
 import { decryptRegNumber } from "@/app/actions/crypto";
 
 export const CHART_CONFIG = [
@@ -23,9 +24,9 @@ export const CHART_CONFIG = [
     title: "치료비",
     items: [
       { label: "암주요치료비", keywords: ["암주요치료", "암치료"], defaultTarget: 5000 },
-      { label: "순환계질환통합치료비", keywords: ["순환계질환통합치료", "순환계통합치료"], defaultTarget: 3000 },
+      { label: "순환계질환통합치료비", keywords: ["순환계질환통합치료", "순환계통합치료", "순환계주요치료"], defaultTarget: 3000 },
       { label: "질병수술비", keywords: ["질병수술비", "질병수술"], defaultTarget: 100 },
-      { label: "질병5종수술비", keywords: ["질병5종", "1~5종", "1-5종", "종수술"], defaultTarget: 1000 },
+      { label: "질병5종수술비", keywords: ["질병5종"], defaultTarget: 1000 },
       { label: "질병입원비", keywords: ["질병입원비", "질병입원일당", "질병입원급여"], defaultTarget: 5 }, 
     ]
   },
@@ -51,6 +52,76 @@ export const CHART_CONFIG = [
     ]
   }
 ];
+
+// ⭐️ 개별 보험 특약(detail)이 57개 마스터 항목 중 어디에 속하는지 판별하는 정밀 매칭 함수
+const matchDetailToMaster = (master: MasterCoverageItem, detail: any): boolean => {
+  const cleanStr = (s: string) => (s || "").replace(/\s+/g, "");
+  const dName = cleanStr(detail.name);
+  const mName = cleanStr(master.name);
+  
+  // ⭐️ 유병자 등 수식어가 포함된 kcredit_name 매칭 여부 판별
+  const kcreditMatched = isKcreditMatch(detail.kcredit_name, master.kcreditMatch);
+
+  // 1. 종수술비(1~5종)의 경우: 종수(1종~5종) 숫자가 반드시 일치해야 함
+  const gradeMatch = master.name.match(/([1-5]종)/);
+  if (gradeMatch) {
+    const grade = gradeMatch[1]; 
+    const isInjury = master.name.includes("상해");
+    const isDisease = master.name.includes("질병");
+
+    if (kcreditMatched) {
+      return dName.includes(grade);
+    }
+    if (isInjury && (dName.includes("상해") || dName.includes("재해")) && dName.includes(grade) && dName.includes("수술")) return true;
+    if (isDisease && dName.includes("질병") && dName.includes(grade) && dName.includes("수술")) return true;
+    return false;
+  }
+
+  // 2. 골절 진단비 (치아파절 제외 vs 포함 구분)
+  if (master.name.includes("골절")) {
+    const isExclTeeth = master.name.includes("치아파절제외");
+    const isInclTeeth = master.name.includes("치아파절포함");
+    const detailHasExcl = dName.includes("치아파절제외") || dName.includes("치아제외");
+
+    if (kcreditMatched) {
+      if (isExclTeeth) return detailHasExcl;
+      if (isInclTeeth) return !detailHasExcl;
+    }
+    if (dName.includes("골절") && dName.includes("진단")) {
+      if (isExclTeeth) return detailHasExcl;
+      if (isInclTeeth) return !detailHasExcl;
+    }
+    return false;
+  }
+
+  // 3. 통합상해 진단비 (경증 / 중등증 / 중증 구분)
+  if (master.name.includes("통합상해")) {
+    const subMatch = master.name.match(/\((.*?)\)/);
+    const subType = subMatch ? subMatch[1] : ""; 
+    return dName.includes("통합상해") && dName.includes(subType);
+  }
+
+  // 4. kcredit_name 매칭값이 존재하는 일반 항목들 (유병자 포함)
+  if (kcreditMatched) {
+    return true;
+  }
+
+  // 5. 매칭값이 없거나 kcredit_name이 비어있을 때 name 기반 매칭
+  if (dName === mName) return true;
+
+  if (master.name === "암주요 치료비" && dName.includes("암") && (dName.includes("주요치료") || dName.includes("통합치료") || (dName.includes("비급여") && dName.includes("치료")))) return true;
+  if (master.name === "순환계질환 진단비" && dName.includes("순환계") && dName.includes("진단") && !dName.includes("제외")) return true;
+  if (master.name === "순환계주요 치료비" && dName.includes("순환계") && (dName.includes("주요치료") || dName.includes("통합치료"))) return true;
+  if (master.name === "상해간병인 지원비" && dName.includes("간병인") && dName.includes("지원") && (dName.includes("상해") || dName.includes("재해"))) return true;
+  if (master.name === "질병간병인 지원비" && dName.includes("간병인") && dName.includes("지원") && dName.includes("질병")) return true;
+
+  const stdInfo = getStandardCoverageInfo(dName);
+  if (stdInfo && cleanStr(stdInfo.standardDisplayName) === mName) {
+    return true;
+  }
+
+  return false;
+};
 
 const PolygonRadarChart = ({ categories, beforeData, afterData }: { categories: string[], beforeData: number[], afterData: number[] }) => {
   const size = 320; 
@@ -231,14 +302,17 @@ const HIDDEN_IN_SUMMARY = [
 ];
 
 const getCategory = (name: string) => {
+  const found = MASTER_COVERAGES.find(m => m.name === name);
+  if (found) return found.category;
+
   if (name.includes("사망")) return "사망 보장";
   if (name.includes("후유장해")) return "후유장해 보장";
   if (name.includes("암") || name.includes("항암") || name.includes("다빈치") || name.includes("로봇")) return "암 보장 (진단/치료/수술)";
   if (name.includes("뇌")) return "뇌 질환";
   if (name.includes("심장") || name.includes("심근") || name.includes("허혈") || name.includes("부정맥") || name.includes("심부전") || name.includes("판막")) return "심장 질환";
   if (name.includes("순환계") || name.includes("혈전")) return "순환계 질환";
-  if (name.includes("1종") || name.includes("2종") || name.includes("3종") || name.includes("4종") || name.includes("5종")) return "종수술비";
-  if (name.includes("수술")) return "일반 수술비";
+  if (name.includes("1종") || name.includes("2종") || name.includes("3종") || name.includes("4종") || name.includes("5종")) return "수술비";
+  if (name.includes("수술")) return "수술비";
   if ((name.includes("입원") && !name.includes("실손")) || name.includes("응급") || name.includes("중환자")) return "입원 및 응급실";
   if (name.includes("요양") || name.includes("인지") || name.includes("간병")) return "장기요양 및 간병";
   if (name.includes("자동차") || name.includes("교통") || name.includes("변호사") || name.includes("벌금")) return "운전자 비용";
@@ -249,7 +323,7 @@ const getCategory = (name: string) => {
 const CATEGORY_ORDER = [
   "사망 보장", "후유장해 보장", "암 보장 (진단/치료/수술)", 
   "뇌 질환", "심장 질환", "순환계 질환", 
-  "일반 수술비", "종수술비", "입원 및 응급실", "상해·골절·화상 및 기타",
+  "수술비", "입원 및 응급실", "상해·골절·화상 및 기타",
   "운전자 비용", "장기요양 및 간병", "실손의료비"
 ];
 
@@ -339,7 +413,7 @@ export default function AnalysisPage() {
   const [analysisData, setAnalysisData] = useState({
     premium: { before: 0, after: 0 },
     totalPremium: { before: 0, after: 0 }, 
-    coverages: [] as { name: string; before: number; after: number; rawNames?: string[] }[],
+    coverages: [] as { name: string; before: number; after: number; kcredit_name?: string | null; rawNames?: string[] }[],
     rawPolicies: [] as any[],
   });
   
@@ -353,7 +427,7 @@ export default function AnalysisPage() {
   const [kcdOverrides, setKcdOverrides] = useState<Record<string, { before?: number; after?: number; highlight?: boolean }>>({});
   const [coverageOverrides, setCoverageOverrides] = useState<Record<string, { before?: number; after?: number }>>({});
   const [includeSanjeong, setIncludeSanjeong] = useState({ brain: false, heart: false, circAll: false, circExcl: false });
-  const [visibleCoverages, setVisibleCoverages] = useState<string[]>([]);
+  const [visibleCoverages, setVisibleCoverages] = useState<string[]>(DEFAULT_VISIBLE_COVERAGES);
   const [customCoverages, setCustomCoverages] = useState<{id: string, name: string, before: number, after: number, category: string}[]>([]);
   const [companies, setCompanies] = useState<{company_type: string, company_name: string, logo_url?: string}[]>([]);
 
@@ -392,7 +466,7 @@ export default function AnalysisPage() {
       }
     }
 
-    if (clientData.agent_id) {
+    if (clientData?.agent_id) {
       const { data: agentData } = await supabase.from("agents").select("*, agencies(*)").eq("id", clientData.agent_id).single();
       if (agentData) setAgentInfo(agentData);
     }
@@ -407,7 +481,15 @@ export default function AnalysisPage() {
       let premiumAfter = 0;
       let totalPremiumBefore = 0; 
       let totalPremiumAfter = 0;  
+      
+      // 기존 KCD 코드 계산 호환을 위한 맵
       const coverageMap: Record<string, { displayName: string; before: number; after: number; rawNames: string[] }> = {};
+
+      // ⭐️ 57개 마스터 항목별 합산 결과를 담을 맵 초기화
+      const masterTotals: Record<string, { before: number; after: number; rawNames: string[] }> = {};
+      MASTER_COVERAGES.forEach(m => {
+        masterTotals[m.name] = { before: 0, after: 0, rawNames: [] };
+      });
 
       const scores = {
         cancer: { before: 0, after: 0 },
@@ -439,7 +521,7 @@ export default function AnalysisPage() {
         if (isBefore) totalPremiumBefore += premiumBeforeValue * monthsToPay;
         if (isAfter) totalPremiumAfter += premiumAfterValue * monthsToPay;
 
-        if (isAfter) {
+        if (isBefore) {
           const prodName = ins.product_name || "";
           if (prodName.includes("운전자")) scores.hasDriver = true;
           if (prodName.includes("치아") || prodName.includes("덴탈") || prodName.includes("치과")) scores.hasDental = true;
@@ -457,6 +539,24 @@ export default function AnalysisPage() {
 
             calculateCoverageScores(name, beforeVal, afterVal, isBefore, isAfter, scores);
 
+            if (isBefore && beforeVal > 0) {
+              if (name.includes("수술") && (name.includes("종") || name.includes("1-5종") || name.includes("1-6종") || name.includes("1-9종"))) scores.hasJongSurgery = true;
+              if (name.includes("교통사고처리") || name.includes("변호사선임") || name.includes("자동차부상") || name.includes("벌금")) scores.hasDriver = true;
+              if (name.includes("임플란트") || name.includes("크라운") || name.includes("보철") || name.includes("보존")) scores.hasDental = true;
+            }
+
+            // ⭐️ 1. 57개 마스터 항목과 kcredit_name / name 정밀 매칭하여 합산
+            MASTER_COVERAGES.forEach(master => {
+              if (matchDetailToMaster(master, detail)) {
+                if (isBefore) masterTotals[master.name].before += beforeVal;
+                if (isAfter) masterTotals[master.name].after += afterVal;
+                if (!masterTotals[master.name].rawNames.includes(normalizedName)) {
+                  masterTotals[master.name].rawNames.push(normalizedName);
+                }
+              }
+            });
+
+            // 2. 기존 KCD 산정특례/특정순환계 호환을 위한 맵핑 유지
             let forceKeep = false;
             let forceDisplayName = "";
 
@@ -503,46 +603,50 @@ export default function AnalysisPage() {
         }
       });
 
-      const extendedOptions = [...COVERAGE_OPTIONS];
-      const requiredExtras = [
-        "특정순환계질환 진단비",
-        "특정순환계질환 진단비(뇌혈관질환 및 허혈성심장질환 제외)",
-        "뇌산정특례대상 진단비",
-        "심장산정특례대상 진단비"
-      ];
-      requiredExtras.forEach(ext => {
-        if (!extendedOptions.includes(ext)) extendedOptions.push(ext);
-      });
+      // ⭐️ 57개 마스터 항목 배열 생성 (SettingsModal과 100% 호환)
+      const masterCoveragesArray = MASTER_COVERAGES.map(m => ({
+        name: m.name,
+        kcredit_name: m.kcreditMatch,
+        before: masterTotals[m.name].before,
+        after: masterTotals[m.name].after,
+        rawNames: masterTotals[m.name].rawNames
+      }));
 
-      const fullCoveragesArray = extendedOptions.map((name) => {
-        const key = name.replace(/\s+/g, "");
-        const existingData = coverageMap[key];
-        return {
-          name: name,
-          before: existingData ? existingData.before : 0,
-          after: existingData ? existingData.after : 0,
-          rawNames: existingData ? existingData.rawNames : []
-        };
+      // KCD 계산에 필요한 추가 특례 항목이 마스터에 없을 경우 보조로 추가
+      const extraKcdItems = [
+        "특정순환계질환 진단비",
+        "특정순환계질환 진단비(뇌혈관질환 및 허혈성심장질환 제외)"
+      ];
+      extraKcdItems.forEach(extName => {
+        if (!masterCoveragesArray.some(m => m.name === extName)) {
+          const key = extName.replace(/\s+/g, "");
+          const existing = coverageMap[key];
+          masterCoveragesArray.push({
+            name: extName,
+            kcredit_name: null,
+            before: existing ? existing.before : 0,
+            after: existing ? existing.after : 0,
+            rawNames: existing ? existing.rawNames : []
+          });
+        }
       });
 
       setAnalysisData({
         premium: { before: premiumBefore, after: premiumAfter },
         totalPremium: { before: totalPremiumBefore, after: totalPremiumAfter },
-        coverages: fullCoveragesArray,
+        coverages: masterCoveragesArray,
         rawPolicies: insData || [],
         scores: scores as any
       } as any);
 
-      let savedVisible = clientData.consulting_details?.visibleCoverages;
-      
-      if (!savedVisible || savedVisible.length === 0) {
-        savedVisible = fullCoveragesArray
-          .filter(c => (c.before > 0 || c.after > 0) && c.name !== "일반사망 진단비" && !HIDDEN_IN_SUMMARY.includes(c.name))
-          .map(c => c.name);
+      // ⭐️ 저장된 표시 항목이 없으면, (기본) 45개 항목(DEFAULT_VISIBLE_COVERAGES)을 기본으로 체크하여 표시합니다.
+      const savedVisible = clientData?.consulting_details?.visibleCoverages;
+      if (savedVisible && savedVisible.length > 0) {
+        setVisibleCoverages(savedVisible);
+      } else {
+        setVisibleCoverages(DEFAULT_VISIBLE_COVERAGES);
       }
-      setVisibleCoverages(savedVisible);
-      setCustomCoverages(clientData.consulting_details?.customCoverages || []);
-
+      setCustomCoverages(clientData?.consulting_details?.customCoverages || []);
     }
     setIsLoading(false);
   }, [clientId]);
@@ -727,36 +831,12 @@ export default function AnalysisPage() {
   const scores = (analysisData as any).scores || {
     cancer: { before: 0, after: 0 }, similarCancer: { before: 0, after: 0 }, 
     brain: { before: 0, after: 0 }, heart: { before: 0, after: 0 }, circulatory: { before: 0, after: 0 },   
-    death: { before: 0, after: 0 }, pension: { before: 0, after: 0 },       
+    death: { before: 0, after: 0 }, pension: { before: 0, after: 0 },        
     surgery: { before: 0, after: 0 }, hasJongSurgery: false, homeCare: { before: 0, after: 0 },
     hospitalization: { before: 0, after: 0 }, injury: { before: 0, after: 0 }, hasDriver: false, hasDental: false
   };
 
-  const premiumDiff = analysisData.premium.after - analysisData.premium.before;
-  const totalPremiumDiff = analysisData.totalPremium.after - analysisData.totalPremium.before;
   const afterPremium = analysisData.premium.after;
-
-  const calculateTotalDefenseCost = () => {
-    return analysisData.coverages
-    .filter(c => 
-      c.name.includes("일반암 진단비") || 
-      c.name.includes("유사암 진단비") || 
-      c.name.includes("통합암 진단비") || 
-      c.name.includes("순환계질환통합") || 
-      c.name.includes("뇌혈관질환 진단비") || 
-      c.name.includes("뇌졸중 진단비") || 
-      c.name.includes("뇌산정") || 
-      c.name.includes("급성심근경색 진단비") || 
-      c.name.includes("허혈성심장질환 진단비") || 
-      c.name.includes("심장산정") || 
-      c.name.includes("부정맥") || 
-      c.name.includes("심혈관질환 진단비") || 
-      c.name.includes("암주요") || 
-      c.name.includes("암통합")
-    )
-    .reduce((acc, curr) => acc + curr.after, 0);
-  };
-
   const agentCorp = Array.isArray(agentInfo?.agencies) ? agentInfo.agencies[0]?.corporation_name : agentInfo?.agencies?.corporation_name;
 
   const baseGapItems = [
@@ -766,13 +846,13 @@ export default function AnalysisPage() {
     { condition: scores.heart.before < 2000, title: "심장 보장 공백 발견", desc: `현재 허혈성/심장 보장금액이 권장 기준보다 부족합니다.`, action: "심혈관 특정진단비 보완 권장" },
     { condition: scores.circulatory.before < 2000, title: "순환계질환 보장 공백", desc: `현재 순환계질환 보장금액이 부족합니다. (뇌/심장 광범위 커버 필요)`, action: "순환계질환 진단비 보완 요망" }, 
     { condition: scores.death.before < 3000, title: "사망보장 자산 부족", desc: `현재 사망 보장 자산이 가족을 위한 최소 대비가 부족합니다.`, action: "정기/종신 사망보험금 확보" }, 
-    { condition: scores.pension.before === 0, title: "노후 연금 자산 부재", desc: "은퇴 후를 대비할 수 있는 연금 관련 보장 자산이 전혀 없습니다.", action: "노후 대비 연금저축/보험 가 가입" }, 
+    { condition: scores.pension.before === 0, title: "노후 연금 자산 부재", desc: "은퇴 후를 대비할 수 있는 연금 관련 보장 자산이 전혀 없습니다.", action: "노후 대비 연금저축/보험 가입" }, 
     { condition: scores.surgery.before === 0 || !scores.hasJongSurgery, title: "질병/종수술비 보장 부재", desc: scores.surgery.before === 0 ? "포트폴리오에 수술비 특약이 전혀 확인되지 않습니다." : "질병 강도에 비례해 지급되는 '종수술비'가 빠져있습니다.", action: "질병 및 1-5종 수술비 장착" },
     { condition: scores.homeCare.before === 0, title: "치매 리스크 노출", desc: "장기요양등급 판정 시 매월 생활비를 받는 재가급여 자산이 비어있습니다.", action: "장기요양 재가급여 특약 추가" },
     { condition: scores.injury.before === 0, title: "통합상해진단비 공백", desc: "일상생활 중 발생하는 골절, 화상 등 각종 외상성 상해 진단비 자산이 없습니다.", action: "통합상해진단비 보완 권장" },
-    { condition: scores.hospitalization.before === 0, title: "일당 입원비 보장 부재", desc: "첫날부터 보장받는 입원일당 특약이 없어 장기 입원 시 자부담 리스크가 있습니다.", action: "간병인/입원일당 확보 고려" },
-    { condition: !scores.hasDriver, title: "운전자 핵심 비용 부재", desc: "민사/형사상 책임을 방어하는 교통사고처리지원금, 변호사선임비 등의 방어막이 없습니다.", action: "형사합의금 지원 플랜 마련" },
-    { condition: !scores.hasDental, title: "치아 보장 자산 부재", desc: "큰 비용이 드는 임플란트, 크라운에 대한 전문 치과 치료비 보장이 없습니다.", action: "치과 전문 덴탈 케어 안내" }
+    { condition: scores.hospitalization.before === 0, title: "입원비 보장 부재", desc: "첫날부터 보장받는 입원일당 특약이 없어 장기 입원 시 자부담 리스크가 있습니다.", action: "간병인/입원일당 확보 고려" },
+    { condition: !scores.hasDriver, title: "운전자 비용 부재", desc: "민사/형사상 책임을 방어하는 교통사고처리지원금, 변호사선임비 등의 방어막이 없습니다.", action: "형사합의금 지원 플랜 마련" },
+    { condition: !scores.hasDental, title: "치아 보장 부재", desc: "큰 비용이 드는 임플란트, 크라운에 대한 전문 치과 치료비 보장이 없습니다.", action: "치과 전문 덴탈 케어 안내" }
   ];
 
   const displayGaps = (() => {
@@ -789,6 +869,9 @@ export default function AnalysisPage() {
 
     return [...filteredAutoGaps, ...filteredCustomGaps].slice(0, 4);
   })();
+
+  // ⭐️ 보장 금액 합계 테이블에 표시될 항목 정렬 (MASTER_COVERAGES 순서 기준)
+  const masterOrderNames = MASTER_COVERAGES.map(m => m.name);
 
   const displayTableItems = [
     ...analysisData.coverages
@@ -808,13 +891,25 @@ export default function AnalysisPage() {
       category: c.category || getCategory(c.name)
     }))
   ].sort((a, b) => {
-    const catA = CATEGORY_ORDER.indexOf(a.category);
-    const catB = CATEGORY_ORDER.indexOf(b.category);
-    if (catA !== catB) return catA - catB;
-    if (a.isCustom !== b.isCustom) return a.isCustom ? 1 : -1;
-    const idxA = COVERAGE_OPTIONS.indexOf(a.name);
-    const idxB = COVERAGE_OPTIONS.indexOf(b.name);
-    return idxA - idxB;
+    const idxA = masterOrderNames.indexOf(a.name);
+    const idxB = masterOrderNames.indexOf(b.name);
+
+    // 1. 둘 다 MASTER_COVERAGES에 있는 기본 항목이면 배열 인덱스 순서대로 정렬
+    if (idxA !== -1 && idxB !== -1) {
+      return idxA - idxB;
+    }
+    
+    // 2. 수동으로 추가한 커스텀 항목(★)이 섞여 있을 경우: 같은 카테고리 내 기본 항목들의 바로 뒤쪽에 배치
+    if (idxA !== -1 && idxB === -1) {
+      const lastIdxInCat = MASTER_COVERAGES.map(m => m.category).lastIndexOf(b.category);
+      return lastIdxInCat !== -1 && idxA > lastIdxInCat ? 1 : -1;
+    }
+    if (idxA === -1 && idxB !== -1) {
+      const lastIdxInCat = MASTER_COVERAGES.map(m => m.category).lastIndexOf(a.category);
+      return lastIdxInCat !== -1 && idxB > lastIdxInCat ? -1 : 1;
+    }
+
+    return 0;
   });
 
 const getChartValue = (keywords: string[], type: 'before' | 'after', label: string = "") => {
@@ -931,8 +1026,6 @@ const chartDataGrouped = CHART_CONFIG.map(cat => {
 });
 
   chartDataGrouped.forEach(d => { if (d.after < d.before) d.after = d.before; });
-  const beforePoints = chartDataGrouped.map(d => d.before);
-  const afterPoints = chartDataGrouped.map(d => d.after);
 
   return (
     <>
@@ -1372,7 +1465,7 @@ const chartDataGrouped = CHART_CONFIG.map(cat => {
 
               <div className="flex-1 bg-blue-50/50 border border-blue-200 p-6 rounded-2xl print:bg-blue-50 print:border-blue-300 flex flex-col justify-between  print:flex-1 print:justify-between">
                 <p className="text-sm font-bold text-blue-600 mb-6 flex items-center">
-                    최적화 제안
+                   최적화 제안
                 </p>
                 <div className="space-y-4">
                   <div>
@@ -1515,6 +1608,7 @@ const chartDataGrouped = CHART_CONFIG.map(cat => {
                 return (
                   <tr key={index} className="print:break-inside-avoid">
                     <td className="md:px-4 print:px-4 py-2 font-semibold text-gray-800 flex items-center gap-1.5">
+                      {item.isCustom && <span className="text-orange-500 mr-0.5">★</span>}
                       {item.name}
                     </td>
                     <td className={`md:px-4 print:px-4 py-2 text-right ${item.before === 0 ? 'text-red-400' : 'text-gray-500 font-bold'}`}>
@@ -1562,9 +1656,6 @@ const chartDataGrouped = CHART_CONFIG.map(cat => {
                       const beforeAmt = override.before !== undefined ? override.before : calculateCodeCoverage(item.keywords, 'before', item.id, includeSanjeong);
                       const afterAmt = override.after !== undefined ? override.after : calculateCodeCoverage(item.keywords, 'after', item.id, includeSanjeong);
                       const isHighlight = override.highlight !== undefined ? override.highlight : item.highlight;
-
-                      const gap = afterAmt - beforeAmt;
-                      const isUpgraded = gap > 0;
                       const isZeroBefore = beforeAmt === 0;
 
                       return (
@@ -1630,9 +1721,6 @@ const chartDataGrouped = CHART_CONFIG.map(cat => {
                       const beforeAmt = override.before !== undefined ? override.before : calculateCodeCoverage(item.keywords, 'before', item.id, includeSanjeong);
                       const afterAmt = override.after !== undefined ? override.after : calculateCodeCoverage(item.keywords, 'after', item.id, includeSanjeong);
                       const isHighlight = override.highlight !== undefined ? override.highlight : item.highlight;
-                      
-                      const gap = afterAmt - beforeAmt;
-                      const isUpgraded = gap > 0;
                       const isZeroBefore = beforeAmt === 0;
 
                       return (
@@ -1727,7 +1815,7 @@ const chartDataGrouped = CHART_CONFIG.map(cat => {
                                   ) : (
                                     <span className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded border border-amber-200 shrink-0 font-medium">
                                       {badgeText}
-                                  </span>
+                                    </span>
                                   )}
                                   {d.name}
                                 </span>

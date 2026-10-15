@@ -1,9 +1,148 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, Settings2, Star, Search, Check, AlertCircle, Plus, Trash2, CheckCircle2 } from "lucide-react";
-// import { COVERAGE_OPTIONS } from "@/lib/coverageMapper";
 import { CHART_CONFIG } from "@/app/clients/[id]/analysis/page";
+
+// ⭐️ 1. 요청하신 57개 보장표 마스터 항목 정의 (다른 페이지에서도 쓸 수 있도록 export)
+export interface MasterCoverageItem {
+  name: string;
+  isDefault: boolean;
+  kcreditMatch: string | null;
+  category: string;
+}
+
+export const MASTER_COVERAGES: MasterCoverageItem[] = [
+  // 사망 보장
+  { name: "일반사망 진단비", isDefault: false, kcreditMatch: null, category: "사망 보장" },
+  { name: "재해사망 진단비", isDefault: false, kcreditMatch: null, category: "사망 보장" },
+  { name: "상해사망 진단비", isDefault: true, kcreditMatch: "상해사망", category: "사망 보장" },
+  { name: "질병사망 진단비", isDefault: true, kcreditMatch: "질병사망", category: "사망 보장" },
+  
+  // 후유장해 보장
+  { name: "상해 후유장해3%↑", isDefault: true, kcreditMatch: "상해후유장해", category: "후유장해 보장" },
+  { name: "질병 후유장해3%↑", isDefault: true, kcreditMatch: "질병후유장해", category: "후유장해 보장" },
+  { name: "상해 후유장해50%↑", isDefault: false, kcreditMatch: "상해50%이상후유장해", category: "후유장해 보장" },
+  { name: "질병 후유장해50%↑", isDefault: false, kcreditMatch: "질병50%이상후유장해", category: "후유장해 보장" },
+  { name: "상해 후유장해80%↑", isDefault: false, kcreditMatch: "상해80%이상후유장해", category: "후유장해 보장" },
+  { name: "질병 후유장해80%↑", isDefault: false, kcreditMatch: "질병80%이상후유장해", category: "후유장해 보장" },
+
+  // 암 보장 (진단/치료/수술)
+  { name: "일반암 진단비(유사암제외)", isDefault: true, kcreditMatch: "암진단", category: "암 보장 (진단/치료/수술)" },
+  { name: "고액암 진단비", isDefault: false, kcreditMatch: "고액암진단", category: "암 보장 (진단/치료/수술)" },
+  { name: "유사암 진단비", isDefault: true, kcreditMatch: "소액암진단(유사암진단)", category: "암 보장 (진단/치료/수술)" },
+  { name: "암통원 치료비", isDefault: false, kcreditMatch: "암통원", category: "암 보장 (진단/치료/수술)" },
+  { name: "암입원 치료비", isDefault: false, kcreditMatch: "암입원일당", category: "암 보장 (진단/치료/수술)" },
+  { name: "항암방사선약물 치료비", isDefault: false, kcreditMatch: "항암방사선약물치료비", category: "암 보장 (진단/치료/수술)" },
+  { name: "암 수술비", isDefault: false, kcreditMatch: "암수술", category: "암 보장 (진단/치료/수술)" },
+  { name: "암주요 치료비", isDefault: true, kcreditMatch: null, category: "암 보장 (진단/치료/수술)" },
+
+  // 뇌 질환
+  { name: "뇌산정특례대상 진단비", isDefault: true, kcreditMatch: "중증질환(뇌혈관)산정특례대상", category: "뇌 질환" },
+  { name: "뇌혈관질환 진단비", isDefault: true, kcreditMatch: "뇌혈관질환진단", category: "뇌 질환" },
+  { name: "뇌졸중 진단비", isDefault: false, kcreditMatch: "뇌졸중진단", category: "뇌 질환" },
+  { name: "뇌출혈 진단비", isDefault: false, kcreditMatch: "뇌출혈진단", category: "뇌 질환" },
+
+  // 심장 질환
+  { name: "심장산정특례대상 진단비", isDefault: true, kcreditMatch: "중증질환(심장)산정특례대상", category: "심장 질환" },
+  { name: "허혈성심장질환 진단비", isDefault: true, kcreditMatch: "허혈성심장질환진단", category: "심장 질환" },
+  { name: "급성심근경색 진단비", isDefault: false, kcreditMatch: "급성심근경색진단", category: "심장 질환" },
+  { name: "부정맥 진단비", isDefault: false, kcreditMatch: "부정맥진단", category: "심장 질환" },
+  { name: "기타부정맥 진단비", isDefault: false, kcreditMatch: "기타부정맥진단", category: "심장 질환" },
+  { name: "심부전 진단비", isDefault: false, kcreditMatch: "심부전진단", category: "심장 질환" },
+  { name: "심장판막증 진단비", isDefault: false, kcreditMatch: "심장판막증진단", category: "심장 질환" },
+  { name: "심근염 진단비", isDefault: false, kcreditMatch: "심근염진단", category: "심장 질환" },
+
+  // 순환계 질환
+  { name: "순환계질환 진단비", isDefault: true, kcreditMatch: null, category: "순환계 질환" },
+  { name: "순환계주요 치료비", isDefault: true, kcreditMatch: null, category: "순환계 질환" },
+
+  // 일반 수술비
+  { name: "재해 수술비", isDefault: false, kcreditMatch: null, category: "수술비" },
+  { name: "재해1종 수술비", isDefault: false, kcreditMatch: null, category: "수술비" },
+  { name: "재해2종 수술비", isDefault: false, kcreditMatch: null, category: "수술비" },
+  { name: "재해3종 수술비", isDefault: false, kcreditMatch: null, category: "수술비" },
+  { name: "재해4종 수술비", isDefault: false, kcreditMatch: null, category: "수술비" },
+  { name: "재해5종 수술비", isDefault: false, kcreditMatch: null, category: "수술비" },
+  { name: "상해 수술비", isDefault: true, kcreditMatch: "상해수술", category: "수술비" },
+  { name: "상해1종 수술비", isDefault: true, kcreditMatch: "상해종수술", category: "수술비" },
+  { name: "상해2종 수술비", isDefault: true, kcreditMatch: "상해종수술", category: "수술비" },
+  { name: "상해3종 수술비", isDefault: true, kcreditMatch: "상해종수술", category: "수술비" },
+  { name: "상해4종 수술비", isDefault: true, kcreditMatch: "상해종수술", category: "수술비" },
+  { name: "상해5종 수술비", isDefault: true, kcreditMatch: "상해종수술", category: "수술비" },
+  { name: "질병 수술비", isDefault: true, kcreditMatch: "질병수술", category: "수술비" },
+  { name: "질병1종 수술비", isDefault: true, kcreditMatch: "질병종수술", category: "수술비" },
+  { name: "질병2종 수술비", isDefault: true, kcreditMatch: "질병종수술", category: "수술비" },
+  { name: "질병3종 수술비", isDefault: true, kcreditMatch: "질병종수술", category: "수술비" },
+  { name: "질병4종 수술비", isDefault: true, kcreditMatch: "질병종수술", category: "수술비" },
+  { name: "질병5종 수술비", isDefault: true, kcreditMatch: "질병종수술", category: "수술비" },
+
+  // 입원 및 응급실
+  { name: "재해중환자실 입원비", isDefault: false, kcreditMatch: null, category: "입원 및 응급실" },
+  { name: "상해중환자실 입원비", isDefault: false, kcreditMatch: "상해중환자실입원일당", category: "입원 및 응급실" },
+  { name: "질병중환자실 입원비", isDefault: false, kcreditMatch: "질병중환자실입원일당", category: "입원 및 응급실" },
+  { name: "재해 입원비", isDefault: false, kcreditMatch: null, category: "입원 및 응급실" },
+  { name: "상해 입원비", isDefault: true, kcreditMatch: "상해입원일당", category: "입원 및 응급실" },
+  { name: "질병 입원비", isDefault: true, kcreditMatch: "질병입원일당", category: "입원 및 응급실" },
+  { name: "응급실내원비(비응급)", isDefault: true, kcreditMatch: "응급실내원비(비응급)", category: "입원 및 응급실" },
+  { name: "응급실내원비(응급)", isDefault: true, kcreditMatch: "응급실내원비(비응급)", category: "입원 및 응급실" },
+  
+
+  // 상해·골절·화상 및 기타 (치과 및 배상책임 포함)
+  { name: "통합상해 진단비(경증)", isDefault: true, kcreditMatch: null, category: "상해·골절·화상 및 기타" },
+  { name: "통합상해 진단비(중등증)", isDefault: true, kcreditMatch: null, category: "상해·골절·화상 및 기타" },
+  { name: "통합상해 진단비(중증)", isDefault: true, kcreditMatch: null, category: "상해·골절·화상 및 기타" },
+  { name: "골절 진단비(치아파절제외)", isDefault: false, kcreditMatch: "골절진단", category: "상해·골절·화상 및 기타" },
+  { name: "골절 진단비(치아파절포함)", isDefault: false, kcreditMatch: "골절진단", category: "상해·골절·화상 및 기타" },
+  { name: "화상 진단비", isDefault: false, kcreditMatch: "화상진단", category: "상해·골절·화상 및 기타" },
+  { name: "깁스 치료비", isDefault: false, kcreditMatch: "깁스치료", category: "상해·골절·화상 및 기타" },
+  { name: "재활 치료비", isDefault: false, kcreditMatch: null, category: "상해·골절·화상 및 기타" },
+  { name: "보존치료", isDefault: true, kcreditMatch: "치과치료(보존)", category: "상해·골절·화상 및 기타" },
+  { name: "보철치료", isDefault: true, kcreditMatch: "보철치료(영구치)", category: "상해·골절·화상 및 기타" },
+
+  // 장기요양 및 간병
+  { name: "상해간병인 사용비", isDefault: true, kcreditMatch: "간병인상해입원일당", category: "장기요양 및 간병" },
+  { name: "질병간병인 사용비", isDefault: true, kcreditMatch: "간병인질병입원일당", category: "장기요양 및 간병" },
+  { name: "상해간병인 지원비", isDefault: true, kcreditMatch: null, category: "장기요양 및 간병" },
+  { name: "질병간병인 지원비", isDefault: true, kcreditMatch: null, category: "장기요양 및 간병" },
+  { name: "장기요양 1~2등급 진단비", isDefault: false, kcreditMatch: null, category: "장기요양 및 간병" },
+  { name: "장기요양 1~3등급 진단비", isDefault: false, kcreditMatch: null, category: "장기요양 및 간병" },
+  { name: "장기요양 1~4등급 진단비", isDefault: false, kcreditMatch: null, category: "장기요양 및 간병" },
+  { name: "장기요양 1~5등급 진단비", isDefault: false, kcreditMatch: null, category: "장기요양 및 간병" },
+  { name: "장기요양 1~인지지원등급 진단비", isDefault: false, kcreditMatch: null, category: "장기요양 및 간병" },
+  { name: "장기요양 1~2등급 재가급여", isDefault: false, kcreditMatch: null, category: "장기요양 및 간병" },
+  { name: "장기요양 1~3등급 재가급여", isDefault: false, kcreditMatch: null, category: "장기요양 및 간병" },
+  { name: "장기요양 1~4등급 재가급여", isDefault: false, kcreditMatch: null, category: "장기요양 및 간병" },
+  { name: "장기요양 1~5등급 재가급여", isDefault: false, kcreditMatch: null, category: "장기요양 및 간병" },
+  { name: "장기요양 1~인지지원등급 재가급여", isDefault: false, kcreditMatch: null, category: "장기요양 및 간병" },
+  { name: "장기요양 1~2등급 시설급여", isDefault: false, kcreditMatch: null, category: "장기요양 및 간병" },
+  { name: "장기요양 1~3등급 시설급여", isDefault: false, kcreditMatch: null, category: "장기요양 및 간병" },
+  { name: "장기요양 1~4등급 시설급여", isDefault: false, kcreditMatch: null, category: "장기요양 및 간병" },
+  { name: "장기요양 1~5등급 시설급여", isDefault: false, kcreditMatch: null, category: "장기요양 및 간병" },
+  { name: "장기요양 1~인지지원등급 시설급여", isDefault: false, kcreditMatch: null, category: "장기요양 및 간병" },
+
+  // 운전자 비용
+  { name: "교통사고 처리지원금", isDefault: true, kcreditMatch: "교통사고처리지원금", category: "운전자 및 기타법률" },
+  { name: "자동차사고 변호사선임비용", isDefault: true, kcreditMatch: "자동차사고 변호사선임비용", category: "운전자 및 기타법률" },
+  { name: "자동차사고 벌금", isDefault: true, kcreditMatch: "교통사고 벌금(대인)", category: "운전자 및 기타법률" },
+  { name: "자동차부상 치료비", isDefault: true, kcreditMatch: "자동차사고부상위로금", category: "운전자 및 기타법률" },
+  { name: "화재벌금", isDefault: true, kcreditMatch: "화재벌금담보", category: "운전자 및 기타법률" },
+  { name: "가전제품고장수리비용", isDefault: true, kcreditMatch: "가전제품고장수리비용", category: "운전자 및 기타법률" },
+  { name: "가족일상생활배상책임", isDefault: true, kcreditMatch: "가족생활배상책임", category: "운전자 및 기타법률" },
+
+  // 실손의료비
+  { name: "상해의료비", isDefault: true, kcreditMatch: "상해(일반상해,전체상해를 의미)의료비(입원+통원)", category: "실손의료비" },
+  { name: "질병의료비", isDefault: true, kcreditMatch: "질병(전체질병을 의미)의료비(입원+통원)", category: "실손의료비" },
+  { name: "상해입원의료비", isDefault: true, kcreditMatch: "상해(일반상해,전체상해를 의미)입원의료비", category: "실손의료비" },
+  { name: "상해처방의료비", isDefault: true, kcreditMatch: "상해(일반상해,전체상해를 의미)처방조제료 ", category: "실손의료비" },
+  { name: "상해외래의료비", isDefault: true, kcreditMatch: "상해(일반상해,전체상해를 의미)외래의료비", category: "실손의료비" },
+  { name: "질병입원의료비", isDefault: true, kcreditMatch: "질병(전체질병을 의미)입원의료비", category: "실손의료비" },
+  { name: "질병처방의료비", isDefault: true, kcreditMatch: "질병(전체질병을 의미)처방조제료 ", category: "실손의료비" },
+  { name: "질병외래의료비", isDefault: true, kcreditMatch: "질병(전체질병을 의미)외래의료비 ", category: "실손의료비" },
+];
+
+// 기본 체크될 항목 이름 배열 추출
+export const DEFAULT_VISIBLE_COVERAGES = MASTER_COVERAGES.filter(c => c.isDefault).map(c => c.name);
 
 // ⭐️ 데이터 상수 (기존과 동일)
 const CIRCULATORY_CODES = [
@@ -79,32 +218,89 @@ const CANCER_CODES = [
 ];
 
 const CATEGORY_ORDER = [
-  "사망 보장", "후유장해 보장", "암 보장 (진단/치료/수술)", 
-  "뇌 질환", "심장 질환", "순환계 질환", 
-  "일반 수술비", "종수술비", "입원 및 응급실", "상해·골절·화상 및 기타",
-  "운전자 비용", "장기요양 및 간병", "실손의료비"
+  "사망 보장", 
+  "후유장해 보장", 
+  "암 보장 (진단/치료/수술)", 
+  "뇌 질환", 
+  "심장 질환", 
+  "순환계 질환", 
+  "수술비",  
+  "입원 및 응급실", 
+  "상해·골절·화상 및 기타",
+  "장기요양 및 간병",
+  "치아 보장",
+  "운전자 및 기타법률", 
+  "실손의료비"
 ];
 
-const getCategory = (name: string) => {
-  if (name.includes("사망")) return "사망 보장";
-  if (name.includes("후유장해")) return "후유장해 보장";
-  if (name.includes("암") || name.includes("항암") || name.includes("다빈치") || name.includes("로봇")) return "암 보장 (진단/치료/수술)";
-  if (name.includes("뇌")) return "뇌 질환";
-  if (name.includes("심장") || name.includes("심근") || name.includes("허혈") || name.includes("부정맥") || name.includes("심부전") || name.includes("판막")) return "심장 질환";
-  if (name.includes("순환계") || name.includes("혈전")) return "순환계 질환";
-  if (name.includes("1종") || name.includes("2종") || name.includes("3종") || name.includes("4종") || name.includes("5종")) return "종수술비";
-  if (name.includes("수술")) return "일반 수술비";
-  if ((name.includes("입원") && !name.includes("실손")) || name.includes("응급") || name.includes("중환자")) return "입원 및 응급실";
-  if (name.includes("요양") || name.includes("인지") || name.includes("간병")) return "장기요양 및 간병";
-  if (name.includes("자동차") || name.includes("교통") || name.includes("변호사") || name.includes("벌금")) return "운전자 비용";
-  if (name.includes("실손")) return "실손의료비";
-  return "상해·골절·화상 및 기타";
+// ⭐️ 2. kcredit_name 과 name을 비교하여 초기 "기존(before)" / "권장(after)" 값을 찾아주는 매칭 함수
+// ⭐️ (유병자), (간편) 등의 수식어를 무시하고 매칭해주는 헬퍼 함수
+export const isKcreditMatch = (dbKcredit: string | null | undefined, targetKcredit: string | null | undefined): boolean => {
+  if (!dbKcredit || !targetKcredit) return false;
+
+  const clean = (s: string) => s.replace(/\s+/g, "");
+  // 괄호 안팎의 유병자, 간편, 갱신, 비갱신, 무해지 등의 수식어 제거
+  const stripModifiers = (s: string) =>
+    clean(s).replace(/(\(유병자\)|유병자|\(간편\)|간편|\(갱신형\)|\(비갱신형\)|\(무해지\))/g, "");
+
+  const cDb = clean(dbKcredit);
+  const cTarget = clean(targetKcredit);
+  const sDb = stripModifiers(dbKcredit);
+  const sTarget = stripModifiers(targetKcredit);
+
+  // 1. 수식어 제거 후 정확히 일치하는 경우 (예: "암진단(유병자)" -> "암진단" === "암진단")
+  if (cDb === cTarget || sDb === sTarget) return true;
+
+  // 2. DB 값에 타겟 단어가 포함된 경우 (단, '암진단'을 찾을 때 '소액암/유사암/고액암'이 잡히는 오작동 방지)
+  if (sDb.includes(sTarget)) {
+    if (sTarget === "암진단" && (sDb.includes("소액암") || sDb.includes("유사암") || sDb.includes("고액암") || sDb.includes("특정암"))) {
+      return false;
+    }
+    return true;
+  }
+
+  return false;
 };
 
-const formatDetailAmount = (val: string | number) => {
-  if (!val) return "0";
-  const raw = String(val).replace(/,/g, "");
-  return raw.replace(/\d+/g, (match) => Number(match).toLocaleString());
+// ⭐️ 2. kcredit_name 과 name을 비교하여 초기 "기존(before)" / "권장(after)" 값을 찾아주는 매칭 함수
+export const getMatchedAmounts = (masterItem: MasterCoverageItem, rawCoverages: any[]) => {
+  if (!rawCoverages || !Array.isArray(rawCoverages)) return { before: 0, after: 0 };
+
+  const cleanStr = (s: string) => (s || "").replace(/\s+/g, "");
+  const targetNameClean = cleanStr(masterItem.name);
+  const gradeMatch = masterItem.name.match(/[1-5]종/);
+  const gradeKeyword = gradeMatch ? gradeMatch[0] : null;
+  const subTypeMatch = masterItem.name.match(/\((.*?)\)/);
+  const subTypeKeyword = subTypeMatch ? subTypeMatch[1] : null;
+
+  // 1순위: kcredit_name(유병자 등 포함)과 name 세부 조건이 모두 일치하는 경우
+  let matched = rawCoverages.find((c: any) => {
+    const cName = cleanStr(c.name);
+
+    if (isKcreditMatch(c.kcredit_name, masterItem.kcreditMatch)) {
+      if (cName === targetNameClean) return true;
+      if (gradeKeyword && cName.includes(gradeKeyword)) return true;
+      if (subTypeKeyword && cName.includes(cleanStr(subTypeKeyword))) return true;
+    }
+    return false;
+  });
+
+  if (!matched && masterItem.kcreditMatch && !gradeKeyword) {
+    matched = rawCoverages.find((c: any) => isKcreditMatch(c.kcredit_name, masterItem.kcreditMatch));
+  }
+
+  // 3순위: name 컬럼 자체로 직접 비교
+  if (!matched) {
+    matched = rawCoverages.find((c: any) => {
+      const cName = cleanStr(c.name);
+      return cName === targetNameClean || (cName && targetNameClean.includes(cName)) || (cName && cName.includes(targetNameClean));
+    });
+  }
+
+  return {
+    before: matched?.before !== undefined ? Number(matched.before) : 0,
+    after: matched?.after !== undefined ? Number(matched.after) : 0,
+  };
 };
 
 export default function SettingsModal({
@@ -118,7 +314,15 @@ export default function SettingsModal({
   
   const [settingsTab, setSettingsTab] = useState<'kcd' | 'coverage' | 'radar' | 'pension'>('radar');
   const [tempKcdOverrides, setTempKcdOverrides] = useState(initialKcdOverrides || {});
-  const [tempVisibleCoverages, setTempVisibleCoverages] = useState(initialVisibleCoverages || []);
+  
+  // ⭐️ 초기 표시 항목이 비어있다면, (기본)으로 지정된 항목들을 자동 체크 상태로 시작합니다.
+  const [tempVisibleCoverages, setTempVisibleCoverages] = useState<string[]>(() => {
+    if (initialVisibleCoverages && initialVisibleCoverages.length > 0) {
+      return initialVisibleCoverages;
+    }
+    return DEFAULT_VISIBLE_COVERAGES;
+  });
+
   const [tempCustomCoverages, setTempCustomCoverages] = useState(initialCustomCoverages || []);
   const [tempCoverageOverrides, setTempCoverageOverrides] = useState(initialCoverageOverrides || {});
   const [tempRadarTargets, setTempRadarTargets] = useState<Record<string, number>>(initialRadarTargets || {});
@@ -132,9 +336,16 @@ export default function SettingsModal({
   });
   const [searchCovItem, setSearchCovItem] = useState("");
   const [customInputs, setCustomInputs] = useState<Record<string, { name: string, before: string, after: string }>>({});
-
-  // ⭐️ 상태 추가: 저장 중 및 저장 완료 상태
   const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // 부모로부터 전달받은 초기값이 변경될 때 동기화 (단, 비어있으면 기본값 유지)
+  useEffect(() => {
+    if (initialVisibleCoverages && initialVisibleCoverages.length > 0) {
+      setTempVisibleCoverages(initialVisibleCoverages);
+    } else {
+      setTempVisibleCoverages(DEFAULT_VISIBLE_COVERAGES);
+    }
+  }, [initialVisibleCoverages]);
 
   if (!isOpen) return null;
 
@@ -167,7 +378,9 @@ export default function SettingsModal({
   };
 
   const toggleVisibleCoverage = (name: string) => {
-    setTempVisibleCoverages((prev: any[]) => prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]);
+    setTempVisibleCoverages((prev: string[]) => 
+      prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]
+    );
   };
 
   const handleCustomInputChange = (cat: string, field: 'name' | 'before' | 'after', value: string) => {
@@ -195,7 +408,6 @@ export default function SettingsModal({
     setTempCustomCoverages((prev: any[]) => prev.filter(c => c.id !== id));
   };
 
-  // ⭐️ 저장 핸들러 업데이트 (모달이 스스로 닫히지 않고 상태만 변경)
   const handleSave = async () => {
     try {
       await onSave({
@@ -404,7 +616,7 @@ export default function SettingsModal({
             </div>
           )}
 
-          {/* 2. 보장표 항목 설정 탭 */}
+          {/* 2. ⭐️ 보장표 항목 설정 탭 (57개 마스터 항목 및 kcredit_name 매칭 적용) */}
           {settingsTab === 'coverage' && (
             <div className="space-y-4">
               <div className="sticky -top-5 z-20 bg-slate-50/50 backdrop-blur-md pt-4 pb-3 -mx-4 px-4 -mt-5">
@@ -421,9 +633,25 @@ export default function SettingsModal({
               </div>
 
               {CATEGORY_ORDER.map(cat => {
-                const standardItems = analysisData.coverages.filter((c: any) => getCategory(c.name) === cat);
+                // 마스터 항목에서 해당 카테고리에 속하는 항목들을 가져와 kcredit_name 매칭 초기값을 계산합니다.
+                const rawCoverages = analysisData?.coverages || [];
+                const standardItems = MASTER_COVERAGES
+                  .filter(m => m.category === cat)
+                  .map(m => {
+                    const matched = getMatchedAmounts(m, rawCoverages);
+                    return {
+                      name: m.name,
+                      before: matched.before,
+                      after: matched.after,
+                      isDefault: m.isDefault,
+                      kcreditMatch: m.kcreditMatch
+                    };
+                  });
+
                 const customItems = tempCustomCoverages.filter((c: any) => c.category === cat);
-                const allItems = [...standardItems, ...customItems].filter(item => item.name.toLowerCase().includes(searchCovItem.toLowerCase()));
+                const allItems = [...standardItems, ...customItems].filter(item => 
+                  item.name.toLowerCase().includes(searchCovItem.toLowerCase())
+                );
                 
                 if (allItems.length === 0 && !cat.toLowerCase().includes(searchCovItem.toLowerCase())) return null;
 
@@ -451,10 +679,12 @@ export default function SettingsModal({
                                     className="cursor-pointer mt-0.5 w-3.5 h-3.5 rounded text-blue-600 border-slate-300 shrink-0"
                                   />
                                 )}
-                                <p className={`font-bold text-[12px] leading-tight ${isVisible ? 'text-slate-800' : 'text-slate-500'}`}>
-                                  {isCustom && <span className="text-orange-500 mr-0.5">★</span>}
-                                  {item.name}
-                                </p>
+                                <div>
+                                  <p className={`font-bold text-[12px] leading-tight ${isVisible ? 'text-slate-800' : 'text-slate-500'}`}>
+                                    {isCustom && <span className="text-orange-500 mr-0.5">★</span>}
+                                    {item.name}
+                                  </p>
+                                </div>
                               </div>
                               {isCustom && (
                                 <button onClick={() => handleDeleteCustomCoverage(item.id)} className="cursor-pointer p-1 text-slate-300 hover:text-red-500 bg-white rounded-md shrink-0">
@@ -507,7 +737,7 @@ export default function SettingsModal({
                         placeholder="새 항목명 입력..."
                         value={customInputs[cat]?.name || ""}
                         onChange={(e) => handleCustomInputChange(cat, 'name', e.target.value)}
-                        className="w-full py-1.5 px-3 rounded-md border border-slate-200 text-xs font-bold outline-none focus:border-blue-400"
+                        className="w-full py-1.5 px-3 rounded-md border border-slate-200 text-xs font-bold outline-none focus:border-blue-400 bg-white"
                       />
                       <div className="flex gap-2">
                         <div className="relative flex-1">
@@ -516,7 +746,7 @@ export default function SettingsModal({
                             placeholder="기존액"
                             value={customInputs[cat]?.before || ""}
                             onChange={(e) => handleCustomInputChange(cat, 'before', e.target.value)}
-                            className="w-full text-right pr-5 py-1.5 pl-2 rounded-md border border-slate-200 text-xs font-bold outline-none focus:border-blue-400"
+                            className="w-full text-right pr-5 py-1.5 pl-2 rounded-md border border-slate-200 text-xs font-bold outline-none focus:border-blue-400 bg-white"
                           />
                           <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold pointer-events-none">만</span>
                         </div>
@@ -526,7 +756,7 @@ export default function SettingsModal({
                             placeholder="권장액"
                             value={customInputs[cat]?.after || ""}
                             onChange={(e) => handleCustomInputChange(cat, 'after', e.target.value)}
-                            className="w-full text-right pr-5 py-1.5 pl-2 rounded-md border border-slate-200 text-xs font-bold outline-none focus:border-blue-400"
+                            className="w-full text-right pr-5 py-1.5 pl-2 rounded-md border border-slate-200 text-xs font-bold outline-none focus:border-blue-400 bg-white"
                           />
                           <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold pointer-events-none">만</span>
                         </div>
@@ -640,7 +870,7 @@ export default function SettingsModal({
 
         </div>
 
-        {/* ⭐️ 모달 푸터 (저장 버튼 영역 상태 피드백 적용) */}
+        {/* 모달 푸터 */}
         <div className="bg-white px-5 py-4 border-t border-slate-200 flex justify-end shrink-0 gap-2.5 pb-safe">
           <button onClick={onClose} className="cursor-pointer flex-1 lg:flex-none px-4 py-3 text-sm rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">
             닫기

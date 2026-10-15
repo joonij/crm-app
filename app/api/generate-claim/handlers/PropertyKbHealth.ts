@@ -25,10 +25,10 @@ export const fillPropertyKbHealth = async (pdfDoc: PDFDocument, data: any, font:
   };
 
   // 튜닝 시 아래 주석을 풀고 확인하세요.
-  if (firstPage) drawGrid(firstPage);
-  if (secondPage) drawGrid(secondPage);
-  if (thirdPage) drawGrid(thirdPage);
-  if (fourthPage) drawGrid(fourthPage);
+  // if (firstPage) drawGrid(firstPage);
+  // if (secondPage) drawGrid(secondPage);
+  // if (thirdPage) drawGrid(thirdPage);
+  // if (fourthPage) drawGrid(fourthPage);
 
   // ==========================================
   // 헬퍼 함수 모음

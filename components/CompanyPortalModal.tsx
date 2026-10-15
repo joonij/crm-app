@@ -1,19 +1,15 @@
+// components/CompanyPortalModal.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { 
   X, Monitor, Headset, PhoneCall, HandHelping, 
   Printer, FileSearch, FileText, ChevronRight,
   Lock, Copy, Eye, EyeOff, CheckCircle2,
-  Smartphone
+  Smartphone, UploadCloud, Loader2, BarChart
 } from "lucide-react";
 import QuickClaimModal from "@/components/QuickClaimModal";
-
-const SUPPORTED_COMPANIES = [
-  "ABL생명", "라이나생명", "미래에셋생명", "흥국생명", 
-  "DB손해", "KB손해", "라이나손해", "메리츠화재", "삼성화재", "한화손해", "현대해상"
-];
 
 export type CompanyData = {
   id: string;
@@ -44,7 +40,27 @@ export default function CompanyPortalModal({ isOpen, onClose, company, targetAge
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
   
-  const isSupported = company ? SUPPORTED_COMPANIES.some(c => company.name.includes(c)) : false;
+  const [supportedCompanies, setSupportedCompanies] = useState<string[]>([]);
+  
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ⭐️ DB 스키마에 맞춰 'company_name' 컬럼을 불러오도록 수정
+  useEffect(() => {
+    const fetchSupportedCompanies = async () => {
+      const { data, error } = await supabase
+        .from("insurance_companies")
+        .select("company_name")
+        .eq("has_claim_form", true);
+        
+      if (!error && data) {
+        setSupportedCompanies(data.map((d: any) => d.company_name));
+      }
+    };
+    fetchSupportedCompanies();
+  }, []);
+
+  const isSupported = company ? supportedCompanies.some(c => company.name.includes(c)) : false;
 
   useEffect(() => {
     const fetchCredentials = async () => {
@@ -85,6 +101,23 @@ export default function CompanyPortalModal({ isOpen, onClose, company, targetAge
     navigator.clipboard.writeText(text);
     setCopiedField(field);
     setTimeout(() => setCopiedField(null), 2000);
+  };
+
+  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsAnalyzing(true);
+    try {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      alert(`[${file.name}]\n파일 전송 성공!\n\n※ 실제 보험 리스트 자동 생성 및 DB 저장은 백엔드 AI(API) 연동 후 작동합니다.`);
+    } catch (error) {
+      console.error(error);
+      alert("분석 중 오류가 발생했습니다.");
+    } finally {
+      setIsAnalyzing(false);
+      if (fileInputRef.current) fileInputRef.current.value = ""; 
+    }
   };
 
   if (!isOpen || !company) return null;
@@ -304,6 +337,7 @@ export default function CompanyPortalModal({ isOpen, onClose, company, targetAge
             </div>
           </div>
 
+
           <div className="space-y-3">
             <h4 className="text-sm font-black text-slate-800 px-1">📄 약관 및 청구</h4>
             <div className="flex flex-col gap-2 w-full pb-2">
@@ -342,7 +376,7 @@ export default function CompanyPortalModal({ isOpen, onClose, company, targetAge
                   href={company.claimUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="relative w-full flex items-center justify-center gap-2 bg-orange-50 px-4 py-3 rounded-xl border border-orange-200 hover:bg-orange-100 hover:border-orange-300 transition-colors cursor-pointer text-sm font-bold text-orange-700 group"
+                  className="relative w-full flex items-center justify-center gap-2 bg-orange-50 px-4 py-3 rounded-xl border border-orange-200 hover:bg-orange-100 hover:border-orange-300 transition-colors cursor-pointer text-sm font-bold text-orange-700 group shadow-sm"
                 >
                   <Smartphone className="w-4 h-4 text-orange-500 shrink-0" />
                   <span>모바일/웹 직접 청구</span>
@@ -356,6 +390,7 @@ export default function CompanyPortalModal({ isOpen, onClose, company, targetAge
               )}
             </div>
           </div>
+          
           <div className="space-y-3 pb-8">
             <div className="flex items-center justify-between px-1">
               <h4 className="text-sm font-black text-slate-800 flex items-center gap-1.5">💳 카드납 수납 규정</h4>

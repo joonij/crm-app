@@ -1,9 +1,14 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // 기존에 있던 다른 설정들이 있다면 이 위치에 그대로 유지하세요.
+  // ⭐️ 대용량 PDF 파일 업로드를 위해 용량 제한을 1MB에서 10MB로 늘립니다.
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '10mb',
+    },
+  },
   
-  // ⭐️ experimental 밖으로 꺼내서 최상단에 배치합니다.
+  // 기존 설정 유지
   outputFileTracingIncludes: {
     '/api/**/*': ['./public/templates/**/*'],
   },
