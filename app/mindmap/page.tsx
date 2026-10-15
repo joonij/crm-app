@@ -462,7 +462,8 @@ export default function CustomerMindmap() {
       });
 
       const initialEdges = [...categoryEdges, ...clientEdges];
-      const layoutedNodes = buildStrictRadialLayout(initialNodes, initialEdges, clients.length);
+      // const layoutedNodes = buildStrictRadialLayout(initialNodes, initialEdges, clients.length);
+      const layoutedNodes = buildStrictRadialLayout(initialNodes, initialEdges);
 
       baseNodesRef.current = layoutedNodes;
       baseEdgesRef.current = initialEdges;
