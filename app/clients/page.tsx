@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, useMemo, useRef } from "react";
-import { Plus, Users, X, CheckSquare, Square, BarChart3, Phone, Search, Crown, UserPlus, Star, Trash2, ChevronDown, Info, Send, CalendarDays } from "lucide-react";
+import { Network, Plus, Users, X, CheckSquare, Square, BarChart3, Phone, Search, Crown, UserPlus, Star, Trash2, ChevronDown, Info, Send, CalendarDays } from "lucide-react";
 import ClientModal from "@/components/ClientModal";
 import { supabase } from "@/lib/supabase";
 import Link from 'next/link';
@@ -702,7 +702,7 @@ ${medicalMemo}`;
             <p className="mt-2 text-sm text-gray-500">등록된 고객 정보를 조회하고 관리합니다.</p>
           </div>
           
-          <div className="flex gap-2 w-full sm:w-auto">
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
             {/* <label className="cursor-pointer w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 shrink-0 shadow-sm">
               <FileEdit className="h-5 w-5" strokeWidth={2} />
               엑셀 일괄 등록
@@ -713,7 +713,13 @@ ${medicalMemo}`;
                 onChange={handleCsvUpload} 
               />
             </label> */}
-
+            <Link
+                href="/mindmap"
+                className="cursor-pointer w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-white border border-gray-200 px-6 py-3.5 text-sm font-bold text-gray-700 transition-all hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 shrink-0 shadow-sm"
+              >
+              <Network className="h-5 w-5" strokeWidth={2} />
+              네트워크 맵
+            </Link>
             <button
               type="button"
               onClick={() => setIsModalOpen(true)}
