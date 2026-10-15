@@ -718,7 +718,7 @@ ${medicalMemo}`;
                 className="cursor-pointer w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-white border border-gray-200 px-6 py-3.5 text-sm font-bold text-gray-700 transition-all hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 shrink-0 shadow-sm"
               >
               <Network className="h-5 w-5" strokeWidth={2} />
-              네트워크 맵
+              고객조직도
             </Link>
             <button
               type="button"

@@ -448,7 +448,7 @@ export default function InsuranceModal({
           <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-4 space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <p className="text-sm font-bold text-indigo-900">메리츠화재 보장분석 파싱 (보장/실손구분 매칭 지원)</p>
+                <p className="text-sm font-bold text-indigo-900">메리츠화재 보장분석 파싱</p>
               </div>
             </div>
             <div className="flex flex-col sm:flex-row gap-2">

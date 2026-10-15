@@ -125,7 +125,27 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
   const [focusedClientField, setFocusedClientField] = useState<'contractor' | 'insured' | 'beneficiary' | null>(null);
 
   const [isAnalyzingPdf, setIsAnalyzingPdf] = useState(false);
+  const [pdfProgress, setPdfProgress] = useState(0); // ⭐️ 진행률(%) 상태 추가
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ⭐️ 분석 중(isAnalyzingPdf)일 때 퍼센트를 점진적으로 올려주는 타이머
+  useEffect(() => {
+    if (!isAnalyzingPdf) {
+      const resetTimer = setTimeout(() => setPdfProgress(0), 300);
+      return () => clearTimeout(resetTimer);
+    }
+
+    setPdfProgress(5); // 시작 즉시 5% 표시
+    const interval = setInterval(() => {
+      setPdfProgress((prev) => {
+        if (prev >= 95) return 95; // 서버 응답이 올 때까지 95%에서 대기
+        const step = prev < 40 ? 6 : prev < 75 ? 3 : 1; // 초반엔 빠르게, 후반엔 천천히 증가
+        return Math.min(95, prev + step);
+      });
+    }, 400);
+
+    return () => clearInterval(interval);
+  }, [isAnalyzingPdf]);
 
   const fetchCoverages = async () => {
     const { data } = await supabase.from("subscription_insurance").select("*").eq("client_id", clientId);
@@ -377,6 +397,8 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
       }
 
       await fetchCoverages(); 
+      setPdfProgress(100);
+      await new Promise((r) => setTimeout(r, 150));
       alert(`[${file.name}]\n파일 분석 완료!\n\n총 ${safeDataForDB.length}건의 보험 내역이 성공적으로 자동 생성되었습니다.`);
     } catch (error: any) {
       console.error("PDF Parsing Error:", error);
@@ -711,10 +733,17 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
               type="button"
               onClick={() => fileInputRef.current?.click()} 
               disabled={isAnalyzingPdf} 
-              className="flex flex-1 sm:flex-none items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
+              className="relative overflow-hidden flex flex-1 sm:flex-none items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-90 disabled:cursor-not-allowed cursor-pointer min-w-[140px]"
             >
-              {isAnalyzingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-              {isAnalyzingPdf ? "분석 중..." : "기존 분석표 분석"}
+              {/* ⭐️ 버튼 하단 진행률 게이지 바 */}
+              {isAnalyzingPdf && (
+                <div 
+                  className="absolute bottom-0 left-0 h-1 bg-emerald-500 transition-all duration-300 ease-out"
+                  style={{ width: `${pdfProgress}%` }}
+                />
+              )}
+              {isAnalyzingPdf ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <FileText className="w-4 h-4 shrink-0" />}
+              <span>{isAnalyzingPdf ? `분석 중... (${pdfProgress}%)` : "보험 분석 파싱"}</span>
             </button>
             <button type="button" onClick={() => setIsCovModalOpen(true)} className="cursor-pointer flex flex-1 sm:flex-none items-center justify-center gap-1.5 rounded-lg bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-600 transition-colors hover:bg-blue-100">
               <Plus className="w-4 h-4" /> 보험 추가

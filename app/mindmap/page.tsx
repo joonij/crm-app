@@ -14,22 +14,33 @@ import {
   MarkerType
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Users, Crown, Zap, User, ChevronDown, Search, UserPlus } from 'lucide-react';
+import { Users, Crown, Zap, User, ChevronDown, Search, UserPlus, FolderGit2, ArrowLeft } from 'lucide-react';
 
-// --- 1. 테마 및 리크루팅(보라색) 조건이 추가된 커스텀 노드 ---
+// --- 1. 루트 / 유입경로 분류(Category) / 고객 커스텀 노드 ---
+// --- 1. 고객 수에 따라 크기가 동적으로 커지는 커스텀 노드 ---
+// --- 1. 고객 수에 따라 폰트와 박스가 대폭 커지는 커스텀 노드 ---
 const ClientNode = ({ data }: { data: any }) => {
   const isRoot = data.isRoot;
+  const isCategory = data.isCategory;
   const isVIP = data.connectionCount >= 3; 
   const hasRecruiting = !!data.recruiting_status; 
   const isDimmed = data.isDimmed; 
-  const isExactMatch = data.isExactMatch; // 검색어와 직접 일치하는 노드 강조용
+  const isExactMatch = data.isExactMatch;
 
+  // 레이아웃 함수에서 자동 주입된 배율 사용 (기본값 보장)
+  const rootScale = data.rootScale || 1;
+  const catScale = data.catScale || 1;
+
+  // 1) 중앙 루트 노드 (담당자) - 기본 폰트 및 원 크기 대폭 확대
   if (isRoot) {
     return (
-      <div className={`w-24 h-24 rounded-full bg-gradient-to-br from-blue-600 to-indigo-700 flex flex-col items-center justify-center text-white shadow-xl ring-8 ring-blue-100 z-50 transition-all duration-300 cursor-pointer ${isDimmed ? 'opacity-20 grayscale' : 'opacity-100 hover:scale-105'}`}>
-        <User className="w-8 h-8 mb-1 text-blue-200" />
-        <span className="text-sm font-black text-center px-2 leading-tight">{data.label}</span>
-        <span className="text-[10px] text-blue-100 font-bold mt-1 bg-blue-900/40 px-2 py-0.5 rounded-full">
+      <div 
+        style={{ transform: `translate(-50%, -50%) scale(${rootScale})` }}
+        className={`w-36 h-36 rounded-full bg-gradient-to-br from-blue-600 to-indigo-700 flex flex-col items-center justify-center text-white shadow-2xl ring-[10px] ring-blue-100/90 z-50 transition-opacity duration-300 cursor-pointer origin-center ${isDimmed ? 'opacity-20 grayscale' : 'opacity-100'}`}
+      >
+        <User className="w-10 h-10 mb-1.5 text-blue-200 shrink-0" />
+        <span className="text-xl font-black text-center px-2 leading-tight whitespace-nowrap tracking-tight">{data.label}</span>
+        <span className="text-xs text-blue-100 font-extrabold mt-1.5 bg-blue-900/60 px-3 py-0.5 rounded-full whitespace-nowrap">
           총 {data.totalClients}명
         </span>
         <Handle type="source" position={Position.Bottom} className="opacity-0" style={{ top: '50%', left: '50%' }} />
@@ -38,6 +49,27 @@ const ClientNode = ({ data }: { data: any }) => {
     );
   }
 
+  // 2) 1단계 시작 분류 노드 (본인, 지인, 소개, DB, 돌방, 소모임, 거점) - 폰트 및 패딩 대폭 확대
+  if (isCategory) {
+    return (
+      <div 
+        style={{ transform: `translate(-50%, -50%) scale(${catScale})` }}
+        className={`px-6 py-3.5 rounded-2xl bg-slate-800 text-white border-2 border-slate-500 flex items-center gap-3.5 shadow-2xl z-40 transition-opacity duration-300 origin-center whitespace-nowrap ${isDimmed ? 'opacity-20 grayscale pointer-events-none' : 'opacity-100'}`}
+      >
+        <Handle type="target" position={Position.Top} className="opacity-0" style={{ top: '50%', left: '50%' }} />
+        <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-400/40 flex items-center justify-center text-indigo-300 shrink-0">
+          <FolderGit2 className="w-5 h-5" />
+        </div>
+        <div className="flex flex-col pr-1">
+          <span className="text-lg font-black tracking-wide text-white leading-tight">{data.label}</span>
+          <span className="text-xs font-extrabold text-indigo-200 mt-0.5">{data.count}명 시작</span>
+        </div>
+        <Handle type="source" position={Position.Bottom} className="opacity-0" style={{ top: '50%', left: '50%' }} />
+      </div>
+    );
+  }
+
+  // 3) 일반 고객 노드
   let borderClass = 'border-slate-200 hover:border-blue-300 hover:shadow-blue-50';
   let iconBgClass = 'bg-slate-100 text-slate-500';
   let textClass = 'text-slate-700';
@@ -55,7 +87,6 @@ const ClientNode = ({ data }: { data: any }) => {
     IconComponent = Crown;
   }
 
-  // 검색된 당사자라면 파란색 테두리로 한 번 더 강하게 강조
   if (isExactMatch) {
     borderClass = 'border-blue-500 ring-4 ring-blue-200 shadow-blue-200';
   }
@@ -63,7 +94,10 @@ const ClientNode = ({ data }: { data: any }) => {
   const dimClass = isDimmed ? 'opacity-20 grayscale pointer-events-none' : 'opacity-100 hover:scale-110 cursor-pointer';
 
   return (
-    <div className={`px-4 py-2 rounded-full border bg-white flex items-center gap-2 transition-all duration-300 shadow-sm z-40 ${borderClass} ${dimClass}`}>
+    <div 
+      style={{ transform: 'translate(-50%, -50%)' }}
+      className={`px-4 py-2 rounded-full border bg-white flex items-center gap-2 transition-all duration-300 shadow-sm z-40 whitespace-nowrap ${borderClass} ${dimClass}`}
+    >
       <Handle type="target" position={Position.Top} className="opacity-0" style={{ top: '50%', left: '50%' }} />
       
       <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${iconBgClass}`}>
@@ -72,7 +106,7 @@ const ClientNode = ({ data }: { data: any }) => {
       
       <div className="flex flex-col pr-2">
         <span className={`text-xs font-black ${textClass}`}>{data.label}</span>
-        <span className="text-[8px] font-bold text-slate-400">{data.client_source || '직접 발굴'}</span>
+        <span className="text-[8px] font-bold text-slate-400">{data.client_source || '미지정'}</span>
       </div>
       
       {data.connectionCount > 0 && (
@@ -88,7 +122,7 @@ const ClientNode = ({ data }: { data: any }) => {
 
 const nodeTypes = { customClient: ClientNode };
 
-// --- 2. 선 교차 방지 방사형 알고리즘 ---
+// --- 2. 선 교차 및 카테고리 겹침 방지 방사형 알고리즘 (배율 자동 주입) ---
 const buildStrictRadialLayout = (nodes: any[], edges: any[]) => {
   const adj: Record<string, string[]> = {};
   edges.forEach(e => {
@@ -97,7 +131,7 @@ const buildStrictRadialLayout = (nodes: any[], edges: any[]) => {
   });
 
   const leavesCount: Record<string, number> = {};
-  const getLeaves = (id: string) => {
+  const getLeaves = (id: string): number => {
     if (!adj[id] || adj[id].length === 0) {
       leavesCount[id] = 1;
       return 1;
@@ -111,9 +145,26 @@ const buildStrictRadialLayout = (nodes: any[], edges: any[]) => {
   };
 
   const totalLeaves = getLeaves('root-me');
-  const minRadiusStep = Math.max(300, (totalLeaves * 100) / (2 * Math.PI));
 
-  const positionedNodes = [...nodes];
+  // ⭐️ 전체 고객 수(노드 수)를 자체 계산하여 배율 산출 (350명 기준 rootScale ≈ 6.2배, catScale ≈ 5.3배)
+  const totalClientsCount = nodes.filter(n => !n.data?.isRoot && !n.data?.isCategory).length;
+  const rootScale = Math.min(7.5, Math.max(1, 1 + Math.max(0, totalClientsCount - 20) / 62));
+  const catScale = Math.min(6.5, Math.max(1, 1 + Math.max(0, totalClientsCount - 20) / 75));
+
+  // ⭐️ 커진 루트 노드와 카테고리 노드가 서로 부딪히지 않도록 카테고리 원 반경(catRadius)을 넉넉히 확보
+  const catRadius = Math.max(400, rootScale * 150 + catScale * 220);
+  const minRadiusStep = Math.max(catRadius + 550, (totalLeaves * 95) / (2 * Math.PI));
+
+  // 모든 노드의 data에 계산된 배율을 자동 주입
+  const positionedNodes = nodes.map(n => ({
+    ...n,
+    data: {
+      ...n.data,
+      totalClients: totalClientsCount,
+      rootScale,
+      catScale,
+    }
+  }));
   const nodeMap = new Map(positionedNodes.map(n => [n.id, n]));
 
   const placeRadial = (nodeId: string, angleStart: number, angleEnd: number, depth: number) => {
@@ -121,7 +172,7 @@ const buildStrictRadialLayout = (nodes: any[], edges: any[]) => {
     if (!node) return;
 
     const angle = (angleStart + angleEnd) / 2;
-    const radius = depth === 0 ? 0 : minRadiusStep + (depth - 1) * 250; 
+    const radius = depth === 0 ? 0 : depth === 1 ? catRadius : minRadiusStep + (depth - 2) * 280;
 
     node.position = {
       x: Math.cos(angle) * radius,
@@ -132,19 +183,47 @@ const buildStrictRadialLayout = (nodes: any[], edges: any[]) => {
     if (children.length > 0) {
       const totalChildLeaves = children.reduce((sum, child) => sum + (leavesCount[child] || 1), 0);
       let currentAngle = angleStart;
-      
-      children.forEach(child => {
-        const childLeaves = leavesCount[child] || 1;
-        const slice = (childLeaves / totalChildLeaves) * (angleEnd - angleStart);
-        placeRadial(child, currentAngle, currentAngle + slice, depth + 1);
-        currentAngle += slice;
-      });
+      const availableSpan = angleEnd - angleStart;
+
+      // 1단계 카테고리 노드에 최소 각도(약 25도)를 보장하여 커진 카테고리 박스가 절대 안 겹치게 처리
+      if (depth === 0) {
+        const minCatSlice = Math.min(0.45, availableSpan / children.length);
+        const reservedSpan = minCatSlice * children.length;
+        const remainingSpan = Math.max(0, availableSpan - reservedSpan);
+
+        children.forEach(child => {
+          const childLeaves = leavesCount[child] || 1;
+          const proportionalSlice = totalChildLeaves > 0 ? (childLeaves / totalChildLeaves) * remainingSpan : 0;
+          const slice = minCatSlice + proportionalSlice;
+
+          placeRadial(child, currentAngle, currentAngle + slice, depth + 1);
+          currentAngle += slice;
+        });
+      } else {
+        children.forEach(child => {
+          const childLeaves = leavesCount[child] || 1;
+          const slice = (childLeaves / totalChildLeaves) * availableSpan;
+          placeRadial(child, currentAngle, currentAngle + slice, depth + 1);
+          currentAngle += slice;
+        });
+      }
     }
   };
 
   placeRadial('root-me', 0, 2 * Math.PI, 0);
 
   return positionedNodes;
+};
+
+// 기본 client_source 테이블 백업 맵 (네트워크 지연 대비)
+const DEFAULT_SOURCE_MAP: Record<string, string> = {
+  "1": "본인",
+  "2": "지인",
+  "3": "소개",
+  "4": "DB",
+  "5": "돌방",
+  "6": "소모임",
+  "7": "거점",
 };
 
 export default function CustomerMindmap() {
@@ -213,18 +292,32 @@ export default function CustomerMindmap() {
       setIsLoading(true);
       setSearchTerm(""); 
 
-      const { data: clients, error } = await supabase
-        .from('clients')
-        .select('id, name, introduce_client, client_source, recruiting_status')
-        .eq('agent_id', selectedAgentId); 
+      // ⭐️ 1. client_source 테이블과 clients 테이블을 동시에 조회
+      const [sourcesRes, clientsRes] = await Promise.all([
+        supabase.from('client_source').select('id, source').order('id'),
+        supabase
+          .from('clients')
+          .select('id, name, introduce_client, client_source, recruiting_status')
+          .eq('agent_id', selectedAgentId)
+      ]);
 
-      if (error || !clients) {
+      const clients = clientsRes.data;
+      if (clientsRes.error || !clients) {
         setIsLoading(false);
         return;
       }
 
+      // client_source ID -> 텍스트 매핑 객체 생성
+      const sourceMap: Record<string, string> = { ...DEFAULT_SOURCE_MAP };
+      if (sourcesRes.data) {
+        sourcesRes.data.forEach((s: any) => {
+          sourceMap[String(s.id)] = s.source;
+        });
+      }
+
       const validClientIds = new Set(clients.map(c => String(c.id)));
 
+      // 각 고객별 소개 파생 인원수 집계
       const connectionCounts: Record<string, number> = {};
       clients.forEach(client => {
         if (client.introduce_client && validClientIds.has(String(client.introduce_client))) {
@@ -233,13 +326,35 @@ export default function CustomerMindmap() {
         }
       });
 
-      const getSourceName = (source: any) => {
-        if (!source) return null;
-        if (typeof source === 'string') return source;
-        if (source.name) return source.name;
-        return '소개';
+      // 고객의 유입경로 ID 및 이름 판별 함수
+      const getClientSourceInfo = (client: any) => {
+        const rawSource = client.client_source;
+        if (rawSource !== null && rawSource !== undefined && sourceMap[String(rawSource)]) {
+          return { id: String(rawSource), name: sourceMap[String(rawSource)] };
+        }
+        if (typeof rawSource === 'object' && rawSource?.source) {
+          return { id: String(rawSource.id || 'etc'), name: rawSource.source };
+        }
+        return { id: 'etc', name: '미지정' };
       };
 
+      // ⭐️ 2. 소개자가 없는(1차 시작점) 고객들이 속한 유입경로 분류(Category) 집계
+      const categoryCounts: Record<string, { id: string; name: string; count: number }> = {};
+      clients.forEach(client => {
+        const hasValidReferrer = client.introduce_client && validClientIds.has(String(client.introduce_client));
+        if (!hasValidReferrer) {
+          const srcInfo = getClientSourceInfo(client);
+          const catNodeId = `source-${srcInfo.id}`;
+          if (!categoryCounts[catNodeId]) {
+            categoryCounts[catNodeId] = { id: catNodeId, name: srcInfo.name, count: 0 };
+          }
+          categoryCounts[catNodeId].count += 1;
+        }
+      });
+
+      const activeCategories = Object.values(categoryCounts);
+
+      // ⭐️ 3. 노드 생성: 루트(나) + 유입경로 분류 노드들 + 고객 노드들
       const initialNodes: any[] = [
         {
           id: 'root-me',
@@ -253,53 +368,101 @@ export default function CustomerMindmap() {
             isExactMatch: false
           },
         },
-        ...clients.map((client) => ({
-          id: String(client.id),
+        // 1단계 유입경로 분류 노드 추가
+        ...activeCategories.map((cat) => ({
+          id: cat.id,
           type: 'customClient',
           position: { x: 0, y: 0 },
-          data: { 
-            label: client.name,
-            client_source: getSourceName(client.client_source),
-            connectionCount: connectionCounts[String(client.id)] || 0,
-            recruiting_status: client.recruiting_status, 
+          data: {
+            label: cat.name,
+            count: cat.count,
+            totalClients: clients.length,
+            isCategory: true,
             isDimmed: false,
             isExactMatch: false
-          },
-        }))
+          }
+        })),
+        // 고객 노드 추가
+        ...clients.map((client) => {
+          const srcInfo = getClientSourceInfo(client);
+          const hasValidReferrer = client.introduce_client && validClientIds.has(String(client.introduce_client));
+          return {
+            id: String(client.id),
+            type: 'customClient',
+            position: { x: 0, y: 0 },
+            data: { 
+              label: client.name,
+              client_source: hasValidReferrer ? '소개' : srcInfo.name,
+              connectionCount: connectionCounts[String(client.id)] || 0,
+              recruiting_status: client.recruiting_status, 
+              isDimmed: false,
+              isExactMatch: false
+            },
+          };
+        })
       ];
 
-      const initialEdges = clients.map((client) => {
+      // ⭐️ 4. 엣지(선) 생성: (나 -> 분류 노드) + (분류 노드 -> 1차 고객) + (소개자 -> 소개받은 고객)
+      const categoryEdges = activeCategories.map((cat) => ({
+        id: `e-root-me-${cat.id}`,
+        source: 'root-me',
+        target: cat.id,
+        type: 'straight',
+        animated: false,
+        focusable: false,
+        interactionWidth: 0,
+        data: {
+          originalWidth: 2,
+          originalStroke: '#94a3b8',
+          originalAnimated: false
+        },
+        style: {
+          stroke: '#94a3b8',
+          strokeWidth: 2,
+          pointerEvents: 'none',
+          transition: 'all 0.3s ease'
+        },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color: '#94a3b8',
+        },
+      }));
+
+      const clientEdges = clients.map((client) => {
         const isValidReferrer = client.introduce_client && validClientIds.has(String(client.introduce_client));
-        const sourceId = isValidReferrer ? String(client.introduce_client) : 'root-me';
-        const isDirect = sourceId === 'root-me';
+        const srcInfo = getClientSourceInfo(client);
+        // 소개자가 있으면 소개자에게 연결, 없으면 해당 유입경로 분류 노드에 연결
+        const sourceId = isValidReferrer ? String(client.introduce_client) : `source-${srcInfo.id}`;
+        const isDirectFromCategory = !isValidReferrer;
 
         return {
           id: `e-${sourceId}-${client.id}`,
           source: sourceId,
           target: String(client.id),
           type: 'straight', 
-          animated: !isDirect,
+          animated: !isDirectFromCategory,
           focusable: false,
           interactionWidth: 0,
           data: {
-            originalWidth: isDirect ? 1.5 : 2,
-            originalStroke: isDirect ? '#e2e8f0' : '#60a5fa',
-            originalAnimated: !isDirect
+            originalWidth: isDirectFromCategory ? 1.5 : 2,
+            originalStroke: isDirectFromCategory ? '#cbd5e1' : '#60a5fa',
+            originalAnimated: !isDirectFromCategory
           },
           style: { 
-            stroke: isDirect ? '#e2e8f0' : '#60a5fa', 
-            strokeWidth: isDirect ? 1.5 : 2,
+            stroke: isDirectFromCategory ? '#cbd5e1' : '#60a5fa', 
+            strokeWidth: isDirectFromCategory ? 1.5 : 2,
             pointerEvents: 'none',
             transition: 'all 0.3s ease'
           },
           markerEnd: {
             type: MarkerType.ArrowClosed,
-            color: isDirect ? '#e2e8f0' : '#60a5fa',
+            color: isDirectFromCategory ? '#cbd5e1' : '#60a5fa',
           },
         };
       });
 
-      const layoutedNodes = buildStrictRadialLayout(initialNodes, initialEdges);
+      const initialEdges = [...categoryEdges, ...clientEdges];
+      const layoutedNodes = buildStrictRadialLayout(initialNodes, initialEdges, clients.length);
 
       baseNodesRef.current = layoutedNodes;
       baseEdgesRef.current = initialEdges;
@@ -312,13 +475,12 @@ export default function CustomerMindmap() {
     fetchMindmapData();
   }, [selectedAgentId, selectedAgentName, setNodes, setEdges]);
 
-  // ⭐️ 검색어 경로 추적 및 하이라이트 알고리즘
+  // ⭐️ 검색어 경로 추적 및 하이라이트 알고리즘 (나 -> 분류 노드 -> 소개자 -> 타겟 고객 전체 추적)
   useEffect(() => {
     if (baseNodesRef.current.length === 0) return;
 
     const term = searchTerm.trim().toLowerCase();
     
-    // 검색어가 없으면 원상복구
     if (!term) {
       setNodes(baseNodesRef.current.map(n => ({ ...n, data: { ...n.data, isDimmed: false, isExactMatch: false } })));
       setEdges(baseEdgesRef.current.map(e => ({
@@ -330,21 +492,19 @@ export default function CustomerMindmap() {
       return;
     }
 
-    // 1. 자식(target)에서 부모(source)를 찾기 위한 맵 생성
     const parentMap = new Map();
     baseEdgesRef.current.forEach(e => {
       parentMap.set(e.target, e.source);
     });
 
-    // 2. 검색어와 직접 일치하는 고객 노드 찾기
     const exactMatchNodeIds = new Set();
     baseNodesRef.current.forEach(n => {
+      // 루트 노드가 아니면서 이름(고객명 또는 분류명)이 검색어와 일치하면 매칭
       if (n.id !== 'root-me' && n.data.label.toLowerCase().includes(term)) {
         exactMatchNodeIds.add(n.id);
       }
     });
 
-    // 3. 일치하는 노드부터 뿌리(root-me)까지 역추적하여 경로상의 모든 노드와 엣지 수집
     const pathNodeIds = new Set();
     const pathEdgeIds = new Set();
 
@@ -364,13 +524,10 @@ export default function CustomerMindmap() {
       }
     });
 
-    // 4. 경로에 포함된 노드와 엣지만 선명하게 표시하고 나머지는 블러 처리
     const nextNodes = baseNodesRef.current.map(n => {
       const isOnPath = pathNodeIds.has(n.id);
       const isExactMatch = exactMatchNodeIds.has(n.id);
       const isRoot = n.id === 'root-me';
-      
-      // 검색 결과가 아예 없다면 나(root)를 제외한 모두 흐림 처리
       const isDimmed = exactMatchNodeIds.size === 0 ? !isRoot : (!isOnPath && !isRoot);
 
       return {
@@ -386,10 +543,10 @@ export default function CustomerMindmap() {
         animated: isOnPath ? true : e.data.originalAnimated,
         style: {
           ...e.style,
-          stroke: isOnPath ? '#3b82f6' : '#f1f5f9', // 경로에 있으면 선명한 파란색
-          strokeWidth: isOnPath ? 3 : e.data.originalWidth, // 경로에 있으면 선을 굵게
-          opacity: isOnPath ? 1 : 0.15, // 경로가 아니면 투명도 확 낮춤
-          zIndex: isOnPath ? 10 : 0 // 하이라이트된 선이 위로 올라오도록 설정
+          stroke: isOnPath ? '#3b82f6' : '#f1f5f9',
+          strokeWidth: isOnPath ? 3 : e.data.originalWidth,
+          opacity: isOnPath ? 1 : 0.15,
+          zIndex: isOnPath ? 10 : 0
         },
         markerEnd: {
           type: MarkerType.ArrowClosed,
@@ -403,7 +560,8 @@ export default function CustomerMindmap() {
   }, [searchTerm, setNodes, setEdges]);
 
   const handleNodeClick = useCallback((event: React.MouseEvent, node: any) => {
-    if (!node.data.isRoot) {
+    // 루트 노드와 유입경로 분류 노드는 클릭 시 페이지 이동 제외
+    if (!node.data.isRoot && !node.data.isCategory) {
       router.push(`/clients/${node.id}`);
     }
   }, [router]);
@@ -411,12 +569,22 @@ export default function CustomerMindmap() {
   return (
     <div className="w-full h-screen bg-slate-50 relative flex flex-col overflow-hidden">
       <div className="absolute top-6 left-6 z-10 bg-white/90 backdrop-blur px-6 py-4 rounded-2xl border border-gray-200 shadow-sm min-w-[280px]">
-        <h1 className="text-xl font-black text-slate-800 flex items-center gap-2">
-          <Zap className="w-5 h-5 text-blue-500" />
-          네트워크 인텔리전스
-        </h1>
+        <div className="flex items-center gap-2.5">
+          <button
+            type="button"
+            onClick={() => router.back()}
+            title="이전 페이지로 돌아가기"
+            className="cursor-pointer p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-slate-600 hover:text-slate-900 border border-slate-200/60 transition-all active:scale-95 shadow-2xs shrink-0"
+          >
+            <ArrowLeft className="w-4 h-4 stroke-[2.5]" />
+          </button>
+          <h1 className="text-xl font-black text-slate-800 flex items-center gap-1.5">
+            <Zap className="w-5 h-5 text-blue-500 shrink-0" />
+            고객조직도
+          </h1>
+        </div>
         <p className="text-[10px] font-bold text-slate-400 mt-1 mb-3">
-          사방으로 뻗어나가는 고객 네트워크를 확인하세요.
+          유입경로별 시작점과 소개 파생 네트워크를 확인하세요.
         </p>
 
         {teamAgents.length > 0 && (
@@ -446,7 +614,7 @@ export default function CustomerMindmap() {
         <div className="relative mb-4">
           <input 
             type="text" 
-            placeholder="고객 이름 검색..." 
+            placeholder="고객명 또는 유입경로 검색..." 
             className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-sm font-bold py-2 pl-9 pr-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder:font-medium"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -455,6 +623,9 @@ export default function CustomerMindmap() {
         </div>
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[10px] font-bold pt-2 border-t border-slate-100">
+          <div className="flex items-center gap-1.5 text-slate-700">
+            <FolderGit2 className="w-3 h-3 text-indigo-500" /> 유입경로 분류
+          </div>
           <div className="flex items-center gap-1.5 text-amber-500">
             <Crown className="w-3 h-3" /> VIP (허브 고객)
           </div>
@@ -469,7 +640,7 @@ export default function CustomerMindmap() {
 
       {isLoading ? (
         <div className="flex flex-1 items-center justify-center font-bold text-blue-600">
-          네트워크 데이터 정렬 중...
+          데이터 정렬 중...
         </div>
       ) : (
         <ReactFlow
