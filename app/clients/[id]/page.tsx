@@ -380,7 +380,7 @@ export default function ClientDetailPage() {
         if (r1y) resultParts.push(`[1년 내 같은 질병(코드) 병원 이력]\n${r1y}`);
 
         if (admissions.length > 0) resultParts.push(`[5년 내 입원 이력]\n${admissions.join('\n')}`);
-        if (surgeries.length > 0) resultParts.push(`[5년 내 수술 의심 (처치/수술 & 진료비 5만원↑)]\n${surgeries.join('\n')}`);
+        if (surgeries.length > 0) resultParts.push(`[5년 내 수술 이력]\n${surgeries.join('\n')}`);
 
         const v7 = renderGrouped(grouped.visit7, '회');
         if (v7) resultParts.push(`[5년 내 같은 코드로 7번 이상 병원 이력]\n${v7}`);

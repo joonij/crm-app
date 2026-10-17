@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { 
   CheckCircle2, ChevronRight, ChevronLeft, Loader2, Save, 
-  CalendarDays, Edit3, Plus, Search, ChevronDown, X
+  CalendarDays, Edit3, Plus, Search, ChevronDown, X, RotateCcw
 } from "lucide-react";
 
 const SALES_STEPS = [
@@ -35,14 +35,16 @@ const getLocalString = (d: Date) => {
   return `${year}-${month}-${day}`;
 };
 
+// ⭐️ 핵심 수정 1: 18시(오후 6시) 이전까지는 전날 데이터로 마감, 18시 이후부터는 당일 데이터로 마감
 const getLogicalToday = () => {
   const d = new Date();
-  if (d.getHours() < 6) {
+  if (d.getHours() < 18) {
     d.setDate(d.getDate() - 1);
   }
   return getLocalString(d);
 };
 
+// ⭐️ 누락되었던 마이너스(-) 연산자 복구
 const getTomorrowStr = (dateStr: string) => {
   const [y, m, d] = dateStr.split('-').map(Number);
   const t = new Date(y, m - 1, d);
@@ -80,10 +82,32 @@ export default function DailyClosingPage() {
     client_name: '', 
     details: '', 
     amount: '', 
-    date: getLocalString(new Date(Date.now() + 86400000 * 3))
+    date: getLocalString(new Date(Date.now() + 86400000 * 3)) // ⭐️ 곱하기(*) 연산자 복구
   });
   const [pipelineClientSearch, setPipelineClientSearch] = useState("");
   const [isPipelineClientDropdownOpen, setIsPipelineClientDropdownOpen] = useState(false);
+
+  // DB에서 특정 마감일 기준 최신 데이터를 불러오는 공통 함수
+  const loadFreshDataFromDB = async (myAgentId: number, targetDate: string) => {
+    const { data: pData } = await supabase.from('sales_pipelines')
+      .select('*')
+      .eq('agent_id', myAgentId)
+      .not('status', 'in', '("계약","거절","증권 전달")')
+      .order('expected_date', { ascending: true });
+    if (pData) setPipelines(pData);
+
+    const nextDayStr = getTomorrowStr(targetDate);
+    const { data: sData } = await supabase.from('schedules')
+      .select('*')
+      .eq('agent_id', myAgentId)
+      .in('date', [targetDate, nextDayStr]); 
+    
+    if (sData) {
+      setTodaySchedules(sData.filter(s => s.date === targetDate));
+      setTomorrowSchedules(sData.filter(s => s.date === nextDayStr)); 
+    }
+    setForm(prev => ({ ...prev, date: nextDayStr }));
+  };
 
   useEffect(() => {
     const fetchClosingData = async () => {
@@ -98,44 +122,33 @@ export default function DailyClosingPage() {
       setAgentId(myAgentId);
       setAgencyId((agentData as any).agency_id); 
       const { data: cData } = await supabase.from('clients').select('id, name, phone').eq('agent_id', myAgentId);
-      if(cData) setClients(cData);
+      if (cData) setClients(cData);
 
-      let currentClosingDate = closingDate;
+      // ⭐️ 핵심 수정 2: 18시 기준 논리적 마감일 산출 후, 과거(예: 10/1)의 묵은 임시저장본은 즉시 파기
+      const logicalToday = getLogicalToday();
+      setClosingDate(logicalToday);
+
       const draft = localStorage.getItem(`dailyClosingDraft_${myAgentId}`);
       if (draft) {
         try {
           const parsed = JSON.parse(draft);
-          if (parsed.closingDate) {
-            currentClosingDate = parsed.closingDate;
-            setClosingDate(parsed.closingDate);
+          if (parsed.closingDate === logicalToday) {
+            setPipelines(parsed.pipelines || []);
+            setTodaySchedules(parsed.todaySchedules || []);
+            setTomorrowSchedules(parsed.tomorrowSchedules || []);
+            if (parsed.form) setForm(parsed.form);
+            setIsLoading(false);
+            return;
+          } else {
+            // 오늘 기준 마감일과 다른 과거 임시저장 데이터(10/1 등)는 자동 삭제
+            localStorage.removeItem(`dailyClosingDraft_${myAgentId}`);
           }
-          setPipelines(parsed.pipelines || []);
-          setTodaySchedules(parsed.todaySchedules || []);
-          setTomorrowSchedules(parsed.tomorrowSchedules || []);
-          if (parsed.form) setForm(parsed.form);
-          setIsLoading(false);
-          return;
-        } catch(e) {}
+        } catch (e) {
+          localStorage.removeItem(`dailyClosingDraft_${myAgentId}`);
+        }
       }
 
-      const { data: pData } = await supabase.from('sales_pipelines')
-        .select('*')
-        .eq('agent_id', myAgentId)
-        .not('status', 'in', '("계약","거절","증권 전달")')
-        .order('expected_date', { ascending: true });
-      if(pData) setPipelines(pData);
-
-      const nextDayStr = getTomorrowStr(currentClosingDate);
-      const { data: sData } = await supabase.from('schedules')
-        .select('*')
-        .eq('agent_id', myAgentId)
-        .in('date', [currentClosingDate, nextDayStr]); 
-      
-      if(sData) {
-        setTodaySchedules(sData.filter(s => s.date === currentClosingDate));
-        setTomorrowSchedules(sData.filter(s => s.date === nextDayStr)); 
-      }
-
+      await loadFreshDataFromDB(myAgentId, logicalToday);
       setIsLoading(false);
     };
 
@@ -169,21 +182,21 @@ export default function DailyClosingPage() {
     
     if (agentId) {
       setIsLoading(true);
-      const nextDayStr = getTomorrowStr(newDate);
-
-      const { data: sData } = await supabase.from('schedules')
-        .select('*')
-        .eq('agent_id', agentId)
-        .in('date', [newDate, nextDayStr]); 
-
-      if(sData) {
-        setTodaySchedules(sData.filter(s => s.date === newDate));
-        setTomorrowSchedules(sData.filter(s => s.date === nextDayStr));
-      }
-      
-      setForm(prev => ({ ...prev, date: nextDayStr }));
+      await loadFreshDataFromDB(agentId, newDate);
       setIsLoading(false);
     }
+  };
+
+  // 임시저장 데이터를 비우고 DB에서 다시 불러오는 새로고침 핸들러
+  const handleResetDraft = async () => {
+    if (!agentId) return;
+    if (!confirm("임시저장된 내용을 초기화하고 현재 날짜 기준 최신 데이터를 다시 불러오시겠습니까?")) return;
+    setIsLoading(true);
+    localStorage.removeItem(`dailyClosingDraft_${agentId}`);
+    const targetDate = getLogicalToday();
+    setClosingDate(targetDate);
+    await loadFreshDataFromDB(agentId, targetDate);
+    setIsLoading(false);
   };
 
   const cleanSearchInput = clientSearch.replace(/\s+/g, "").toLowerCase();
@@ -290,7 +303,7 @@ export default function DailyClosingPage() {
       setPipelines([...pipelines, data[0]]);
       setPipelineForm({ 
         client_id: null, client_name: '', details: '', amount: '', 
-        date: getLocalString(new Date(Date.now() + 86400000 * 3)) 
+        date: getLocalString(new Date(Date.now() + 86400000 * 3)) // ⭐️ 곱하기(*) 연산자 복구
       });
       setPipelineClientSearch("");
     }
@@ -390,7 +403,6 @@ export default function DailyClosingPage() {
   }
 
   return (
-    // ⭐️ 수정됨: h-[100dvh]를 사용하여 Safari 주소창 변화에 완벽히 대응
     <div className="fixed inset-0 z-[100] w-full h-[100dvh] bg-white sm:bg-slate-50 flex flex-col sm:p-8 overflow-hidden">
       <div className="bg-white sm:rounded-3xl sm:shadow-lg sm:border border-slate-200 flex-1 flex flex-col overflow-hidden max-w-2xl mx-auto w-full relative">
         
@@ -404,12 +416,22 @@ export default function DailyClosingPage() {
               )}
               <h2 className="text-lg sm:text-xl font-black">일일 마감</h2>
               {step !== 4 && (
-                <input 
-                  type="date" 
-                  value={closingDate}
-                  onChange={handleDateChange}
-                  className="bg-slate-800/80 text-indigo-200 border border-slate-700/50 rounded-md px-2 py-0.5 ml-1 text-xs sm:text-sm font-bold outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-inner"
-                />
+                <>
+                  <input 
+                    type="date" 
+                    value={closingDate}
+                    onChange={handleDateChange}
+                    className="bg-slate-800/80 text-indigo-200 border border-slate-700/50 rounded-md px-2 py-0.5 ml-1 text-xs sm:text-sm font-bold outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-inner"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleResetDraft}
+                    title="임시저장 초기화 및 최신 데이터 불러오기"
+                    className="p-1 text-slate-400 hover:text-indigo-300 transition-colors cursor-pointer rounded-md hover:bg-white/10"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                  </button>
+                </>
               )}
             </div>
             <div className="text-lg sm:text-2xl font-black text-indigo-400 shrink-0 ml-2">
@@ -425,7 +447,6 @@ export default function DailyClosingPage() {
           <div className="absolute bottom-0 left-0 h-1.5 bg-indigo-500 transition-all duration-500" style={{ width: `${(Math.min(step, 3) / 3) * 100}%` }}></div>
         </div>
 
-        {/* ⭐️ 수정됨: pb-32를 추가하여 최하단 요소가 고정 하단 바에 가려지지 않도록 조치 */}
         <div className="p-5 sm:p-6 pb-32 sm:pb-6 flex-1 overflow-y-auto">
           
           {step === 1 && (
@@ -730,7 +751,6 @@ export default function DailyClosingPage() {
         </div>
       </div>
 
-      {/* ⭐️ 수정됨: 하단 고정 바가 아이폰 홈 인디케이터(safe-area) 영역을 침범하지 않도록 여백(pb-[max...]) 설정 */}
       {step !== 4 && (
         <div className="fixed bottom-0 left-0 right-0 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] bg-white/95 backdrop-blur-md border-t border-slate-200 z-50 sm:static sm:bg-transparent sm:border-t-0 sm:backdrop-blur-none sm:p-0 sm:mt-6 sm:max-w-2xl sm:mx-auto w-full">
           <button 

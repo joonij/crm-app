@@ -2,8 +2,12 @@
 
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
-import { ExternalLink, Users, Loader2, Search, ChevronDown } from "lucide-react";
+import { ExternalLink, Users, Loader2, Search, ChevronDown, FileSpreadsheet, Upload, Download } from "lucide-react";
 import CompanyPortalModal, { CompanyData } from "@/components/CompanyPortalModal";
+
+const STORAGE_BUCKET = "support-files";
+const STORAGE_FOLDER = "commission";
+const STORAGE_BASE_NAME = "fc_commission_rate";
 
 function SearchableSelect({ 
   options, value, onChange, placeholder, disabled 
@@ -103,6 +107,36 @@ export default function PortalsPage() {
   const [branchFCs, setBranchFCs] = useState<any[]>([]);
   const [selectedFC, setSelectedFC] = useState("");
 
+  const [commissionFile, setCommissionFile] = useState<{ fileName: string; updatedAt: string } | null>(null);
+  const [isUploadingExcel, setIsUploadingExcel] = useState(false);
+  const [isDownloadingExcel, setIsDownloadingExcel] = useState(false);
+  const excelInputRef = useRef<HTMLInputElement>(null);
+
+  const fetchCommissionFileInfo = async () => {
+    try {
+      const { data, error } = await supabase.storage.from(STORAGE_BUCKET).list(STORAGE_FOLDER, {
+        limit: 10,
+        sortBy: { column: "updated_at", order: "desc" },
+      });
+
+      if (!error && data && data.length > 0) {
+        const target = data.find((f) => f.name.startsWith(STORAGE_BASE_NAME));
+        if (target) {
+          const dateObj = new Date(target.updated_at || target.created_at || Date.now());
+          const yy = String(dateObj.getFullYear()).slice(-2);
+          const mm = String(dateObj.getMonth() + 1).padStart(2, "0");
+          const dd = String(dateObj.getDate()).padStart(2, "0");
+          setCommissionFile({
+            fileName: target.name,
+            updatedAt: `${yy}.${mm}.${dd}`,
+          });
+        }
+      }
+    } catch (e) {
+      console.warn("수수료율 파일 정보 조회 실패:", e);
+    }
+  };
+
   useEffect(() => {
     const initData = async () => {
       setIsLoading(true);
@@ -116,7 +150,8 @@ export default function PortalsPage() {
 
         if (agentData) {
           setMyAgentId(String(agentData.id));
-          const rank = String(agentData.rank).toUpperCase();
+          // ⭐️ rank가 null일 때 빈 문자열 처리 후 대문자 변환
+          const rank = String(agentData.rank || "").toUpperCase();
           setUserRank(rank);
 
           const isOsRole = rank.includes("OS") || rank.includes("총무");
@@ -181,18 +216,84 @@ export default function PortalsPage() {
         });
 
         setCompanies(formattedCompanies);
-
-        // const defaultCompany = formattedCompanies.find(c => c.name === "ABL생명");
-        // if (defaultCompany) {
-        //   setSelectedCompany(defaultCompany);
-        // }
       }
 
+      await fetchCommissionFileInfo();
       setIsLoading(false);
     };
 
     initData();
   }, []);
+
+  // ⭐️ ADMIN 권한 체크가 포함된 엑셀 파일 업로드 핸들러
+  const handleExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!userRank.includes("ADMIN")) {
+      alert("관리자(ADMIN) 권한이 있는 계정만 업로드할 수 있습니다.");
+      return;
+    }
+
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const ext = file.name.split(".").pop()?.toLowerCase() || "xls";
+    if (!["xls", "xlsx", "csv"].includes(ext)) {
+      alert("엑셀 파일(.xls, .xlsx, .csv)만 업로드 가능합니다.");
+      return;
+    }
+
+    setIsUploadingExcel(true);
+    try {
+      if (commissionFile?.fileName && commissionFile.fileName !== `${STORAGE_BASE_NAME}.${ext}`) {
+        await supabase.storage.from(STORAGE_BUCKET).remove([`${STORAGE_FOLDER}/${commissionFile.fileName}`]);
+      }
+
+      const targetPath = `${STORAGE_FOLDER}/${STORAGE_BASE_NAME}.${ext}`;
+      const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(targetPath, file, {
+        cacheControl: "0",
+        upsert: true,
+      });
+
+      if (error) throw error;
+
+      await fetchCommissionFileInfo();
+      alert(`[${file.name}] 파일이 성공적으로 등록(업데이트)되었습니다.`);
+    } catch (err: any) {
+      console.error("Excel Upload Error:", err);
+      alert(`파일 업로드 실패: ${err.message}`);
+    } finally {
+      setIsUploadingExcel(false);
+      if (excelInputRef.current) excelInputRef.current.value = "";
+    }
+  };
+
+  const handleExcelDownload = async () => {
+    if (!commissionFile) {
+      alert("아직 등록된 수수료율 파일이 없습니다.");
+      return;
+    }
+
+    setIsDownloadingExcel(true);
+    try {
+      const targetPath = `${STORAGE_FOLDER}/${commissionFile.fileName}`;
+      const { data, error } = await supabase.storage.from(STORAGE_BUCKET).download(targetPath);
+      if (error || !data) throw error || new Error("파일 데이터를 가져올 수 없습니다.");
+
+      const ext = commissionFile.fileName.split(".").pop() || "xls";
+      const url = window.URL.createObjectURL(data);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `FC수수료율.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      console.error("Excel Download Error:", err);
+      alert(`다운로드 중 오류가 발생했습니다: ${err.message}`);
+    } finally {
+      setIsDownloadingExcel(false);
+    }
+  };
 
   const nonLifeCompanies = companies.filter(c => c.type === "손해보험");
   const lifeCompanies = companies.filter(c => c.type === "생명보험");
@@ -226,6 +327,10 @@ export default function PortalsPage() {
   };
 
   const isOS = userRank.includes('OS') || userRank.includes('총무');
+  // ⭐️ agents 테이블의 rank 컬럼에 'ADMIN'이 포함된 계정만 업로드 가능
+  const isAdmin = userRank.includes('ADMIN');
+  const canUploadFile = isAdmin;
+
   const targetAgentId = isOS ? selectedFC : myAgentId;
   const targetAgentName = branchFCs.find(fc => String(fc.id) === selectedFC)?.name || null;
 
@@ -274,6 +379,84 @@ export default function PortalsPage() {
               </h2>
               <div className="flex flex-wrap gap-3 sm:gap-4">
                 <a 
+                  href="https://fc.t-fs.co.kr/main/login.php"
+                  target="_blank" 
+                  rel="noreferrer"
+                  className="flex items-center gap-3 bg-white border border-gray-200 hover:border-amber-400 hover:bg-amber-50 rounded-2xl px-5 py-4 transition-all shadow-sm hover:shadow-md cursor-pointer group w-full sm:w-auto min-w-[200px]"
+                >
+                  <div className="bg-amber-100 p-2 rounded-xl text-amber-600 group-hover:scale-110 transition-transform">
+                    <ExternalLink className="w-5 h-5" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="font-black text-slate-800 text-sm">T금융서비스</span>
+                    <span className="text-[11px] font-bold text-slate-400">인트라넷</span>
+                  </div>
+                </a>
+                <div
+                  onClick={handleExcelDownload}
+                  className="relative flex items-center gap-3 bg-white border border-gray-200 hover:border-emerald-400 hover:bg-emerald-50/50 rounded-2xl px-5 py-4 transition-all shadow-sm hover:shadow-md cursor-pointer group w-full sm:w-auto min-w-[220px]"
+                >
+                  {canUploadFile && (
+                    <input
+                      type="file"
+                      accept=".xls,.xlsx,.csv"
+                      ref={excelInputRef}
+                      onChange={handleExcelUpload}
+                      onClick={(e) => e.stopPropagation()}
+                      className="hidden"
+                    />
+                  )}
+                  <div className="bg-emerald-100 p-2 rounded-xl text-emerald-600 group-hover:scale-110 transition-transform shrink-0">
+                    {isDownloadingExcel || isUploadingExcel ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <FileSpreadsheet className="w-5 h-5" />
+                    )}
+                  </div>
+                  <div className={`flex flex-col ${canUploadFile ? "pr-6" : ""}`}>
+                    <span className="font-black text-slate-800 text-sm flex items-center gap-1">
+                      바른지사 수수료율
+                      <Download className="w-3.5 h-3.5 text-emerald-600" />
+                    </span>
+                    <span className="text-[11px] font-bold text-slate-400">
+                      {isUploadingExcel
+                        ? "업로드 중..."
+                        : commissionFile
+                        ? `엑셀 다운로드 (${commissionFile.updatedAt})`
+                        : "파일 미등록"}
+                    </span>
+                  </div>
+
+                  {canUploadFile && (
+                    <button
+                      type="button"
+                      title="새 엑셀 파일 업로드(교체) - ADMIN 전용"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        excelInputRef.current?.click();
+                      }}
+                      disabled={isUploadingExcel}
+                      className="cursor-pointer absolute top-2.5 right-2.5 p-1.5 rounded-lg text-slate-400 hover:text-emerald-700 hover:bg-emerald-100/80 transition-colors"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+                <a 
+                  href="https://onedrive.live.com/?id=%2Fpersonal%2Fb107f7f63d3aa2b1%2FDocuments%2F%EC%99%B8%EB%B6%80%5F%EA%B3%B5%EC%9C%A0%ED%8C%8C%EC%9D%BC%28%EC%8B%9C%EC%B1%85%2C%EC%84%A4%EB%AA%85%ED%9A%8C%29%2F%F0%9F%8F%861%EB%93%B1%20%5B%20%EC%8B%9C%EC%B1%85%20%ED%8C%8C%EC%9D%BC%20%5D%F0%9F%9A%A8%EB%B9%84%EA%B5%90%ED%95%B4%20%EB%B3%B4%EC%84%B8%EC%9A%94%28T%EA%B8%88%EC%9C%B5%29&listurl=%2Fpersonal%2Fb107f7f63d3aa2b1%2FDocuments&sortField=LinkFilename&isAscending=true&viewid=073e6ad3%2D1ca0%2D4361%2Dbeff%2Da4bfebbbbd79&redeem=aHR0cHM6Ly8xZHJ2Lm1zL2YvYy9iMTA3ZjdmNjNkM2FhMmIxL0VyR2lPajMyOXdjZ2dMRXh3Z0FBQUFBQmFfQV9aUUxvXzB4d2NYY0NiYnh6cWc%5FZT1zN0dNNFU&ga=1"
+                  target="_blank" 
+                  rel="noreferrer"
+                  className="flex items-center gap-3 bg-white border border-gray-200 hover:border-amber-400 hover:bg-amber-50 rounded-2xl px-5 py-4 transition-all shadow-sm hover:shadow-md cursor-pointer group w-full sm:w-auto min-w-[200px]"
+                >
+                  <div className="bg-amber-100 p-2 rounded-xl text-amber-600 group-hover:scale-110 transition-transform">
+                    <ExternalLink className="w-5 h-5" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="font-black text-slate-800 text-sm">바른지사 시책표</span>
+                    <span className="text-[11px] font-bold text-slate-400">보험사 모든 시책표</span>
+                  </div>
+                </a>
+                <a 
                   href="https://az.bojang114.com/index_real.html"
                   target="_blank" 
                   rel="noreferrer"
@@ -303,6 +486,7 @@ export default function PortalsPage() {
                 </a>
               </div>
             </section>
+
             <section>
               <h2 className="text-lg font-black text-slate-800 mb-4 ml-1 flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> 생명보험사
@@ -319,7 +503,6 @@ export default function PortalsPage() {
                 {nonLifeCompanies.map(renderCompanyCard)}
               </div>
             </section>
-
 
             {otherCompanies.length > 0 && (
               <section>
