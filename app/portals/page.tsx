@@ -443,7 +443,7 @@ export default function PortalsPage() {
                   )}
                 </div>
                 <a 
-                  href="https://onedrive.live.com/?id=%2Fpersonal%2Fb107f7f63d3aa2b1%2FDocuments%2F%EC%99%B8%EB%B6%80%5F%EA%B3%B5%EC%9C%A0%ED%8C%8C%EC%9D%BC%28%EC%8B%9C%EC%B1%85%2C%EC%84%A4%EB%AA%85%ED%9A%8C%29%2F%F0%9F%8F%861%EB%93%B1%20%5B%20%EC%8B%9C%EC%B1%85%20%ED%8C%8C%EC%9D%BC%20%5D%F0%9F%9A%A8%EB%B9%84%EA%B5%90%ED%95%B4%20%EB%B3%B4%EC%84%B8%EC%9A%94%28T%EA%B8%88%EC%9C%B5%29&listurl=%2Fpersonal%2Fb107f7f63d3aa2b1%2FDocuments&sortField=LinkFilename&isAscending=true&viewid=073e6ad3%2D1ca0%2D4361%2Dbeff%2Da4bfebbbbd79&redeem=aHR0cHM6Ly8xZHJ2Lm1zL2YvYy9iMTA3ZjdmNjNkM2FhMmIxL0VyR2lPajMyOXdjZ2dMRXh3Z0FBQUFBQmFfQV9aUUxvXzB4d2NYY0NiYnh6cWc%5FZT1zN0dNNFU&ga=1"
+                  href="https://1drv.ms/f/c/b107f7f63d3aa2b1/ErGiOj329wcggLExwgAAAAABa_A_ZQLo_0xwcXcCbbxzqg?e=s7GM4U"
                   target="_blank" 
                   rel="noreferrer"
                   className="flex items-center gap-3 bg-white border border-gray-200 hover:border-amber-400 hover:bg-amber-50 rounded-2xl px-5 py-4 transition-all shadow-sm hover:shadow-md cursor-pointer group w-full sm:w-auto min-w-[200px]"
