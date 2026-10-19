@@ -328,26 +328,42 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     if (!file) return;
 
     setIsAnalyzingPdf(true);
-    try {
-      const base64Data = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = reader.result as string;
-          resolve(result.split(',')[1]); 
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
+    let uploadedTempPath: string | null = null;
 
+    try {
+      // ⭐️ 1. Vercel 4.5MB 요청 제한 우회를 위해 Supabase Storage 임시 경로에 먼저 업로드
+      const safeRandomName = `temp-pdf/${Date.now()}_${Math.random().toString(36).substring(2, 8)}.pdf`;
+      const { error: uploadErr } = await supabase.storage
+        .from("support-files")
+        .upload(safeRandomName, file, {
+          cacheControl: "0",
+          upsert: true,
+        });
+
+      let requestPayload: any = { clientId };
+
+      if (!uploadErr) {
+        uploadedTempPath = safeRandomName;
+        requestPayload.storagePath = safeRandomName; // 가벼운 경로 텍스트만 전송 (약 100 바이트)
+      } else {
+        // 만약 Storage 업로드에 실패할 경우, 3MB 이하 소용량 파일은 기존 Base64 방식으로 폴백
+        console.warn("Storage 임시 업로드 실패, Base64 전송으로 전환:", uploadErr.message);
+        const base64Data = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve((reader.result as string).split(",")[1]);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        requestPayload.fileBase64 = base64Data;
+      }
+
+      // ⭐️ 2. 서버 API 호출
       const response = await fetch("/api/parse-insurance", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          fileBase64: base64Data,
-          clientId: clientId,
-        }),
+        body: JSON.stringify(requestPayload),
       });
 
       if (!response.ok) {
@@ -356,7 +372,10 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
           const errorData = await response.json();
           errorMsg = errorData.error || errorMsg;
         } catch {
-          errorMsg = `상태 코드 ${response.status}`;
+          errorMsg =
+            response.status === 413
+              ? "파일 용량이 너무 큽니다 (Supabase temp-pdf 업로드 권한을 확인해주세요)."
+              : `상태 코드 ${response.status}`;
         }
         throw new Error(errorMsg);
       }
@@ -383,7 +402,7 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
         agent_name: "", 
         details: Array.isArray(policy.details) ? policy.details.map((d: any) => ({
           name: d.name || "",
-          kcredit_name: d.kcredit_name || "", // 신정원 담보명만 깔끔하게 저장
+          kcredit_name: d.kcredit_name || "",
           amount: String(d.amount) || "0",
           renewal_type: d.renewal_type || "비갱신"
         })) : []
@@ -404,6 +423,10 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
       console.error("PDF Parsing Error:", error);
       alert(`분석 중 오류가 발생했습니다.\n\n[오류 원인]: ${error.message}`);
     } finally {
+      // ⭐️ 3. 분석 완료 또는 에러 발생 시 Storage에 올렸던 임시 PDF 즉시 삭제 (용량 누적 방지)
+      if (uploadedTempPath) {
+        await supabase.storage.from("support-files").remove([uploadedTempPath]);
+      }
       setIsAnalyzingPdf(false);
       if (fileInputRef.current) fileInputRef.current.value = ""; 
     }
@@ -689,14 +712,19 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     let afterPremium = 0;
 
     coverages.forEach(cov => {
-      if (cov.policy_status !== 'cancel') {
-        const originalAmount = cov.remodeled_amount ? cov.remodeled_amount : cov.monthly_premium;
-        const isMyPolicy = currentAgentName && cov.agent_name === currentAgentName;
+      const status = cov.policy_status || 'maintain';
+      // 감액 이력(remodeled_amount)이 있으면 감액 전 원래 보험료를, 없으면 현재 월 보험료를 가져옴
+      const originalAmount = cov.remodeled_amount ? Number(cov.remodeled_amount) : Number(cov.monthly_premium) || 0;
+      const currentAmount = Number(cov.monthly_premium) || 0;
 
-        if ((cov.policy_status === 'maintain' || !cov.policy_status) && !isMyPolicy) {
-          beforePremium += originalAmount;
-        }
-        afterPremium += cov.monthly_premium;
+      // 1. 기존 총 보험료: '신규 제안(new)'이 아닌 모든 기존 보험(유지 + 해지)의 감액/해지 전 원래 보험료 합산
+      if (status !== 'new') {
+        beforePremium += originalAmount;
+      }
+
+      // 2. 권장 총 보험료: '해지(cancel)'가 아닌 보험(유지 + 신규 제안)의 감액 후 현재 보험료 합산
+      if (status !== 'cancel') {
+        afterPremium += currentAmount;
       }
     });
 

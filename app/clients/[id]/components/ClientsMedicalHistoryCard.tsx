@@ -85,18 +85,37 @@ export default function ClientsMedicalHistoryCard({ clientId, initialHistory }: 
         pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
       }
 
+      // ⭐️ 수정 1: 시·분·초 오차를 제거한 로컬 자정(00:00:00) 기준 정확한 날짜 계산
       const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const parseLocalDate = (dateStr: string) => {
+        const [y, m, d] = dateStr.replace(/[-./]/g, "-").split("-").map(Number);
+        return new Date(y, m - 1, d, 0, 0, 0, 0);
+      };
+
       const getDiffDays = (dateStr: string) => {
-        const treatDate = new Date(dateStr.replace(/[-./]/g, '-'));
-        return (today.getTime() - treatDate.getTime()) / (1000 * 60 * 60 * 24);
+        const treatDate = parseLocalDate(dateStr);
+        return Math.floor((today.getTime() - treatDate.getTime()) / (1000 * 60 * 60 * 24));
+      };
+
+      // 달력 기준 정확히 3개월 전 날짜 및 90일 기준 동시 충족 (31일이 낀 달의 91~92일 경계 누락 방지)
+      const threeMonthsAgo = new Date(today.getFullYear(), today.getMonth() - 3, today.getDate(), 0, 0, 0, 0);
+      const isWithin3Months = (dateStr: string) => {
+        const diff = getDiffDays(dateStr);
+        if (diff < 0) return false;
+        const treatDate = parseLocalDate(dateStr);
+        return treatDate >= threeMonthsAgo || diff <= 90;
       };
 
       const basicData: any[] = [];
       const detailData: any[] = [];
       const rxData: any[] = [];
 
-      const basicRx = /(?:(\d{4}-\d{2}-\d{2})\s*\|?\s*(\d+)|(\d+)\s*\|?\s*(\d{4}-\d{2}-\d{2}))\s*\|?\s*(.*?)(?:\s+|\|)+(외래|입원|해당없음)(?:\s+|\|)+([A-Za-z0-9\$\.]+|-)\s*\|?\s*([^|]+?)(?:\s+|\|)+([\d,]+)(?:\s+|\|)+([\d,]+)(?:\s+|\|)+([\d,]+)/g;
-      const detailRx = /(?:(\d{4}-\d{2}-\d{2})\s*\|?\s*(\d+)|(\d+)\s*\|?\s*(\d{4}-\d{2}-\d{2}))\s*\|?\s*([가-힣a-zA-Z0-9\s]+?(?:과의원|과\s*의원|과병원|과\s*병원|의원|약국|병원|한의원|센터|보건소|의료원|과))\s*\|?\s*((?:(?!\d{4}-\d{2}-\d{2})[\s\S])+?)(?:\s+|\|)+(\d+(?:\.\d+)?)(?:\s+|\|)+(\d+)(?:\s+|\|)+(\d+)/g;
+      // ⭐️ 수정 2: 다른 행의 날짜(\d{4}-\d{2}-\d{2})를 침범하지 않도록 방어하고 '처방조제' 및 4열 금액까지 완벽히 대응하는 정규식
+      const basicRx = /(?:(?:\b\d+\s*\|?\s*)?(\d{4}-\d{2}-\d{2})(?:\s*\|?\s*\d+(?=\s|\|))?)\s*\|?\s*((?:(?!\d{4}-\d{2}-\d{2})[^|])+?)(?:\s+|\|)+(외래|입원|처방\s*조제|보건기관|약국|해당없음)(?:\s+|\|)+([A-Za-z0-9\$\.]+|-)\s*\|?\s*((?:(?!\d{4}-\d{2}-\d{2})[^|])+?)(?:\s+|\|)+([\d,]+)(?:\s+|\|)+([\d,]+)(?:\s+|\|)+([\d,]+)(?:(?:\s+|\|)+([\d,]+(?=\s+(?:\d+\s*\|?\s*)?\d{4}-\d{2}-\d{2}\b|\s*$|\s*\|)))?/g;
+
+      const detailRx = /(?:(?:\b\d+\s*\|?\s*)?(\d{4}-\d{2}-\d{2})(?:\s*\|?\s*\d+(?=\s|\|))?)\s*\|?\s*([가-힣a-zA-Z0-9\s\(\)\-\.,]+?(?:과의원|과\s*의원|과병원|과\s*병원|치과의원|치과병원|한의원|한방병원|대학교병원|대학병원|의원|약국|병원|센터|보건소|의료원|치과|과(?!\s*(?:의원|병원))))\s*\|?\s*((?:(?!\d{4}-\d{2}-\d{2})[\s\S])+?)(?:\s+|\|)+(\d+(?:\.\d+)?)(?:\s+|\|)+(\d+)(?:\s+|\|)+(\d+)/g;
 
       let totalPages = 0;
       let processedPages = 0;
@@ -125,22 +144,24 @@ export default function ClientsMedicalHistoryCard({ clientId, initialHistory }: 
         // [1] 기본.PDF 파싱
         if (file.name.includes("기본") || file.name.includes("요약")) {
           let basicLoopCount = 0;
+          basicRx.lastIndex = 0;
           while ((match = basicRx.exec(combinedText)) !== null) {
-            let date = match[1] || match[4];
-            let middleText = match[5] || "";
-            let inOut = match[6];
-            let kcd = match[7];
+            const date = match[1];
+            const middleText = (match[2] || "").trim();
+            const inOut = (match[3] || "").replace(/\s+/g, "");
+            let kcd = (match[4] || "").trim();
             if (kcd === "-") kcd = "코드없음";
-            let disease = (match[8] || "").trim();
+            const disease = (match[5] || "").trim();
             
-            let numDays = match[9] || "0"; 
-            let numCost = match[10] || "0";
+            const numDays = match[6] || "0"; 
+            const numCost = match[7] || "0";
             
-            let extractMatch = middleText.match(/^(.*?(?:의원|병원|약국|센터|보건소|의료원|치과|한의원|대학))\s+(.*)$/);
-            let hospital = extractMatch ? extractMatch[1].trim() : middleText.split(' ')[0];
+            // 기관명 뒤에 공백이 없어도('온누리 약국', '서울 정형외과의원' 등) 잘리지 않도록 보완
+            const extractMatch = middleText.match(/^(.*?(?:과의원|과\s*의원|과병원|과\s*병원|치과의원|치과병원|한의원|한방병원|대학교병원|대학병원|의원|약국|병원|센터|보건소|의료원|치과|대학))(?:\s+.*)?$/);
+            const hospital = extractMatch ? extractMatch[1].trim() : middleText;
             
-            let days = parseInt(numDays.replace(/,/g, ''), 10) || 0;
-            let cost = parseInt(numCost.replace(/,/g, ''), 10) || 0;
+            const days = parseInt(numDays.replace(/,/g, ''), 10) || 0;
+            const cost = parseInt(numCost.replace(/,/g, ''), 10) || 0;
             
             basicData.push({ date, hospital, type: inOut, kcd, disease, days, cost });
 
@@ -150,25 +171,26 @@ export default function ClientsMedicalHistoryCard({ clientId, initialHistory }: 
         // [2] 처방.PDF 파싱
         else if (file.name.includes("처방") || file.name.includes("약품")) {
           let detailLoopCount = 0;
+          detailRx.lastIndex = 0;
           while ((match = detailRx.exec(combinedText)) !== null) {
-            let date = match[1] || match[4];
-            let hospital = (match[5] || "").trim();
-            let middleText = match[6] || "";
-            let days = parseInt(match[9], 10) || 0;
+            const date = match[1];
+            const hospital = (match[2] || "").trim();
+            const middleText = match[3] || "";
+            const days = parseInt(match[6], 10) || 0;
 
             let cleanMiddle = middleText.replace(/(외래|입원|처방\s*조제)/g, '').trim();
             cleanMiddle = cleanMiddle.replace(/^(?:의원|약국|병원)\s*\|?\s*/g, '').trim();
             let drugName = cleanMiddle;
 
             if (cleanMiddle.includes('|')) {
-              let parts = cleanMiddle.split('|').map(s => s.trim()).filter(s => s !== '');
+              const parts = cleanMiddle.split('|').map(s => s.trim()).filter(s => s !== '');
               drugName = parts[0] || "";
             } else {
-              let extractMatch = cleanMiddle.match(/^(.*?\))(?=\s*[a-zA-Z])/);
+              const extractMatch = cleanMiddle.match(/^(.*?\))(?=\s*[a-zA-Z])/);
               if (extractMatch) {
                 drugName = extractMatch[1].trim();
               } else {
-                let engMatch = cleanMiddle.search(/\s[a-z]{3,}/);
+                const engMatch = cleanMiddle.search(/\s[a-z]{3,}/);
                 if (engMatch > 0) {
                   drugName = cleanMiddle.substring(0, engMatch).trim();
                 } else {
@@ -183,10 +205,11 @@ export default function ClientsMedicalHistoryCard({ clientId, initialHistory }: 
         // [3] 세부.PDF 파싱
         else if (file.name.includes("세부")) {
           let detailLoopCount = 0;
+          detailRx.lastIndex = 0;
           while ((match = detailRx.exec(combinedText)) !== null) {
-            let date = match[1] || match[4];
-            let hospital = (match[5] || "").trim();
-            let middleText = match[6] || "";
+            const date = match[1];
+            const hospital = (match[2] || "").trim();
+            const middleText = match[3] || "";
             detailData.push({ date, hospital, treatDetails: middleText.replace(/\s/g, ''), rawMiddle: middleText });
             if (++detailLoopCount % 50 === 0) await new Promise(resolve => setTimeout(resolve, 10));
           }
@@ -195,24 +218,117 @@ export default function ClientsMedicalHistoryCard({ clientId, initialHistory }: 
 
       setProgress(80);
 
-      // ⭐️ 3. 데이터 필터링 및 구분자(·)를 적용한 메모 작성
+      // ⭐️ 공통 헬퍼 1: 세부.PDF(detailData)에서 '처치명' 추출 (5년 내 수술 의심과 동일한 정제 규칙)
+      const extractDetailCodeName = (rawMiddle: string): string => {
+        let codeName = "";
+        if (rawMiddle.includes('|')) {
+          const parts = rawMiddle.split('|').map((s: string) => s.trim()).filter(Boolean);
+          codeName = parts.length > 1 ? parts.slice(1).join(' / ') : parts[0];
+        } else {
+          codeName = rawMiddle.replace(/^.*?(?:\(양방\)|\(한방\)|조제료등|회송료 등|회송료등|료등)\s*/, '').trim();
+        }
+        return codeName || "확인필요";
+      };
+
+      // 특정 일자 + 병원에 해당하는 '처치명' 목록 조회 ('처치' 항목 최우선, 없을 시 주요 검사/치료 항목 추출)
+      const getTreatNamesForVisit = (date: string, hospital: string): string => {
+        if (!hospital || hospital.includes("약국")) return "";
+        const cleanHospPrefix = hospital.replace(/\s+/g, "").substring(0, 2);
+        const sameVisitDetails = detailData.filter(
+          d => d.date === date && d.hospital.replace(/\s+/g, "").substring(0, 2) === cleanHospPrefix
+        );
+        if (sameVisitDetails.length === 0) return "";
+
+        // 1순위: '처치'(처치및수술료)가 포함된 항목 추출
+        const procDetails = sameVisitDetails.filter(d => d.treatDetails.includes("처치"));
+        if (procDetails.length > 0) {
+          const names = Array.from(new Set(procDetails.map(d => extractDetailCodeName(d.rawMiddle))));
+          return names.join(" / ");
+        }
+
+        // 2순위: '처치' 항목이 없는 입원/외래의 경우 기본 진찰료·입원료·조제료를 제외한 주요 치료/검사명 추출
+        const otherDetails = sameVisitDetails.filter(
+          d => !/(진찰료|입원료|투약및조제|의약품관리|식대)/.test(d.treatDetails)
+        );
+        if (otherDetails.length > 0) {
+          const names = Array.from(new Set(otherDetails.map(d => extractDetailCodeName(d.rawMiddle)))).slice(0, 5);
+          return names.join(" / ");
+        }
+        return "";
+      };
+
+      // ⭐️ 공통 헬퍼 2: 특정 일자의 처방.PDF(rxData) 최대 투약일수 계산 (6번 항목과 동일 방식)
+      const getMaxRxDaysForDate = (date: string): number => {
+        const sameDateRx = rxData.filter(rx => rx.date === date);
+        if (sameDateRx.length === 0) return 0;
+        return Math.max(...sameDateRx.map(rx => rx.days || 0));
+      };
+
       let results = { q3M: false, q1Y: false, q5YSurg: false, q5YHosp: false, q5Y7D: false, q5Y30D: false };
       
       const todayStr = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
       let memoLines: string[] = [`■ 심평원 자동 분석 기반 주요 병력 (분석일: ${todayStr})`];
 
-      // ① 3개월 내 다녀온 병원 이력 (약국 포함)
-      const rule1 = basicData.filter(r => getDiffDays(r.date) <= 90);
-      if (rule1.length > 0) {
+      // ① 3개월 내 다녀온 병원 및 약국 이력 (날짜 보정 + 처치명 추가 + 약 처방 투약일수 추가)
+      const rule1_basic = basicData.filter(r => isWithin3Months(r.date));
+      const rule1_rx = rxData.filter(r => isWithin3Months(r.date));
+
+      if (rule1_basic.length > 0 || rule1_rx.length > 0) {
         results.q3M = true;
         memoLines.push("\n[3개월 내 다녀온 병원 및 약국 이력]");
         const r1_printed = new Set<string>();
-        rule1.forEach(r => {
-          if (r.hospital.includes("약국")) {
-            const hasHospital = rule1.some(b => b.date === r.date && !b.hospital.includes("약국"));
-            if (hasHospital) return; 
+        const coveredRxDates = new Set<string>();
+
+        rule1_basic.forEach(r => {
+          const isPharmacy = r.hospital.includes("약국") || r.type === "처방조제";
+          if (isPharmacy) {
+            const hasHospitalSameDay = rule1_basic.some(
+              b => b.date === r.date && !b.hospital.includes("약국") && b.type !== "처방조제"
+            );
+            // 같은 날 병원 진료 내역이 있으면 병원 줄에 (N일 투약)이 통합 표시되므로 중복 약국 줄은 생략
+            if (hasHospitalSameDay) return;
           }
-          const lineText = `- ${r.date} · ${r.hospital} · ${r.kcd} · ${r.disease}`;
+
+          const treatName = getTreatNamesForVisit(r.date, r.hospital);
+          const maxRxDays = getMaxRxDaysForDate(r.date);
+          if (maxRxDays > 0) coveredRxDates.add(r.date);
+
+          let lineText = `- ${r.date} · ${r.hospital} · ${r.kcd} · ${r.disease}`;
+          if (treatName) lineText += ` · 처치명: ${treatName}`;
+          if (maxRxDays > 0) lineText += ` (${maxRxDays}일 투약)`;
+
+          if (!r1_printed.has(lineText)) {
+            memoLines.push(lineText);
+            r1_printed.add(lineText);
+          }
+        });
+
+        // 만약 기본.PDF에는 없고 처방.PDF(rxData)에만 존재하는 3개월 내 처방 이력이 있다면 6번과 동일하게 매칭하여 출력
+        const uncoveredRxDates = Array.from(new Set(rule1_rx.map(r => r.date))).filter(d => !coveredRxDates.has(d));
+        uncoveredRxDates.forEach(date => {
+          const rowsOnDate = rule1_rx.filter(r => r.date === date);
+          const maxDays = Math.max(...rowsOnDate.map(r => r.days || 0));
+          const repRx = rowsOnDate[0];
+
+          let matchedHospital = basicData.find(
+            b => b.date === date && (repRx.hospital.includes(b.hospital) || b.hospital.includes(repRx.hospital)) && b.kcd !== "코드없음" && !b.hospital.includes("약국")
+          );
+          if (!matchedHospital) {
+            matchedHospital = basicData.find(b => b.date === date && b.kcd !== "코드없음" && !b.hospital.includes("약국"));
+          }
+          if (!matchedHospital) {
+            matchedHospital = basicData.find(b => b.date === date && b.kcd !== "코드없음");
+          }
+
+          const displayHospital = matchedHospital ? matchedHospital.hospital : repRx.hospital;
+          const kcd = matchedHospital ? matchedHospital.kcd : "코드없음";
+          const disease = matchedHospital ? matchedHospital.disease : "처방조제";
+          const treatName = getTreatNamesForVisit(date, displayHospital);
+
+          let lineText = `- ${date} · ${displayHospital} · ${kcd} · ${disease}`;
+          if (treatName) lineText += ` · 처치명: ${treatName}`;
+          if (maxDays > 0) lineText += ` (${maxDays}일 투약)`;
+
           if (!r1_printed.has(lineText)) {
             memoLines.push(lineText);
             r1_printed.add(lineText);
@@ -236,18 +352,11 @@ export default function ClientsMedicalHistoryCard({ clientId, initialHistory }: 
       // ③ 5년 내 수술 의심 (세부PDF 4열 '처치' -> 기본PDF 교차검증 -> 9열 5만원 이상)
       const rule3_map = new Map();
       detailData.filter(d => getDiffDays(d.date) <= 1825 && d.treatDetails.includes("처치")).forEach(d => {
-        let codeName = "";
-        if (d.rawMiddle.includes('|')) {
-            let parts = d.rawMiddle.split('|').map((s: string) => s.trim()).filter(Boolean);
-            codeName = parts.length > 1 ? parts.slice(1).join(' / ') : parts[0]; // ⭐️ 쉼표 대신 ' / ' 로 수정
-        } else {
-            codeName = d.rawMiddle.replace(/^.*?(?:\(양방\)|\(한방\)|조제료등|회송료 등|회송료등|료등)\s*/, '').trim();
-        }
-        if (!codeName) codeName = "확인필요";
+        const codeName = extractDetailCodeName(d.rawMiddle);
 
         const matched = basicData.filter(b => 
           b.date === d.date && 
-          (b.hospital.substring(0, 2) === d.hospital.substring(0, 2)) && 
+          (b.hospital.replace(/\s+/g, "").substring(0, 2) === d.hospital.replace(/\s+/g, "").substring(0, 2)) && 
           b.cost >= 50000
         );
         
@@ -258,7 +367,7 @@ export default function ClientsMedicalHistoryCard({ clientId, initialHistory }: 
           } else {
             const existing = rule3_map.get(key);
             if (!existing.detailCodeName.includes(codeName)) {
-              existing.detailCodeName += ` / ${codeName}`; // ⭐️ 쉼표 대신 ' / ' 로 수정
+              existing.detailCodeName += ` / ${codeName}`;
             }
           }
         });
@@ -271,12 +380,17 @@ export default function ClientsMedicalHistoryCard({ clientId, initialHistory }: 
         uniqueRule3.forEach((r: any) => memoLines.push(`- ${r.date} · ${r.hospital} · ${r.kcd} · ${r.disease} · 처치명: ${r.detailCodeName}`));
       }
 
-      // ④ 5년 내 입원 이력
+      // ④ ⭐️ 5년 내 입원 이력 ('처치명' 추출 추가)
       const rule4 = basicData.filter(r => getDiffDays(r.date) <= 1825 && r.type === "입원");
       if (rule4.length > 0) {
         results.q5YHosp = true;
         memoLines.push("\n[5년 내 입원 이력]");
-        rule4.forEach(r => memoLines.push(`- ${r.date} · ${r.hospital} · ${r.kcd} · ${r.disease} · ${r.days}일`));
+        rule4.forEach(r => {
+          const treatName = getTreatNamesForVisit(r.date, r.hospital);
+          let lineText = `- ${r.date} · ${r.hospital} · ${r.kcd} · ${r.disease} · ${r.days}일`;
+          if (treatName) lineText += ` · 처치명: ${treatName}`;
+          memoLines.push(lineText);
+        });
       }
 
       // ⑤ 5년 내 같은 코드로 7번 이상 병원 이력 (약국 제외)
@@ -292,12 +406,11 @@ export default function ClientsMedicalHistoryCard({ clientId, initialHistory }: 
         }
       }
 
-      // ⑥ ⭐️ 로직 전면 개편: 5년 내 같은 질병코드(KCD)로 30일 이상 투약
+      // ⑥ 5년 내 같은 질병코드(KCD)로 30일 이상 투약
       const rule6_rows = rxData.filter(r => getDiffDays(r.date) <= 1825);
       const r6_groups: Record<string, any[]> = {};
       
       rule6_rows.forEach(r => {
-        // 처방전 날짜를 기준으로 기본데이터에서 병원 및 KCD 질병코드 매칭
         let matchedHospital = basicData.find(b => b.date === r.date && (r.hospital.includes(b.hospital) || b.hospital.includes(r.hospital)) && b.kcd !== "코드없음" && !b.hospital.includes("약국"));
         if (!matchedHospital) {
           matchedHospital = basicData.find(b => b.date === r.date && b.kcd !== "코드없음" && !b.hospital.includes("약국"));
@@ -306,9 +419,9 @@ export default function ClientsMedicalHistoryCard({ clientId, initialHistory }: 
           matchedHospital = basicData.find(b => b.date === r.date && b.kcd !== "코드없음");
         }
         
-        let kcd = matchedHospital ? matchedHospital.kcd : "코드없음";
-        let disease = matchedHospital ? matchedHospital.disease : "질병코드없음";
-        let displayHospital = matchedHospital ? matchedHospital.hospital : r.hospital;
+        const kcd = matchedHospital ? matchedHospital.kcd : "코드없음";
+        const disease = matchedHospital ? matchedHospital.disease : "질병코드없음";
+        const displayHospital = matchedHospital ? matchedHospital.hospital : r.hospital;
 
         if (kcd !== "코드없음") {
           if (!r6_groups[kcd]) r6_groups[kcd] = [];
@@ -319,9 +432,7 @@ export default function ClientsMedicalHistoryCard({ clientId, initialHistory }: 
       let r6_found = false;
       const r6_printed = new Set<string>(); 
       
-      // 질병코드(KCD) 그룹별로 합산
       for (const [kcd, rows] of Object.entries(r6_groups)) {
-        // ⭐️ 핵심: 같은 날(date) 약을 여러 개 처방받아도, 치료 목적의 일수는 그 중 최대 일수 1번만 합산
         const dateGroups: Record<string, number> = {};
         rows.forEach(r => {
           if (!dateGroups[r.date] || dateGroups[r.date] < r.days) {
@@ -337,7 +448,7 @@ export default function ClientsMedicalHistoryCard({ clientId, initialHistory }: 
           
           for (const [date, maxDays] of Object.entries(dateGroups)) {
             const repRow = rows.find(r => r.date === date);
-            let lineText = `- ${date} · ${repRow.displayHospital} · ${repRow.kcd} · ${repRow.disease} (${maxDays}일 투약)`;
+            const lineText = `- ${date} · ${repRow.displayHospital} · ${repRow.kcd} · ${repRow.disease} (${maxDays}일 투약)`;
             if (!r6_printed.has(lineText)) {
               memoLines.push(lineText);
               r6_printed.add(lineText);
