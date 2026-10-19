@@ -127,6 +127,7 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
   const [isAnalyzingPdf, setIsAnalyzingPdf] = useState(false);
   const [pdfProgress, setPdfProgress] = useState(0); // ⭐️ 진행률(%) 상태 추가
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [clientAgentName, setClientAgentName] = useState<string>(""); // ⭐️ 해당 고객의 담당 FC 이름 상태 추가
 
   // ⭐️ 분석 중(isAnalyzingPdf)일 때 퍼센트를 점진적으로 올려주는 타이머
   useEffect(() => {
@@ -173,7 +174,20 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
 
     const fetchClient = async () => {
       const { data } = await supabase.from("clients").select("*").eq("id", clientId).single();
-      if (data) setClientData(data);
+      if (data) {
+        setClientData(data);
+        // ⭐️ 고객에게 배정된 담당 FC의 이름을 조회하여 저장
+        if (data.agent_id) {
+          const { data: assignedAgent } = await supabase
+            .from("agents")
+            .select("name")
+            .eq("id", data.agent_id)
+            .single();
+          if (assignedAgent?.name) {
+            setClientAgentName(assignedAgent.name);
+          }
+        }
+      }
     };
 
     const fetchMyClients = async () => {
@@ -331,30 +345,57 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     let uploadedTempPath: string | null = null;
 
     try {
-      // ⭐️ 1. Vercel 4.5MB 요청 제한 우회를 위해 Supabase Storage 임시 경로에 먼저 업로드
-      const safeRandomName = `temp-pdf/${Date.now()}_${Math.random().toString(36).substring(2, 8)}.pdf`;
-      const { error: uploadErr } = await supabase.storage
-        .from("support-files")
-        .upload(safeRandomName, file, {
-          cacheControl: "0",
-          upsert: true,
-        });
-
       let requestPayload: any = { clientId };
+      let extractedText = "";
 
-      if (!uploadErr) {
-        uploadedTempPath = safeRandomName;
-        requestPayload.storagePath = safeRandomName; // 가벼운 경로 텍스트만 전송 (약 100 바이트)
+      // ⭐️ 1. pdfjs-dist로 브라우저에서 텍스트 레이어 초고속 추출 (약 0.2초 소요, 워터마크 무시 & 504 원천 차단)
+      try {
+        const pdfjsLib = await import("pdfjs-dist");
+        if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+          pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+        }
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+        const pageTexts: string[] = [];
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const textContent = await page.getTextContent();
+          const pageStr = textContent.items
+            .map((item: any) => item.str + (item.hasEOL ? "\n" : " "))
+            .join("");
+          pageTexts.push(`\n--- [Page ${i}/${pdf.numPages}] ---\n${pageStr}`);
+        }
+        extractedText = pageTexts.join("\n").trim();
+      } catch (pdfErr) {
+        console.warn("브라우저 텍스트 선추출 실패, 파일 전송 모드로 전환:", pdfErr);
+      }
+
+      // 텍스트가 충분히 추출된 일반 디지털 PDF인 경우 가벼운 텍스트만 전송
+      if (extractedText.length > 200) {
+        requestPayload.extractedText = extractedText;
       } else {
-        // 만약 Storage 업로드에 실패할 경우, 3MB 이하 소용량 파일은 기존 Base64 방식으로 폴백
-        console.warn("Storage 임시 업로드 실패, Base64 전송으로 전환:", uploadErr.message);
-        const base64Data = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve((reader.result as string).split(",")[1]);
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
-        requestPayload.fileBase64 = base64Data;
+        // ⭐️ 스캔본(이미지) PDF인 경우에만 Supabase Storage 경유 또는 Base64로 원본 전송
+        const safeRandomName = `temp-pdf/${Date.now()}_${Math.random().toString(36).substring(2, 8)}.pdf`;
+        const { error: uploadErr } = await supabase.storage
+          .from("support-files")
+          .upload(safeRandomName, file, {
+            cacheControl: "0",
+            upsert: true,
+          });
+
+        if (!uploadErr) {
+          uploadedTempPath = safeRandomName;
+          requestPayload.storagePath = safeRandomName;
+        } else {
+          const base64Data = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve((reader.result as string).split(",")[1]);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+          requestPayload.fileBase64 = base64Data;
+        }
       }
 
       // ⭐️ 2. 서버 API 호출
@@ -372,10 +413,7 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
           const errorData = await response.json();
           errorMsg = errorData.error || errorMsg;
         } catch {
-          errorMsg =
-            response.status === 413
-              ? "파일 용량이 너무 큽니다 (Supabase temp-pdf 업로드 권한을 확인해주세요)."
-              : `상태 코드 ${response.status}`;
+          errorMsg = `상태 코드 ${response.status}`;
         }
         throw new Error(errorMsg);
       }
@@ -387,26 +425,34 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
         return;
       }
 
-      const safeDataForDB = parsedData.map((policy: any) => ({
-        client_id: Number(clientId),
-        insurance_company: policy.insurance_company || "미상",
-        product_name: policy.product_name || "상품명 미상",
-        monthly_premium: Number(policy.monthly_premium) || 0,
-        policy_status: "maintain",
-        subscription_date: policy.subscription_date || null,
-        maturity_date: policy.maturity_date || null,
-        payment_period: policy.payment_period || null,
-        contractor_name: policy.contractor_name || null,
-        insured_name: policy.insured_name || null,
-        beneficiary_name: policy.beneficiary_name || policy.contractor_name || null,
-        agent_name: "", 
-        details: Array.isArray(policy.details) ? policy.details.map((d: any) => ({
-          name: d.name || "",
-          kcredit_name: d.kcredit_name || "",
-          amount: String(d.amount) || "0",
-          renewal_type: d.renewal_type || "비갱신"
-        })) : []
-      }));
+      const responsibleFcName = clientAgentName || currentAgentName || "";
+
+      const safeDataForDB = parsedData.map((policy: any) => {
+        const hasKcredit = Array.isArray(policy.details) && policy.details.some((d: any) => d.kcredit_name && String(d.kcredit_name).trim() !== "");
+        const isSingleNew = policy.policy_status === "new" || (parsedData.length === 1 && !hasKcredit);
+        const finalStatus = isSingleNew ? "new" : "maintain";
+
+        return {
+          client_id: Number(clientId),
+          insurance_company: policy.insurance_company || "미상",
+          product_name: policy.product_name || "상품명 미상",
+          monthly_premium: Number(policy.monthly_premium) || 0,
+          policy_status: finalStatus,
+          subscription_date: policy.subscription_date || null,
+          maturity_date: policy.maturity_date || null,
+          payment_period: policy.payment_period || null,
+          contractor_name: policy.contractor_name || null,
+          insured_name: policy.insured_name || null,
+          beneficiary_name: policy.beneficiary_name || policy.contractor_name || null,
+          agent_name: finalStatus === "new" ? responsibleFcName : "",
+          details: Array.isArray(policy.details) ? policy.details.map((d: any) => ({
+            name: d.name || "",
+            kcredit_name: d.kcredit_name || "",
+            amount: String(d.amount) || "0",
+            renewal_type: d.renewal_type || "비갱신"
+          })) : []
+        };
+      });
 
       const { error } = await supabase.from("subscription_insurance").insert(safeDataForDB);
       
@@ -423,7 +469,6 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
       console.error("PDF Parsing Error:", error);
       alert(`분석 중 오류가 발생했습니다.\n\n[오류 원인]: ${error.message}`);
     } finally {
-      // ⭐️ 3. 분석 완료 또는 에러 발생 시 Storage에 올렸던 임시 PDF 즉시 삭제 (용량 누적 방지)
       if (uploadedTempPath) {
         await supabase.storage.from("support-files").remove([uploadedTempPath]);
       }
