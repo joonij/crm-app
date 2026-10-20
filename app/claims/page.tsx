@@ -132,8 +132,24 @@ export default function ClaimManagementPage() {
   };
   const isSupportedCompany = (companyName: string) => {
     if (!companyName) return false;
-    const comp = insuranceCompanies.find(c => companyName.includes(c.company_name) || c.company_name.includes(companyName));
-    return comp ? (comp.has_claim_form !== false) : false; 
+    const cleanTarget = companyName.replace(/\s+/g, "");
+
+    // ⭐️ 1순위: 이름이 정확히 일치하는 보험사를 먼저 찾음 ('DB생명'이 'KDB생명'에 가로채이는 현상 원천 차단)
+    const exactMatch = insuranceCompanies.find(
+      c => c.company_name.replace(/\s+/g, "") === cleanTarget
+    );
+    if (exactMatch) {
+      return Boolean(exactMatch.has_claim_form);
+    }
+
+    // ⭐️ 2순위: 고객 보유 보험의 보험사명이 약칭/별칭일 경우, 포함 관계이면서 has_claim_form이 true인 회사를 우선 탐색
+    const partialMatch = insuranceCompanies.find(
+      c =>
+        Boolean(c.has_claim_form) &&
+        (cleanTarget.includes(c.company_name.replace(/\s+/g, "")) ||
+          c.company_name.replace(/\s+/g, "").includes(cleanTarget))
+    );
+    return Boolean(partialMatch);
   };
   
   useEffect(() => {
@@ -187,22 +203,21 @@ export default function ClaimManagementPage() {
       const { data: compData } = await supabase.from("insurance_companies").select("company_type, company_name, has_claim_form");
       
       if (compData && compData.length > 0) {
-        const uniqueComps = Array.from(new Map(compData.map(item => [item.company_name, item])).values());
-        setInsuranceCompanies(uniqueComps);
-      } else {
-        setInsuranceCompanies([
-          { company_type: "손해보험", company_name: "메리츠화재", has_claim_form: true },
-          { company_type: "손해보험", company_name: "현대해상", has_claim_form: true },
-          { company_type: "손해보험", company_name: "DB손해", has_claim_form: true },
-          { company_type: "손해보험", company_name: "삼성화재", has_claim_form: true },
-          { company_type: "손해보험", company_name: "KB손해", has_claim_form: true },
-          { company_type: "손해보험", company_name: "한화손해", has_claim_form: true},
-          { company_type: "손해보험", company_name: "흥국화재", has_claim_form: true },
-          { company_type: "손해보험", company_name: "롯데손해", has_claim_form: true },
-          { company_type: "생명보험", company_name: "삼성생명", has_claim_form: true },
-          { company_type: "생명보험", company_name: "교보생명", has_claim_form: true },
-          { company_type: "생명보험", company_name: "흥국생명", has_claim_form: true },
-        ]);
+        // ⭐️ 공백 정규화 및 중복 행 존재 시 has_claim_form === true 값을 최우선으로 유지
+        const compMap = new Map<string, { company_type: string; company_name: string; has_claim_form?: boolean }>();
+        compData.forEach(item => {
+          const cleanName = (item.company_name || "").trim();
+          if (!cleanName) return;
+          const existing = compMap.get(cleanName);
+          if (!existing || (!existing.has_claim_form && item.has_claim_form)) {
+            compMap.set(cleanName, {
+              ...item,
+              company_name: cleanName,
+              has_claim_form: Boolean(item.has_claim_form),
+            });
+          }
+        });
+        setInsuranceCompanies(Array.from(compMap.values()));
       }
 
       const { data: { user } } = await supabase.auth.getUser();
@@ -404,15 +419,18 @@ export default function ClaimManagementPage() {
               <option value="" disabled>보험사 선택</option>
               
               <optgroup label="생명보험사">
-                {lifeCompanies.map(c => (
-                  <option 
-                    key={c.company_name} 
-                    value={c.company_name} 
-                    disabled={!isSupportedCompany(c.company_name)}
-                  >
-                    {!isSupportedCompany(c.company_name) && "- 준비중 : "}{c.company_name} 
-                  </option>
-                ))}
+                {lifeCompanies.map(c => {
+                  const supported = Boolean(c.has_claim_form);
+                  return (
+                    <option 
+                      key={c.company_name} 
+                      value={c.company_name} 
+                      disabled={!supported}
+                    >
+                      {!supported && "- 준비중 : "}{c.company_name} 
+                    </option>
+                  );
+                })}
               </optgroup>
               
               <optgroup label="손해보험사">

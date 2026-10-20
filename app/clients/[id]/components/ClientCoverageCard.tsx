@@ -491,9 +491,21 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
     setExpandedCovId(prev => (prev === id ? null : id));
   };
 
+  const findCompanyExactFirst = (rawName: string | undefined | null) => {
+    const cleanTarget = (rawName || "").replace(/\s+/g, "");
+    if (!cleanTarget) return undefined;
+    return (
+      companies.find(c => c.company_name.replace(/\s+/g, "") === cleanTarget) ||
+      companies.find(
+        c =>
+          cleanTarget.includes(c.company_name.replace(/\s+/g, "")) ||
+          c.company_name.replace(/\s+/g, "").includes(cleanTarget)
+      )
+    );
+  };
+
   const handleOpenClaimModal = (cov: Coverage) => {
-    const companyName = cov.insurance_company || "";
-    const compInfo = companies.find(c => companyName.includes(c.company_name) || c.company_name.includes(companyName));
+    const compInfo = findCompanyExactFirst(cov.insurance_company);
 
     if (!compInfo || !compInfo.has_claim_form) {
       return alert("아직 작성되지 않은 청구서 양식입니다. 관리자에게 문의 남겨주세요.");
@@ -503,7 +515,7 @@ export default function ClientCoverageCard({ clientId }: { clientId: string }) {
   };
 
   const handleOpenTerms = (cov: Coverage) => {
-    const compInfo = companies.find(c => cov.insurance_company?.includes(c.company_name) || c.company_name.includes(cov.insurance_company || ""));
+    const compInfo = findCompanyExactFirst(cov.insurance_company);
     
     if (compInfo && compInfo.terms_url) {
       window.open(compInfo.terms_url, '_blank');

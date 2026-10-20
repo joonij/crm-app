@@ -138,6 +138,7 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
   let supportsSavedAccount = true; // 자동이체계좌
 
   if (companyName.includes("ABL생명")) { supportsSavedAccount = false; }
+  if (companyName.includes("DB생명")) { supportsSavedAccount = false; }
   if (companyName.includes("라이나생명")) { supportsSavedAccount = false; }
   if (companyName.includes("미래에셋생명")) { supportsSavedAccount = false; }
   if (companyName.includes("신한라이프")) { }
@@ -152,27 +153,40 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
   if (companyName.includes("한화손해")) { needsBeneficiarySignature = false; }
   if (companyName.includes("현대해상")) { needsInsuredSignature = false; }
 
-  // ⭐️ 보험사 팩스번호 DB 연동 useEffect
-  useEffect(() => {
-    const fetchFaxNumber = async () => {
-      if (!isOpen || !companyName) return;
+// ⭐️ 보험사 팩스번호 DB 연동 useEffect (1순위: 정확 일치 -> 2순위: 부분 일치)
+useEffect(() => {
+  const fetchFaxNumber = async () => {
+    if (!isOpen || !companyName) return;
+    
+    const { data } = await supabase
+      .from("insurance_companies")
+      .select("company_name, phone_fax");
       
-      const { data } = await supabase
-        .from("insurance_companies")
-        .select("company_name, phone_fax");
-        
-      if (data) {
-        // 이름이 서로 포함되는지 교차 매칭 (예: DB '메리츠화재', 청구 '메리츠화재해상보험')
-        const matched = data.find(c => companyName.includes(c.company_name) || c.company_name.includes(companyName));
-        if (matched && matched.phone_fax) {
-          setCurrentFaxNumber(matched.phone_fax);
-        } else {
-          setCurrentFaxNumber("번호 확인 필요");
-        }
+    if (data) {
+      const cleanTarget = companyName.replace(/\s+/g, "");
+
+      // ⭐️ 1순위: 공백 제거 후 이름이 정확히 일치하는 보험사를 최우선 탐색 ('DB생명'이 'KDB생명'에 매칭되는 현상 원천 차단)
+      const exactMatch = data.find(
+        c => (c.company_name || "").replace(/\s+/g, "") === cleanTarget
+      );
+
+      // ⭐️ 2순위: 정확히 일치하는 이름이 없을 때만(예: 약칭/풀네임) 포함 여부로 탐색
+      const partialMatch = data.find(c => {
+        const cleanComp = (c.company_name || "").replace(/\s+/g, "");
+        return cleanComp && (cleanTarget.includes(cleanComp) || cleanComp.includes(cleanTarget));
+      });
+
+      const matched = exactMatch || partialMatch;
+
+      if (matched && matched.phone_fax) {
+        setCurrentFaxNumber(matched.phone_fax);
+      } else {
+        setCurrentFaxNumber("번호 확인 필요");
       }
-    };
-    fetchFaxNumber();
-  }, [isOpen, companyName]);
+    }
+  };
+  fetchFaxNumber();
+}, [isOpen, companyName]);
 
   useEffect(() => { if (!supportsSavedAccount) setUseSavedAccount(false); }, [supportsSavedAccount]);
   useEffect(() => {
