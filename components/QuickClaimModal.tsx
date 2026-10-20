@@ -141,6 +141,7 @@ export default function QuickClaimModal({ isOpen, onClose, client, insurance }: 
   if (companyName.includes("DB생명")) { supportsSavedAccount = false; }
   if (companyName.includes("라이나생명")) { supportsSavedAccount = false; }
   if (companyName.includes("미래에셋생명")) { supportsSavedAccount = false; }
+  if (companyName.includes("삼성생명")) { supportsSavedAccount = false; }
   if (companyName.includes("신한라이프")) { }
   if (companyName.includes("하나생명")) { supportsSavedAccount = false; }
   if (companyName.includes("흥국생명")) { supportsSavedAccount = false; }

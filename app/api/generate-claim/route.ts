@@ -15,6 +15,7 @@ import { fillLifeAblHealth } from "./handlers/LifeAblHealth";
 import { fillLifeDbHealth } from "./handlers/LifeDbHealth";
 import { fillLifeLinaHealth } from "./handlers/LifeLinaHealth";
 import { fillLifeMiraeAssetHealth } from "./handlers/LifeMiraeAssetHealth";
+import { fillLifeSamsungHealth } from "./handlers/LifeSamsungHealth";
 import { fillLifeShinhanHealth } from "./handlers/LifeShinhanHealth";
 import { fillLifeHanaHealth } from "./handlers/LifeHanaHealth";
 import { fillLifeHeungkukHealth } from "./handlers/LifeHeungkukHealth";
@@ -89,6 +90,10 @@ export async function POST(req: NextRequest) {
     if (claimData.insuranceCompany.includes("미래에셋생명")) {
       fileName = "lifemiraeasset_health.pdf";
       fillFunction = fillLifeMiraeAssetHealth;
+    } 
+    if (claimData.insuranceCompany.includes("삼성생명")) {
+      fileName = "lifesamsung_health.pdf";
+      fillFunction = fillLifeSamsungHealth;
     } 
     if (claimData.insuranceCompany.includes("신한라이프")) {
       fileName = "lifeshinhan_health.pdf";
