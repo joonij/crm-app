@@ -161,9 +161,15 @@ export const fillLifeSamsungHealth = async (pdfDoc: PDFDocument, data: any, font
 
     // 피보험자 최종 서명
     drawText(fourthPage, data.insuredName, 105, 166, 10); 
+    if (insuredSignatureImg) {
+      fourthPage.drawImage(insuredSignatureImg, { x: 172, y: 161, ...sigDims }); 
+    }
 
     // 수익자 최종 서명
     drawText(fourthPage, data.beneficiaryName, 105, 137, 10); 
+    if (signatureImg) {
+      fourthPage.drawImage(signatureImg, { x: 172, y: 132, ...sigDims }); 
+    }
 
     // 하단 날짜 및 서명
     drawText(fourthPage, data.todayYear,  270, 87, 10);
